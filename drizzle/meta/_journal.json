@@ -15,6 +15,13 @@
       "when": 1779698726084,
       "tag": "0001_parched_eternals",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1779717291624,
+      "tag": "0002_lying_ben_urich",
+      "breakpoints": true
     }
   ]
 }

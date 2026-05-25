@@ -5,46 +5,195 @@ import { useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MessageList } from './MessageList'
 import { getMessages } from '~/lib/server/messages'
+import { listSessions, createSession, deleteSession } from '~/lib/server/sessions'
 import { useBuildStream, type PendingNode } from '~/components/canvas/build-stream'
 import { parseDate } from '~/lib/domain/dates'
 import { filesToParts } from '~/lib/files'
 import { takeAttachments } from '~/lib/pending-attachments'
 import type { StoredMessage } from '~/lib/db/messages'
-import type { NodeType, Precision } from '~/lib/domain/types'
+import type { ChatSessionSummary, NodeType, Precision } from '~/lib/domain/types'
 
 const ACCEPT = 'image/*,.pdf,.txt,.md,.csv,.json'
 
 export function ChatPanel({ timelineId, initialPrompt }: { timelineId: string; initialPrompt?: string }) {
-  // Seed the thread from the persisted transcript. Gate render until it's
-  // loaded so useChat initializes with the right messages (it reads them once).
-  const { data: initial } = useQuery({
-    queryKey: ['messages', timelineId],
-    queryFn: () => getMessages({ data: timelineId }),
+  const queryClient = useQueryClient()
+  // The timeline's chat threads. "New chat" adds one; History switches between them.
+  const { data: sessions } = useQuery({
+    queryKey: ['sessions', timelineId],
+    queryFn: () => listSessions({ data: timelineId }),
   })
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const creating = useRef(false)
+  const headerRef = useRef<HTMLElement>(null)
+
+  // Dismiss the History popover on outside-click or Escape.
+  useEffect(() => {
+    if (!historyOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) setHistoryOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setHistoryOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [historyOpen])
+
+  // Bootstrap: default to the latest thread, or create the first one (also covers
+  // a freshly-created timeline arriving from the home prompt bar).
+  useEffect(() => {
+    if (activeSessionId || !sessions) return
+    if (sessions.length > 0) {
+      setActiveSessionId(sessions[0].id)
+      return
+    }
+    if (creating.current) return
+    creating.current = true
+    void (async () => {
+      const created = await createSession({ data: { timelineId } })
+      await queryClient.invalidateQueries({ queryKey: ['sessions', timelineId] })
+      setActiveSessionId(created.id)
+      creating.current = false
+    })()
+  }, [activeSessionId, sessions, timelineId, queryClient])
+
+  async function newChat() {
+    setHistoryOpen(false)
+    const created = await createSession({ data: { timelineId } })
+    await queryClient.invalidateQueries({ queryKey: ['sessions', timelineId] })
+    setActiveSessionId(created.id)
+  }
+
+  async function removeSession(id: string) {
+    await deleteSession({ data: id })
+    await queryClient.invalidateQueries({ queryKey: ['sessions', timelineId] })
+    // Drop selection if we deleted the open thread — bootstrap re-picks or recreates.
+    if (id === activeSessionId) setActiveSessionId(null)
+  }
+
+  const activeTitle = sessions?.find((s) => s.id === activeSessionId)?.title ?? 'New conversation'
 
   return (
     <div className="chat">
-      <header className="chat-header">
-        <h1 className="chat-title">Strata</h1>
-        <span className="chat-sub">timeline: {timelineId}</span>
+      <header className="chat-header" ref={headerRef}>
+        <div className="chat-bar">
+          <span className="chat-bar-title" title={activeTitle}>
+            {activeTitle}
+          </span>
+          <div className="chat-bar-actions">
+            <button type="button" className="chat-bar-btn" onClick={() => void newChat()} title="Start a new chat">
+              + New chat
+            </button>
+            <button
+              type="button"
+              className="chat-bar-btn"
+              onClick={() => setHistoryOpen((v) => !v)}
+              aria-expanded={historyOpen}
+              title="Chat history"
+            >
+              History ▾
+            </button>
+          </div>
+        </div>
+        {historyOpen && (
+          <SessionHistory
+            sessions={sessions ?? []}
+            activeId={activeSessionId}
+            onPick={(id) => {
+              setActiveSessionId(id)
+              setHistoryOpen(false)
+            }}
+            onDelete={(id) => void removeSession(id)}
+          />
+        )}
       </header>
-      {initial === undefined ? (
+      {activeSessionId ? (
+        <Thread key={activeSessionId} timelineId={timelineId} sessionId={activeSessionId} initialPrompt={initialPrompt} />
+      ) : (
         <div className="messages">
           <div className="message message-assistant">Loading conversation…</div>
         </div>
-      ) : (
-        <ChatThread key={timelineId} timelineId={timelineId} initial={initial} initialPrompt={initialPrompt} />
       )}
     </div>
   )
 }
 
+function SessionHistory({
+  sessions,
+  activeId,
+  onPick,
+  onDelete,
+}: {
+  sessions: ChatSessionSummary[]
+  activeId: string | null
+  onPick: (id: string) => void
+  onDelete: (id: string) => void
+}) {
+  return (
+    <div className="chat-history" role="menu">
+      {sessions.length === 0 ? (
+        <div className="chat-history-empty">No conversations yet.</div>
+      ) : (
+        sessions.map((s) => (
+          <div key={s.id} className={`chat-history-row${s.id === activeId ? ' is-active' : ''}`}>
+            <button type="button" className="chat-history-open" onClick={() => onPick(s.id)} role="menuitem">
+              <span className="chat-history-title">{s.title}</span>
+              <span className="chat-history-date">{new Date(s.updatedAt).toLocaleDateString()}</span>
+            </button>
+            <button
+              type="button"
+              className="chat-history-del"
+              onClick={() => onDelete(s.id)}
+              aria-label={`Delete ${s.title}`}
+              title="Delete conversation"
+            >
+              ✕
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+// Gate render until the thread's transcript is loaded, so useChat initializes
+// with the right messages (it reads them once). Keyed by sessionId in the parent.
+function Thread({
+  timelineId,
+  sessionId,
+  initialPrompt,
+}: {
+  timelineId: string
+  sessionId: string
+  initialPrompt?: string
+}) {
+  const { data: initial } = useQuery({
+    queryKey: ['messages', sessionId],
+    queryFn: () => getMessages({ data: sessionId }),
+  })
+  if (initial === undefined) {
+    return (
+      <div className="messages">
+        <div className="message message-assistant">Loading conversation…</div>
+      </div>
+    )
+  }
+  return <ChatThread timelineId={timelineId} sessionId={sessionId} initial={initial} initialPrompt={initialPrompt} />
+}
+
 function ChatThread({
   timelineId,
+  sessionId,
   initial,
   initialPrompt,
 }: {
   timelineId: string
+  sessionId: string
   initial: StoredMessage[]
   initialPrompt?: string
 }) {
@@ -54,15 +203,15 @@ function ChatThread({
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { setPending, setFocusIds } = useBuildStream()
-  // Carry timelineId on every request so turns hit the timeline you're viewing
-  // (not the 'default' fallback) and persist against it.
+  // Carry timelineId + the thread's sessionId on every request so turns hit the
+  // timeline you're viewing and persist against the open thread.
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: '/api/chat', body: { timelineId } }),
-    [timelineId],
+    () => new DefaultChatTransport({ api: '/api/chat', body: { timelineId, sessionId } }),
+    [timelineId, sessionId],
   )
 
   const { messages, sendMessage, status, error, regenerate, clearError } = useChat({
-    id: timelineId,
+    id: sessionId,
     messages: initial as UIMessage[],
     transport,
     onFinish: async () => {
@@ -70,8 +219,10 @@ function ChatThread({
       // (await so the real nodes land before the pending ones disappear).
       await queryClient.invalidateQueries({ queryKey: ['graph', timelineId] })
       setPending([])
-      // Mark the persisted transcript stale so a later remount reloads it.
-      void queryClient.invalidateQueries({ queryKey: ['messages', timelineId] })
+      // Mark the persisted transcript stale so a later remount reloads it, and
+      // refresh the thread list (a new turn can rename/reorder the open thread).
+      void queryClient.invalidateQueries({ queryKey: ['messages', sessionId] })
+      void queryClient.invalidateQueries({ queryKey: ['sessions', timelineId] })
     },
   })
 
@@ -108,7 +259,7 @@ function ChatThread({
     setPending(next)
   }, [messages, status, setPending])
 
-  // Clear the overlay if the thread unmounts mid-stream (e.g. switching timelines).
+  // Clear the overlay if the thread unmounts mid-stream (e.g. switching threads).
   useEffect(() => () => setPending([]), [setPending])
 
   // Lens: mirror the latest answer's `focus` tool call onto the canvas. Derives
@@ -126,7 +277,7 @@ function ChatThread({
   useEffect(() => () => setFocusIds([]), [setFocusIds])
 
   // If the home page kicked this off with a prompt, send it once on a fresh
-  // timeline, then drop ?prompt so a reload doesn't resend it.
+  // thread, then drop ?prompt so a reload doesn't resend it.
   const autoSent = useRef(false)
   useEffect(() => {
     if (autoSent.current || !initialPrompt || initial.length > 0) return
@@ -214,7 +365,7 @@ function ChatThread({
         </button>
         <textarea
           className="chat-input"
-          rows={2}
+          rows={1}
           placeholder="Try: map the history of observability tooling…"
           value={input}
           onChange={(e) => setInput(e.target.value)}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { renameTimeline } from '~/lib/server/timelines'
 
@@ -20,10 +21,10 @@ export function AppBar({ timelineId, title }: { timelineId: string; title: strin
 
   return (
     <div className="app-bar">
-      <span className="app-bar-logo">
+      <Link to="/" className="app-bar-logo" title="Home">
         <span className="app-bar-mark" aria-hidden />
         Strata
-      </span>
+      </Link>
       <span className="app-bar-sep" aria-hidden>
         /
       </span>
