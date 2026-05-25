@@ -1,0 +1,20 @@
+node_modules
+dist
+.output
+.nitro
+.tanstack
+.vite
+
+# Local SQLite database (dev)
+local.db
+local.db-*
+
+# Env
+.env
+.env.local
+
+# Generated route tree
+src/routeTree.gen.ts
+
+.DS_Store
+*.log
