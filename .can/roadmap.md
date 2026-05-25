@@ -6,17 +6,94 @@ syncedAt: 2026-05-25T00:00:00.000Z
 # Strata Roadmap
 
 > Offline source of truth for Sal. **Core UX first — most lovable product before any thought of money.**
-> **Goal:** make the magic moment — *type a prompt, watch an AI build a credible, time-placed timeline on a canvas* — undeniable, then make it lovable to live in.
+> **The pivot (2026-05-25):** the center of gravity moves from *building a knowledge mesh* to *reading grounded, time-anchored stories*. The timeline canvas — already shipped — becomes the **map**; **stories are the product**.
+> **New magic moment:** *tap a moment → an AI tells you a short, source-grounded story, in any voice that was there.*
 
-## Path to v1 — a complete, useful Core
+## Path to v1 — the story product
 
-The loop is built: **build → correct & trust → revisit**, and now **get the output out** (export). **Shipped:** 1.9 chat persistence, 2.1 stream-the-build, 1.10 turn feedback + errors, 2.2 JSON/Markdown export. The functional Core for a useful local-first v1 is **feature-complete** — one thing remains:
+The substrate is built (timeline canvas: build → correct/trust → revisit → export — see **Substrate (shipped)** below). The new v1 is the **lovable story product**, sequenced so the defensible part — primary-source grounding — lands early:
 
-1. **Verify the UI in a real browser** (chore) — typecheck + production build + data-layer/contract tests are green across everything, but the live click-through is still owed. Needs a normal browser (the Claude Preview can't hydrate the dev server) and an `OPENROUTER_API_KEY` to exercise live streaming/errors. **This is the gate to calling v1 done.**
+- **Brutal-minimum lovable:** **S1** (a moment tells a story) + **S2** (every beat is grounded in a real source). That pairing alone is the undeniable demo.
+- **Strong-mode product:** **S3** (multi-POV) + **S4** (witness mode) — the same moment through different eyes, and inside their heads.
 
-Nice-to-haves, none blocking v1: **2.7** PNG/SVG image export, **1.6** auth (pair with self-host), **1.8** multi-model. Still parked: everything under Deferred (no money yet).
+Full PRDs per phase live in [`.can/prd/`](prd/). Everything under **Deferred** stays parked (local-first / single-user; no money yet).
 
-## NOW — Phase 0: The magic moment
+> **Reconciliation guardrails** (baked into every PRD): don't rename the substrate — "moment" is the product word for an existing `node`, and the story layer hangs off `nodes.id` via FKs. Stories are **not** graph Patches — graph edits keep the one-turn-one-Patch invariant; story/POV/interior generation is a separate, **provenance-tracked** flow. Postgres sketch → Drizzle/SQLite; domain time stays **instant + precision** (BCE/fuzzy-safe).
+
+## NOW — S1: Story spine + provenance
+
+The new magic moment: tap a moment → one grounded, readable story; every generation tracked from day one. PRD: [`prd/s1-story-spine.md`](prd/s1-story-spine.md).
+
+- **S1.1 — Story substrate: `people` + `stories` + `story_segments`** `planned` `high` `feature` `#local-31`
+  Tables hang off `nodes.id` (no renames). One primary story per moment; segments ordered + typed by `kind`.
+- **S1.2 — Provenance: `prompt_templates` + `generations` + cache-by-hash** `planned` `high` `feature` `#local-32`
+  Built day one. Every generation records model/tokens/cost/latency; `cacheKey = hash(templateId, inputs)` dedupes.
+- **S1.3 — Generation service: `generateStory` (generateObject → segments)** `planned` `high` `feature` `#local-33`
+  Separate from the graph-tool/Patch loop. Cache check → model → one transaction writes story + segments + generation row.
+- **S1.4 — Reader UX + "Tell the story here" + depth badge** `planned` `high` `feature` `#local-34`
+  Focused reader renders segments by `kind`; `depth_tier` (light/deep) badge; moment affordance to generate.
+
+Done when: tap a moment → generate → read a coherent multi-segment story; identical inputs hit cache; depth tier renders.
+
+## NEXT — S2: Artifact grounding (the moat)
+
+The defensibility layer, pulled early. Tap a sentence → see the primary source it came from. PRD: [`prd/s2-artifact-grounding.md`](prd/s2-artifact-grounding.md).
+
+- **S2.1 — `sources` + `artifacts` (instant+precision dates)** `planned` `high` `feature` `#local-35`
+  Reusable reference data; artifacts carry a BCE-safe `dateInstant` so they can place on the timeline.
+- **S2.2 — `story_artifacts` + `segment_citations` joins** `planned` `high` `feature` `#local-36`
+  Story-level anchors + beat-level "this came from X". Composite PKs.
+- **S2.3 — Grounded generation: story prompt v2 takes artifacts, emits citations** `planned` `high` `feature` `#local-37`
+  Model grounds beats in supplied artifacts and names the artifact per beat → `segment_citations`. Uncited beats stay honest.
+- **S2.4 — Inline citation UX + artifact-first browse** `planned` `medium` `feature` `#local-38`
+  Beat → artifact card (transcript/translation/image/source/reliability). Library of artifacts → anchored stories.
+
+Done when: a story shows inline citations; tap reveals grounding + reliability; you can browse artifacts to their anchored stories.
+
+## LATER — S3: Multi-POV · S4: Witness mode
+
+The two strong modes, once grounding is first-class. PRDs: [`prd/s3-multi-pov.md`](prd/s3-multi-pov.md), [`prd/s4-witness-mode.md`](prd/s4-witness-mode.md).
+
+- **S3.1 — `story_people` cast join (+ people enrichment)** `planned` `medium` `feature` `#local-39`
+  Many stories per moment; a person's role per story. Leverages S1's `povType` / `primaryPersonId`.
+- **S3.2 — POV-constrained generation (epistemic vantage)** `planned` `medium` `feature` `#local-40`
+  Generate a person's version grounded in shared artifacts, limited to what they could know; prior POVs passed in to avoid paraphrase.
+- **S3.3 — POV switcher + "Add a perspective" + person thread** `planned` `medium` `feature` `#local-41`
+  Switch eyes on a moment; sketch/pick a person; follow one person across moments.
+- **S4.1 — `interior_monologues` (anchored to a segment)** `planned` `medium` `feature` `#local-42`
+  Unique on (person, segment) — the contextual-thought cache key.
+- **S4.2 — Lazy-generate-on-tap + cache** `planned` `medium` `feature` `#local-43`
+  Tap person@beat → lookup or generate (grounded in scene + artifacts) → store; later taps free.
+- **S4.3 — Witness UX: tappable people → interior aside** `planned` `medium` `feature` `#local-44`
+  Present cast is tappable; interiors render distinct from narration; manual light→deep promotion.
+
+Done when: ≥2 grounded POVs per moment switchable; tap a person mid-beat → cached, contextual interior in their voice.
+
+## Deferred — parked (local-first / single-user; no money yet)
+
+Schema *hooks* exist; no committed phase. Story-era hooks first, then the original commercialization deferrals.
+
+- **S5 — Users + signal: `users`, `user_story_progress`, `user_interior_taps`, `user_saved_stories`** `planned` `low` `feature` `#local-45`
+  The engagement signal that would *automate* light→deep promotion (which interiors users actually cared about). Unlocks only with a multi-user posture — which would supersede the single-user guardrail.
+- **H.1 — Council / conversation mode** `planned` `low` `feature` `#local-46`
+  `conversations` + participants + messages — persona-constrained threaded dialogue (people talking *to each other*). Different shape than narration.
+- **H.2 — Branching / CYOA** `planned` `low` `feature` `#local-47`
+  `choice_points` + `choice_outcomes`. Multiplies content cost — only after witness proves out.
+- **H.3 — Generation game (procedural lives)** `planned` `low` `feature` `#local-48`
+  `life_event_templates` + `life_phases`. A separate product/domain.
+- **H.4 — Diary drip** `planned` `low` `feature` `#local-49`
+  Thin `subscriptions` + cron over `artifacts` where `artifact_type = 'diary_entry'`. Mostly scheduling, not schema.
+- **D.1 — Cloud SaaS, hosted models, workspaces/teams/roles, billing** `planned` `low` `feature` `#local-20`
+- **D.2 — Proactive industry-mapping agent, scheduled jobs, signal ingestion, weekly briefings, integrations** `planned` `low` `feature` `#local-21`
+- **D.3 — Public read-only sharing, enterprise SSO/audit logs** `planned` `low` `feature` `#local-22`
+
+---
+
+## Substrate (shipped) — the timeline canvas, now the navigation layer
+
+> Built and verified at the data layer (typecheck + production build + data-layer/contract tests green). After the pivot, this is the **map you navigate stories from**, not the headline product. One thing still owed regardless of the pivot: a live in-browser UI pass (the Claude Preview can't hydrate the dev server; needs a normal browser + an `OPENROUTER_API_KEY`).
+
+### Phase 0 — The magic moment (the canvas loop)
 
 Smallest thing that proves the core loop. No auth, no undo, single timeline.
 
@@ -31,9 +108,9 @@ Smallest thing that proves the core loop. No auth, no undo, single timeline.
 - **0.5 — Persist nodes/edges to SQLite (single `default` timeline)** `done` `high` `feature` `#local-5`
   Tools write straight through to better-sqlite3; the DB is the source of truth.
 
-✅ **Phase 0 complete.** Plumbing verified (typecheck clean, route 200, seeded graph renders on the canvas). Needs `OPENROUTER_API_KEY` in `.env` to drive a live AI turn. **NEXT → Phase 1** (to be parallel-batched).
+✅ **Phase 0 complete.** Plumbing verified (typecheck clean, route 200, seeded graph renders on the canvas). Needs `OPENROUTER_API_KEY` in `.env` to drive a live AI turn.
 
-## NEXT — Phase 1: The lovable core
+### Phase 1 — The lovable core (build / edit / undo / multi-timeline)
 
 What makes it a product you return to.
 
@@ -58,9 +135,9 @@ What makes it a product you return to.
   Chat shows a "Thinking…/Building…" status while a turn runs, and an error banner (Retry + Dismiss) on failure via useChat `error`/`regenerate`/`clearError`; `toUIMessageStreamResponse` `onError` surfaces real messages instead of the masked default. Verified the server returns a 400 with guidance for a missing `OPENROUTER_API_KEY` (the banner's fallback also names the key).
 
 Done when: you can build, correct (with undo safety), revisit, and trust multiple timelines.
-**Status:** build / edit / undo / multi-timeline are in — verified via typecheck + clean production build + data-layer tests. **Still owed for a _complete_ core:** an in-browser UI pass (the Claude Preview couldn't hydrate the dev server), chat persistence (1.9), and visible turn progress/errors (1.10).
+**Status:** build / edit / undo / multi-timeline are in — verified via typecheck + clean production build + data-layer tests. **Still owed for a _complete_ substrate:** an in-browser UI pass (the Claude Preview couldn't hydrate the dev server).
 
-## LATER — Phase 2: Lovable polish & self-host (still pre-money)
+### Phase 2 — Lovable polish & self-host (still pre-money)
 
 - **2.1 — Optimistic per-tool canvas updates (stream tool-call parts)** `done` `high` `improvement` `#local-14`
   Route-level `BuildStreamProvider` shares in-flight `add_node` tool inputs from the chat to the canvas; `TimelineCanvas` renders translucent pulsing "pending" nodes (refit via `FitOnPending`), cleared after the commit refetch. Inert without a live stream. **Live behavior unverified** — needs `OPENROUTER_API_KEY` + a browser that hydrates.
@@ -84,14 +161,6 @@ Done when: you can build, correct (with undo safety), revisit, and trust multipl
 - **2.4 — Keyboard-first navigation + command palette** `planned` `low` `feature` `#local-17`
 - **2.5 — Postgres migration + single Docker Compose (self-host bridge)** `planned` `medium` `chore` `#local-18`
 - **2.6 — Telemetry opt-in (self-hoster count)** `planned` `low` `feature` `#local-19`
-
-## Deferred — parked until the core is lovable (no thought of money yet)
-
-Real per the PRD (§5–8), but explicitly out of scope until Phase 0–1 feel undeniable.
-
-- **D.1 — Cloud SaaS, hosted models, workspaces/teams/roles, billing** `planned` `low` `feature` `#local-20`
-- **D.2 — Proactive industry-mapping agent, scheduled jobs, signal ingestion, weekly briefings, integrations** `planned` `low` `feature` `#local-21`
-- **D.3 — Public read-only sharing, enterprise SSO/audit logs** `planned` `low` `feature` `#local-22`
 
 ## Won't do (this cycle)
 
