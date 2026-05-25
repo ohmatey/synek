@@ -3,10 +3,11 @@ import { streamText, stepCountIs, convertToModelMessages, type UIMessage } from 
 import { model } from '~/lib/ai/provider'
 import { systemPrompt } from '~/lib/ai/prompt'
 import { makeTools } from '~/lib/ai/tools'
-import { ensureTimeline } from '~/lib/db/graph'
+import { ensureTimeline, loadGraph } from '~/lib/db/graph'
+import { PatchBuilder, commitPatch } from '~/lib/db/patches'
 
-// The AI engine. One user turn → many tool calls (multi-step) → graph mutations.
-// In Phase 0 tools write straight to the DB; Phase 1 wraps them in one atomic Patch.
+// The AI engine. One user turn → many tool calls → ops buffered on a
+// PatchBuilder → committed as ONE atomic, undoable Patch when the stream ends.
 export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
@@ -24,13 +25,20 @@ export const Route = createFileRoute('/api/chat')({
         }
 
         ensureTimeline(timelineId)
+        const graph = loadGraph(timelineId)
+        const builder = new PatchBuilder(timelineId, graph)
 
         const result = streamText({
           model: model(),
-          system: systemPrompt(),
+          system: systemPrompt(graph),
           messages: await convertToModelMessages(messages),
-          tools: makeTools({ timelineId }),
+          tools: makeTools(builder),
           stopWhen: stepCountIs(16),
+          // better-sqlite3 is synchronous, so this commits before the stream
+          // closes — the client's refetch on finish sees the new graph.
+          onFinish: ({ text }) => {
+            commitPatch(timelineId, builder, (text || 'AI turn').slice(0, 200))
+          },
         })
 
         return result.toUIMessageStreamResponse()

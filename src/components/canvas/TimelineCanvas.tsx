@@ -15,6 +15,7 @@ import { PeriodNode } from './nodes/PeriodNode'
 import { instantToX, laneY } from './useTimelineScale'
 import { formatInstant } from '~/lib/domain/dates'
 import { getGraph } from '~/lib/server/graph'
+import { HistoryControls } from './HistoryControls'
 import type { CanvasNodeData } from './types'
 import type { EdgeKind } from '~/lib/domain/types'
 
@@ -70,6 +71,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
 
   return (
     <div className="canvas-root">
+      <HistoryControls timelineId={timelineId} />
       <ReactFlow
         // Remount on node-count change so fitView re-frames newly added nodes.
         key={`${timelineId}:${gnodes.length}`}

@@ -1,9 +1,8 @@
 import { tool } from 'ai'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
-import { db } from '~/lib/db'
-import { nodes, edges, type NodeMetadata } from '~/lib/db/schema'
 import { parseDate } from '~/lib/domain/dates'
+import type { PatchBuilder, NodePatch, EdgePatch } from '~/lib/db/patches'
+import type { NodeMetadata } from '~/lib/db/schema'
 import type { Precision } from '~/lib/domain/types'
 
 const citation = z.object({
@@ -14,17 +13,16 @@ const citation = z.object({
 
 const dateHint = 'A date, possibly fuzzy: "1995", "Q3 2008", "2014-03", or "49 BCE".'
 const precisionEnum = z.enum(['year', 'quarter', 'month', 'day'])
+const kindEnum = z.enum(['caused', 'succeeded', 'influenced', 'acquired', 'competed_with'])
 
-// The six graph tools. In Phase 0 they write directly to SQLite (no undo yet —
-// the PatchBuilder/undo system lands in Phase 1). add_node returns the new id so
+// The six graph tools. Each records an op on the PatchBuilder — nothing hits the
+// DB until the turn commits as one atomic Patch. add_node returns the new id so
 // the model can connect edges within the same turn.
-export function makeTools(ctx: { timelineId: string }) {
-  const { timelineId } = ctx
-
+export function makeTools(builder: PatchBuilder) {
   return {
     add_node: tool({
       description:
-        'Add a node to the timeline. type=event (a point in time), entity (a span like a company lifespan), period (a wide background era).',
+        'Add a node. type=event (a point in time), entity (a span like a company lifespan), period (a wide background era).',
       inputSchema: z.object({
         type: z.enum(['event', 'entity', 'period']),
         title: z.string(),
@@ -35,24 +33,19 @@ export function makeTools(ctx: { timelineId: string }) {
         citations: z.array(citation).optional(),
       }),
       execute: async (input) => {
-        const id = crypto.randomUUID()
         const start = parseDate(input.start)
         const end = input.end ? parseDate(input.end) : null
         const metadata: NodeMetadata | null = input.citations?.length ? { citations: input.citations } : null
-        db.insert(nodes)
-          .values({
-            id,
-            timelineId,
-            type: input.type,
-            title: input.title,
-            summary: input.summary ?? null,
-            startInstant: start.instant,
-            endInstant: end?.instant ?? null,
-            precision: (input.precision as Precision | undefined) ?? start.precision,
-            metadata,
-          })
-          .run()
-        return { id, title: input.title }
+        const node = builder.addNode({
+          type: input.type,
+          title: input.title,
+          summary: input.summary ?? null,
+          startInstant: start.instant,
+          endInstant: end?.instant ?? null,
+          precision: (input.precision as Precision | undefined) ?? start.precision,
+          metadata,
+        })
+        return { id: node.id, title: node.title }
       },
     }),
 
@@ -70,51 +63,38 @@ export function makeTools(ctx: { timelineId: string }) {
         }),
       }),
       execute: async ({ id, patch }) => {
-        const set: Partial<typeof nodes.$inferInsert> = {}
-        if (patch.title !== undefined) set.title = patch.title
-        if (patch.summary !== undefined) set.summary = patch.summary
+        const np: NodePatch = {}
+        if (patch.title !== undefined) np.title = patch.title
+        if (patch.summary !== undefined) np.summary = patch.summary
         if (patch.start) {
           const p = parseDate(patch.start)
-          set.startInstant = p.instant
-          if (!patch.precision) set.precision = p.precision
+          np.startInstant = p.instant
+          if (!patch.precision) np.precision = p.precision
         }
-        if (patch.end) set.endInstant = parseDate(patch.end).instant
-        if (patch.precision) set.precision = patch.precision
-        if (patch.citations) set.metadata = { citations: patch.citations }
-        db.update(nodes).set(set).where(eq(nodes.id, id)).run()
-        return { id }
+        if (patch.end) np.endInstant = parseDate(patch.end).instant
+        if (patch.precision) np.precision = patch.precision
+        if (patch.citations) np.metadata = { citations: patch.citations }
+        return builder.updateNode(id, np) ? { id } : { error: `node ${id} not found` }
       },
     }),
 
     delete_node: tool({
       description: 'Delete a node (its connected edges are removed too) by id.',
       inputSchema: z.object({ id: z.string() }),
-      execute: async ({ id }) => {
-        db.delete(nodes).where(eq(nodes.id, id)).run()
-        return { id }
-      },
+      execute: async ({ id }) => (builder.deleteNode(id) ? { id } : { error: `node ${id} not found` }),
     }),
 
     add_edge: tool({
-      description: 'Add a typed directional relationship from one node to another, using ids returned by add_node.',
+      description: 'Add a typed directional relationship, using ids returned by add_node (or existing node ids).',
       inputSchema: z.object({
         sourceId: z.string(),
         targetId: z.string(),
-        kind: z.enum(['caused', 'succeeded', 'influenced', 'acquired', 'competed_with']),
+        kind: kindEnum,
         label: z.string().optional(),
       }),
       execute: async (input) => {
-        try {
-          const id = crypto.randomUUID()
-          db.insert(edges)
-            .values({ id, timelineId, sourceId: input.sourceId, targetId: input.targetId, kind: input.kind, label: input.label ?? null })
-            .run()
-          return { id }
-        } catch (e) {
-          return {
-            error: `Could not add edge: ${e instanceof Error ? e.message : 'unknown'}. sourceId and targetId must be ids returned by add_node.`,
-          }
-        }
+        const r = builder.addEdge(input)
+        return 'error' in r ? r : { id: r.id }
       },
     }),
 
@@ -122,27 +102,20 @@ export function makeTools(ctx: { timelineId: string }) {
       description: 'Update an edge by id.',
       inputSchema: z.object({
         id: z.string(),
-        patch: z.object({
-          kind: z.enum(['caused', 'succeeded', 'influenced', 'acquired', 'competed_with']).optional(),
-          label: z.string().optional(),
-        }),
+        patch: z.object({ kind: kindEnum.optional(), label: z.string().optional() }),
       }),
       execute: async ({ id, patch }) => {
-        const set: Partial<typeof edges.$inferInsert> = {}
-        if (patch.kind) set.kind = patch.kind
-        if (patch.label !== undefined) set.label = patch.label
-        db.update(edges).set(set).where(eq(edges.id, id)).run()
-        return { id }
+        const ep: EdgePatch = {}
+        if (patch.kind) ep.kind = patch.kind
+        if (patch.label !== undefined) ep.label = patch.label
+        return builder.updateEdge(id, ep) ? { id } : { error: `edge ${id} not found` }
       },
     }),
 
     delete_edge: tool({
       description: 'Delete an edge by id.',
       inputSchema: z.object({ id: z.string() }),
-      execute: async ({ id }) => {
-        db.delete(edges).where(eq(edges.id, id)).run()
-        return { id }
-      },
+      execute: async ({ id }) => (builder.deleteEdge(id) ? { id } : { error: `edge ${id} not found` }),
     }),
   }
 }

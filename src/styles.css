@@ -228,3 +228,33 @@ body {
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* Undo/redo overlay */
+.history-controls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+}
+
+.history-controls button {
+  background: rgba(20, 23, 30, 0.9);
+  color: #c7ccd8;
+  border: 1px solid #2a2f3c;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.history-controls button:hover:not(:disabled) {
+  border-color: #3a6df0;
+  color: #fff;
+}
+
+.history-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

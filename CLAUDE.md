@@ -34,11 +34,12 @@ src/
     __root.tsx                     html doc; QueryClientProvider + React Flow/global CSS
     index.tsx                      → redirects to /timelines/default
     timelines.$id.tsx              app shell: canvas (left) + chat (right)
-    api/chat.ts                    AI engine: streamText + tools, writes the graph
+    api/chat.ts                    AI engine: streamText + tools → one Patch on finish
   components/
     client-only.tsx                mount-guard for client-only libs
     canvas/
       TimelineCanvas.tsx           React Flow; loads the graph via TanStack Query
+      HistoryControls.tsx          undo/redo buttons + ⌘Z / ⌘⇧Z
       useTimelineScale.ts          date → x, type → lane y
       nodes/{EventNode,EntityNode,PeriodNode}.tsx
       types.ts                     CanvasNodeData
@@ -46,8 +47,9 @@ src/
   lib/
     domain/{types,dates}.ts        NodeType/EdgeKind/Precision + graph DTOs; fuzzy dates
     db/{index,schema,graph}.ts     better-sqlite3 client, Drizzle schema, graph load/ensure
-    server/graph.ts                getGraph() — client-callable RPC (server fn)
-    ai/{provider,tools,prompt}.ts  model gateway, the 6 DB-backed tools, system prompt
+    db/patches.ts                  PatchBuilder + apply/invert + commit/undo/redo
+    server/{graph,patches}.ts      client RPCs: getGraph, undo/redo, history
+    ai/{provider,tools,prompt}.ts  model gateway, the 6 tools, prompt (+ current graph)
 drizzle/                           generated migrations (committed)
 ```
 
@@ -59,7 +61,7 @@ drizzle/                           generated migrations (committed)
 
 ## The Patch invariant (the core mechanic)
 
-**One user turn = one atomic, undoable Patch.** Each AI turn's tool calls accumulate in an in-memory `PatchBuilder` — **nothing touches the DB mid-stream**. After the stream resolves, a single SQLite transaction applies the ops and writes one `patches` row holding both forward `ops` and precomputed `inverseOps`. Undo/redo is a per-timeline linear stack (`seq` + `status`); a new patch truncates the redo branch. `GraphOp` lives in `schema.ts`. (Builder + undo logic: Phase 1, `src/lib/db/patches.ts`.)
+**One user turn = one atomic, undoable Patch.** Each AI turn's tool calls accumulate in an in-memory `PatchBuilder` — **nothing touches the DB mid-stream**. After the stream resolves, a single SQLite transaction applies the ops and writes one `patches` row holding both forward `ops` and precomputed `inverseOps`. Undo/redo is a per-timeline linear stack (`seq` + `status`); a new patch truncates the redo branch. `GraphOp` lives in `schema.ts`. **Built** in `src/lib/db/patches.ts` (PatchBuilder, apply/invert, commit/undo/redo); undo/redo exposed via `src/lib/server/patches.ts` and bound to ⌘Z/⌘⇧Z in `HistoryControls`.
 
 ## AI loop (`src/routes/api/chat.ts`, Phase 0)
 
@@ -91,4 +93,4 @@ bun run db:migrate   # apply migrations (also applied on server start, idempoten
 
 **Runtime note (don't reintroduce `bun:sqlite`):** Vite's SSR module loader runs under **Node**, so the DB uses `better-sqlite3`. Run the app with `bun run dev`. To seed or script the DB outside the server, run under Node (e.g. `bunx tsx script.ts`) — Bun can't load better-sqlite3's Node-ABI binary. `@tanstack/react-start` is pinned to **1.168.11** (1.168.12 has a virtual-module regression — TanStack/router#7486).
 
-**Not yet built** (roadmap → NEXT, Phase 1): the PatchBuilder/undo system (one turn = one atomic Patch), node detail, multi-timeline, Better Auth, citations UI, and canvas polish. Build them with `/sal build`.
+**Phase 1 in progress.** Done: the full 6-tool set and the **Patch/undo system** (one turn = one atomic Patch; ⌘Z/⌘⇧Z) — verified at the data layer. **Still to build** (roadmap → NEXT): node detail + citations UI, multi-timeline, Better Auth, and canvas polish. These touch the canvas/routes and are largely independent — good candidates to batch.
