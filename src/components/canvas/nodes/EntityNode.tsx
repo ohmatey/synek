@@ -7,6 +7,7 @@ export function EntityNode({ data }: NodeProps) {
     <div className="sf-node sf-entity" style={{ width: d.width }}>
       <Handle type="target" position={Position.Left} className="sf-handle" />
       <span className="sf-label">{d.title}</span>
+      {d.date && <span className="sf-date">{d.date}</span>}
       <Handle type="source" position={Position.Right} className="sf-handle" />
     </div>
   )

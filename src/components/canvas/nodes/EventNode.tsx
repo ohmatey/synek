@@ -8,6 +8,7 @@ export function EventNode({ data }: NodeProps) {
       <Handle type="target" position={Position.Left} className="sf-handle" />
       <span className="sf-dot" aria-hidden />
       <span className="sf-label">{d.title}</span>
+      {d.date && <span className="sf-date">{d.date}</span>}
       <Handle type="source" position={Position.Right} className="sf-handle" />
     </div>
   )

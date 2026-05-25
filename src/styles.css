@@ -187,3 +187,44 @@ body {
 .sf-handle {
   opacity: 0;
 }
+
+.sf-date {
+  margin-left: 8px;
+  font-size: 10px;
+  color: #8b93a7;
+  white-space: nowrap;
+}
+
+.canvas-empty {
+  max-width: 420px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(20, 23, 30, 0.85);
+  border: 1px solid #232733;
+  color: #9aa0b0;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Chat message variants */
+.message + .message {
+  margin-top: 10px;
+}
+
+.message-user {
+  background: #21314f;
+  color: #dbe6ff;
+  margin-left: 32px;
+}
+
+.tool-chip {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #1b2230;
+  border: 1px solid #2f3a4c;
+  color: #8fb0ff;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}

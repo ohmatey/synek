@@ -14,16 +14,16 @@ Smallest thing that proves the core loop. No auth, no undo, single timeline.
 
 - **0.1 — Scaffold runnable app + SQLite/Drizzle wired** `done` `high` `chore` `#local-1`
   TanStack Start + React Flow + AI SDK + Drizzle skeleton boots to a legible canvas + chat shell.
-- **0.2 — AI chat loop: streamText + add_node/add_edge, multi-step in one turn** `open` `high` `feature` `#local-2`
-  Implement `src/routes/api/chat.ts`: load graph, `streamText` with `makeTools(builder)` + `stopWhen(stepCountIs(n))`, return `toUIMessageStreamResponse()`. ← **smallest unblocked pick**
-- **0.3 — Wire ChatPanel to /api/chat (useChat), refetch graph on finish** `open` `high` `feature` `#local-3`
-  Deps: 0.2. Replace the shell form with `useChat`; invalidate the graph query when a turn completes.
-- **0.4 — Render the real graph on the canvas (replace sample data)** `open` `high` `feature` `#local-4`
-  Deps: 0.2. Load nodes/edges from the DB; keep date→x placement and type lanes.
-- **0.5 — Persist nodes/edges to SQLite (single `default` timeline)** `open` `high` `feature` `#local-5`
-  Deps: 0.2. Tools write through to the DB; the DB is the source of truth.
+- **0.2 — AI chat loop: streamText + tools, multi-step in one turn** `done` `high` `feature` `#local-2`
+  `src/routes/api/chat.ts`: `streamText` with `makeTools` + `stopWhen(stepCountIs(16))`, returns `toUIMessageStreamResponse()`.
+- **0.3 — Wire ChatPanel to /api/chat (useChat), refetch graph on finish** `done` `high` `feature` `#local-3`
+  `useChat` posts to `/api/chat`; `onFinish` invalidates the `['graph', id]` query so the canvas refetches.
+- **0.4 — Render the real graph on the canvas (replace sample data)** `done` `high` `feature` `#local-4`
+  Canvas loads via the `getGraph` server fn (TanStack Query); date→x placement, type lanes, typed edges.
+- **0.5 — Persist nodes/edges to SQLite (single `default` timeline)** `done` `high` `feature` `#local-5`
+  Tools write straight through to better-sqlite3; the DB is the source of truth.
 
-Done when: "map the history of observability tooling" produces a correctly time-placed mesh.
+✅ **Phase 0 complete.** Plumbing verified (typecheck clean, route 200, seeded graph renders on the canvas). Needs `OPENROUTER_API_KEY` in `.env` to drive a live AI turn. **NEXT → Phase 1** (to be parallel-batched).
 
 ## NEXT — Phase 1: The lovable core
 

@@ -14,5 +14,6 @@ Rules:
 - Give every node a date. Dates may be fuzzy: "1995", "Q3 2008", "2014-03", or "49 BCE". Set precision accordingly.
 - Cite sources freely. When you know a source, pass it in citations (title, plus url/quote when you have them).
 - Never fabricate dates, funding amounts, or sources — accuracy matters more than completeness.
+- To connect nodes, call add_edge with the ids that add_node returned to you.
 - Build the graph through tool calls; keep chat replies short. The canvas is the output.`
 }

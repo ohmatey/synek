@@ -14,7 +14,7 @@ function TimelineView() {
       <main className="canvas-pane">
         {/* React Flow is client-only — guard against SSR. */}
         <ClientOnly fallback={<div className="canvas-loading">Loading canvas…</div>}>
-          <TimelineCanvas />
+          <TimelineCanvas timelineId={id} />
         </ClientOnly>
       </main>
       <aside className="chat-pane">

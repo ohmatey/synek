@@ -1,8 +1,12 @@
 /// <reference types="vite/client" />
 import type { ReactNode } from 'react'
 import { Outlet, createRootRoute, HeadContent, Scripts } from '@tanstack/react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '@xyflow/react/dist/style.css'
 import '../styles.css'
+
+// Single-user, local-first: a module-level client is fine.
+const queryClient = new QueryClient()
 
 export const Route = createRootRoute({
   head: () => ({
@@ -17,9 +21,11 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   return (
-    <RootDocument>
-      <Outlet />
-    </RootDocument>
+    <QueryClientProvider client={queryClient}>
+      <RootDocument>
+        <Outlet />
+      </RootDocument>
+    </QueryClientProvider>
   )
 }
 

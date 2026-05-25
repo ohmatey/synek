@@ -1,17 +1,39 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { streamText, stepCountIs, convertToModelMessages, type UIMessage } from 'ai'
+import { model } from '~/lib/ai/provider'
+import { systemPrompt } from '~/lib/ai/prompt'
+import { makeTools } from '~/lib/ai/tools'
+import { ensureTimeline } from '~/lib/db/graph'
 
-// Phase 0 implements the streamText + tool loop here (see CLAUDE.md → AI loop):
-// load the graph for the timeline, run streamText with makeTools(builder) and
-// stopWhen(stepCountIs(...)), commit the builder as ONE Patch, then return
-// result.toUIMessageStreamResponse(). For now this is a stub so the app boots.
+// The AI engine. One user turn → many tool calls (multi-step) → graph mutations.
+// In Phase 0 tools write straight to the DB; Phase 1 wraps them in one atomic Patch.
 export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
-      POST: async () => {
-        return Response.json(
-          { error: 'Not implemented yet — the AI chat loop lands in Phase 0.' },
-          { status: 501 },
-        )
+      POST: async ({ request }) => {
+        if (!process.env.OPENROUTER_API_KEY) {
+          return Response.json(
+            { error: 'Set OPENROUTER_API_KEY in .env (copy .env.example) to chat with the timeline.' },
+            { status: 400 },
+          )
+        }
+
+        const { messages, timelineId = 'default' } = (await request.json()) as {
+          messages: UIMessage[]
+          timelineId?: string
+        }
+
+        ensureTimeline(timelineId)
+
+        const result = streamText({
+          model: model(),
+          system: systemPrompt(),
+          messages: await convertToModelMessages(messages),
+          tools: makeTools({ timelineId }),
+          stopWhen: stepCountIs(16),
+        })
+
+        return result.toUIMessageStreamResponse()
       },
     },
   },

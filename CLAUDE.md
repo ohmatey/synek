@@ -21,7 +21,7 @@ If a change starts to look like one of these, stop and confirm. The product earn
 | UI / runtime | React 19, Bun, Vite |
 | Canvas | React Flow (`@xyflow/react` v12) — **client-only** |
 | AI | Vercel **AI SDK v6** (`ai`, `@ai-sdk/react`), provider via `@ai-sdk/openai` pointed at OpenRouter |
-| DB | SQLite via Drizzle (`drizzle-orm/bun-sqlite`). **Postgres is deferred** — keep the schema portable |
+| DB | SQLite via Drizzle (`drizzle-orm/better-sqlite3` — Vite SSR runs under **Node**, so *not* `bun:sqlite`). **Postgres is deferred** — keep the schema portable |
 | Auth | Better Auth, single local user — **Phase 1, not yet wired** |
 | Validation | Zod v4 |
 
@@ -31,22 +31,23 @@ If a change starts to look like one of these, stop and confirm. The product earn
 src/
   router.tsx                       getRouter()
   routes/
-    __root.tsx                     html doc; imports React Flow + global CSS
+    __root.tsx                     html doc; QueryClientProvider + React Flow/global CSS
     index.tsx                      → redirects to /timelines/default
     timelines.$id.tsx              app shell: canvas (left) + chat (right)
-    api/chat.ts                    AI engine (server route) — STUB until Phase 0
+    api/chat.ts                    AI engine: streamText + tools, writes the graph
   components/
     client-only.tsx                mount-guard for client-only libs
     canvas/
-      TimelineCanvas.tsx           React Flow; sample data until Phase 0
+      TimelineCanvas.tsx           React Flow; loads the graph via TanStack Query
       useTimelineScale.ts          date → x, type → lane y
       nodes/{EventNode,EntityNode,PeriodNode}.tsx
       types.ts                     CanvasNodeData
-    chat/{ChatPanel,MessageList}.tsx   shell; useChat lands in Phase 0
+    chat/{ChatPanel,MessageList}.tsx   useChat → /api/chat; refetches graph on finish
   lib/
-    domain/types.ts                NodeType, EdgeKind, Precision (+ GraphOp re-export)
-    db/{index,schema}.ts           bun:sqlite client + Drizzle schema
-    ai/{provider,tools,prompt}.ts  model gateway, the 6 tools, system prompt
+    domain/{types,dates}.ts        NodeType/EdgeKind/Precision + graph DTOs; fuzzy dates
+    db/{index,schema,graph}.ts     better-sqlite3 client, Drizzle schema, graph load/ensure
+    server/graph.ts                getGraph() — client-callable RPC (server fn)
+    ai/{provider,tools,prompt}.ts  model gateway, the 6 DB-backed tools, system prompt
 drizzle/                           generated migrations (committed)
 ```
 
@@ -84,6 +85,10 @@ bun run db:migrate   # apply migrations (also applied on server start, idempoten
 - `STRATA_MODEL` — OpenRouter model slug (default `anthropic/claude-sonnet-4-6`)
 - `DATABASE_URL` — SQLite file (default `local.db`)
 
-## Current status (the init boundary)
+## Current status
 
-Scaffold + data model + stubs are in place and the app boots to a legible **shell** (a canvas with sample nodes + a chat panel). **Not yet built** (these are the roadmap phases in `.can/roadmap.md`): the live `streamText` tool loop, the PatchBuilder/undo system, node detail, multi-timeline, auth, and canvas polish. Build them with `/sal build`.
+**Phase 0 (the magic moment) is built.** Type a prompt → the AI calls tools that write nodes/edges to SQLite → the canvas refetches (TanStack Query) and renders them along the timeline. Requires `OPENROUTER_API_KEY` in `.env` (copy `.env.example`) to chat.
+
+**Runtime note (don't reintroduce `bun:sqlite`):** Vite's SSR module loader runs under **Node**, so the DB uses `better-sqlite3`. Run the app with `bun run dev`. To seed or script the DB outside the server, run under Node (e.g. `bunx tsx script.ts`) — Bun can't load better-sqlite3's Node-ABI binary. `@tanstack/react-start` is pinned to **1.168.11** (1.168.12 has a virtual-module regression — TanStack/router#7486).
+
+**Not yet built** (roadmap → NEXT, Phase 1): the PatchBuilder/undo system (one turn = one atomic Patch), node detail, multi-timeline, Better Auth, citations UI, and canvas polish. Build them with `/sal build`.
