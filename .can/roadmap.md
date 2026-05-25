@@ -24,16 +24,18 @@ Full PRDs per phase live in [`.can/prd/`](prd/). Everything under **Deferred** s
 
 The new magic moment: tap a moment → one grounded, readable story; every generation tracked from day one. PRD: [`prd/s1-story-spine.md`](prd/s1-story-spine.md).
 
-- **S1.1 — Story substrate: `people` + `stories` + `story_segments`** `planned` `high` `feature` `#local-31`
+- **S1.1 — Story substrate: `people` + `stories` + `story_segments`** `done` `high` `feature` `#local-31`
   Tables hang off `nodes.id` (no renames). One primary story per moment; segments ordered + typed by `kind`.
-- **S1.2 — Provenance: `prompt_templates` + `generations` + cache-by-hash** `planned` `high` `feature` `#local-32`
+- **S1.2 — Provenance: `prompt_templates` + `generations` + cache-by-hash** `done` `high` `feature` `#local-32`
   Built day one. Every generation records model/tokens/cost/latency; `cacheKey = hash(templateId, inputs)` dedupes.
-- **S1.3 — Generation service: `generateStory` (generateObject → segments)** `planned` `high` `feature` `#local-33`
+- **S1.3 — Generation service: `generateStory` (generateObject → segments)** `done` `high` `feature` `#local-33`
   Separate from the graph-tool/Patch loop. Cache check → model → one transaction writes story + segments + generation row.
-- **S1.4 — Reader UX + "Tell the story here" + depth badge** `planned` `high` `feature` `#local-34`
-  Focused reader renders segments by `kind`; `depth_tier` (light/deep) badge; moment affordance to generate.
+- **S1.4 — Story playback on the canvas + "Tell the story here" + depth badge** `done` `high` `feature` `#local-34`
+  Beat-by-beat reader in the node-detail slot (right = beat + Back/Next, left = canvas framed/lensed on the moment); beats link to related moments (tap → center/ring via the lens); `depth_tier` (light/deep) badge; moment affordance to generate.
 
-Done when: tap a moment → generate → read a coherent multi-segment story; identical inputs hit cache; depth tier renders.
+Done when: tap a moment → generate → step beat-by-beat on the canvas (moment framed + lensed); identical inputs hit cache; depth tier renders.
+
+**Status:** built — schema + migration (`stories`/`story_segments`/`people`/`prompt_templates`/`generations`), the provenance/cache generation service (`generateObject`, separate `STRATA_STORY_MODEL`), and the playback reader (shares the node-detail slot; drives the lens + camera; beat→related-moment links) are in. Verified via typecheck + clean production build + a 19-check data-layer test (commit / cache-hit / regenerate-archives-prior). **Owed:** a live in-browser pass of the reader/lens/camera + a real model turn (needs `OPENROUTER_API_KEY`; Claude Preview can't hydrate this dev server).
 
 ## NEXT — S2: Artifact grounding (the moat)
 
