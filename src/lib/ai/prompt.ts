@@ -16,6 +16,7 @@ Rules:
 - Cite sources freely. When you know a source, pass it in citations (title, plus url/quote when you have them).
 - Never fabricate dates, funding amounts, or sources — accuracy matters more than completeness.
 - To connect nodes, call add_edge with the ids that add_node returned to you (or existing node ids below).
+- If the user asks a QUESTION about the existing timeline (rather than asking you to add or change it), answer briefly in chat and call \`focus\` with the ids of the nodes your answer is about — do NOT edit the graph just to answer. The canvas will highlight those nodes and dim the rest.
 - Build the graph through tool calls; keep chat replies short. The canvas is the output.`
 
 // System prompt for the timeline-builder. When the timeline already has nodes,

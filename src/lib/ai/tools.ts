@@ -117,5 +117,15 @@ export function makeTools(builder: PatchBuilder) {
       inputSchema: z.object({ id: z.string() }),
       execute: async ({ id }) => (builder.deleteEdge(id) ? { id } : { error: `edge ${id} not found` }),
     }),
+
+    focus: tool({
+      description:
+        'Answer a QUESTION about the existing timeline (not a build request): pass the ids of the nodes your answer is about so the canvas highlights them and dims the rest. Does NOT modify the graph.',
+      inputSchema: z.object({
+        ids: z.array(z.string()).describe('Existing node ids relevant to the answer.'),
+        note: z.string().optional(),
+      }),
+      execute: async ({ ids }) => ({ focused: ids.length }),
+    }),
   }
 }

@@ -5,6 +5,7 @@ import { systemPrompt } from '~/lib/ai/prompt'
 import { makeTools } from '~/lib/ai/tools'
 import { ensureTimeline, loadGraph } from '~/lib/db/graph'
 import { PatchBuilder, commitPatch } from '~/lib/db/patches'
+import { saveMessages } from '~/lib/db/messages'
 
 // The AI engine. One user turn → many tool calls → ops buffered on a
 // PatchBuilder → committed as ONE atomic, undoable Patch when the stream ends.
@@ -41,7 +42,20 @@ export const Route = createFileRoute('/api/chat')({
           },
         })
 
-        return result.toUIMessageStreamResponse()
+        // Persist the full updated transcript so reloading restores the chat
+        // alongside the canvas it built.
+        return result.toUIMessageStreamResponse({
+          onFinish: ({ messages: finalMessages }) => {
+            saveMessages(
+              timelineId,
+              finalMessages.map((m) => ({ id: m.id, role: m.role, parts: m.parts })),
+            )
+          },
+          // Surface a readable reason instead of the default masked "An error
+          // occurred" so the chat can show what actually went wrong.
+          onError: (error) =>
+            error instanceof Error ? error.message : 'The timeline build failed — please try again.',
+        })
       },
     },
   },

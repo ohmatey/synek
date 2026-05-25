@@ -1,8 +1,8 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
-import { NODE_TYPES, EDGE_KINDS, PRECISIONS } from '~/lib/domain/types'
+import { NODE_TYPES, EDGE_KINDS, PRECISIONS, type NodeImage, type NodeSize } from '~/lib/domain/types'
 
 export type Citation = { title: string; url?: string; quote?: string }
-export type NodeMetadata = { citations?: Citation[]; color?: string }
+export type NodeMetadata = { citations?: Citation[]; color?: string; images?: NodeImage[]; size?: NodeSize }
 export type EdgeMetadata = Record<string, unknown>
 
 const newId = () => crypto.randomUUID()
@@ -67,10 +67,26 @@ export const patches = sqliteTable('patches', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
 })
 
+// Persisted chat transcript per timeline — so reloading restores the
+// conversation that built the canvas, not just the graph. `parts` holds the
+// AI SDK UIMessage parts (text + tool-invocation parts) verbatim.
+export const messages = sqliteTable('messages', {
+  id: text('id').primaryKey().$defaultFn(newId),
+  timelineId: text('timeline_id')
+    .notNull()
+    .references(() => timelines.id, { onDelete: 'cascade' }),
+  messageId: text('message_id').notNull(), // the UIMessage's own id (stable React key)
+  seq: integer('seq').notNull(), // order within the timeline
+  role: text('role', { enum: ['system', 'user', 'assistant'] }).notNull(),
+  parts: text('parts', { mode: 'json' }).$type<unknown[]>().notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+})
+
 export type TimelineRow = typeof timelines.$inferSelect
 export type NodeRow = typeof nodes.$inferSelect
 export type EdgeRow = typeof edges.$inferSelect
 export type PatchRow = typeof patches.$inferSelect
+export type MessageRow = typeof messages.$inferSelect
 
 // A single reversible graph mutation. Updates carry before/after; deletes carry
 // the full row(s) so they can be restored. invertPatch = ops.map(invert).reverse().

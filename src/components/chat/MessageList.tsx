@@ -18,6 +18,16 @@ export function MessageList({ messages }: { messages: UIMessage[] }) {
         <div key={m.id} className={`message message-${m.role}`}>
           {m.parts.map((part, i) => {
             if (part.type === 'text') return <span key={i}>{part.text}</span>
+            // Attachments: inline image thumbnails, or a chip for documents.
+            if (part.type === 'file') {
+              return part.mediaType.startsWith('image/') ? (
+                <img key={i} className="msg-image" src={part.url} alt={part.filename ?? 'attachment'} />
+              ) : (
+                <span key={i} className="msg-file">
+                  📄 {part.filename ?? 'file'}
+                </span>
+              )
+            }
             // Surface tool calls as small chips so the build is legible as it happens.
             if (part.type.startsWith('tool-')) {
               return (
