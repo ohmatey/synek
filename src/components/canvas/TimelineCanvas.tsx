@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ReactFlow,
@@ -67,19 +67,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const [draft, setDraft] = useState<{ id: string; draft: NodeDraft } | null>(null)
 
   const { pending, focusIds, setFocusIds } = useBuildStream()
-  const focusSet = focusIds.length ? new Set(focusIds) : null
 
   const gnodes = data?.nodes ?? []
   const gedges = data?.edges ?? []
-  // Overlay the panel's in-progress draft on the selected node — a live preview
-  // that's never persisted until Save (closing/canceling just drops it).
-  const effectiveNodes =
-    draft && draft.id === selectedId
-      ? gnodes.map((n) => (n.id === selectedId ? { ...n, ...draft.draft } : n))
-      : gnodes
-  // minInstant spans real + pending so optimistic nodes share the same scale.
-  const startInstants = [...effectiveNodes.map((n) => n.startInstant), ...pending.map((p) => p.startInstant)]
-  const minInstant = startInstants.length ? Math.min(...startInstants) : 0
   // Derive the selection from live data, so a deleted node closes the panel.
   const selectedNode = selectedId ? (gnodes.find((n) => n.id === selectedId) ?? null) : null
 
@@ -89,102 +79,124 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     [selectedId],
   )
 
-  const widthOf = (start: number, end: number | null) =>
-    end ? Math.max(48, instantToX(end, minInstant) - instantToX(start, minInstant)) : undefined
+  // The full layout pipeline — overlay, scale, lane packing, and the React Flow
+  // node/edge arrays — is O(n log n) and rebuilt only when its inputs change.
+  // Memoizing matters because the detail panel emits a fresh draft on every
+  // keystroke; without this each keystroke re-packs lanes and re-diffs the graph.
+  const { rfNodes, rfEdges, minInstant } = useMemo(() => {
+    const focusSet = focusIds.length ? new Set(focusIds) : null
 
-  const realPositioned = effectiveNodes.map((n) => ({
-    n,
-    x: instantToX(n.startInstant, minInstant),
-    width: widthOf(n.startInstant, n.endInstant),
-  }))
-  const pendingPositioned = pending.map((p) => ({
-    p,
-    id: `pending:${p.key}`,
-    x: instantToX(p.startInstant, minInstant),
-    width: widthOf(p.startInstant, p.endInstant),
-  }))
+    // Overlay the panel's in-progress draft on the selected node — a live preview
+    // that's never persisted until Save (closing/canceling just drops it).
+    const effectiveNodes =
+      draft && draft.id === selectedId
+        ? gnodes.map((n) => (n.id === selectedId ? { ...n, ...draft.draft } : n))
+        : gnodes
+    // minInstant spans real + pending so optimistic nodes share the same scale.
+    const startInstants = [...effectiveNodes.map((n) => n.startInstant), ...pending.map((p) => p.startInstant)]
+    const minInstant = startInstants.length ? Math.min(...startInstants) : 0
 
-  // Spread same-lane nodes that would overlap horizontally onto stacked rows
-  // (real + pending laid out together so they don't collide mid-stream).
-  const laneYById = layoutLaneY([
-    ...realPositioned.map((r) => ({
-      id: r.n.id,
-      type: r.n.type,
-      x: r.x,
-      width: r.width,
-      height: estimateNodeHeight(r.n.type, r.n.size, r.n.images.some((i) => i.show)),
-    })),
-    ...pendingPositioned.map((pp) => ({
-      id: pp.id,
-      type: pp.p.type,
-      x: pp.x,
-      width: pp.width,
-      height: estimateNodeHeight(pp.p.type, 'medium', false),
-    })),
-  ])
+    const widthOf = (start: number, end: number | null) =>
+      end ? Math.max(48, instantToX(end, minInstant) - instantToX(start, minInstant)) : undefined
 
-  const rfNodes: Node[] = []
-  for (const { n, x, width } of realPositioned) {
-    const nodeData: CanvasNodeData = {
-      title: n.title,
-      width,
-      date: formatInstant(n.startInstant, n.precision),
-      citations: n.citations.length,
-      images: n.images.filter((i) => i.show),
-      size: n.size,
-      color: n.color,
+    const realPositioned = effectiveNodes.map((n) => ({
+      n,
+      x: instantToX(n.startInstant, minInstant),
+      width: widthOf(n.startInstant, n.endInstant),
+    }))
+    const pendingPositioned = pending.map((p) => ({
+      p,
+      id: `pending:${p.key}`,
+      x: instantToX(p.startInstant, minInstant),
+      width: widthOf(p.startInstant, p.endInstant),
+    }))
+
+    // Spread same-lane nodes that would overlap horizontally onto stacked rows
+    // (real + pending laid out together so they don't collide mid-stream).
+    const laneYById = layoutLaneY([
+      ...realPositioned.map((r) => ({
+        id: r.n.id,
+        type: r.n.type,
+        x: r.x,
+        width: r.width,
+        height: estimateNodeHeight(r.n.type, r.n.size, r.n.images.some((i) => i.show)),
+      })),
+      ...pendingPositioned.map((pp) => ({
+        id: pp.id,
+        type: pp.p.type,
+        x: pp.x,
+        width: pp.width,
+        height: estimateNodeHeight(pp.p.type, 'medium', false),
+      })),
+    ])
+
+    const rfNodes: Node[] = []
+    for (const { n, x, width } of realPositioned) {
+      const nodeData: CanvasNodeData = {
+        title: n.title,
+        width,
+        date: formatInstant(n.startInstant, n.precision),
+        citations: n.citations.length,
+        images: n.images.filter((i) => i.show),
+        size: n.size,
+        color: n.color,
+      }
+      rfNodes.push({
+        id: n.id,
+        type: n.type,
+        position: { x, y: laneYById.get(n.id) ?? laneY(n.type) },
+        data: nodeData,
+        draggable: false,
+        selectable: true,
+        selected: n.id === selectedId,
+        className: focusSet ? (focusSet.has(n.id) ? 'rf-focused' : 'rf-dimmed') : undefined,
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      })
     }
-    rfNodes.push({
-      id: n.id,
-      type: n.type,
-      position: { x, y: laneYById.get(n.id) ?? laneY(n.type) },
-      data: nodeData,
-      draggable: false,
-      selectable: true,
-      selected: n.id === selectedId,
-      className: focusSet ? (focusSet.has(n.id) ? 'rf-focused' : 'rf-dimmed') : undefined,
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
-    })
-  }
-  for (const { p, id, x, width } of pendingPositioned) {
-    const nodeData: CanvasNodeData = { title: p.title, width, date: formatInstant(p.startInstant, p.precision) }
-    rfNodes.push({
-      id,
-      type: p.type,
-      position: { x, y: laneYById.get(id) ?? laneY(p.type) },
-      data: nodeData,
-      draggable: false,
-      selectable: false,
-      className: 'rf-pending',
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
-    })
-  }
-
-  const rfEdges: Edge[] = gedges.map((e) => {
-    const s = EDGE_STYLE[e.kind]
-    // Dim edges that don't connect two focused nodes while a lens is active.
-    const dim = focusSet && !(focusSet.has(e.sourceId) && focusSet.has(e.targetId))
-    return {
-      id: e.id,
-      source: e.sourceId,
-      target: e.targetId,
-      label: e.label ?? e.kind,
-      style: { stroke: s.color, strokeWidth: s.width, strokeDasharray: s.dash, opacity: dim ? 0.12 : undefined },
-      labelStyle: { fill: s.color, fontSize: 11, opacity: dim ? 0.12 : undefined },
-      markerEnd: { type: MarkerType.ArrowClosed, color: s.color },
+    for (const { p, id, x, width } of pendingPositioned) {
+      const nodeData: CanvasNodeData = { title: p.title, width, date: formatInstant(p.startInstant, p.precision) }
+      rfNodes.push({
+        id,
+        type: p.type,
+        position: { x, y: laneYById.get(id) ?? laneY(p.type) },
+        data: nodeData,
+        draggable: false,
+        selectable: false,
+        className: 'rf-pending',
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      })
     }
-  })
+
+    const rfEdges: Edge[] = gedges.map((e) => {
+      const s = EDGE_STYLE[e.kind]
+      // Dim edges that don't connect two focused nodes while a lens is active.
+      const dim = focusSet && !(focusSet.has(e.sourceId) && focusSet.has(e.targetId))
+      return {
+        id: e.id,
+        source: e.sourceId,
+        target: e.targetId,
+        label: e.label ?? e.kind,
+        style: { stroke: s.color, strokeWidth: s.width, strokeDasharray: s.dash, opacity: dim ? 0.12 : undefined },
+        labelStyle: { fill: s.color, fontSize: 11, opacity: dim ? 0.12 : undefined },
+        markerEnd: { type: MarkerType.ArrowClosed, color: s.color },
+      }
+    })
+
+    return { rfNodes, rfEdges, minInstant }
+  }, [gnodes, gedges, pending, draft, selectedId, focusIds])
+
+  const lensSize = focusIds.length
 
   return (
     <div className="canvas-root">
       <AppBar timelineId={timelineId} title={data?.title ?? 'Untitled timeline'} />
       <HistoryControls timelineId={timelineId} />
       <ExportControls graph={{ title: data?.title ?? 'Timeline', nodes: gnodes, edges: gedges }} />
-      {focusSet && (
+      {lensSize > 0 && (
         <div className="lens-bar">
-          <span>Lens · {focusSet.size} node{focusSet.size === 1 ? '' : 's'}</span>
+          <span>Lens · {lensSize} node{lensSize === 1 ? '' : 's'}</span>
           <button type="button" onClick={() => setFocusIds([])} title="Clear lens">
             Clear ✕
           </button>

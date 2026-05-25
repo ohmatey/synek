@@ -114,7 +114,13 @@ function ChatThread({
   // Lens: mirror the latest answer's `focus` tool call onto the canvas. Derives
   // from the most recent assistant message, so a build turn (no focus) clears it.
   useEffect(() => {
-    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+    let lastAssistant: UIMessage | undefined
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === 'assistant') {
+        lastAssistant = messages[i]
+        break
+      }
+    }
     const ids: string[] = []
     for (const part of lastAssistant?.parts ?? []) {
       const p = part as unknown as { type: string; input?: { ids?: string[] } }
