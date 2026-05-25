@@ -79,6 +79,8 @@ bun run build        # production build
 bun run typecheck    # tsc --noEmit
 bun run db:generate  # generate a migration from schema.ts
 bun run db:migrate   # apply migrations (also applied on server start, idempotent)
+bun run db:push      # push schema to the DB without a migration (dev)
+bun run db:seed      # seed example timelines (all, or one: bun run db:seed space-race)
 ```
 
 ## Env (`.env.example`)
