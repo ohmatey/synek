@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ReactFlow,
   Background,
@@ -20,11 +20,13 @@ import { getGraph } from '~/lib/server/graph'
 import { AppBar } from './AppBar'
 import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
+import { StoryReaderPanel } from './StoryReaderPanel'
 import { TimeRuler } from './TimeRuler'
 import { ExportControls } from './ExportControls'
 import { useBuildStream } from './build-stream'
+import { generateStory, getStories, regenerateStory } from '~/lib/server/stories'
 import type { CanvasNodeData, NodeDraft } from './types'
-import type { EdgeKind } from '~/lib/domain/types'
+import type { EdgeKind, StoryDTO } from '~/lib/domain/types'
 
 // Memoized module-level — required by React Flow.
 const nodeTypes = { event: EventNode, entity: EntityNode, period: PeriodNode }
@@ -43,6 +45,30 @@ function AutoFit({ nodeCount, pendingCount }: { nodeCount: number; pendingCount:
     }
     rf.fitView({ padding: 0.2, duration: 450 })
   }, [nodeCount, pendingCount, rf])
+  return null
+}
+
+// Drives the camera during story playback: frames the focus set (the moment +
+// the current beat's related moments), and re-centers when a related link is
+// tapped. `focusKey` is the value-key of `ids` so the effect fires by content.
+function StoryCamera({
+  focusKey,
+  ids,
+  center,
+}: {
+  focusKey: string
+  ids: string[]
+  center: { id: string; n: number } | null
+}) {
+  const rf = useReactFlow()
+  useEffect(() => {
+    if (ids.length) rf.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.4, duration: 500 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKey, rf])
+  useEffect(() => {
+    if (center) rf.fitView({ nodes: [{ id: center.id }], padding: 0.6, duration: 500 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center, rf])
   return null
 }
 
@@ -68,6 +94,65 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
 
   const { pending, focusIds, setFocusIds } = useBuildStream()
 
+  // --- Story playback (the reader shares the detail-panel slot) ---
+  const qc = useQueryClient()
+  const [story, setStory] = useState<StoryDTO | null>(null)
+  const [storyMomentId, setStoryMomentId] = useState<string | null>(null)
+  const [beat, setBeat] = useState(0)
+  const [storyBusy, setStoryBusy] = useState<false | 'loading' | 'regenerating'>(false)
+  const [storyError, setStoryError] = useState<string | null>(null)
+  const [centerReq, setCenterReq] = useState<{ id: string; n: number } | null>(null)
+
+  const openStory = useCallback(
+    async (momentId: string) => {
+      setSelectedId(null) // the story takes over the detail slot (mutually exclusive)
+      setStoryMomentId(momentId)
+      setStory(null)
+      setBeat(0)
+      setStoryError(null)
+      setStoryBusy('loading')
+      try {
+        const existing = await getStories({ data: momentId })
+        const s = existing[0] ?? (await generateStory({ data: momentId }))
+        setStory(s)
+        if (!existing[0]) await qc.invalidateQueries({ queryKey: ['graph', timelineId] })
+      } catch (e) {
+        setStoryError(e instanceof Error ? e.message : 'Could not compose the story.')
+      } finally {
+        setStoryBusy(false)
+      }
+    },
+    [qc, timelineId],
+  )
+
+  const regenerate = useCallback(async () => {
+    if (!story) return
+    setStoryBusy('regenerating')
+    setStoryError(null)
+    try {
+      const s = await regenerateStory({ data: story.id })
+      setStory(s)
+      setBeat(0)
+      await qc.invalidateQueries({ queryKey: ['graph', timelineId] })
+    } catch (e) {
+      setStoryError(e instanceof Error ? e.message : 'Could not regenerate the story.')
+    } finally {
+      setStoryBusy(false)
+    }
+  }, [story, qc, timelineId])
+
+  const closeStory = useCallback(() => {
+    setStory(null)
+    setStoryMomentId(null)
+    setBeat(0)
+    setStoryError(null)
+    setStoryBusy(false)
+    setCenterReq(null)
+    setFocusIds([])
+  }, [setFocusIds])
+
+  const focusRelated = useCallback((id: string) => setCenterReq({ id, n: Date.now() }), [])
+
   const gnodes = data?.nodes ?? []
   const gedges = data?.edges ?? []
   // Derive the selection from live data, so a deleted node closes the panel.
@@ -78,6 +163,19 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     (d: NodeDraft | null) => setDraft(d && selectedId ? { id: selectedId, draft: d } : null),
     [selectedId],
   )
+
+  // While a story plays, lens the moment + the current beat's related moments
+  // (reusing the build-stream focus lens) and keep the camera framed on them.
+  const presentIds = new Set(gnodes.map((n) => n.id))
+  const beatRelated = (story?.segments[beat]?.relatedNodeIds ?? []).filter((id) => presentIds.has(id))
+  const storyFocus = storyMomentId && presentIds.has(storyMomentId) ? [storyMomentId, ...beatRelated] : null
+  const storyFocusKey = storyFocus ? storyFocus.join(',') : ''
+  const nodeTitles = Object.fromEntries(gnodes.map((n) => [n.id, n.title]))
+
+  useEffect(() => {
+    if (storyFocus) setFocusIds(storyFocus)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyFocusKey])
 
   // The full layout pipeline — overlay, scale, lane packing, and the React Flow
   // node/edge arrays — is O(n log n) and rebuilt only when its inputs change.
@@ -140,6 +238,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         images: n.images.filter((i) => i.show),
         size: n.size,
         color: n.color,
+        storyCount: n.storyCount,
+        hook: n.topHook,
       }
       rfNodes.push({
         id: n.id,
@@ -194,7 +294,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       <AppBar timelineId={timelineId} title={data?.title ?? 'Untitled timeline'} />
       <HistoryControls timelineId={timelineId} />
       <ExportControls graph={{ title: data?.title ?? 'Timeline', nodes: gnodes, edges: gedges }} />
-      {lensSize > 0 && (
+      {lensSize > 0 && !storyMomentId && (
         <div className="lens-bar">
           <span>Lens · {lensSize} node{lensSize === 1 ? '' : 's'}</span>
           <button type="button" onClick={() => setFocusIds([])} title="Clear lens">
@@ -210,7 +310,10 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         edges={rfEdges}
         nodeTypes={nodeTypes}
         nodesDraggable={false}
-        onNodeClick={(_, n) => setSelectedId(n.id)}
+        onNodeClick={(_, n) => {
+          closeStory() // a node tap leaves story playback for that node's detail
+          setSelectedId(n.id)
+        }}
         onPaneClick={() => setSelectedId(null)}
         fitView
         fitViewOptions={{ padding: 0.2, duration: 600 }}
@@ -220,6 +323,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         <Background gap={48} />
         <Controls showInteractive={false} />
         <AutoFit nodeCount={gnodes.length} pendingCount={pending.length} />
+        <StoryCamera focusKey={storyFocusKey} ids={storyFocus ?? []} center={centerReq} />
         {(gnodes.length > 0 || pending.length > 0) && <TimeRuler minInstant={minInstant} />}
         {!isLoading && gnodes.length === 0 && pending.length === 0 && (
           <Panel position="top-center">
@@ -229,7 +333,20 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           </Panel>
         )}
       </ReactFlow>
-      {selectedNode && (
+      {storyMomentId ? (
+        <StoryReaderPanel
+          momentTitle={gnodes.find((n) => n.id === storyMomentId)?.title ?? 'Moment'}
+          story={story}
+          beat={beat}
+          busy={storyBusy}
+          error={storyError}
+          nodeTitles={nodeTitles}
+          onBeat={setBeat}
+          onRegenerate={regenerate}
+          onFocusRelated={focusRelated}
+          onClose={closeStory}
+        />
+      ) : selectedNode ? (
         <NodeDetailPanel
           key={selectedNode.id}
           node={selectedNode}
@@ -239,8 +356,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           onClose={() => setSelectedId(null)}
           onSelectNode={setSelectedId}
           onDraft={handleDraft}
+          onOpenStory={openStory}
         />
-      )}
+      ) : null}
     </div>
   )
 }

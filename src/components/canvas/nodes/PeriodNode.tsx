@@ -8,6 +8,7 @@ export function PeriodNode({ data }: NodeProps) {
       <div className="sf-period" style={{ width: d.width, borderColor: d.color ?? undefined }}>
         <span className="sf-label">{d.title}</span>
         {d.citations ? <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span> : null}
+        {d.storyCount ? <span className="sf-story" title={d.hook ?? 'Story available'}>▶</span> : null}
       </div>
       {d.images?.length ? (
         <div className="sf-images">

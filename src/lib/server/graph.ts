@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { ensureTimeline, loadGraph, getTimelineTitle } from '~/lib/db/graph'
+import { ensureTimeline, loadGraph, getTimelineTitle, momentStoryInfo } from '~/lib/db/graph'
 import type { TimelineGraph } from '~/lib/domain/types'
 
 // Client-callable RPC to load a timeline's graph as serializable DTOs. The db
@@ -9,6 +9,7 @@ export const getGraph = createServerFn({ method: 'GET' })
   .handler(({ data: timelineId }): TimelineGraph => {
     ensureTimeline(timelineId)
     const { nodes, edges } = loadGraph(timelineId)
+    const storyInfo = momentStoryInfo(timelineId)
     return {
       title: getTimelineTitle(timelineId),
       nodes: nodes.map((n) => ({
@@ -23,6 +24,8 @@ export const getGraph = createServerFn({ method: 'GET' })
         images: n.metadata?.images ?? [],
         size: n.metadata?.size ?? 'medium',
         color: n.metadata?.color ?? null,
+        storyCount: storyInfo.get(n.id)?.storyCount ?? 0,
+        topHook: storyInfo.get(n.id)?.topHook ?? null,
       })),
       edges: edges.map((e) => ({
         id: e.id,

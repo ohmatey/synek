@@ -10,10 +10,12 @@ The pivot: the center of gravity moves from *"watch an AI build a knowledge mesh
 
 | Phase | Title | The one-line promise | Status |
 |---|---|---|---|
-| [S1](s1-story-spine.md) | Story spine + provenance | Tap a moment → read a coherent, generated story. Every generation tracked. | planned |
+| [S1](s1-story-spine.md) | Story spine + provenance | Tap a moment → read a coherent, generated story. Every generation tracked. | built* |
 | [S2](s2-artifact-grounding.md) | Artifact grounding (the moat) | Tap a sentence → see the primary source it came from. | planned |
 | [S3](s3-multi-pov.md) | Multi-POV | The same moment through different eyes, switchable. | planned |
 | [S4](s4-witness-mode.md) | Witness mode | Tap a person mid-beat → hear their head, grounded in the scene. | planned |
+
+\* **S1 built** — schema, the generation service (cache + provenance), and the canvas playback reader; verified at the data layer (typecheck + clean build + a 19-check test). A live in-browser UI pass is owed (needs `OPENROUTER_API_KEY`; the dev preview can't hydrate this server).
 
 ## Cross-cutting principles (true across all four)
 

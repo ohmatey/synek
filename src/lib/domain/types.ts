@@ -36,6 +36,9 @@ export type GraphNode = {
   images: NodeImage[]
   size: NodeSize
   color: string | null
+  // Story-layer affordance (S1): does this moment have a story, and its hook.
+  storyCount: number
+  topHook: string | null
 }
 
 export type GraphEdge = {
@@ -54,4 +57,43 @@ export type TimelineSummary = {
   title: string
   description: string | null
   createdAt: number
+}
+
+// --- Story layer (S1) -----------------------------------------------------
+// Client-reachable enums (the reader renders by these) — kept here, not in the
+// server-only schema, so the canvas/reader can import them safely.
+
+export const POV_TYPES = ['first_person', 'witness', 'omniscient', 'diary'] as const
+export type PovType = (typeof POV_TYPES)[number]
+
+export const DEPTH_TIERS = ['light', 'deep'] as const // S1: light = generated, deep = handcrafted (manual)
+export type DepthTier = (typeof DEPTH_TIERS)[number]
+
+export const STORY_STATUS = ['draft', 'published', 'archived'] as const
+export type StoryStatus = (typeof STORY_STATUS)[number]
+
+export const SEGMENT_KINDS = ['narration', 'dialogue', 'sensory', 'interior'] as const
+export type SegmentKind = (typeof SEGMENT_KINDS)[number]
+
+// Serializable story DTOs sent from the server fn to the reader (plain
+// primitives only — no Date/Row that the RPC serializer rejects).
+export type StorySegmentDTO = {
+  id: string
+  sequence: number
+  kind: SegmentKind
+  bodyText: string
+  settingNote: string | null
+  relatedNodeIds: string[]
+}
+
+export type StoryDTO = {
+  id: string
+  momentId: string
+  title: string
+  hook: string | null
+  povType: PovType
+  depthTier: DepthTier
+  estimatedMinutes: number | null
+  status: StoryStatus
+  segments: StorySegmentDTO[]
 }
