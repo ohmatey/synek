@@ -1,6 +1,6 @@
-import { eq, desc } from 'drizzle-orm'
+import { and, desc, eq, ne } from 'drizzle-orm'
 import { db } from './index'
-import { timelines, nodes, edges, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
+import { timelines, nodes, edges, stories, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
 
 export type Graph = { nodes: NodeRow[]; edges: EdgeRow[] }
 
@@ -37,4 +37,29 @@ export function loadGraph(timelineId: string): Graph {
     nodes: db.select().from(nodes).where(eq(nodes.timelineId, timelineId)).all(),
     edges: db.select().from(edges).where(eq(edges.timelineId, timelineId)).all(),
   }
+}
+
+// Per-moment story affordance for the canvas: count of live (non-archived)
+// stories + the most-recent hook. Scoped to the timeline by joining moment→node.
+export function momentStoryInfo(
+  timelineId: string,
+): Map<string, { storyCount: number; topHook: string | null }> {
+  const rows = db
+    .select({ momentId: stories.momentId, hook: stories.hook })
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .where(and(eq(nodes.timelineId, timelineId), ne(stories.status, 'archived')))
+    .orderBy(desc(stories.createdAt)) // newest first → first row per moment is the live hook
+    .all()
+  const map = new Map<string, { storyCount: number; topHook: string | null }>()
+  for (const r of rows) {
+    const cur = map.get(r.momentId)
+    if (cur) {
+      cur.storyCount += 1
+      if (!cur.topHook && r.hook) cur.topHook = r.hook
+    } else {
+      map.set(r.momentId, { storyCount: 1, topHook: r.hook ?? null })
+    }
+  }
+  return map
 }

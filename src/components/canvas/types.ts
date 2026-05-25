@@ -20,4 +20,7 @@ export type CanvasNodeData = {
   images?: NodeImage[]
   size?: NodeSize
   color?: string | null
+  // Story-layer affordance (S1): a ▶ marker when the moment has a story.
+  storyCount?: number
+  hook?: string | null
 }

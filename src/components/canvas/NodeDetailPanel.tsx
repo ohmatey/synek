@@ -47,6 +47,7 @@ export function NodeDetailPanel({
   onClose,
   onSelectNode,
   onDraft,
+  onOpenStory,
 }: {
   node: GraphNode
   edges: GraphEdge[]
@@ -55,6 +56,7 @@ export function NodeDetailPanel({
   onClose: () => void
   onSelectNode: (id: string) => void
   onDraft: (draft: NodeDraft | null) => void
+  onOpenStory: (momentId: string) => void
 }) {
   const qc = useQueryClient()
   const hasSpan = node.type !== 'event'
@@ -225,6 +227,12 @@ export function NodeDetailPanel({
           {summary.trim() || 'Add a description…'}
         </div>
       )}
+
+      {/* Story — the headline action: tap a moment, read its story on the map */}
+      <button type="button" className="detail-story-cta" onClick={() => onOpenStory(node.id)}>
+        {node.storyCount > 0 ? '▶ Read the story' : '✦ Tell the story here'}
+      </button>
+      {node.storyCount > 0 && node.topHook && <p className="detail-story-hook">{node.topHook}</p>}
 
       {/* Properties — Notion/Figma-style rows */}
       <div className="detail-props">

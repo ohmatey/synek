@@ -840,6 +840,295 @@ body {
   border-color: #e7e9ee;
 }
 
+/* --- Story layer (S1): node marker, detail CTA, reader playback --- */
+
+/* ▶ marker on a moment that has a story */
+.sf-story {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #2a2113;
+  color: #e0a458;
+  font-size: 9px;
+  line-height: 1;
+}
+
+/* Detail-panel CTA — the headline "tell/read the story" action */
+.detail-story-cta {
+  display: block;
+  width: 100%;
+  margin: 12px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid #3a3320;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #211c10, #1a1710);
+  color: #f0c27a;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.detail-story-cta:hover {
+  border-color: #e0a458;
+  background: #241d11;
+}
+.detail-story-hook {
+  margin: 6px 2px 0;
+  color: #9aa0b0;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* Reader panel shares the .detail-panel dock; these style the playback UI */
+.story-panel {
+  overflow-y: auto;
+}
+.story-head {
+  gap: 8px;
+}
+.story-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.story-depth {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.story-depth-light {
+  background: #1b2030;
+  color: #6aa9ff;
+  border: 1px solid #21314f;
+}
+.story-depth-deep {
+  background: #241d11;
+  color: #e0a458;
+  border: 1px solid #3a3320;
+}
+.story-moment {
+  color: #8b93a7;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.story-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.story-regen {
+  background: transparent;
+  border: 1px solid #2a2f3c;
+  border-radius: 7px;
+  color: #c7ccd8;
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.story-regen:hover:not(:disabled) {
+  border-color: #3a6df0;
+  color: #fff;
+}
+.story-regen:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.story-loading,
+.story-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 16px;
+  text-align: center;
+  color: #8b93a7;
+}
+.story-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #2a2f3c;
+  border-top-color: #e0a458;
+  animation: story-spin 0.8s linear infinite;
+}
+@keyframes story-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.story-error-msg {
+  color: #e06a6a;
+  font-size: 13px;
+}
+.story-retry {
+  background: transparent;
+  border: 1px solid #2a2f3c;
+  border-radius: 7px;
+  color: #c7ccd8;
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.story-retry:hover {
+  border-color: #3a6df0;
+  color: #fff;
+}
+
+.story-title {
+  margin: 14px 0 4px;
+  font-size: 19px;
+  font-weight: 700;
+  color: #f3f5f9;
+  line-height: 1.25;
+}
+.story-hook {
+  margin: 0 0 14px;
+  color: #9aa0b0;
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+.story-seg {
+  border-left: 2px solid #2a2f3c;
+  padding: 2px 0 2px 14px;
+  margin: 8px 0 16px;
+  animation: story-beat-in 0.28s ease;
+}
+@keyframes story-beat-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.story-seg-kind {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7283;
+  margin-bottom: 6px;
+}
+.story-seg-body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #e7e9ee;
+  white-space: pre-wrap;
+}
+.story-seg-setting {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  font-style: italic;
+  color: #8b93a7;
+}
+/* Per-kind voice */
+.story-seg-narration {
+  border-left-color: #3a6df0;
+}
+.story-seg-dialogue {
+  border-left-color: #6aa9ff;
+}
+.story-seg-dialogue .story-seg-body {
+  padding-left: 8px;
+}
+.story-seg-sensory {
+  border-left-color: #52c41a;
+}
+.story-seg-sensory .story-seg-body {
+  font-style: italic;
+  color: #c7ccd8;
+}
+.story-seg-interior {
+  border-left-color: #9b8cff;
+}
+.story-seg-interior .story-seg-body {
+  font-style: italic;
+  color: #cfc8ee;
+}
+
+.story-related {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.story-related-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7283;
+}
+.story-related-link {
+  background: #1a1d25;
+  border: 1px solid #2a2f3c;
+  border-radius: 999px;
+  color: #c7ccd8;
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.story-related-link:hover {
+  border-color: #e0a458;
+  color: #f0c27a;
+}
+
+.story-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid #232733;
+}
+.story-nav-btn {
+  background: #1a1d25;
+  border: 1px solid #2a2f3c;
+  border-radius: 8px;
+  color: #e7e9ee;
+  font-size: 13px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.story-nav-btn:hover:not(:disabled) {
+  border-color: #3a6df0;
+}
+.story-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.story-beat-count {
+  font-size: 12px;
+  color: #8b93a7;
+}
+
 .detail-swatch-none {
   display: flex;
   align-items: center;

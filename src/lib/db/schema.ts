@@ -1,5 +1,15 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
-import { NODE_TYPES, EDGE_KINDS, PRECISIONS, type NodeImage, type NodeSize } from '~/lib/domain/types'
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+import {
+  NODE_TYPES,
+  EDGE_KINDS,
+  PRECISIONS,
+  POV_TYPES,
+  DEPTH_TIERS,
+  STORY_STATUS,
+  SEGMENT_KINDS,
+  type NodeImage,
+  type NodeSize,
+} from '~/lib/domain/types'
 
 export type Citation = { title: string; url?: string; quote?: string }
 export type NodeMetadata = { citations?: Citation[]; color?: string; images?: NodeImage[]; size?: NodeSize }
@@ -82,11 +92,109 @@ export const messages = sqliteTable('messages', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
 })
 
+// --- Story layer (S1) -----------------------------------------------------
+// "Moment" is the product word for an existing `node`; the story layer hangs
+// off `nodes.id` so the Patch/undo engine is untouched. Stories are NOT graph
+// Patches — generation is a separate, provenance-tracked flow.
+
+// Provenance generation targets/purposes are server-only (not client-reachable).
+export const GEN_TARGETS = ['story', 'segment', 'interior', 'hook', 'voice', 'image'] as const
+export const GEN_PURPOSES = ['story', 'segment', 'interior', 'hook', 'image', 'voice'] as const
+
+// Built day one so it never has to be retrofitted across thousands of rows.
+export const promptTemplates = sqliteTable('prompt_templates', {
+  id: text('id').primaryKey().$defaultFn(newId),
+  name: text('name').notNull(), // 'generate_story_v1'
+  version: integer('version').notNull().default(1),
+  purpose: text('purpose', { enum: GEN_PURPOSES }).notNull(),
+  body: text('body').notNull(), // template with placeholders
+  systemPrompt: text('system_prompt'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+})
+
+export const generations = sqliteTable(
+  'generations',
+  {
+    id: text('id').primaryKey().$defaultFn(newId),
+    targetKind: text('target_kind', { enum: GEN_TARGETS }).notNull(),
+    targetId: text('target_id'), // polymorphic — no FK by design
+    cacheKey: text('cache_key'), // hash(templateId, promptInputs) — indexed for dedupe
+    model: text('model').notNull(), // 'anthropic/claude-sonnet-4-6'
+    promptTemplateId: text('prompt_template_id').references(() => promptTemplates.id),
+    promptInputsJson: text('prompt_inputs_json', { mode: 'json' }).$type<Record<string, unknown>>(),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    costCents: integer('cost_cents'),
+    latencyMs: integer('latency_ms'),
+    humanReviewed: integer('human_reviewed', { mode: 'boolean' }).notNull().default(false),
+    reviewerNotes: text('reviewer_notes'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  },
+  (t) => ({ cacheKeyIdx: index('gen_cache_key_idx').on(t.cacheKey) }),
+)
+
+// Minimal scaffold in S1 (omniscient stories don't populate it); enriched in S3/S4.
+export const people = sqliteTable('people', {
+  id: text('id').primaryKey().$defaultFn(newId),
+  slug: text('slug').notNull().unique(),
+  displayName: text('display_name').notNull(),
+  fullName: text('full_name'),
+  birthYear: integer('birth_year'), // plain year int — people are not on the axis
+  deathYear: integer('death_year'),
+  role: text('role'),
+  isHistorical: integer('is_historical', { mode: 'boolean' }).notNull().default(true),
+  shortBio: text('short_bio'),
+  portraitUrl: text('portrait_url'),
+  voiceProfileId: text('voice_profile_id'), // for TTS later; unused in S1
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+})
+
+export const stories = sqliteTable('stories', {
+  id: text('id').primaryKey().$defaultFn(newId),
+  momentId: text('moment_id')
+    .notNull()
+    .references(() => nodes.id, { onDelete: 'cascade' }),
+  slug: text('slug').notNull().unique(),
+  title: text('title').notNull(), // "Anna and the Books"
+  hook: text('hook'), // one-liner shown on the moment
+  povType: text('pov_type', { enum: POV_TYPES }).notNull().default('omniscient'), // S1: always omniscient
+  depthTier: text('depth_tier', { enum: DEPTH_TIERS }).notNull().default('light'),
+  estimatedMinutes: integer('estimated_minutes'),
+  primaryPersonId: text('primary_person_id').references(() => people.id), // null in S1
+  status: text('status', { enum: STORY_STATUS }).notNull().default('draft'),
+  language: text('language').notNull().default('en'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+})
+
+export const storySegments = sqliteTable('story_segments', {
+  id: text('id').primaryKey().$defaultFn(newId),
+  storyId: text('story_id')
+    .notNull()
+    .references(() => stories.id, { onDelete: 'cascade' }),
+  sequence: integer('sequence').notNull(), // ordering within the story
+  kind: text('kind', { enum: SEGMENT_KINDS }).notNull().default('narration'),
+  bodyText: text('body_text').notNull(),
+  audioUrl: text('audio_url'), // optional pre-gen TTS; unused in S1
+  settingNote: text('setting_note'), // "rain on cobblestones, smell of woodsmoke"
+  relatedNodeIds: text('related_node_ids', { mode: 'json' }).$type<string[]>(), // beat → tappable map links
+  speakerPersonId: text('speaker_person_id').references(() => people.id), // null in S1 (S4)
+  generationId: text('generation_id').references(() => generations.id),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+})
+
 export type TimelineRow = typeof timelines.$inferSelect
 export type NodeRow = typeof nodes.$inferSelect
 export type EdgeRow = typeof edges.$inferSelect
 export type PatchRow = typeof patches.$inferSelect
 export type MessageRow = typeof messages.$inferSelect
+export type PromptTemplateRow = typeof promptTemplates.$inferSelect
+export type GenerationRow = typeof generations.$inferSelect
+export type PersonRow = typeof people.$inferSelect
+export type StoryRow = typeof stories.$inferSelect
+export type StorySegmentRow = typeof storySegments.$inferSelect
 
 // A single reversible graph mutation. Updates carry before/after; deletes carry
 // the full row(s) so they can be restored. invertPatch = ops.map(invert).reverse().
