@@ -2207,6 +2207,47 @@ body {
   cursor: not-allowed;
 }
 
+/* API keys panel */
+.home-connect .composer-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.home-key-new {
+  flex-wrap: wrap;
+  padding: 8px;
+  background: #0f1a14;
+  border: 1px solid #1f3a2a;
+  border-radius: 8px;
+}
+
+.home-key-once {
+  flex: 1 0 100%;
+  color: #6fbf8f;
+  font-size: 12px;
+}
+
+.home-keys-table {
+  margin-top: 14px;
+}
+
+.home-keys-table .home-connect-code {
+  display: inline-block;
+  width: auto;
+}
+
+.home-key-badge {
+  margin-left: 8px;
+  color: #d98a8a;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.home-key-revoked {
+  opacity: 0.55;
+}
+
 .home-empty {
   color: #6b7180;
   font-size: 14px;

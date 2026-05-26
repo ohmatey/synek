@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { listTimelines, createTimeline, renameTimeline, deleteTimeline } from '~/lib/server/timelines'
-import { getMcpToken } from '~/lib/server/mcp-access'
+import { listApiKeys, createApiKey, revokeApiKey } from '~/lib/server/api-keys'
 
 export const Route = createFileRoute('/')({
   component: Home,
@@ -73,41 +73,55 @@ function RowMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () =>
   )
 }
 
-// Shows the MCP endpoint + a reveal/copy of the access token, so users can
-// connect a client without the `bun run issue:key` CLI.
+// Shows the MCP endpoint and a manager for API keys — named, revocable credentials
+// the user pastes into their MCP client. New keys are shown ONCE on creation.
 function ConnectPanel() {
+  const qc = useQueryClient()
   const [origin, setOrigin] = useState('')
-  const [token, setToken] = useState<string | null>(null)
+  const [label, setLabel] = useState('')
   const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState<'url' | 'token' | null>(null)
+  const [created, setCreated] = useState<{ raw: string; label: string } | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
 
   useEffect(() => setOrigin(window.location.origin), [])
   const url = `${origin}/api/mcp`
 
-  async function reveal() {
-    if (busy || token) return
+  const { data: keys = [] } = useQuery({ queryKey: ['api-keys'], queryFn: () => listApiKeys() })
+
+  function copy(text: string, which: string) {
+    void navigator.clipboard?.writeText(text)
+    setCopied(which)
+    setTimeout(() => setCopied(null), 1500)
+  }
+
+  async function create() {
+    const name = label.trim()
+    if (busy || !name) return
     setBusy(true)
     try {
-      const { token } = await getMcpToken()
-      setToken(token)
+      const { raw, key } = await createApiKey({ data: { label: name } })
+      setCreated({ raw, label: key.label })
+      setLabel('')
+      await qc.invalidateQueries({ queryKey: ['api-keys'] })
     } finally {
       setBusy(false)
     }
   }
 
-  function copy(text: string, which: 'url' | 'token') {
-    void navigator.clipboard?.writeText(text)
-    setCopied(which)
-    setTimeout(() => setCopied(null), 1500)
+  async function revoke(id: string, name: string) {
+    if (!window.confirm(`Revoke “${name}”? Any client using it will stop working immediately.`)) return
+    await revokeApiKey({ data: id })
+    await qc.invalidateQueries({ queryKey: ['api-keys'] })
   }
 
   return (
     <section className="home-connect">
       <h2 className="home-connect-title">Connect an MCP client</h2>
       <p className="home-connect-sub">
-        Point your client (Claude Desktop, Claude Code) at the endpoint below with the access token, then
-        ask it to build and edit timelines. The app itself has no AI — your client brings the model.
+        Point your client (Claude Desktop, Claude Code) at the endpoint below and authenticate with an API
+        key, then ask it to build and edit timelines. The app itself has no AI — your client brings the model.
       </p>
+
       <div className="home-connect-row">
         <span className="home-connect-label">Endpoint</span>
         <code className="home-connect-code">{url || '…'}</code>
@@ -115,23 +129,80 @@ function ConnectPanel() {
           {copied === 'url' ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <div className="home-connect-row">
-        <span className="home-connect-label">Token</span>
-        {token ? (
-          <code className="home-connect-code home-connect-token">{token}</code>
-        ) : (
-          <span className="home-connect-hidden">•••••••••••••••• (header: Authorization: Bearer …)</span>
-        )}
-        {token ? (
-          <button type="button" className="home-connect-copy" onClick={() => copy(token, 'token')}>
-            {copied === 'token' ? 'Copied' : 'Copy'}
+
+      <form
+        className="home-connect-row"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void create()
+        }}
+      >
+        <span className="home-connect-label">New key</span>
+        <input
+          className="composer-input"
+          placeholder="Name this key (e.g. Claude Desktop, laptop CLI)"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          aria-label="API key label"
+        />
+        <button type="submit" className="home-connect-copy" disabled={busy || !label.trim()}>
+          {busy ? 'Creating…' : 'Create key'}
+        </button>
+      </form>
+
+      {created && (
+        <div className="home-connect-row home-key-new" role="status">
+          <span className="home-connect-label">Copy now</span>
+          <code className="home-connect-code home-connect-token">{created.raw}</code>
+          <button type="button" className="home-connect-copy" onClick={() => copy(created.raw, 'new')}>
+            {copied === 'new' ? 'Copied' : 'Copy'}
           </button>
-        ) : (
-          <button type="button" className="home-connect-copy" onClick={() => void reveal()} disabled={busy}>
-            {busy ? 'Generating…' : 'Reveal token'}
+          <button type="button" className="home-connect-copy" onClick={() => setCreated(null)}>
+            Done
           </button>
-        )}
-      </div>
+          <span className="home-key-once">Save it now — “{created.label}” won’t be shown again.</span>
+        </div>
+      )}
+
+      {keys.length > 0 && (
+        <table className="home-table home-keys-table">
+          <thead>
+            <tr>
+              <th scope="col">Key</th>
+              <th scope="col">Secret</th>
+              <th scope="col" className="home-th-date">Created</th>
+              <th scope="col" className="home-th-date">Last used</th>
+              <th scope="col" className="home-th-actions">
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {keys.map((k) => (
+              <tr key={k.id} className={`home-row${k.revokedAt ? ' home-key-revoked' : ''}`}>
+                <td className="home-cell-main">
+                  <span className="home-row-title">{k.label}</span>
+                </td>
+                <td>
+                  <code className="home-connect-code">{k.prefix}…</code>
+                  {k.revokedAt ? <span className="home-key-badge"> revoked</span> : null}
+                </td>
+                <td className="home-cell-date">
+                  <time dateTime={new Date(k.createdAt).toISOString()}>{dateFmt.format(k.createdAt)}</time>
+                </td>
+                <td className="home-cell-date">{k.lastUsedAt ? dateFmt.format(k.lastUsedAt) : '—'}</td>
+                <td className="home-cell-actions">
+                  {!k.revokedAt && (
+                    <button type="button" className="home-menu-item home-menu-del" onClick={() => void revoke(k.id, k.label)}>
+                      Revoke
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   )
 }

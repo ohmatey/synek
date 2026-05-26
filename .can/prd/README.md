@@ -25,6 +25,14 @@ The S-series deepens what happens *after* you tap a moment. This track makes the
 |---|---|---|---|
 | [VIS](visual-immersion.md) | Immersive timelines | Before you tap a story, the map already *feels* like a place people lived in. | proposed |
 
+### Connection layer (the MCP front door)
+
+The inversion made the MCP server the product surface. This track makes *connecting a client* a first-class, manageable act.
+
+| Track | Title | The one-line promise | Status |
+|---|---|---|---|
+| [KEYS](mcp-api-keys.md) | API keys | Name a key, copy it once, see it listed, revoke it when you're done. | proposed |
+
 ## Cross-cutting principles (true across all four)
 
 - **Don't rename the substrate.** "Moment" is the product word for an existing `node`; the story layer hangs off `nodes.id` via FKs, so the Patch/undo engine stays intact.

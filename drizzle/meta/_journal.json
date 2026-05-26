@@ -50,6 +50,13 @@
       "when": 1779786410698,
       "tag": "0006_dark_the_enforcers",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1779800741023,
+      "tag": "0007_yielding_franklin_richards",
+      "breakpoints": true
     }
   ]
 }

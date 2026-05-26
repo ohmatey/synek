@@ -22,6 +22,32 @@ function issueKey(): string {
   return token
 }
 
+// Create a named API key directly against the throwaway e2e DB (same cross-process
+// file the server reads). Returns the show-once raw secret and the key id.
+function createKey(label = 'e2e'): { raw: string; id: string } {
+  const out = execFileSync(
+    'bunx',
+    [
+      'tsx',
+      '-e',
+      `import('./src/lib/auth/api-keys').then((m) => { const r = m.createApiKey('${label}'); console.log(JSON.stringify({ raw: r.raw, id: r.key.id })) })`,
+    ],
+    { env: { ...process.env, DATABASE_URL: 'e2e.db' }, encoding: 'utf8' },
+  )
+  const line = out.split('\n').find((l) => l.trim().startsWith('{'))
+  if (!line) throw new Error(`could not parse createApiKey output:\n${out}`)
+  return JSON.parse(line) as { raw: string; id: string }
+}
+
+// Revoke a key by id against the e2e DB.
+function revokeKey(id: string): void {
+  execFileSync(
+    'bunx',
+    ['tsx', '-e', `import('./src/lib/auth/api-keys').then((m) => m.revokeApiKey('${id}'))`],
+    { env: { ...process.env, DATABASE_URL: 'e2e.db' }, encoding: 'utf8' },
+  )
+}
+
 // MCP tool results wrap a single JSON text block — unwrap it.
 function unwrap<T>(res: { content?: Array<{ type: string; text?: string }> }): T {
   const text = res.content?.find((c) => c.type === 'text')?.text
@@ -41,6 +67,34 @@ async function connect(token: string): Promise<Client> {
 test('rejects requests without a Bearer token (401)', async ({ request }) => {
   const res = await request.post('/api/mcp', {
     headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    data: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
+  })
+  expect(res.status()).toBe(401)
+})
+
+test('a named API key authorizes the MCP server, and revoking it returns 401', async ({ request }) => {
+  const { raw, id } = createKey('e2e key')
+  expect(raw.startsWith('synek_')).toBe(true)
+
+  // The key authorizes a real tool call.
+  const client = await connect(raw)
+  try {
+    const timelines = unwrap<Array<{ id: string }>>(
+      await client.callTool({ name: 'list_timelines', arguments: {} }),
+    )
+    expect(Array.isArray(timelines)).toBe(true)
+  } finally {
+    await client.close()
+  }
+
+  // After revoke, the same key is rejected.
+  revokeKey(id)
+  const res = await request.post('/api/mcp', {
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+      authorization: `Bearer ${raw}`,
+    },
     data: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
   })
   expect(res.status()).toBe(401)

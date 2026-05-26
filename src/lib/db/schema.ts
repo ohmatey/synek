@@ -38,6 +38,27 @@ export const timelines = sqliteTable('timelines', {
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
 })
 
+// MCP access keys — named, hashed, revocable credentials for the single local
+// user. The raw secret (`synek_<base64url>`) is shown once at creation and never
+// stored; only its sha256 hash + a short display prefix persist. The MCP guard
+// checks these first, then falls back to Better Auth sessions for legacy tokens
+// (see lib/auth/guard.ts). Postgres-portable, same conventions as the rest.
+export const apiKeys = sqliteTable(
+  'api_keys',
+  {
+    id: text('id').primaryKey().$defaultFn(newId),
+    label: text('label').notNull(),
+    keyHash: text('key_hash').notNull(), // sha256(rawKey) hex — the secret is never stored
+    prefix: text('prefix').notNull(), // first chars of the raw key, for display only
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+    revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }), // non-null = revoked
+  },
+  (t) => [index('api_keys_key_hash_idx').on(t.keyHash)],
+)
+
+export type ApiKeyRow = typeof apiKeys.$inferSelect
+
 export const nodes = sqliteTable('nodes', {
   id: text('id').primaryKey().$defaultFn(newId),
   timelineId: text('timeline_id')
