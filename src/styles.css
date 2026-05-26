@@ -16,6 +16,11 @@ body {
 
 .app-shell {
   --chat-pane-width: 440px;
+  /* Right-side panels (chat, node detail, story reader) dock as columns within
+     these bounds: below the app bar / toolbar, above the bottom time ruler — so
+     the app bar never has to move out of their way. */
+  --dock-top: 56px;
+  --dock-bottom: 34px;
   position: relative; /* positioning context for the floating chat overlay */
   display: flex;
   height: 100vh;
@@ -75,12 +80,12 @@ body {
   color: #fff;
 }
 
-/* Chat — a floating drawer that hovers over the full-width canvas */
+/* Chat — a column docked at the right, between the app bar and the time ruler */
 .chat-pane {
   position: absolute;
-  top: 12px;
+  top: var(--dock-top);
   right: 12px;
-  bottom: 12px;
+  bottom: var(--dock-bottom);
   width: var(--chat-pane-width);
   z-index: 7; /* above app-bar (6) / overlays (5) */
   display: flex;
@@ -745,20 +750,31 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* App bar (top-left): logo + editable timeline name */
-.app-bar {
+/* Full-width top bar: identity on the left, controls on the right. Docked
+   panels (chat, node detail, story) slide in *under* it. */
+.top-bar {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 6;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 8; /* above the chat (7) / detail (6) so they tuck beneath it */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 48px;
+  padding: 0 12px;
+  background: rgba(15, 17, 21, 0.92);
+  border-bottom: 1px solid #2a2f3c;
+  backdrop-filter: blur(8px);
+}
+
+/* App bar group (left): logo + editable timeline name + switcher */
+.app-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 420px;
-  padding: 6px 10px;
-  background: rgba(20, 23, 30, 0.92);
-  border: 1px solid #2a2f3c;
-  border-radius: 10px;
+  min-width: 0;
 }
 
 .app-bar-logo {
@@ -910,27 +926,12 @@ body {
   font-size: 12px;
 }
 
-/* Right-hand toolbar (top-right) — undo/redo, export, chat toggle. Sits left of
-   the floating chat panel; slides to the edge when the chat is collapsed. */
+/* Controls group (right of the top bar) — undo/redo, export, chat toggle */
 .canvas-toolbar {
-  position: absolute;
-  top: 12px;
-  right: calc(var(--chat-pane-width) + 24px);
-  z-index: 6;
+  flex: 0 0 auto;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
-  transition: right 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-.canvas-toolbar.chat-collapsed {
-  right: 12px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .canvas-toolbar {
-    transition: none;
-  }
 }
 
 .history-controls {
@@ -1028,9 +1029,11 @@ body {
 /* Node detail panel */
 .detail-panel {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  bottom: 12px;
+  top: var(--dock-top);
+  /* Docks as a column to the left of the chat panel; sits at the right edge
+     when the chat is collapsed. */
+  right: calc(var(--chat-pane-width) + 24px);
+  bottom: var(--dock-bottom);
   z-index: 6;
   width: 320px;
   display: flex;
@@ -1042,6 +1045,31 @@ body {
   border: 1px solid #2a2f3c;
   border-radius: 12px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  animation: dock-slide-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: right 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Chat hidden → the detail/story column slides over to the right edge */
+.canvas-root.chat-collapsed .detail-panel {
+  right: 12px;
+}
+
+@keyframes dock-slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-panel {
+    animation: none;
+    transition: none;
+  }
 }
 
 .detail-head {

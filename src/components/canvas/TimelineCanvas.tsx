@@ -290,20 +290,22 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const lensSize = focusIds.length
 
   return (
-    <div className="canvas-root">
-      <AppBar timelineId={timelineId} title={data?.title ?? 'Untitled timeline'} />
-      <div className={`canvas-toolbar${chatOpen ? '' : ' chat-collapsed'}`}>
-        <HistoryControls timelineId={timelineId} />
-        <ExportControls graph={{ title: data?.title ?? 'Timeline', nodes: gnodes, edges: gedges }} />
-        <button
-          type="button"
-          className="toolbar-btn toolbar-btn-chat"
-          onClick={() => setChatOpen(!chatOpen)}
-          aria-pressed={chatOpen}
-          title={chatOpen ? 'Hide chat' : 'Show chat'}
-        >
-          {chatOpen ? 'Chat ›' : '‹ Chat'}
-        </button>
+    <div className={`canvas-root${chatOpen ? '' : ' chat-collapsed'}`}>
+      <div className="top-bar">
+        <AppBar timelineId={timelineId} title={data?.title ?? 'Untitled timeline'} />
+        <div className="canvas-toolbar">
+          <HistoryControls timelineId={timelineId} />
+          <ExportControls graph={{ title: data?.title ?? 'Timeline', nodes: gnodes, edges: gedges }} />
+          <button
+            type="button"
+            className="toolbar-btn toolbar-btn-chat"
+            onClick={() => setChatOpen(!chatOpen)}
+            aria-pressed={chatOpen}
+            title={chatOpen ? 'Hide chat' : 'Show chat'}
+          >
+            {chatOpen ? 'Chat ›' : '‹ Chat'}
+          </button>
+        </div>
       </div>
       {lensSize > 0 && !storyMomentId && (
         <div className="lens-bar">
