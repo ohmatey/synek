@@ -24,6 +24,7 @@ export const getGraph = createServerFn({ method: 'GET' })
         images: n.metadata?.images ?? [],
         size: n.metadata?.size ?? 'medium',
         color: n.metadata?.color ?? null,
+        subtype: n.metadata?.subtype ?? null,
         storyCount: storyInfo.get(n.id)?.storyCount ?? 0,
         topHook: storyInfo.get(n.id)?.topHook ?? null,
       })),

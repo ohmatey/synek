@@ -1,4 +1,4 @@
-import type { NodeType, NodeSize } from '~/lib/domain/types'
+import type { NodeType, NodeSize, NodeSubtype } from '~/lib/domain/types'
 
 const MS_PER_DAY = 86_400_000
 const PX_PER_DAY = 0.5
@@ -28,6 +28,19 @@ const TYPE_BODY: Record<NodeType, number> = { period: 56, entity: 34, event: 26 
 const SIZE_SCALE: Record<NodeSize, number> = { small: 0.85, medium: 1, large: 1.3 }
 const IMG_STRIP: Record<NodeSize, number> = { small: 30, medium: 44, large: 66 }
 
+// Person "polaroid" card: a framed portrait + a name/date plate. Fixed size
+// (anchored at the start instant), not stretched across the lifespan span. The
+// frame is always present (silhouette placeholder when no portrait), so the
+// height is constant regardless of `hasImages`.
+// Card = padding + square portrait frame (≈ width − padding) + caption plate.
+// Slightly over-estimated so tall cards never overlap the next row/lane.
+const PERSON_CARD_BODY = 160
+const PERSON_CARD_BASE_WIDTH = 124
+
+export function personCardWidth(size: NodeSize = 'medium'): number {
+  return Math.round(PERSON_CARD_BASE_WIDTH * SIZE_SCALE[size])
+}
+
 // x = date. The base scale; the canvas itself pans/zooms on top of this.
 export function instantToX(instant: number, minInstant: number): number {
   return ((instant - minInstant) / MS_PER_DAY) * PX_PER_DAY
@@ -42,7 +55,13 @@ export function laneY(type: NodeType): number {
   return LANE_Y[type]
 }
 
-export function estimateNodeHeight(type: NodeType, size: NodeSize = 'medium', hasImages = false): number {
+export function estimateNodeHeight(
+  type: NodeType,
+  size: NodeSize = 'medium',
+  hasImages = false,
+  subtype: NodeSubtype | null = null,
+): number {
+  if (subtype === 'person') return Math.round(PERSON_CARD_BODY * SIZE_SCALE[size])
   return Math.round(TYPE_BODY[type] * SIZE_SCALE[size]) + (hasImages ? IMG_STRIP[size] : 0)
 }
 

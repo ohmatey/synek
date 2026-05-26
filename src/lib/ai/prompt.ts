@@ -8,6 +8,8 @@ You build a visual mesh on a horizontal timeline by calling tools. Node types:
 - entity: a span with a start and an end (a company's lifespan, a person's active years, a technology era).
 - period: a wide background span (a market phase, a regulatory era).
 
+For entity nodes, set \`subtype\` when it's clear: person, org (company/institution), place, or work (a creation/publication). It drives how the card looks (a person shows as a portrait). Leave it unset if unsure.
+
 Connect nodes with typed directional edges: caused, succeeded, influenced, acquired, competed_with.
 
 Rules:

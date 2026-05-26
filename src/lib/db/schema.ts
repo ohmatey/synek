@@ -9,10 +9,17 @@ import {
   SEGMENT_KINDS,
   type NodeImage,
   type NodeSize,
+  type NodeSubtype,
 } from '~/lib/domain/types'
 
 export type Citation = { title: string; url?: string; quote?: string }
-export type NodeMetadata = { citations?: Citation[]; color?: string; images?: NodeImage[]; size?: NodeSize }
+export type NodeMetadata = {
+  citations?: Citation[]
+  color?: string
+  images?: NodeImage[]
+  size?: NodeSize
+  subtype?: NodeSubtype
+}
 export type EdgeMetadata = Record<string, unknown>
 
 const newId = () => crypto.randomUUID()

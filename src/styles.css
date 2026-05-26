@@ -644,6 +644,95 @@ body {
   height: 60px;
 }
 
+/* Person "polaroid" card */
+.sf-person {
+  position: relative;
+  width: 124px;
+  padding: 6px;
+  gap: 0;
+  background: #20283a;
+  border: 1px solid #3f5168;
+  border-radius: 8px;
+  color: #dfe6f5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.sf-person-frame {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #141925;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sf-person-portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top; /* face-safe: bias the crop toward the head */
+  display: block;
+}
+
+.sf-person-empty {
+  width: 46%;
+  height: 46%;
+  color: #45506a;
+}
+
+.sf-person-plate {
+  display: flex;
+  flex-direction: column;
+  padding: 5px 2px 1px;
+  border-top: 2px solid transparent; /* color accent set inline */
+}
+
+.sf-person-name {
+  font-weight: 600;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-person-dates {
+  font-size: 0.82em;
+  color: #8b93a7;
+}
+
+.sf-person-badges {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: flex;
+  gap: 3px;
+}
+
+/* Org logo lockup (logo inline with the label, contained not cropped) */
+.sf-entity-org {
+  gap: 7px;
+}
+
+.sf-logo {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  border-radius: 3px;
+}
+
+.sf-size-small .sf-logo {
+  width: 16px;
+  height: 16px;
+}
+
+.sf-size-large .sf-logo {
+  width: 26px;
+  height: 26px;
+}
+
 @keyframes sf-node-in {
   from {
     opacity: 0;
@@ -1749,6 +1838,39 @@ body {
   height: 72px;
   object-fit: cover;
   border-radius: 6px;
+}
+
+.detail-image-cap {
+  max-width: 84px;
+  font-size: 10px;
+  line-height: 1.2;
+  color: #8b93a7;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.detail-img-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.detail-error {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 106, 139, 0.12);
+  border: 1px solid rgba(255, 106, 139, 0.4);
+  color: #ffb3c2;
+  font-size: 11px;
+}
+
+.detail-add:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .detail-image-show {

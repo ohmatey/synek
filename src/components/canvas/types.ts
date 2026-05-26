@@ -1,4 +1,4 @@
-import type { NodeImage, NodeSize, Precision } from '~/lib/domain/types'
+import type { NodeImage, NodeSize, NodeSubtype, Precision } from '~/lib/domain/types'
 
 // In-progress edits from the detail panel, overlaid on the node for a live
 // preview — never persisted until Save (so closing/canceling reverts).
@@ -10,6 +10,7 @@ export type NodeDraft = {
   size: NodeSize
   color: string | null
   images: NodeImage[]
+  subtype: NodeSubtype | null
 }
 
 export type CanvasNodeData = {
@@ -20,6 +21,7 @@ export type CanvasNodeData = {
   images?: NodeImage[]
   size?: NodeSize
   color?: string | null
+  subtype?: NodeSubtype | null
   // Story-layer affordance (S1): a ▶ marker when the moment has a story.
   storyCount?: number
   hook?: string | null

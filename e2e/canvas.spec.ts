@@ -1,18 +1,20 @@
 import { test, expect } from '@playwright/test'
 
-// The visual-cards regression anchor: the image-rich `figures` timeline renders
-// its entity nodes with portrait <img>s.
-test('figures timeline renders image-rich entity nodes', async ({ page }) => {
+// The visual-cards regression anchor: the `figures` timeline renders its person
+// entities as portrait "polaroid" cards.
+test('figures timeline renders person polaroid cards with portraits', async ({ page }) => {
   await page.goto('/timelines/figures')
 
   await expect(page.getByText('Albert Einstein')).toBeVisible()
   await expect(page.getByText('Marie Curie')).toBeVisible()
 
-  // Seeded portraits render as <img> on the nodes (asserts the element + src,
-  // not pixels — remote images may be blank offline).
-  const imgs = page.locator('.sf-img')
-  await expect(imgs.first()).toBeAttached()
-  await expect(imgs.first()).toHaveAttribute('src', /wikimedia/)
+  // Person entities render as .sf-person cards, each with a portrait <img>
+  // (asserts the element + local /seed/ src — not pixels).
+  const people = page.locator('.sf-person')
+  await expect(people.first()).toBeAttached()
+  const portrait = page.locator('.sf-person-portrait')
+  await expect(portrait.first()).toBeAttached()
+  await expect(portrait.first()).toHaveAttribute('src', /\/seed\//)
 })
 
 test('roman-republic timeline renders BCE-dated nodes', async ({ page }) => {

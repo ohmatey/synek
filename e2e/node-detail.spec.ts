@@ -17,3 +17,23 @@ test('clicking a node opens its detail panel', async ({ page }) => {
   await panel.getByRole('button', { name: 'Close' }).click()
   await expect(panel).toBeHidden()
 })
+
+test('the Kind control reflects and updates an entity subtype', async ({ page }) => {
+  await page.goto('/timelines/figures')
+
+  // Charles Darwin is seeded as subtype 'person'.
+  const node = page.locator('.react-flow__node', { hasText: 'Charles Darwin' })
+  await expect(node).toBeAttached()
+  await node.dispatchEvent('click')
+
+  const panel = page.getByRole('dialog', { name: 'Node details' })
+  await expect(panel.getByText('Kind', { exact: true })).toBeVisible()
+
+  // Seeded as person → that option is active; switching to org activates it.
+  const person = panel.getByRole('button', { name: 'person', exact: true })
+  const org = panel.getByRole('button', { name: 'org', exact: true })
+  await expect(person).toHaveClass(/detail-size-active/)
+  await org.click()
+  await expect(org).toHaveClass(/detail-size-active/)
+  await expect(person).not.toHaveClass(/detail-size-active/)
+})

@@ -17,6 +17,14 @@ The pivot: the center of gravity moves from *"watch an AI build a knowledge mesh
 
 \* **S1 built** — schema, the generation service (cache + provenance), and the canvas playback reader; verified at the data layer (typecheck + clean build + a 19-check test). A live in-browser UI pass is owed (needs `OPENROUTER_API_KEY`; the dev preview can't hydrate this server).
 
+### Map layer (cross-cutting)
+
+The S-series deepens what happens *after* you tap a moment. This track makes the **map itself** inhabited — so the story layer lands on a viewer already leaning in.
+
+| Track | Title | The one-line promise | Status |
+|---|---|---|---|
+| [VIS](visual-immersion.md) | Immersive timelines | Before you tap a story, the map already *feels* like a place people lived in. | proposed |
+
 ## Cross-cutting principles (true across all four)
 
 - **Don't rename the substrate.** "Moment" is the product word for an existing `node`; the story layer hangs off `nodes.id` via FKs, so the Patch/undo engine stays intact.

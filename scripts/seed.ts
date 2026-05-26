@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../src/lib/db/index'
 import { timelines, nodes, edges, type NodeMetadata } from '../src/lib/db/schema'
 import type { EdgeKind, NodeType, Precision } from '../src/lib/domain/types'
+import { seedImageUrl } from './seed-images'
 
 // Year → sortable epoch-ms instant. Handles BCE/ancient years (negative ok).
 const Y = (y: number, m = 0, d = 1) => {
@@ -17,13 +18,11 @@ const Y = (y: number, m = 0, d = 1) => {
   return dt.getTime()
 }
 
-// Wikimedia Commons stable URL: Special:FilePath always resolves to the current
-// file (no brittle thumb hash). NOTE: remote — images are blank offline/in CI,
-// which is fine (the canvas + e2e assert the <img>, not the pixels).
-const wiki = (file: string, width = 320) =>
-  `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=${width}`
+// Images resolve to LOCAL paths under public/seed/ (offline-safe) — run
+// `bun run cache:images` to download them. `file` is the Wikimedia Commons
+// source name (the canonical list + remote source live in ./seed-images.ts).
 const img = (file: string, alt: string): NonNullable<NodeMetadata['images']>[number] => ({
-  url: wiki(file),
+  url: seedImageUrl(file),
   alt,
   show: true,
 })
@@ -77,9 +76,28 @@ const SEEDS: Seeder[] = [
     title: 'Observability tooling',
     description: 'How cloud-native monitoring and tracing evolved.',
     build: ({ node, edge }) => {
-      const era = node({ type: 'period', title: 'Cloud-native era', start: Y(2013), end: Y(2024) })
-      const newRelic = node({ type: 'entity', title: 'New Relic', start: Y(2008), end: Y(2024), summary: 'APM pioneer.' })
-      const datadog = node({ type: 'entity', title: 'Datadog', start: Y(2010), end: Y(2024) })
+      const era = node({
+        type: 'period',
+        title: 'Cloud-native era',
+        start: Y(2013),
+        end: Y(2024),
+        metadata: { images: [img('Kubernetes logo without workmark.svg', 'Kubernetes logo')] },
+      })
+      const newRelic = node({
+        type: 'entity',
+        title: 'New Relic',
+        start: Y(2008),
+        end: Y(2024),
+        summary: 'APM pioneer.',
+        metadata: { subtype: 'org', images: [img('New Relic logo.svg', 'New Relic logo')] },
+      })
+      const datadog = node({
+        type: 'entity',
+        title: 'Datadog',
+        start: Y(2010),
+        end: Y(2024),
+        metadata: { subtype: 'org', images: [img('Grafana dashboard.png', 'Monitoring dashboard')] },
+      })
       const prometheus = node({
         type: 'event',
         title: 'Prometheus released',
@@ -90,14 +108,26 @@ const SEEDS: Seeder[] = [
             { title: 'Prometheus history', url: 'https://prometheus.io/docs/introduction/overview/', quote: 'Started at SoundCloud in 2012.' },
             { title: 'CNCF graduation', url: 'https://www.cncf.io/projects/prometheus/' },
           ],
+          images: [img('Prometheus software logo.svg', 'Prometheus logo')],
         },
       })
-      const grafana = node({ type: 'event', title: 'Grafana founded', start: Y(2014) })
-      const otel = node({ type: 'event', title: 'OpenTelemetry merger', start: Y(2019), summary: 'OpenTracing + OpenCensus merge.' })
+      const grafana = node({
+        type: 'event',
+        title: 'Grafana founded',
+        start: Y(2014),
+        metadata: { images: [img('Grafana logo.svg', 'Grafana logo')] },
+      })
+      const otel = node({
+        type: 'event',
+        title: 'OpenTelemetry merger',
+        start: Y(2019),
+        summary: 'OpenTracing + OpenCensus merge.',
+        metadata: { images: [img('Opentelemetry-logo.svg', 'OpenTelemetry logo')] },
+      })
       // Three events on the SAME year — exercises lane-collision spreading.
-      node({ type: 'event', title: 'Loki launched', start: Y(2018) })
-      node({ type: 'event', title: 'Tempo launched', start: Y(2018) })
-      node({ type: 'event', title: 'Cortex 1.0', start: Y(2018) })
+      node({ type: 'event', title: 'Loki launched', start: Y(2018), metadata: { images: [img('Grafana logo.svg', 'Grafana Loki')] } })
+      node({ type: 'event', title: 'Tempo launched', start: Y(2018), metadata: { images: [img('Grafana logo.svg', 'Grafana Tempo')] } })
+      node({ type: 'event', title: 'Cortex 1.0', start: Y(2018), metadata: { images: [img('Cortex Logo.svg', 'Cortex logo')] } })
 
       edge(newRelic, datadog, 'competed_with')
       edge(prometheus, otel, 'influenced')
@@ -110,26 +140,55 @@ const SEEDS: Seeder[] = [
     title: 'The rise of deep learning',
     description: 'Key milestones from the AI winter through the transformer era.',
     build: ({ node, edge }) => {
-      node({ type: 'period', title: 'Second AI winter', start: Y(1987), end: Y(1993) })
-      const backprop = node({ type: 'event', title: 'Backpropagation popularized', start: Y(1986), summary: 'Rumelhart, Hinton & Williams.' })
+      node({
+        type: 'period',
+        title: 'Second AI winter',
+        start: Y(1987),
+        end: Y(1993),
+        metadata: { images: [img('Artificial neural network.svg', 'Neural network diagram')] },
+      })
+      const backprop = node({
+        type: 'event',
+        title: 'Backpropagation popularized',
+        start: Y(1986),
+        summary: 'Rumelhart, Hinton & Williams.',
+        metadata: { images: [img('Geoffrey Hinton at UBC.jpg', 'Geoffrey Hinton')] },
+      })
       const alexnet = node({
         type: 'event',
         title: 'AlexNet wins ImageNet',
         start: Y(2012),
         summary: 'Deep CNN crushes the ImageNet benchmark, kicking off the deep-learning boom.',
-        metadata: { citations: [{ title: 'ImageNet Classification with Deep CNNs', url: 'https://papers.nips.cc/paper/4824' }] },
+        metadata: {
+          citations: [{ title: 'ImageNet Classification with Deep CNNs', url: 'https://papers.nips.cc/paper/4824' }],
+          images: [img('AlexNet block diagram.svg', 'AlexNet CNN architecture')],
+        },
       })
-      const seq2seq = node({ type: 'event', title: 'Seq2Seq + attention', start: Y(2014) })
+      const seq2seq = node({
+        type: 'event',
+        title: 'Seq2Seq + attention',
+        start: Y(2014),
+        metadata: { images: [img('Recurrent neural network unfold.svg', 'Unfolded recurrent neural network')] },
+      })
       const transformer = node({
         type: 'event',
         title: '"Attention Is All You Need"',
         start: Y(2017),
         summary: 'The transformer architecture.',
-        metadata: { citations: [{ title: 'Attention Is All You Need', url: 'https://arxiv.org/abs/1706.03762' }] },
+        metadata: {
+          citations: [{ title: 'Attention Is All You Need', url: 'https://arxiv.org/abs/1706.03762' }],
+          images: [img('Transformer, full architecture.png', 'Transformer architecture diagram')],
+        },
       })
-      const gpt = node({ type: 'event', title: 'GPT released', start: Y(2018) })
-      const bert = node({ type: 'event', title: 'BERT released', start: Y(2018) })
-      const era = node({ type: 'period', title: 'Foundation-model era', start: Y(2018), end: Y(2024) })
+      const gpt = node({ type: 'event', title: 'GPT released', start: Y(2018), metadata: { images: [img('OpenAI Logo.svg', 'OpenAI logo')] } })
+      const bert = node({ type: 'event', title: 'BERT released', start: Y(2018), metadata: { images: [img('Google 2015 logo.svg', 'Google logo')] } })
+      const era = node({
+        type: 'period',
+        title: 'Foundation-model era',
+        start: Y(2018),
+        end: Y(2024),
+        metadata: { images: [img('ChatGPT logo.svg', 'ChatGPT logo')] },
+      })
 
       edge(backprop, alexnet, 'influenced')
       edge(alexnet, era, 'caused')
@@ -144,24 +203,52 @@ const SEEDS: Seeder[] = [
     title: 'The Space Race',
     description: 'Cold War spaceflight milestones, 1957–1972.',
     build: ({ node, edge }) => {
-      const cold = node({ type: 'period', title: 'Cold War', start: Y(1947), end: Y(1991) })
-      const sputnik = node({ type: 'event', title: 'Sputnik 1', start: Y(1957, 9, 4), precision: 'day', summary: 'First artificial satellite.' })
-      const gagarin = node({ type: 'event', title: 'Gagarin orbits Earth', start: Y(1961, 3, 12), precision: 'day' })
-      const apollo = node({ type: 'period', title: 'Apollo program', start: Y(1961), end: Y(1972) })
+      const cold = node({
+        type: 'period',
+        title: 'Cold War',
+        start: Y(1947),
+        end: Y(1991),
+        metadata: { images: [img('Cold War alliances mid-1975.svg', 'Cold War alliances map')] },
+      })
+      const sputnik = node({
+        type: 'event',
+        title: 'Sputnik 1',
+        start: Y(1957, 9, 4),
+        precision: 'day',
+        summary: 'First artificial satellite.',
+        metadata: { images: [img('Sputnik asm.jpg', 'Sputnik 1 replica')] },
+      })
+      const gagarin = node({
+        type: 'event',
+        title: 'Gagarin orbits Earth',
+        start: Y(1961, 3, 12),
+        precision: 'day',
+        metadata: { images: [img('Yuri Gagarin (1961) - Restoration.jpg', 'Yuri Gagarin')] },
+      })
+      const apollo = node({
+        type: 'period',
+        title: 'Apollo program',
+        start: Y(1961),
+        end: Y(1972),
+        metadata: { images: [img('Apollo 11 insignia.png', 'Apollo 11 mission insignia')] },
+      })
       const moon = node({
         type: 'event',
         title: 'Apollo 11 Moon landing',
         start: Y(1969, 6, 20),
         precision: 'day',
         summary: 'First crewed lunar landing.',
-        metadata: { citations: [{ title: 'NASA — Apollo 11', url: 'https://www.nasa.gov/mission/apollo-11/' }] },
+        metadata: {
+          citations: [{ title: 'NASA — Apollo 11', url: 'https://www.nasa.gov/mission/apollo-11/' }],
+          images: [img('Aldrin Apollo 11 original.jpg', 'Buzz Aldrin on the Moon')],
+        },
       })
       const nasa = node({
         type: 'entity',
         title: 'NASA',
         start: Y(1958),
         end: Y(2024),
-        metadata: { images: [img('NASA logo.svg', 'NASA logo')] },
+        metadata: { subtype: 'org', images: [img('NASA logo.svg', 'NASA logo')] },
       })
 
       edge(cold, sputnik, 'caused')
@@ -176,17 +263,41 @@ const SEEDS: Seeder[] = [
     title: 'Fall of the Roman Republic',
     description: 'Exercises BCE/ancient fuzzy dates.',
     build: ({ node, edge }) => {
-      const republic = node({ type: 'period', title: 'Roman Republic', start: Y(-509), end: Y(-27) })
+      const republic = node({
+        type: 'period',
+        title: 'Roman Republic',
+        start: Y(-509),
+        end: Y(-27),
+        metadata: { images: [img('Maccari-Cicero.jpg', 'Cicero denounces Catiline in the Senate')] },
+      })
       const caesar = node({
         type: 'entity',
         title: 'Julius Caesar',
         start: Y(-100),
         end: Y(-44),
-        metadata: { images: [img('Gaius Iulius Caesar (Vatican Museum).jpg', 'Bust of Julius Caesar')] },
+        metadata: { subtype: 'person', images: [img('Gaius Iulius Caesar (Vatican Museum).jpg', 'Bust of Julius Caesar')] },
       })
-      const rubicon = node({ type: 'event', title: 'Caesar crosses the Rubicon', start: Y(-49), summary: 'Civil war begins.' })
-      const ides = node({ type: 'event', title: 'Assassination of Caesar', start: Y(-44, 2, 15), precision: 'day' })
-      const empire = node({ type: 'event', title: 'Augustus becomes emperor', start: Y(-27), summary: 'The Republic becomes the Empire.' })
+      const rubicon = node({
+        type: 'event',
+        title: 'Caesar crosses the Rubicon',
+        start: Y(-49),
+        summary: 'Civil war begins.',
+        metadata: { images: [img('Gaius Iulius Caesar (Vatican Museum).jpg', 'Julius Caesar')] },
+      })
+      const ides = node({
+        type: 'event',
+        title: 'Assassination of Caesar',
+        start: Y(-44, 2, 15),
+        precision: 'day',
+        metadata: { images: [img('Vincenzo Camuccini - La morte di Cesare.jpg', 'The Death of Caesar (Camuccini)')] },
+      })
+      const empire = node({
+        type: 'event',
+        title: 'Augustus becomes emperor',
+        start: Y(-27),
+        summary: 'The Republic becomes the Empire.',
+        metadata: { images: [img('Statue-Augustus.jpg', 'Augustus of Prima Porta')] },
+      })
 
       edge(republic, rubicon, 'caused')
       edge(rubicon, ides, 'caused')
@@ -208,7 +319,7 @@ const SEEDS: Seeder[] = [
         start: Y(1452),
         end: Y(1519),
         summary: 'Polymath of the High Renaissance.',
-        metadata: { images: [img('Francesco Melzi - Portrait of Leonardo - WGA14795.jpg', 'Portrait of Leonardo da Vinci')] },
+        metadata: { subtype: 'person', images: [img('Francesco Melzi - Portrait of Leonardo - WGA14795.jpg', 'Portrait of Leonardo da Vinci')] },
       })
       const newton = node({
         type: 'entity',
@@ -216,7 +327,7 @@ const SEEDS: Seeder[] = [
         start: Y(1643),
         end: Y(1727),
         summary: 'Laws of motion and universal gravitation.',
-        metadata: { images: [img('GodfreyKneller-IsaacNewton-1689.jpg', 'Portrait of Isaac Newton')] },
+        metadata: { subtype: 'person', images: [img('GodfreyKneller-IsaacNewton-1689.jpg', 'Portrait of Isaac Newton')] },
       })
       const darwin = node({
         type: 'entity',
@@ -224,7 +335,7 @@ const SEEDS: Seeder[] = [
         start: Y(1809),
         end: Y(1882),
         summary: 'Theory of evolution by natural selection.',
-        metadata: { images: [img('Charles Darwin seated crop.jpg', 'Photograph of Charles Darwin')] },
+        metadata: { subtype: 'person', images: [img('Charles Darwin seated crop.jpg', 'Photograph of Charles Darwin')] },
       })
       const lovelace = node({
         type: 'entity',
@@ -232,7 +343,7 @@ const SEEDS: Seeder[] = [
         start: Y(1815),
         end: Y(1852),
         summary: 'First algorithm intended for a machine.',
-        metadata: { images: [img('Ada Lovelace portrait.jpg', 'Portrait of Ada Lovelace')] },
+        metadata: { subtype: 'person', images: [img('Ada Lovelace portrait.jpg', 'Portrait of Ada Lovelace')] },
       })
       const curie = node({
         type: 'entity',
@@ -240,7 +351,7 @@ const SEEDS: Seeder[] = [
         start: Y(1867),
         end: Y(1934),
         summary: 'Pioneer of radioactivity; two Nobel Prizes.',
-        metadata: { images: [img('Marie Curie c. 1920s.jpg', 'Photograph of Marie Curie')] },
+        metadata: { subtype: 'person', images: [img('Marie Curie c. 1920s.jpg', 'Photograph of Marie Curie')] },
       })
       const einstein = node({
         type: 'entity',
@@ -248,7 +359,7 @@ const SEEDS: Seeder[] = [
         start: Y(1879),
         end: Y(1955),
         summary: 'Relativity; reshaped modern physics.',
-        metadata: { images: [img('Einstein 1921 by F Schmutzer - restoration.jpg', 'Photograph of Albert Einstein')] },
+        metadata: { subtype: 'person', images: [img('Einstein 1921 by F Schmutzer - restoration.jpg', 'Photograph of Albert Einstein')] },
       })
 
       edge(newton, darwin, 'influenced')

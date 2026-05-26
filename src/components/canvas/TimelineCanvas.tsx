@@ -14,7 +14,7 @@ import {
 import { EventNode } from './nodes/EventNode'
 import { EntityNode } from './nodes/EntityNode'
 import { PeriodNode } from './nodes/PeriodNode'
-import { instantToX, laneY, layoutLaneY, estimateNodeHeight } from './useTimelineScale'
+import { instantToX, laneY, layoutLaneY, estimateNodeHeight, personCardWidth } from './useTimelineScale'
 import { formatInstant } from '~/lib/domain/dates'
 import { getGraph } from '~/lib/server/graph'
 import { AppBar } from './AppBar'
@@ -200,7 +200,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     const realPositioned = effectiveNodes.map((n) => ({
       n,
       x: instantToX(n.startInstant, minInstant),
-      width: widthOf(n.startInstant, n.endInstant),
+      // Person cards are fixed-size polaroids anchored at the start instant
+      // (the lifespan moves into the caption), not stretched across the span.
+      width: n.subtype === 'person' ? personCardWidth(n.size) : widthOf(n.startInstant, n.endInstant),
     }))
     const pendingPositioned = pending.map((p) => ({
       p,
@@ -217,7 +219,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         type: r.n.type,
         x: r.x,
         width: r.width,
-        height: estimateNodeHeight(r.n.type, r.n.size, r.n.images.some((i) => i.show)),
+        height: estimateNodeHeight(r.n.type, r.n.size, r.n.images.some((i) => i.show), r.n.subtype),
       })),
       ...pendingPositioned.map((pp) => ({
         id: pp.id,
@@ -238,6 +240,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         images: n.images.filter((i) => i.show),
         size: n.size,
         color: n.color,
+        subtype: n.subtype,
         storyCount: n.storyCount,
         hook: n.topHook,
       }

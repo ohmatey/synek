@@ -10,6 +10,11 @@ export type Precision = (typeof PRECISIONS)[number]
 export const NODE_SIZES = ['small', 'medium', 'large'] as const
 export type NodeSize = (typeof NODE_SIZES)[number]
 
+// Entity subtype — drives the card treatment on the canvas (person → portrait
+// polaroid, org → logo lockup). Only meaningful for `entity` nodes.
+export const NODE_SUBTYPES = ['person', 'org', 'place', 'work'] as const
+export type NodeSubtype = (typeof NODE_SUBTYPES)[number]
+
 // An image attached to a node; `show` marks it for display on the timeline.
 export type NodeImage = { url: string; alt?: string; show?: boolean }
 
@@ -36,6 +41,7 @@ export type GraphNode = {
   images: NodeImage[]
   size: NodeSize
   color: string | null
+  subtype: NodeSubtype | null
   // Story-layer affordance (S1): does this moment have a story, and its hook.
   storyCount: number
   topHook: string | null

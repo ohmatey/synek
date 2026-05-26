@@ -11,6 +11,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx scripts/seed.ts",
+    "cache:images": "tsx scripts/cache-seed-images.ts",
     "seed:e2e": "DATABASE_URL=e2e.db tsx scripts/seed.ts",
     "test:e2e": "playwright test"
   },

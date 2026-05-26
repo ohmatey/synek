@@ -4,9 +4,7 @@ import { parseDate } from '~/lib/domain/dates'
 import type { PatchBuilder, NodePatch, EdgePatch } from '~/lib/db/patches'
 import type { NodeMetadata } from '~/lib/db/schema'
 import type { Precision } from '~/lib/domain/types'
-import { IMAGE_MODEL_SLUG } from '~/lib/ai/provider'
-import { buildImagePrompt, generateImageData } from '~/lib/ai/image'
-import { ensureImageTemplate, computeCacheKey, findCachedImageUrl, recordImageGeneration } from '~/lib/db/images'
+import { illustrateOnBuilder } from '~/lib/db/illustrate'
 
 const citation = z.object({
   title: z.string(),
@@ -17,6 +15,8 @@ const citation = z.object({
 const dateHint = 'A date, possibly fuzzy: "1995", "Q3 2008", "2014-03", or "49 BCE".'
 const precisionEnum = z.enum(['year', 'quarter', 'month', 'day'])
 const kindEnum = z.enum(['caused', 'succeeded', 'influenced', 'acquired', 'competed_with'])
+const subtypeEnum = z.enum(['person', 'org', 'place', 'work'])
+const subtypeHint = 'For entity nodes, the kind: person, org (company/institution), place, or work (a creation/publication). Drives the card on the canvas.'
 
 // The six graph tools. Each records an op on the PatchBuilder — nothing hits the
 // DB until the turn commits as one atomic Patch. add_node returns the new id so
@@ -34,11 +34,18 @@ export function makeTools(builder: PatchBuilder) {
         end: z.string().optional().describe('End for entity/period spans. Omit for events.'),
         precision: precisionEnum.optional(),
         citations: z.array(citation).optional(),
+        subtype: subtypeEnum.optional().describe(subtypeHint),
       }),
       execute: async (input) => {
         const start = parseDate(input.start)
         const end = input.end ? parseDate(input.end) : null
-        const metadata: NodeMetadata | null = input.citations?.length ? { citations: input.citations } : null
+        const metadata: NodeMetadata | null =
+          input.citations?.length || input.subtype
+            ? {
+                ...(input.citations?.length ? { citations: input.citations } : {}),
+                ...(input.subtype ? { subtype: input.subtype } : {}),
+              }
+            : null
         const node = builder.addNode({
           type: input.type,
           title: input.title,
@@ -63,6 +70,7 @@ export function makeTools(builder: PatchBuilder) {
           end: z.string().optional(),
           precision: precisionEnum.optional(),
           citations: z.array(citation).optional(),
+          subtype: subtypeEnum.optional().describe(subtypeHint),
         }),
       }),
       execute: async ({ id, patch }) => {
@@ -76,7 +84,15 @@ export function makeTools(builder: PatchBuilder) {
         }
         if (patch.end) np.endInstant = parseDate(patch.end).instant
         if (patch.precision) np.precision = patch.precision
-        if (patch.citations) np.metadata = { citations: patch.citations }
+        // Merge metadata so we don't clobber existing images/color/size.
+        if (patch.citations || patch.subtype) {
+          const prior = (builder.getNode(id)?.metadata ?? {}) as NodeMetadata
+          np.metadata = {
+            ...prior,
+            ...(patch.citations ? { citations: patch.citations } : {}),
+            ...(patch.subtype ? { subtype: patch.subtype } : {}),
+          }
+        }
         return builder.updateNode(id, np) ? { id } : { error: `node ${id} not found` }
       },
     }),
@@ -130,35 +146,8 @@ export function makeTools(builder: PatchBuilder) {
         alt: z.string().optional().describe('Short alt text for the image.'),
       }),
       execute: async ({ nodeId, prompt, alt }) => {
-        const node = builder.getNode(nodeId)
-        if (!node) return { error: `node ${nodeId} not found` }
-
-        const template = ensureImageTemplate()
-        const promptInputs = { model: IMAGE_MODEL_SLUG, nodeId, prompt }
-        const cacheKey = computeCacheKey(template.id, promptInputs)
-
-        let dataUrl = findCachedImageUrl(cacheKey)
-        const cached = dataUrl !== null
-        if (!dataUrl) {
-          const gen = await generateImageData(buildImagePrompt(node, prompt))
-          dataUrl = gen.dataUrl
-          recordImageGeneration({
-            nodeId,
-            template,
-            cacheKey,
-            promptInputs,
-            dataUrl,
-            modelSlug: gen.modelSlug,
-            latencyMs: gen.latencyMs,
-          })
-        }
-
-        // Merge into metadata.images so citations/color/size are preserved; the
-        // inverse op records the prior metadata, so ⌘Z removes the image.
-        const prior = (node.metadata ?? {}) as NodeMetadata
-        const images = [...(prior.images ?? []), { url: dataUrl, alt: alt ?? node.title, show: true }]
-        builder.updateNode(nodeId, { metadata: { ...prior, images } })
-        return { nodeId, cached }
+        const r = await illustrateOnBuilder(builder, nodeId, prompt, alt)
+        return r.ok ? { nodeId, cached: r.cached } : { error: r.error }
       },
     }),
 
