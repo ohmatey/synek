@@ -45,7 +45,7 @@ export function AppBar({ timelineId, title }: { timelineId: string; title: strin
     <div className="app-bar">
       <Link to="/" className="app-bar-logo" title="Home">
         <span className="app-bar-mark" aria-hidden />
-        Strata
+        Synek
       </Link>
       <span className="app-bar-sep" aria-hidden>
         /

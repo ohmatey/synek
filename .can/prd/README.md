@@ -1,5 +1,5 @@
 ---
-project: "Strata / Chronograph"
+project: "Synek"
 era: "Story Layer (the pivot)"
 updated: 2026-05-25
 ---

@@ -143,7 +143,7 @@ function Home() {
     <div className="home">
       <div className="home-inner">
         <header className="home-head">
-          <h1 className="home-title">Strata</h1>
+          <h1 className="home-title">Synek</h1>
           <p className="home-sub">Type an idea and watch an AI build the timeline.</p>
         </header>
 

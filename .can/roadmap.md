@@ -1,9 +1,9 @@
 ---
-project: "Strata"
+project: "Synek"
 syncedAt: 2026-05-25T00:00:00.000Z
 ---
 
-# Strata Roadmap
+# Synek Roadmap
 
 > Offline source of truth for Sal. **Core UX first — most lovable product before any thought of money.**
 > **The pivot (2026-05-25):** the center of gravity moves from *building a knowledge mesh* to *reading grounded, time-anchored stories*. The timeline canvas — already shipped — becomes the **map**; **stories are the product**.
@@ -35,7 +35,7 @@ The new magic moment: tap a moment → one grounded, readable story; every gener
 
 Done when: tap a moment → generate → step beat-by-beat on the canvas (moment framed + lensed); identical inputs hit cache; depth tier renders.
 
-**Status:** built — schema + migration (`stories`/`story_segments`/`people`/`prompt_templates`/`generations`), the provenance/cache generation service (`generateObject`, separate `STRATA_STORY_MODEL`), and the playback reader (shares the node-detail slot; drives the lens + camera; beat→related-moment links) are in. Verified via typecheck + clean production build + a 19-check data-layer test (commit / cache-hit / regenerate-archives-prior). **Owed:** a live in-browser pass of the reader/lens/camera + a real model turn (needs `OPENROUTER_API_KEY`; Claude Preview can't hydrate this dev server).
+**Status:** built — schema + migration (`stories`/`story_segments`/`people`/`prompt_templates`/`generations`), the provenance/cache generation service (`generateObject`, separate `SYNEK_STORY_MODEL`), and the playback reader (shares the node-detail slot; drives the lens + camera; beat→related-moment links) are in. Verified via typecheck + clean production build + a 19-check data-layer test (commit / cache-hit / regenerate-archives-prior). **Owed:** a live in-browser pass of the reader/lens/camera + a real model turn (needs `OPENROUTER_API_KEY`; Claude Preview can't hydrate this dev server).
 
 ## NEXT — S2: Artifact grounding (the moat)
 

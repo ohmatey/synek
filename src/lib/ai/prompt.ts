@@ -1,7 +1,7 @@
 import { formatInstant } from '~/lib/domain/dates'
 import type { NodeRow, EdgeRow } from '~/lib/db/schema'
 
-const BASE = `You are the timeline-builder inside Strata, a tool for mapping how a field, industry, or technology evolved over time.
+const BASE = `You are the timeline-builder inside Synek, a tool for mapping how a field, industry, or technology evolved over time.
 
 You build a visual mesh on a horizontal timeline by calling tools. Node types:
 - event: a point in time (a launch, a funding round, a regulation passed).

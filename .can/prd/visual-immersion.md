@@ -110,7 +110,7 @@ This phase makes the map do emotional work on first sight, so that the story lay
 
 ## Success metrics
 
-> **Honest constraint:** Strata is local-first with **no analytics/signal layer** (S5 is deferred per [CLAUDE.md] scope). We cannot instrument adoption funnels server-side. So success is defined as **observable proxies** a design partner (or the single user) can judge, plus a qualitative bar — not dashboard metrics.
+> **Honest constraint:** Synek is local-first with **no analytics/signal layer** (S5 is deferred per [CLAUDE.md] scope). We cannot instrument adoption funnels server-side. So success is defined as **observable proxies** a design partner (or the single user) can judge, plus a qualitative bar — not dashboard metrics.
 
 **Leading (judge within a session / first run)**
 - **First-sight legibility:** in a 5-second exposure test, a viewer correctly identifies which nodes are *people* ≥90% of the time. *(Method: design-partner test, n≥5.)*

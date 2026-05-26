@@ -1,6 +1,6 @@
-# Strata
+# Synek
 
-**Strata** (product/display name: *Chronograph*) is a temporally-anchored, AI-generated **knowledge canvas**. You type into a chat; an AI builds a visual mesh of typed nodes and relationships along a horizontal timeline — capturing how a field, industry, or technology evolved. The canvas is the output; the chat is the way you talk to it.
+**Synek** (a play on the Greek *synecheia*, "continuity") is a temporally-anchored, AI-generated **knowledge canvas**. You type into a chat; an AI builds a visual mesh of typed nodes and relationships along a horizontal timeline — capturing how a field, industry, or technology evolved. The canvas is the output; the chat is the way you talk to it.
 
 ## Scope guardrail — read before adding anything
 
@@ -89,9 +89,9 @@ bun run test:e2e     # Playwright e2e (needs: bunx playwright install chromium)
 ## Env (`.env.example`)
 
 - `OPENROUTER_API_KEY` — the default model gateway (Core is bring-your-own-key)
-- `STRATA_MODEL` — OpenRouter model slug (default `anthropic/claude-sonnet-4-6`)
+- `SYNEK_MODEL` — OpenRouter model slug (default `anthropic/claude-sonnet-4-6`)
 - `OPENAI_API_KEY` — OpenAI key for **image generation only** (gpt-image-1 isn't on OpenRouter); chat works without it
-- `STRATA_IMAGE_MODEL` — OpenAI image model (default `gpt-image-1`)
+- `SYNEK_IMAGE_MODEL` — OpenAI image model (default `gpt-image-1`)
 - `DATABASE_URL` — SQLite file (default `local.db`)
 - `PORT` — dev server port (default `3001`)
 
