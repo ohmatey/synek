@@ -71,6 +71,29 @@ The two strong modes, once grounding is first-class. PRDs: [`prd/s3-multi-pov.md
 
 Done when: ≥2 grounded POVs per moment switchable; tap a person mid-beat → cached, contextual interior in their voice.
 
+## GATED — L: Living Timelines (per-timeline agentic keepers)
+
+> **Promoted from the deferred `D.2` stub** at the owner's request (2026-05-26). A **per-timeline agent** runs on a schedule to keep a timeline alive: a *Historian* deepens/corrects a past timeline; a *Watcher* keeps an ongoing one current — e.g. mapping competitor actions and product changes against the related tech improvements. PRD: _to write_ (`prd/l-living-timelines.md`).
+>
+> **Gating (the guardrail stays on):** this is the proactive-agent / scheduled-jobs / signal-ingestion territory `CLAUDE.md` parks until the core is undeniable. It does **not** start until **S1 + S2** (story + grounding) feel lovable, and it stays **local-first** — no cloud cron, no hosted runner. **Depends on S2** (artifacts are how the agent stays grounded).
+>
+> **Invariants preserved:** agent output is a **proposed Patch** in a review queue, never an auto-applied write — the one-turn-one-Patch + undo guarantees hold, and the user stays in control. Every agent action is provenance-tracked through the existing `generations`/cost substrate, under a per-agent **budget cap**.
+
+- **L.1 — `timeline_agents` schema + per-timeline agent config** `planned` `medium` `feature` `#local-50`
+  Per-timeline agent record: `kind` (historian | watcher), cadence (interval/cron expr), scope brief (what to watch, in/out of bounds), source allowlist, budget cap, enabled flag. Postgres-portable; provenance reuses `generations`.
+- **L.2 — Agent run model: `agent_runs` + proposed-Patch review queue** `planned` `high` `feature` `#local-51`
+  Each run writes a *proposed* Patch (forward ops) + rationale + citations to a queue — **not** auto-applied. Approve → commit as a normal undoable Patch; reject → discard. Preserves the Patch invariant and trust.
+- **L.3 — Local-first runner: manual "Run now" + opt-in interval daemon** `planned` `medium` `feature` `#local-52`
+  Start with a zero-infra **Run now** button; add an opt-in local interval runner. Honest about local-first: best-effort while the app/daemon is up, no always-on host. (This is the bridge that flirts with deferred "scheduled jobs" — keep it local until self-host/2.5.)
+- **L.4 — Grounded research/ingestion: agent fetches signal → S2 artifacts** `planned` `high` `feature` `#local-53`
+  The agent gathers competitor moves / product changes / tech improvements and lands them as **S2 `artifacts`** (with sources + reliability), so everything it adds is grounded by construction. **Depends on S2.** The heaviest, most guardrail-crossing item — the actual "signal ingestion / integrations" line.
+- **L.5 — Agent personas: Historian (improve a past timeline) · Watcher (ongoing tech/competitor)** `planned` `medium` `feature` `#local-54`
+  Two concrete kinds. *Historian:* deepen/correct an existing historical timeline (fill gaps, add citations, refine fuzzy dates). *Watcher:* keep an ongoing timeline current — new competitor/product/tech moments since last run, wiring competitor actions ↔ related tech improvements via edges.
+- **L.6 — Agent dashboard: status, run history, proposal review, budget/cost** `planned` `medium` `feature` `#local-55`
+  Per-timeline surface to configure the agent, see runs, review/approve proposed Patches, and watch spend (reuses the `generations` cost tracking).
+
+Done when: a timeline has an agent that, on a schedule, produces grounded **proposed** updates (competitor/tech moments mapped to tech changes, or gap-fills on a historical timeline) that you review and approve into undoable Patches — all within a budget cap, fully local.
+
 ## Deferred — parked (local-first / single-user; no money yet)
 
 Schema *hooks* exist; no committed phase. Story-era hooks first, then the original commercialization deferrals.
@@ -87,6 +110,7 @@ Schema *hooks* exist; no committed phase. Story-era hooks first, then the origin
   Thin `subscriptions` + cron over `artifacts` where `artifact_type = 'diary_entry'`. Mostly scheduling, not schema.
 - **D.1 — Cloud SaaS, hosted models, workspaces/teams/roles, billing** `planned` `low` `feature` `#local-20`
 - **D.2 — Proactive industry-mapping agent, scheduled jobs, signal ingestion, weekly briefings, integrations** `planned` `low` `feature` `#local-21`
+  → Now specced as **L: Living Timelines** (`L.1`–`L.6`) above. Stays **gated** on the lovable core (S1 + S2) being undeniable, and **local-first**; this stub remains for the cloud/hosted-cron and weekly-briefing variants that would only land with a multi-user/SaaS posture.
 - **D.3 — Public read-only sharing, enterprise SSO/audit logs** `planned` `low` `feature` `#local-22`
 
 ---
