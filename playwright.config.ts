@@ -17,8 +17,13 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',
+  // These are integration tests against a real SSR + SQLite server. The first
+  // requests to a freshly-built, cold server (under parallel workers) can take a
+  // few seconds, so give assertions headroom beyond the 5s default.
+  expect: { timeout: 12_000 },
   use: {
     baseURL: `http://localhost:${PORT}`,
+    actionTimeout: 12_000,
     trace: 'on-first-retry',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

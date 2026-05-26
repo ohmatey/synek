@@ -1,5 +1,5 @@
 import { randomBytes, createHash } from 'node:crypto'
-import { eq, desc } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
 import { db } from '~/lib/db'
 import { apiKeys, type ApiKeyRow } from '~/lib/db/schema'
 
@@ -39,22 +39,33 @@ const toSummary = (r: ApiKeyRow): ApiKeySummary => ({
 })
 
 /**
- * Mint a new key. Returns the raw secret (show ONCE) and the stored summary.
- * The raw secret is not recoverable afterwards.
+ * Mint a new key owned by `userId`. Returns the raw secret (show ONCE) and the
+ * stored summary. The raw secret is not recoverable afterwards.
  */
-export function createApiKey(label: string): { raw: string; key: ApiKeySummary } {
+export function createApiKey(label: string, userId: string): { raw: string; key: ApiKeySummary } {
   const raw = API_KEY_PREFIX + randomBytes(32).toString('base64url')
   const row = db
     .insert(apiKeys)
-    .values({ label: label.trim() || 'Untitled key', keyHash: hashKey(raw), prefix: raw.slice(0, DISPLAY_PREFIX_LEN) })
+    .values({
+      userId,
+      label: label.trim() || 'Untitled key',
+      keyHash: hashKey(raw),
+      prefix: raw.slice(0, DISPLAY_PREFIX_LEN),
+    })
     .returning()
     .get()
   return { raw, key: toSummary(row) }
 }
 
-/** All keys, newest first, as display-safe summaries. */
-export function listApiKeys(): ApiKeySummary[] {
-  return db.select().from(apiKeys).orderBy(desc(apiKeys.createdAt)).all().map(toSummary)
+/** A user's keys, newest first, as display-safe summaries. */
+export function listApiKeys(userId: string): ApiKeySummary[] {
+  return db
+    .select()
+    .from(apiKeys)
+    .where(eq(apiKeys.userId, userId))
+    .orderBy(desc(apiKeys.createdAt))
+    .all()
+    .map(toSummary)
 }
 
 /**
@@ -64,19 +75,28 @@ export function listApiKeys(): ApiKeySummary[] {
  * null. Lets a brand-new user land with a ready-to-copy key instead of an empty
  * panel, without ever silently creating a key whose secret can't be seen.
  */
-export function ensureDefaultApiKey(): {
+export function ensureDefaultApiKey(userId: string): {
   created: { raw: string; key: ApiKeySummary } | null
   keys: ApiKeySummary[]
 } {
-  const existing = db.select().from(apiKeys).orderBy(desc(apiKeys.createdAt)).all()
+  const existing = db
+    .select()
+    .from(apiKeys)
+    .where(eq(apiKeys.userId, userId))
+    .orderBy(desc(apiKeys.createdAt))
+    .all()
   if (existing.length > 0) return { created: null, keys: existing.map(toSummary) }
-  const created = createApiKey('Default')
+  const created = createApiKey('Default', userId)
   return { created, keys: [created.key] }
 }
 
-/** Revoke a key by id (idempotent). Future MCP calls with it will 401. */
-export function revokeApiKey(id: string): void {
-  db.update(apiKeys).set({ revokedAt: new Date() }).where(eq(apiKeys.id, id)).run()
+/** Revoke one of `userId`'s keys (idempotent; scoped so you can't revoke another
+ * user's key). Future MCP calls with it will 401. */
+export function revokeApiKey(id: string, userId: string): void {
+  db.update(apiKeys)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)))
+    .run()
 }
 
 /**

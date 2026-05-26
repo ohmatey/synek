@@ -2,7 +2,8 @@ import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
 
 // Better Auth core tables (user/session/account/verification) — kept in this
 // schema so they share the project's drizzle-kit migration pipeline.
-export { user, session, account, verification } from './auth-schema'
+import { user, session, account, verification } from './auth-schema'
+export { user, session, account, verification }
 
 import {
   NODE_TYPES,
@@ -47,6 +48,8 @@ export const apiKeys = sqliteTable(
   'api_keys',
   {
     id: text('id').primaryKey().$defaultFn(newId),
+    // Owner of the key. Nullable for pre-multi-user rows; new keys always set it.
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     label: text('label').notNull(),
     keyHash: text('key_hash').notNull(), // sha256(rawKey) hex — the secret is never stored
     prefix: text('prefix').notNull(), // first chars of the raw key, for display only
@@ -54,7 +57,7 @@ export const apiKeys = sqliteTable(
     lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
     revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }), // non-null = revoked
   },
-  (t) => [index('api_keys_key_hash_idx').on(t.keyHash)],
+  (t) => [index('api_keys_key_hash_idx').on(t.keyHash), index('api_keys_user_id_idx').on(t.userId)],
 )
 
 export type ApiKeyRow = typeof apiKeys.$inferSelect

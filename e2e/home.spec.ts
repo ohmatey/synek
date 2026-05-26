@@ -19,12 +19,18 @@ test('creating a timeline opens it', async ({ page }) => {
   await expect(page).toHaveURL(/\/timelines\/[^/]+$/)
 })
 
-test('the Connect panel exposes the MCP endpoint and creates an API key', async ({ page }) => {
+test('the Connect panel gates keys behind auth, then creates an API key', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Connect an MCP client' })).toBeVisible()
   await expect(page.locator('.home-connect-code').first()).toHaveText(/\/api\/mcp$/)
 
-  // Create a named key; the raw secret is shown once and listed in the table.
+  // Key management is gated — sign up a fresh account (open multi-user registration).
+  await page.getByRole('button', { name: 'New here? Create an account' }).click()
+  await page.getByLabel('Email').fill(`pw-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`)
+  await page.getByLabel('Password').fill('password1234')
+  await page.getByRole('button', { name: 'Create account', exact: true }).click()
+
+  // Signed in → create a named key; the raw secret is shown once and listed.
   await page.getByPlaceholder(/Name this key/).fill('Playwright key')
   await page.getByRole('button', { name: 'Create key' }).click()
 

@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
 import { randomBytes, createHash, randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -7,28 +6,11 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 
 const MCP_URL = 'http://localhost:3001/api/mcp'
 
-// Mint the local session token the same way users do (`bun run issue:key`) —
-// against the throwaway e2e DB the server reads. The script prints prose plus the
-// token on its own line; the token is the lone whitespace-free long string.
-function issueKey(): string {
-  const out = execFileSync('bunx', ['tsx', 'scripts/issue-key.ts'], {
-    env: { ...process.env, DATABASE_URL: 'e2e.db' },
-    encoding: 'utf8',
-  })
-  const token = out
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => /^[A-Za-z0-9._-]{20,}$/.test(l))
-    .sort((a, b) => b.length - a.length)[0]
-  if (!token) throw new Error(`could not parse a token from issue:key output:\n${out}`)
-  return token
-}
-
 // Create / revoke API keys with direct better-sqlite3 writes against the same
 // e2e.db file the server reads (WAL → writes are visible cross-process). This
 // mirrors lib/auth/api-keys.ts exactly (`synek_` + base64url, sha256 hash, 12-char
-// prefix) but avoids spawning a tsx subprocess per call — those cold-starts made
-// the test flaky under parallel load.
+// prefix). user_id is nullable, so these are unowned keys — the MCP guard validates
+// a key by hash regardless of owner, which is exactly the auth path under test.
 const e2eDb = () => new Database('e2e.db')
 
 function createKey(label = 'e2e'): { raw: string; id: string } {
@@ -111,8 +93,8 @@ test('a named API key authorizes the MCP server, and revoking it returns 401', a
 })
 
 test('apply_patch then get_timeline round-trips through the MCP server', async () => {
-  const token = issueKey()
-  const client = await connect(token)
+  const { raw } = createKey('round-trip')
+  const client = await connect(raw)
 
   try {
     // A fresh timeline so the assertion is isolated from the seed.

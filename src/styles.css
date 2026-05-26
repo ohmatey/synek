@@ -2248,6 +2248,53 @@ body {
   opacity: 0.55;
 }
 
+/* Auth (sign in / up) inside the Connect panel */
+.home-auth {
+  margin-top: 10px;
+}
+
+.home-auth-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.home-auth-form .composer-input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.home-auth-error {
+  margin: 8px 0 0;
+  color: #d98a8a;
+  font-size: 12px;
+}
+
+.home-auth-toggle {
+  margin-top: 10px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #6aa9ff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.home-auth-toggle:hover {
+  text-decoration: underline;
+}
+
+.home-auth-status .home-auth-email {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #aeb4c2;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .home-empty {
   color: #6b7180;
   font-size: 14px;

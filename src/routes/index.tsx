@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { listTimelines, createTimeline, renameTimeline, deleteTimeline } from '~/lib/server/timelines'
 import { initApiKeys, createApiKey, revokeApiKey } from '~/lib/server/api-keys'
+import { useSession, signIn, signUp, signOut } from '~/lib/auth/client'
+import { ClientOnly } from '~/components/client-only'
 
 export const Route = createFileRoute('/')({
   component: Home,
@@ -73,22 +75,147 @@ function RowMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () =>
   )
 }
 
-// Shows the MCP endpoint and a manager for API keys — named, revocable credentials
-// the user pastes into their MCP client. New keys are shown ONCE on creation.
+// MCP endpoint + API-key manager. The endpoint is public; key management lives
+// behind auth (KeysSection, client-only) so only a signed-in user can mint keys.
 function ConnectPanel() {
-  const qc = useQueryClient()
   const [origin, setOrigin] = useState('')
+  const [copiedUrl, setCopiedUrl] = useState(false)
+  useEffect(() => setOrigin(window.location.origin), [])
+  const url = `${origin}/api/mcp`
+
+  return (
+    <section className="home-connect">
+      <h2 className="home-connect-title">Connect an MCP client</h2>
+      <p className="home-connect-sub">
+        Point your client (Claude Desktop, Claude Code) at the endpoint below and authenticate with an API
+        key, then ask it to build and edit timelines. The app itself has no AI — your client brings the model.
+      </p>
+
+      <div className="home-connect-row">
+        <span className="home-connect-label">Endpoint</span>
+        <code className="home-connect-code">{url || '…'}</code>
+        <button
+          type="button"
+          className="home-connect-copy"
+          disabled={!origin}
+          onClick={() => {
+            void navigator.clipboard?.writeText(url)
+            setCopiedUrl(true)
+            setTimeout(() => setCopiedUrl(false), 1500)
+          }}
+        >
+          {copiedUrl ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+
+      {/* Session-aware; client-only to avoid running useSession during SSR. */}
+      <ClientOnly fallback={<p className="home-connect-sub">Loading…</p>}>
+        <KeysSection />
+      </ClientOnly>
+    </section>
+  )
+}
+
+// Sign-in / sign-up form shown when logged out. Open registration (multi-user).
+function AuthForms({ onAuthed }: { onAuthed: () => void }) {
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res =
+        mode === 'signup'
+          ? await signUp.email({ email, password, name: name.trim() || email.split('@')[0] })
+          : await signIn.email({ email, password })
+      if (res.error) {
+        setError(res.error.message || 'Authentication failed')
+        return
+      }
+      onAuthed()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Authentication failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="home-auth">
+      <p className="home-connect-sub">Sign in to create and manage API keys.</p>
+      <form className="home-auth-form" onSubmit={submit}>
+        {mode === 'signup' && (
+          <input
+            className="composer-input"
+            placeholder="Name (optional)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="Name"
+          />
+        )}
+        <input
+          className="composer-input"
+          type="email"
+          required
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          aria-label="Email"
+        />
+        <input
+          className="composer-input"
+          type="password"
+          required
+          minLength={8}
+          placeholder="Password (min 8 characters)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          aria-label="Password"
+        />
+        <button type="submit" className="home-connect-copy" disabled={busy}>
+          {busy ? '…' : mode === 'signup' ? 'Create account' : 'Log in'}
+        </button>
+      </form>
+      {error && (
+        <p className="home-auth-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button
+        type="button"
+        className="home-auth-toggle"
+        onClick={() => {
+          setMode((m) => (m === 'signup' ? 'signin' : 'signup'))
+          setError(null)
+        }}
+      >
+        {mode === 'signup' ? 'Have an account? Log in' : 'New here? Create an account'}
+      </button>
+    </div>
+  )
+}
+
+// API-key management for the signed-in user (create / list / revoke). Mounts
+// client-only; renders AuthForms when logged out.
+function KeysSection() {
+  const qc = useQueryClient()
+  const { data: session, isPending } = useSession()
+  const loggedIn = !!session?.user
+
   const [label, setLabel] = useState('')
   const [busy, setBusy] = useState(false)
   const [created, setCreated] = useState<{ raw: string; label: string } | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
 
-  useEffect(() => setOrigin(window.location.origin), [])
-  const url = `${origin}/api/mcp`
-
-  // On first run this mints a "Default" key and returns its show-once secret;
-  // afterwards it's a plain list (created === null).
-  const { data } = useQuery({ queryKey: ['api-keys'], queryFn: () => initApiKeys() })
+  // First visit mints a "Default" key (show-once secret); afterwards a plain list.
+  const { data } = useQuery({ queryKey: ['api-keys'], queryFn: () => initApiKeys(), enabled: loggedIn })
   const keys = data?.keys ?? []
 
   useEffect(() => {
@@ -121,19 +248,22 @@ function ConnectPanel() {
     await qc.invalidateQueries({ queryKey: ['api-keys'] })
   }
 
-  return (
-    <section className="home-connect">
-      <h2 className="home-connect-title">Connect an MCP client</h2>
-      <p className="home-connect-sub">
-        Point your client (Claude Desktop, Claude Code) at the endpoint below and authenticate with an API
-        key, then ask it to build and edit timelines. The app itself has no AI — your client brings the model.
-      </p>
+  async function logout() {
+    await signOut()
+    setCreated(null)
+    await qc.invalidateQueries({ queryKey: ['api-keys'] })
+  }
 
-      <div className="home-connect-row">
-        <span className="home-connect-label">Endpoint</span>
-        <code className="home-connect-code">{url || '…'}</code>
-        <button type="button" className="home-connect-copy" onClick={() => copy(url, 'url')} disabled={!origin}>
-          {copied === 'url' ? 'Copied' : 'Copy'}
+  if (isPending) return <p className="home-connect-sub">…</p>
+  if (!loggedIn) return <AuthForms onAuthed={() => qc.invalidateQueries({ queryKey: ['api-keys'] })} />
+
+  return (
+    <>
+      <div className="home-connect-row home-auth-status">
+        <span className="home-connect-label">Account</span>
+        <span className="home-auth-email">{session.user.email}</span>
+        <button type="button" className="home-connect-copy" onClick={() => void logout()}>
+          Sign out
         </button>
       </div>
 
@@ -210,7 +340,7 @@ function ConnectPanel() {
           </tbody>
         </table>
       )}
-    </section>
+    </>
   )
 }
 

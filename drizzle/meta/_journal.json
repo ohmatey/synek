@@ -57,6 +57,13 @@
       "when": 1779800741023,
       "tag": "0007_yielding_franklin_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1779805675195,
+      "tag": "0008_skinny_master_chief",
+      "breakpoints": true
     }
   ]
 }

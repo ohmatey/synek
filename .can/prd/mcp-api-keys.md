@@ -97,3 +97,25 @@ Per-key scopes/permissions · expiry/rotation policy · usage quotas · audit lo
 ## Status — built
 
 Migration `0007`, `lib/auth/api-keys.ts` (+ `ensureDefaultApiKey`), the guard fallback, server fns (`initApiKeys` / `createApiKey` / `listApiKeys` / `revokeApiKey`), the home Keys panel with first-run **Default** key (secret shown once), and `scripts/issue-key.ts` repointed to mint an `api_keys` row. Verified: `typecheck` clean · `vite build` green · e2e **19/19** (incl. *key authorizes → revoke → 401* and the Keys-panel UI).
+
+## Follow-up — browser auth (built)
+
+Key management is now **gated behind login** (roadmap §1.6 + the public-self-hosting posture: an open `localhost` instance must not let any visitor mint a key). **Open multi-user** registration via Better Auth email/password.
+
+- `lib/auth/client.ts` (Better Auth React client) + `lib/auth/session.ts` (`getCurrentUser` / `requireUser` via `getRequestHeaders`).
+- Home *Connect* panel is session-aware (client-only `KeysSection`): logged out → sign-up / log-in (`AuthForms`); logged in → account row + Sign out + keys. Timelines stay public (same UX).
+- Key RPCs (`initApiKeys` / `createApiKey` / `listApiKeys` / `revokeApiKey`) call `requireUser` — server-side gate, not just hidden UI.
+- **API keys scoped per user**: `api_keys.user_id` (migration `0008`); list/create/revoke/ensureDefault filter by owner. `verifyApiKey` stays a global hash lookup (a valid key authorizes MCP regardless of owner — consistent while timelines are shared).
+- `issue:key` resolves a user (email arg or first user) since the CLI has no session.
+
+Verified: `typecheck` clean · `vite build` green · e2e **19/19** (home test signs up → creates a key; canvas node-selection hardened to `dispatchEvent`; cold-start timeout headroom in the Playwright config).
+
+### Deferred — per-user timeline isolation (the real multi-tenant work)
+
+Open multi-user is only *fully* realized when **data** is isolated per user. Today timelines (and the MCP read/write surface) are still **shared** across accounts — fine for a single-operator instance, but a true multi-tenant deployment needs:
+
+- `timelines.ownerId` (+ migration assigning existing rows) and per-user filtering in every timeline/graph/patch query.
+- MCP scoping: an api key → its owner → only that owner's timelines for `list/get/apply_patch/undo/redo`.
+- Decisions: shared vs private timelines, invitations/sharing, admin.
+
+This is the deferred **S5 — Users + signal** track. Until it lands, treat multi-user as "accounts + per-user API keys over a shared workspace."
