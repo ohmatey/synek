@@ -36,6 +36,20 @@
       "when": 1779766495443,
       "tag": "0004_tough_paper_doll",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1779786392871,
+      "tag": "0005_milky_robbie_robertson",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1779786410698,
+      "tag": "0006_dark_the_enforcers",
+      "breakpoints": true
     }
   ]
 }

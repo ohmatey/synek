@@ -42,9 +42,6 @@ export type GraphNode = {
   size: NodeSize
   color: string | null
   subtype: NodeSubtype | null
-  // Story-layer affordance (S1): does this moment have a story, and its hook.
-  storyCount: number
-  topHook: string | null
 }
 
 export type GraphEdge = {
@@ -65,14 +62,15 @@ export type TimelineSummary = {
   createdAt: number
 }
 
-// --- Story layer (S1) -----------------------------------------------------
-// Client-reachable enums (the reader renders by these) — kept here, not in the
-// server-only schema, so the canvas/reader can import them safely.
+// --- Story layer (S1), currently inert ------------------------------------
+// These enums back the dormant story tables in the schema (story generation was
+// removed when the app became MCP-driven). Kept so the schema stays migratable
+// and the capability can be re-exposed through MCP later.
 
 export const POV_TYPES = ['first_person', 'witness', 'omniscient', 'diary'] as const
 export type PovType = (typeof POV_TYPES)[number]
 
-export const DEPTH_TIERS = ['light', 'deep'] as const // S1: light = generated, deep = handcrafted (manual)
+export const DEPTH_TIERS = ['light', 'deep'] as const
 export type DepthTier = (typeof DEPTH_TIERS)[number]
 
 export const STORY_STATUS = ['draft', 'published', 'archived'] as const
@@ -80,35 +78,3 @@ export type StoryStatus = (typeof STORY_STATUS)[number]
 
 export const SEGMENT_KINDS = ['narration', 'dialogue', 'sensory', 'interior'] as const
 export type SegmentKind = (typeof SEGMENT_KINDS)[number]
-
-// Serializable story DTOs sent from the server fn to the reader (plain
-// primitives only — no Date/Row that the RPC serializer rejects).
-export type StorySegmentDTO = {
-  id: string
-  sequence: number
-  kind: SegmentKind
-  bodyText: string
-  settingNote: string | null
-  relatedNodeIds: string[]
-}
-
-export type StoryDTO = {
-  id: string
-  momentId: string
-  title: string
-  hook: string | null
-  povType: PovType
-  depthTier: DepthTier
-  estimatedMinutes: number | null
-  status: StoryStatus
-  segments: StorySegmentDTO[]
-}
-
-// Plain DTO for the chat-thread (session) list — times as epoch-ms (no Date over the RPC).
-export type ChatSessionSummary = {
-  id: string
-  timelineId: string
-  title: string
-  createdAt: number
-  updatedAt: number
-}

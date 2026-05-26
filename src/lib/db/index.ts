@@ -4,9 +4,6 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as schema from './schema'
-// Safe despite the cycle (sessions.ts imports `db` below): it reads `db` only
-// inside functions, and we call backfillSessions() after `db` is assigned.
-import { backfillSessions } from './sessions'
 
 // Vite's SSR module loader runs under Node, so we use better-sqlite3 (a Node
 // driver) rather than bun:sqlite. Sync API; works under both Node and Bun.
@@ -15,6 +12,9 @@ const dbPath = process.env.NODE_ENV === 'test' ? ':memory:' : process.env.DATABA
 export const sqlite = new Database(dbPath)
 sqlite.pragma('journal_mode = WAL')
 sqlite.pragma('foreign_keys = ON')
+// The app and the stdio MCP server can open this file concurrently — wait for a
+// lock instead of throwing SQLITE_BUSY. (Still: one primary writer at a time.)
+sqlite.pragma('busy_timeout = 5000')
 
 export const db = drizzle(sqlite, { schema })
 
@@ -22,8 +22,6 @@ export const db = drizzle(sqlite, { schema })
 try {
   const here = path.dirname(fileURLToPath(import.meta.url))
   migrate(db, { migrationsFolder: path.resolve(here, '../../../drizzle') })
-  // Adopt any pre-sessions transcript into a session (idempotent no-op otherwise).
-  backfillSessions()
 } catch {
   // No migrations generated yet, or already applied — fine for local dev.
 }

@@ -1,9 +1,8 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { listTimelines, createTimeline, renameTimeline, deleteTimeline } from '~/lib/server/timelines'
-import { filesToParts } from '~/lib/files'
-import { stashAttachments } from '~/lib/pending-attachments'
+import { getMcpToken } from '~/lib/server/mcp-access'
 
 export const Route = createFileRoute('/')({
   component: Home,
@@ -74,50 +73,88 @@ function RowMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () =>
   )
 }
 
+// Shows the MCP endpoint + a reveal/copy of the access token, so users can
+// connect a client without the `bun run issue:key` CLI.
+function ConnectPanel() {
+  const [origin, setOrigin] = useState('')
+  const [token, setToken] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState<'url' | 'token' | null>(null)
+
+  useEffect(() => setOrigin(window.location.origin), [])
+  const url = `${origin}/api/mcp`
+
+  async function reveal() {
+    if (busy || token) return
+    setBusy(true)
+    try {
+      const { token } = await getMcpToken()
+      setToken(token)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function copy(text: string, which: 'url' | 'token') {
+    void navigator.clipboard?.writeText(text)
+    setCopied(which)
+    setTimeout(() => setCopied(null), 1500)
+  }
+
+  return (
+    <section className="home-connect">
+      <h2 className="home-connect-title">Connect an MCP client</h2>
+      <p className="home-connect-sub">
+        Point your client (Claude Desktop, Claude Code) at the endpoint below with the access token, then
+        ask it to build and edit timelines. The app itself has no AI — your client brings the model.
+      </p>
+      <div className="home-connect-row">
+        <span className="home-connect-label">Endpoint</span>
+        <code className="home-connect-code">{url || '…'}</code>
+        <button type="button" className="home-connect-copy" onClick={() => copy(url, 'url')} disabled={!origin}>
+          {copied === 'url' ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <div className="home-connect-row">
+        <span className="home-connect-label">Token</span>
+        {token ? (
+          <code className="home-connect-code home-connect-token">{token}</code>
+        ) : (
+          <span className="home-connect-hidden">•••••••••••••••• (header: Authorization: Bearer …)</span>
+        )}
+        {token ? (
+          <button type="button" className="home-connect-copy" onClick={() => copy(token, 'token')}>
+            {copied === 'token' ? 'Copied' : 'Copy'}
+          </button>
+        ) : (
+          <button type="button" className="home-connect-copy" onClick={() => void reveal()} disabled={busy}>
+            {busy ? 'Generating…' : 'Reveal token'}
+          </button>
+        )}
+      </div>
+    </section>
+  )
+}
+
 function Home() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const { data: timelines = [] } = useQuery({ queryKey: ['timelines'], queryFn: () => listTimelines() })
-  const [prompt, setPrompt] = useState('')
-  const [files, setFiles] = useState<File[]>([])
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [title, setTitle] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [busy, setBusy] = useState(false)
 
   const open = (id: string) => navigate({ to: '/timelines/$id', params: { id } })
 
-  function onPickFiles(e: ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(e.target.files ?? [])
-    if (picked.length) setFiles((fs) => [...fs, ...picked])
-    e.target.value = ''
-  }
-
-  // Type an idea → new timeline (titled from the prompt) → open it and let the
-  // chat start building from that prompt (handed over via ?prompt=). Any attached
-  // files are stashed and picked up by the timeline's first turn.
-  async function build() {
-    const p = prompt.trim()
-    if (!p || busy) return
-    setBusy(true)
-    try {
-      const title = p.length > 70 ? `${p.slice(0, 69)}…` : p
-      const created = await createTimeline({ data: { title } })
-      if (files.length) stashAttachments(created.id, await filesToParts(files))
-      setPrompt('')
-      setFiles([])
-      await qc.invalidateQueries({ queryKey: ['timelines'] })
-      void navigate({ to: '/timelines/$id', params: { id: created.id }, search: { prompt: p } })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function createBlank() {
+  // Create a new timeline and open it. Content is built by an external MCP client.
+  async function create() {
     if (busy) return
     setBusy(true)
     try {
-      const created = await createTimeline({ data: { title: 'Untitled timeline' } })
+      const t = title.trim()
+      const created = await createTimeline({ data: { title: t || 'Untitled timeline' } })
+      setTitle('')
       await qc.invalidateQueries({ queryKey: ['timelines'] })
       open(created.id)
     } finally {
@@ -144,79 +181,33 @@ function Home() {
       <div className="home-inner">
         <header className="home-head">
           <h1 className="home-title">Strata</h1>
-          <p className="home-sub">Type an idea and watch an AI build the timeline.</p>
+          <p className="home-sub">Create a timeline, then build it from your MCP client.</p>
         </header>
 
         <form
           className="composer composer-home"
           onSubmit={(e) => {
             e.preventDefault()
-            void build()
+            void create()
           }}
         >
-          <input
-            ref={fileRef}
-            type="file"
-            multiple
-            accept="image/*,.pdf,.txt,.md,.csv,.json"
-            className="chat-file-input"
-            onChange={onPickFiles}
-          />
-          {files.length > 0 && (
-            <div className="composer-attachments">
-              {files.map((f, i) => (
-                <span className="attachment" key={`${f.name}:${i}`}>
-                  <span className="attachment-icon" aria-hidden>
-                    {f.type.startsWith('image/') ? '🖼' : '📄'}
-                  </span>
-                  <span className="attachment-name">{f.name}</span>
-                  <button
-                    type="button"
-                    className="attachment-remove"
-                    onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}
-                    aria-label={`Remove ${f.name}`}
-                  >
-                    ✕
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
           <div className="composer-row">
-            <button
-              type="button"
-              className="composer-attach"
-              onClick={() => fileRef.current?.click()}
-              title="Attach images or documents"
-              aria-label="Attach files"
-              disabled={busy}
-            >
-              📎
-            </button>
-            <textarea
+            <input
               className="composer-input"
-              rows={2}
-              placeholder="Map the history of… (e.g. observability tooling, the electric car, jazz)"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void build()
-                }
-              }}
+              placeholder="Name a timeline (e.g. observability tooling, the electric car, jazz)"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
             />
-            <button className="composer-submit" type="submit" disabled={busy || !prompt.trim()}>
-              {busy ? 'Creating…' : 'Build timeline →'}
+            <button className="composer-submit" type="submit" disabled={busy}>
+              {busy ? 'Creating…' : 'New timeline →'}
             </button>
           </div>
         </form>
-        <button type="button" className="home-blank" onClick={() => void createBlank()} disabled={busy}>
-          or start a blank timeline
-        </button>
+
+        <ConnectPanel />
 
         {timelines.length === 0 ? (
-          <p className="home-empty">No timelines yet — type an idea above to build your first.</p>
+          <p className="home-empty">No timelines yet — create your first above.</p>
         ) : (
           <table className="home-table">
             <thead>

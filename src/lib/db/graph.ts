@@ -1,6 +1,6 @@
-import { and, desc, eq, ne } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { db } from './index'
-import { timelines, nodes, edges, stories, messages, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
+import { timelines, nodes, edges, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
 
 export type Graph = { nodes: NodeRow[]; edges: EdgeRow[] }
 
@@ -23,14 +23,9 @@ export function renameTimeline(id: string, title: string): void {
   db.update(timelines).set({ title, updatedAt: new Date() }).where(eq(timelines.id, id)).run()
 }
 
-// Cascades to the timeline's nodes/edges/patches/sessions (FK onDelete: 'cascade').
-// Messages go first: their session_id FK was added via ALTER (no ON DELETE
-// cascade), so deleting sessions while messages still reference them can fail.
+// Cascades to the timeline's nodes/edges/patches (FK onDelete: 'cascade').
 export function deleteTimeline(id: string): void {
-  db.transaction((tx) => {
-    tx.delete(messages).where(eq(messages.timelineId, id)).run()
-    tx.delete(timelines).where(eq(timelines.id, id)).run()
-  })
+  db.delete(timelines).where(eq(timelines.id, id)).run()
 }
 
 export function getTimelineTitle(id: string): string {
@@ -42,29 +37,4 @@ export function loadGraph(timelineId: string): Graph {
     nodes: db.select().from(nodes).where(eq(nodes.timelineId, timelineId)).all(),
     edges: db.select().from(edges).where(eq(edges.timelineId, timelineId)).all(),
   }
-}
-
-// Per-moment story affordance for the canvas: count of live (non-archived)
-// stories + the most-recent hook. Scoped to the timeline by joining moment→node.
-export function momentStoryInfo(
-  timelineId: string,
-): Map<string, { storyCount: number; topHook: string | null }> {
-  const rows = db
-    .select({ momentId: stories.momentId, hook: stories.hook })
-    .from(stories)
-    .innerJoin(nodes, eq(stories.momentId, nodes.id))
-    .where(and(eq(nodes.timelineId, timelineId), ne(stories.status, 'archived')))
-    .orderBy(desc(stories.createdAt)) // newest first → first row per moment is the live hook
-    .all()
-  const map = new Map<string, { storyCount: number; topHook: string | null }>()
-  for (const r of rows) {
-    const cur = map.get(r.momentId)
-    if (cur) {
-      cur.storyCount += 1
-      if (!cur.topHook && r.hook) cur.topHook = r.hook
-    } else {
-      map.set(r.momentId, { storyCount: 1, topHook: r.hook ?? null })
-    }
-  }
-  return map
 }

@@ -1,4 +1,9 @@
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+
+// Better Auth core tables (user/session/account/verification) — kept in this
+// schema so they share the project's drizzle-kit migration pipeline.
+export { user, session, account, verification } from './auth-schema'
+
 import {
   NODE_TYPES,
   EDGE_KINDS,
@@ -81,37 +86,6 @@ export const patches = sqliteTable('patches', {
   status: text('status', { enum: ['applied', 'undone'] })
     .notNull()
     .default('applied'),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
-})
-
-// A chat thread within a timeline. The canvas/graph is shared across threads;
-// "New chat" opens a fresh thread without wiping the old one, and History lists
-// them. Title starts as a default and is set from the first user message.
-export const chatSessions = sqliteTable('chat_sessions', {
-  id: text('id').primaryKey().$defaultFn(newId),
-  timelineId: text('timeline_id')
-    .notNull()
-    .references(() => timelines.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
-})
-
-// Persisted chat transcript per thread — so reloading restores the conversation
-// that built the canvas, not just the graph. `parts` holds the AI SDK UIMessage
-// parts (text + tool-invocation parts) verbatim. `sessionId` is nullable in the
-// column only because SQLite can't add a NOT NULL column to a populated table;
-// the app always sets it (a startup backfill adopts pre-sessions rows).
-export const messages = sqliteTable('messages', {
-  id: text('id').primaryKey().$defaultFn(newId),
-  timelineId: text('timeline_id')
-    .notNull()
-    .references(() => timelines.id, { onDelete: 'cascade' }),
-  sessionId: text('session_id').references(() => chatSessions.id, { onDelete: 'cascade' }),
-  messageId: text('message_id').notNull(), // the UIMessage's own id (stable React key)
-  seq: integer('seq').notNull(), // order within the thread
-  role: text('role', { enum: ['system', 'user', 'assistant'] }).notNull(),
-  parts: text('parts', { mode: 'json' }).$type<unknown[]>().notNull(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
 })
 
@@ -215,13 +189,11 @@ export type TimelineRow = typeof timelines.$inferSelect
 export type NodeRow = typeof nodes.$inferSelect
 export type EdgeRow = typeof edges.$inferSelect
 export type PatchRow = typeof patches.$inferSelect
-export type MessageRow = typeof messages.$inferSelect
 export type PromptTemplateRow = typeof promptTemplates.$inferSelect
 export type GenerationRow = typeof generations.$inferSelect
 export type PersonRow = typeof people.$inferSelect
 export type StoryRow = typeof stories.$inferSelect
 export type StorySegmentRow = typeof storySegments.$inferSelect
-export type ChatSessionRow = typeof chatSessions.$inferSelect
 
 // A single reversible graph mutation. Updates carry before/after; deletes carry
 // the full row(s) so they can be restored. invertPatch = ops.map(invert).reverse().

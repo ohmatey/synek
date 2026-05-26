@@ -30,18 +30,9 @@ export function PersonCard({ data }: NodeProps) {
         <span className="sf-person-name">{d.title}</span>
         {d.date && <span className="sf-person-dates">{d.date}</span>}
       </div>
-      {(d.citations || d.storyCount) ? (
+      {d.citations ? (
         <div className="sf-person-badges">
-          {d.citations ? (
-            <span className="sf-cite" title={`${d.citations} citation(s)`}>
-              {d.citations}
-            </span>
-          ) : null}
-          {d.storyCount ? (
-            <span className="sf-story" title={d.hook ?? 'Story available'}>
-              ▶
-            </span>
-          ) : null}
+          <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span>
         </div>
       ) : null}
       <Handle type="source" position={Position.Right} className="sf-handle" />

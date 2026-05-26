@@ -2125,23 +2125,84 @@ body {
   font-size: 14px;
 }
 
-.home-blank {
-  margin: 10px 0 24px;
-  padding: 0;
-  background: none;
-  border: none;
-  color: #7c8190;
-  font-size: 13px;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+.home-connect {
+  margin: 18px 0 28px;
+  padding: 16px;
+  background: #14171e;
+  border: 1px solid #232733;
+  border-radius: 10px;
 }
 
-.home-blank:hover:not(:disabled) {
+.home-connect-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
   color: #c7ccd8;
 }
 
-.home-blank:disabled {
+.home-connect-sub {
+  margin: 4px 0 14px;
+  color: #7c8190;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.home-connect-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.home-connect-label {
+  flex: 0 0 64px;
+  color: #6b7180;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.home-connect-code {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  background: #0d0f14;
+  border: 1px solid #232733;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #aeb4c2;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.home-connect-token {
+  color: #6aa9ff;
+}
+
+.home-connect-hidden {
+  flex: 1 1 auto;
+  color: #6b7180;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.home-connect-copy {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  background: #1c2029;
+  border: 1px solid #2b303c;
+  border-radius: 6px;
+  color: #c7ccd8;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.home-connect-copy:hover:not(:disabled) {
+  background: #232733;
+}
+
+.home-connect-copy:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

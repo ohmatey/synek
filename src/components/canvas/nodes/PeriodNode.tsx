@@ -9,7 +9,6 @@ export function PeriodNode({ data }: NodeProps) {
         <Handle type="target" position={Position.Left} className="sf-handle" />
         <span className="sf-label">{d.title}</span>
         {d.citations ? <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span> : null}
-        {d.storyCount ? <span className="sf-story" title={d.hook ?? 'Story available'}>▶</span> : null}
         <Handle type="source" position={Position.Right} className="sf-handle" />
       </div>
       {d.images?.length ? (

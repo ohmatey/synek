@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { parseDate, formatInstant } from '~/lib/domain/dates'
-import { editNode, deleteNode, illustrateNode } from '~/lib/server/nodes'
+import { editNode, deleteNode } from '~/lib/server/nodes'
 import { fileToDataUrl } from '~/lib/files'
 import { NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
 import type { GraphNode, GraphEdge, CanvasCitation, NodeImage, NodeSize, NodeSubtype, NodeType, Precision, EdgeKind } from '~/lib/domain/types'
@@ -47,7 +47,6 @@ export function NodeDetailPanel({
   onClose,
   onSelectNode,
   onDraft,
-  onOpenStory,
 }: {
   node: GraphNode
   edges: GraphEdge[]
@@ -56,7 +55,6 @@ export function NodeDetailPanel({
   onClose: () => void
   onSelectNode: (id: string) => void
   onDraft: (draft: NodeDraft | null) => void
-  onOpenStory: (momentId: string) => void
 }) {
   const qc = useQueryClient()
   const hasSpan = node.type !== 'event'
@@ -82,8 +80,6 @@ export function NodeDetailPanel({
   const [subtype, setSubtype] = useState<NodeSubtype | null>(node.subtype)
   const imgRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
-  const [illustrating, setIllustrating] = useState(false)
-  const [illustrateError, setIllustrateError] = useState<string | null>(null)
   // Read-first: only the clicked field shows an editor at a time.
   const [editing, setEditing] = useState<'title' | 'summary' | 'date' | 'end' | null>(null)
 
@@ -174,27 +170,6 @@ export function NodeDetailPanel({
     setImages((xs) => xs.filter((_, j) => j !== i))
   }
 
-  // Generate a period-authentic image for this node (one undoable Patch). The
-  // server attaches it; we mirror it into local state so the panel updates too.
-  async function illustrate() {
-    if (illustrating) return
-    setIllustrating(true)
-    setIllustrateError(null)
-    try {
-      const res = await illustrateNode({ data: { timelineId, nodeId: node.id } })
-      if (res.ok) {
-        setImages((xs) => [...xs, res.image])
-        await refetch()
-      } else {
-        setIllustrateError(res.error)
-      }
-    } catch {
-      setIllustrateError('Image generation failed — check OPENAI_API_KEY, then retry.')
-    } finally {
-      setIllustrating(false)
-    }
-  }
-
   const endParsed = end.trim() ? parseDate(end) : null
 
   return (
@@ -253,12 +228,6 @@ export function NodeDetailPanel({
           {summary.trim() || 'Add a description…'}
         </div>
       )}
-
-      {/* Story — the headline action: tap a moment, read its story on the map */}
-      <button type="button" className="detail-story-cta" onClick={() => onOpenStory(node.id)}>
-        {node.storyCount > 0 ? '▶ Read the story' : '✦ Tell the story here'}
-      </button>
-      {node.storyCount > 0 && node.topHook && <p className="detail-story-hook">{node.topHook}</p>}
 
       {/* Properties — Notion/Figma-style rows */}
       <div className="detail-props">
@@ -416,19 +385,13 @@ export function NodeDetailPanel({
         <div className="detail-cite-head">
           <span className="detail-label">Images</span>
           <div className="detail-img-actions">
-            <button type="button" className="detail-add" onClick={() => void illustrate()} disabled={illustrating}>
-              {illustrating ? '✨ Illustrating…' : '✨ Illustrate'}
-            </button>
             <button type="button" className="detail-add" onClick={() => imgRef.current?.click()}>
               + Upload
             </button>
           </div>
         </div>
         <input ref={imgRef} type="file" accept="image/*" multiple className="chat-file-input" onChange={onPickImages} />
-        {illustrateError && <p className="detail-error">{illustrateError}</p>}
-        {images.length === 0 && !illustrating && (
-          <p className="detail-empty">No images yet — Illustrate generates one, or upload your own.</p>
-        )}
+        {images.length === 0 && <p className="detail-empty">No images yet — upload your own.</p>}
         {images.length > 0 && (
           <div className="detail-images">
             {images.map((im, i) => (

@@ -13,16 +13,18 @@
     "db:seed": "tsx scripts/seed.ts",
     "cache:images": "tsx scripts/cache-seed-images.ts",
     "seed:e2e": "DATABASE_URL=e2e.db tsx scripts/seed.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "mcp:stdio": "tsx src/mcp/stdio.ts",
+    "issue:key": "tsx scripts/issue-key.ts",
+    "verify:mcp": "tsx scripts/verify-mcp-ops.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.65",
-    "@ai-sdk/react": "^3.0.193",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/react-query": "^5.100.14",
     "@tanstack/react-router": "^1.170.8",
     "@tanstack/react-start": "1.168.11",
     "@xyflow/react": "^12.10.2",
-    "ai": "^6.0.191",
+    "better-auth": "^1.6.11",
     "better-sqlite3": "^12.10.0",
     "drizzle-orm": "^0.45.2",
     "react": "^19.2.6",

@@ -11,7 +11,6 @@ export function EventNode({ data }: NodeProps) {
         <span className="sf-label">{d.title}</span>
         {d.date && <span className="sf-date">{d.date}</span>}
         {d.citations ? <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span> : null}
-        {d.storyCount ? <span className="sf-story" title={d.hook ?? 'Story available'}>▶</span> : null}
         <Handle type="source" position={Position.Right} className="sf-handle" />
       </div>
       {d.images?.length ? (
