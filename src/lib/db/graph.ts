@@ -1,6 +1,6 @@
 import { and, desc, eq, ne } from 'drizzle-orm'
 import { db } from './index'
-import { timelines, nodes, edges, stories, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
+import { timelines, nodes, edges, stories, messages, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
 
 export type Graph = { nodes: NodeRow[]; edges: EdgeRow[] }
 
@@ -23,9 +23,14 @@ export function renameTimeline(id: string, title: string): void {
   db.update(timelines).set({ title, updatedAt: new Date() }).where(eq(timelines.id, id)).run()
 }
 
-// Cascades to the timeline's nodes/edges/patches (FK onDelete: 'cascade').
+// Cascades to the timeline's nodes/edges/patches/sessions (FK onDelete: 'cascade').
+// Messages go first: their session_id FK was added via ALTER (no ON DELETE
+// cascade), so deleting sessions while messages still reference them can fail.
 export function deleteTimeline(id: string): void {
-  db.delete(timelines).where(eq(timelines.id, id)).run()
+  db.transaction((tx) => {
+    tx.delete(messages).where(eq(messages.timelineId, id)).run()
+    tx.delete(timelines).where(eq(timelines.id, id)).run()
+  })
 }
 
 export function getTimelineTitle(id: string): string {

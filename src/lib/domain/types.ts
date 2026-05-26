@@ -97,3 +97,12 @@ export type StoryDTO = {
   status: StoryStatus
   segments: StorySegmentDTO[]
 }
+
+// Plain DTO for the chat-thread (session) list — times as epoch-ms (no Date over the RPC).
+export type ChatSessionSummary = {
+  id: string
+  timelineId: string
+  title: string
+  createdAt: number
+  updatedAt: number
+}

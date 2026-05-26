@@ -9,24 +9,25 @@ import { messages, type MessageRow } from './schema'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type StoredMessage = { id: string; role: 'system' | 'user' | 'assistant'; parts: any[] }
 
-export function loadMessages(timelineId: string): StoredMessage[] {
+export function loadMessages(sessionId: string): StoredMessage[] {
   return db
     .select()
     .from(messages)
-    .where(eq(messages.timelineId, timelineId))
+    .where(eq(messages.sessionId, sessionId))
     .orderBy(asc(messages.seq))
     .all()
     .map((m: MessageRow) => ({ id: m.messageId, role: m.role, parts: m.parts }))
 }
 
-// Replace the timeline's transcript with the latest full list. The AI SDK hands
-// us the complete updated message list on each turn, so a full rewrite keeps it
-// simple and idempotent (no per-message diffing).
-export function saveMessages(timelineId: string, msgs: StoredMessage[]): void {
+// Replace the thread's transcript with the latest full list. The AI SDK hands us
+// the complete updated message list on each turn, so a full rewrite keeps it
+// simple and idempotent (no per-message diffing). `timelineId` rides along to
+// fill the NOT NULL column (the canvas/graph is shared across a timeline's threads).
+export function saveMessages(sessionId: string, timelineId: string, msgs: StoredMessage[]): void {
   db.transaction((tx) => {
-    tx.delete(messages).where(eq(messages.timelineId, timelineId)).run()
+    tx.delete(messages).where(eq(messages.sessionId, sessionId)).run()
     msgs.forEach((m, i) => {
-      tx.insert(messages).values({ timelineId, messageId: m.id, seq: i, role: m.role, parts: m.parts }).run()
+      tx.insert(messages).values({ sessionId, timelineId, messageId: m.id, seq: i, role: m.role, parts: m.parts }).run()
     })
   })
 }

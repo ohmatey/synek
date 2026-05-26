@@ -1,6 +1,8 @@
 import { createRouter, Link } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
 
+// Renders for any unmatched path (incl. the browser's /favicon.ico probe), so
+// TanStack Router doesn't fall back to its generic <p>Not Found</p> + warning.
 function NotFound() {
   return (
     <div className="not-found">

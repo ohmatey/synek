@@ -15,6 +15,8 @@ body {
 }
 
 .app-shell {
+  --chat-pane-width: 440px;
+  position: relative; /* positioning context for the floating chat overlay */
   display: flex;
   height: 100vh;
   width: 100%;
@@ -40,11 +42,47 @@ body {
   color: #7c8190;
 }
 
-/* Chat */
+/* 404 — any unmatched route */
+.notfound {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100vh;
+  color: #c7ccd8;
+}
+
+.notfound-title {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+}
+
+.notfound-sub {
+  margin: 0;
+  font-size: 13px;
+  color: #7c8190;
+}
+
+.notfound-link {
+  color: #3a6df0;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.notfound-link:hover {
+  color: #fff;
+}
+
+/* Chat — a floating drawer that hovers over the full-width canvas */
 .chat-pane {
-  flex: 0 0 380px;
-  border-left: 1px solid #232733;
-  background: #14171e;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: var(--chat-pane-width);
+  z-index: 7; /* above app-bar (6) / overlays (5) */
   display: flex;
 }
 
@@ -52,22 +90,148 @@ body {
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100%;
+  background: rgba(20, 23, 30, 0.92);
+  border: 1px solid #2a2f3c;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden; /* clip the message list / form to the rounded corners */
 }
 
+/* Header holds a contained bar styled like the app bar (no full-width divider) */
 .chat-header {
-  padding: 16px;
-  border-bottom: 1px solid #232733;
+  position: relative;
+  padding: 12px;
 }
 
-.chat-title {
-  margin: 0;
-  font-size: 16px;
+.chat-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(15, 17, 21, 0.6);
+  border: 1px solid #2a2f3c;
+  border-radius: 10px;
+}
+
+.chat-bar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
   letter-spacing: 0.02em;
+  color: #e7e9ee;
 }
 
-.chat-sub {
+.chat-bar-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+}
+
+.chat-bar-btn {
+  background: rgba(20, 23, 30, 0.9);
+  color: #c7ccd8;
+  border: 1px solid #2a2f3c;
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat-bar-btn:hover {
+  border-color: #3a6df0;
+  color: #fff;
+}
+
+/* History popover — drops below the header bar */
+.chat-history {
+  position: absolute;
+  top: calc(100% - 4px);
+  right: 12px;
+  left: 12px;
+  z-index: 8;
+  max-height: 320px;
+  overflow: auto;
+  padding: 6px;
+  background: rgba(20, 23, 30, 0.98);
+  border: 1px solid #2a2f3c;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.chat-history-empty {
+  padding: 10px;
   font-size: 12px;
   color: #7c8190;
+}
+
+.chat-history-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border-radius: 8px;
+}
+
+.chat-history-row.is-active {
+  background: #21314f;
+}
+
+.chat-history-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: #c7ccd8;
+  cursor: pointer;
+}
+
+.chat-history-open:hover {
+  background: #1b1f29;
+}
+
+.chat-history-row.is-active .chat-history-open:hover {
+  background: transparent;
+}
+
+.chat-history-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #e7e9ee;
+}
+
+.chat-history-date {
+  font-size: 11px;
+  color: #7c8190;
+}
+
+.chat-history-del {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 0 8px;
+  color: #7c8190;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chat-history-del:hover {
+  background: #2a1b22;
+  color: #ff6a8b;
 }
 
 .messages {
@@ -104,6 +268,13 @@ body {
   border-radius: 8px;
   padding: 8px 10px;
   font: inherit;
+}
+
+/* Keep the placeholder on a single clipped line (typed text still wraps). */
+.chat-input::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-send {
@@ -505,6 +676,12 @@ body {
   font-size: 13px;
   letter-spacing: 0.02em;
   color: #e7e9ee;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.app-bar-logo:hover {
+  color: #fff;
 }
 
 .app-bar-mark {
@@ -585,11 +762,11 @@ body {
   cursor: not-allowed;
 }
 
-/* Export overlay (top-right) */
+/* Export overlay (top-right) — sits left of the floating chat panel */
 .export-controls {
   position: absolute;
   top: 12px;
-  right: 12px;
+  right: calc(var(--chat-pane-width) + 24px);
   z-index: 5;
   display: flex;
   gap: 6px;
