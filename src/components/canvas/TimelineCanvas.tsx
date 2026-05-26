@@ -322,15 +322,25 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       })
     }
 
+    // Period nodes are background context; their connections stay hidden until
+    // one endpoint is selected (or both are framed during story playback), so
+    // the canvas isn't cluttered with links to long time-span bars.
+    const periodIds = new Set(gnodes.filter((n) => n.type === 'period').map((n) => n.id))
+
     const rfEdges: Edge[] = gedges.map((e) => {
       const s = EDGE_STYLE[e.kind]
+      const bothFocused = !!focusSet && focusSet.has(e.sourceId) && focusSet.has(e.targetId)
       // Dim edges that don't connect two focused nodes while a lens is active.
-      const dim = focusSet && !(focusSet.has(e.sourceId) && focusSet.has(e.targetId))
+      const dim = focusSet && !bothFocused
+      const isPeriodEdge = periodIds.has(e.sourceId) || periodIds.has(e.targetId)
+      const touchesSelection = selectedId != null && (e.sourceId === selectedId || e.targetId === selectedId)
+      const hidden = isPeriodEdge && !touchesSelection && !bothFocused
       return {
         id: e.id,
         source: e.sourceId,
         target: e.targetId,
         label: e.label ?? e.kind,
+        hidden,
         style: { stroke: s.color, strokeWidth: s.width, strokeDasharray: s.dash, opacity: dim ? 0.12 : undefined },
         labelStyle: { fill: s.color, fontSize: 11, opacity: dim ? 0.12 : undefined },
         markerEnd: { type: MarkerType.ArrowClosed, color: s.color },

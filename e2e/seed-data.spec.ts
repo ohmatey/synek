@@ -9,6 +9,7 @@ type Expected = {
   title: string
   nodeCount: number
   edgeCount: number
+  periodEdges: number // edges touching a period node — hidden until an endpoint is selected
   periods: number
   events: number
   orgs: number // org entities → .sf-entity-org (each with a .sf-logo)
@@ -23,6 +24,7 @@ const TIMELINES: Expected[] = [
     title: 'Observability tooling',
     nodeCount: 9,
     edgeCount: 4,
+    periodEdges: 1,
     periods: 1,
     events: 6,
     orgs: 2,
@@ -35,6 +37,7 @@ const TIMELINES: Expected[] = [
     title: 'The rise of deep learning',
     nodeCount: 8,
     edgeCount: 6,
+    periodEdges: 1,
     periods: 2,
     events: 6,
     orgs: 0,
@@ -47,6 +50,7 @@ const TIMELINES: Expected[] = [
     title: 'The Space Race',
     nodeCount: 6,
     edgeCount: 5,
+    periodEdges: 3,
     periods: 2,
     events: 3,
     orgs: 1,
@@ -59,6 +63,7 @@ const TIMELINES: Expected[] = [
     title: 'Fall of the Roman Republic',
     nodeCount: 5,
     edgeCount: 4,
+    periodEdges: 1,
     periods: 1,
     events: 3,
     orgs: 0,
@@ -71,6 +76,7 @@ const TIMELINES: Expected[] = [
     title: 'Figures of science',
     nodeCount: 6,
     edgeCount: 3,
+    periodEdges: 0,
     periods: 0,
     events: 0,
     orgs: 0,
@@ -96,9 +102,10 @@ for (const tl of TIMELINES) {
     await expect(page.locator('.sf-entity-org')).toHaveCount(tl.orgs)
     await expect(page.locator('.sf-person')).toHaveCount(tl.persons)
 
-    // Citation badges and edges.
+    // Citation badges. Edges touching a period node are hidden by default, so
+    // only the non-period edges render until a node is selected.
     await expect(page.locator('.sf-cite')).toHaveCount(tl.cites)
-    await expect(page.locator('.react-flow__edge')).toHaveCount(tl.edgeCount)
+    await expect(page.locator('.react-flow__edge')).toHaveCount(tl.edgeCount - tl.periodEdges)
 
     // Org logos / person portraits are present where expected.
     await expect(page.locator('.sf-logo')).toHaveCount(tl.orgs)

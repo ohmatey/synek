@@ -23,6 +23,23 @@ test('roman-republic timeline renders BCE-dated nodes', async ({ page }) => {
   await expect(page.getByText('Caesar crosses the Rubicon')).toBeVisible()
 })
 
+test('period connections are hidden until an endpoint is selected', async ({ page }) => {
+  await page.goto('/timelines/roman-republic')
+  await expect(page.getByText('Julius Caesar')).toBeVisible()
+
+  const edges = page.locator('.react-flow__edge')
+  // 4 edges total; the one touching the "Roman Republic" period is hidden.
+  await expect(edges).toHaveCount(3)
+
+  // Selecting an endpoint of the period edge (the Rubicon event) reveals it.
+  await page.getByText('Caesar crosses the Rubicon').click()
+  await expect(edges).toHaveCount(4)
+
+  // Selecting an unrelated node hides the period edge again.
+  await page.getByText('Augustus becomes emperor').click()
+  await expect(edges).toHaveCount(3)
+})
+
 test('time-scale compress pulls nodes closer horizontally', async ({ page }) => {
   await page.goto('/timelines/roman-republic')
   const a = page.getByText('Julius Caesar').first()
