@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
+import { randomBytes, createHash, randomUUID } from 'node:crypto'
+import Database from 'better-sqlite3'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 
@@ -22,30 +24,38 @@ function issueKey(): string {
   return token
 }
 
-// Create a named API key directly against the throwaway e2e DB (same cross-process
-// file the server reads). Returns the show-once raw secret and the key id.
+// Create / revoke API keys with direct better-sqlite3 writes against the same
+// e2e.db file the server reads (WAL → writes are visible cross-process). This
+// mirrors lib/auth/api-keys.ts exactly (`synek_` + base64url, sha256 hash, 12-char
+// prefix) but avoids spawning a tsx subprocess per call — those cold-starts made
+// the test flaky under parallel load.
+const e2eDb = () => new Database('e2e.db')
+
 function createKey(label = 'e2e'): { raw: string; id: string } {
-  const out = execFileSync(
-    'bunx',
-    [
-      'tsx',
-      '-e',
-      `import('./src/lib/auth/api-keys').then((m) => { const r = m.createApiKey('${label}'); console.log(JSON.stringify({ raw: r.raw, id: r.key.id })) })`,
-    ],
-    { env: { ...process.env, DATABASE_URL: 'e2e.db' }, encoding: 'utf8' },
-  )
-  const line = out.split('\n').find((l) => l.trim().startsWith('{'))
-  if (!line) throw new Error(`could not parse createApiKey output:\n${out}`)
-  return JSON.parse(line) as { raw: string; id: string }
+  const raw = 'synek_' + randomBytes(32).toString('base64url')
+  const id = randomUUID()
+  const db = e2eDb()
+  try {
+    db.prepare('INSERT INTO api_keys (id, label, key_hash, prefix, created_at) VALUES (?, ?, ?, ?, ?)').run(
+      id,
+      label,
+      createHash('sha256').update(raw).digest('hex'),
+      raw.slice(0, 12),
+      Date.now(),
+    )
+  } finally {
+    db.close()
+  }
+  return { raw, id }
 }
 
-// Revoke a key by id against the e2e DB.
 function revokeKey(id: string): void {
-  execFileSync(
-    'bunx',
-    ['tsx', '-e', `import('./src/lib/auth/api-keys').then((m) => m.revokeApiKey('${id}'))`],
-    { env: { ...process.env, DATABASE_URL: 'e2e.db' }, encoding: 'utf8' },
-  )
+  const db = e2eDb()
+  try {
+    db.prepare('UPDATE api_keys SET revoked_at = ? WHERE id = ?').run(Date.now(), id)
+  } finally {
+    db.close()
+  }
 }
 
 // MCP tool results wrap a single JSON text block — unwrap it.

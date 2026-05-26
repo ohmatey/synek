@@ -1,12 +1,15 @@
-import { issueLocalToken } from '../src/lib/auth/token'
+import { createApiKey } from '../src/lib/auth/api-keys'
 
-// Print the local user's long-lived session token — the "API key" the MCP client
-// uses. Idempotent. Run under Node (tsx): `bun run issue:key` dispatches to tsx.
+// Mint a named MCP API key and print its secret ONCE. Each run creates a fresh
+// `synek_…` key (revoke old ones in the app's Keys panel). Run under Node (tsx):
+// `bun run issue:key` dispatches to tsx.
 async function main() {
-  const token = await issueLocalToken()
-  console.log('\nSTRATA API KEY (session token) — copy into .env as STRATA_API_KEY and into your MCP client:\n')
-  console.log(token)
-  console.log('\nConnect a client to http://localhost:3001/api/mcp with header  Authorization: Bearer <token>\n')
+  const label = process.argv[2]?.trim() || 'CLI key'
+  const { raw, key } = createApiKey(label)
+  console.log(`\nSYNEK API KEY "${key.label}" — shown once. Copy into .env as STRATA_API_KEY and into your MCP client:\n`)
+  console.log(raw)
+  console.log('\nConnect a client to http://localhost:3001/api/mcp with header  Authorization: Bearer <key>')
+  console.log('Manage or revoke keys anytime in the app’s "Connect an MCP client" panel.\n')
   process.exit(0)
 }
 

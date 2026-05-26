@@ -1,7 +1,7 @@
 ---
 phase: KEYS
 title: "API keys — the MCP front door"
-status: proposed
+status: built
 era: "MCP connection (the front door)"
 updated: 2026-05-26
 ---
@@ -35,7 +35,8 @@ Stays inside CLAUDE.md's **single-user, local-first Core**. This is *named, list
 | Approach | **Custom `api_keys` table** (not session sidecar) | Purpose-built, hashed at rest, decoupled from session expiry; clean show-once + revoke + last-used |
 | Reveal model | **Show once** on creation, then prefix + label only | Standard API-key UX; nothing sensitive persisted in plaintext |
 | Back-compat | Guard tries api-key path, **falls back to `getSession`** | Existing minted session tokens keep working; no forced cutover |
-| `bun run issue:key` | Keep (session path) for now | Decouple CLI change from this phase |
+| `bun run issue:key` | **Repointed** to mint an `api_keys` row (prints `synek_…` once) | One token model; CLI and UI now produce the same kind of key |
+| First-run | **Auto-seed a "Default" key** and surface its secret once in the panel | New users land with a ready-to-copy key, never a hashed key whose secret is lost |
 
 ## The experience end
 
@@ -75,12 +76,12 @@ Raw key format: `synek_<32 random bytes, base64url>`. One migration (`drizzle/00
 ## Back-compat & migration
 
 - Existing session tokens still authorize (guard fallback) — no break for anyone already connected.
-- Optional: seed one **"Default"** key on first load so the panel is never empty.
+- First home load auto-seeds a **"Default"** key and shows its secret once (so the panel is never empty and the secret is never lost). Revoked rows count, so a full revoke never resurrects it.
 - `STRATA_API_KEY` (stdio) accepts either a `synek_` key or a legacy session token, transparently.
 
 ## Out of scope (this phase)
 
-Per-key scopes/permissions · expiry/rotation policy · usage quotas · audit log · multi-user · repointing `issue:key` to api_keys (later).
+Per-key scopes/permissions · expiry/rotation policy · usage quotas · audit log · multi-user.
 
 ## Acceptance
 
@@ -92,3 +93,7 @@ Per-key scopes/permissions · expiry/rotation policy · usage quotas · audit lo
 ## Effort
 
 ~0.5–1 day. Migration + key module (~2h), guard + server fns (~1–2h), Keys UI (~2–3h), tests + docs (~2h).
+
+## Status — built
+
+Migration `0007`, `lib/auth/api-keys.ts` (+ `ensureDefaultApiKey`), the guard fallback, server fns (`initApiKeys` / `createApiKey` / `listApiKeys` / `revokeApiKey`), the home Keys panel with first-run **Default** key (secret shown once), and `scripts/issue-key.ts` repointed to mint an `api_keys` row. Verified: `typecheck` clean · `vite build` green · e2e **19/19** (incl. *key authorizes → revoke → 401* and the Keys-panel UI).

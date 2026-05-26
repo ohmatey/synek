@@ -12,8 +12,14 @@ import { execFileSync } from 'node:child_process'
 // the seed AND any token minted at test time (→ spurious empty pages / MCP 401s).
 // Resetting in place keeps the inode the server holds.
 export default function globalSetup() {
-  execFileSync('bunx', ['tsx', 'scripts/seed.ts'], {
+  const env = { ...process.env, DATABASE_URL: 'e2e.db' }
+  execFileSync('bunx', ['tsx', 'scripts/seed.ts'], { stdio: 'inherit', env })
+
+  // Clean keys slate per run — delete rows (never unlink the file, per above) so
+  // api_keys don't accumulate across runs and the first home load re-seeds the
+  // "Default" key deterministically.
+  execFileSync('bunx', ['tsx', '-e', "import('./src/lib/db').then(({ sqlite }) => sqlite.exec('DELETE FROM api_keys'))"], {
     stdio: 'inherit',
-    env: { ...process.env, DATABASE_URL: 'e2e.db' },
+    env,
   })
 }

@@ -57,6 +57,23 @@ export function listApiKeys(): ApiKeySummary[] {
   return db.select().from(apiKeys).orderBy(desc(apiKeys.createdAt)).all().map(toSummary)
 }
 
+/**
+ * First-run convenience: if no keys exist yet (none ever created — revoked rows
+ * still count, so this never resurrects after a full revoke), mint a "Default"
+ * key and return its show-once secret alongside the list. Otherwise `created` is
+ * null. Lets a brand-new user land with a ready-to-copy key instead of an empty
+ * panel, without ever silently creating a key whose secret can't be seen.
+ */
+export function ensureDefaultApiKey(): {
+  created: { raw: string; key: ApiKeySummary } | null
+  keys: ApiKeySummary[]
+} {
+  const existing = db.select().from(apiKeys).orderBy(desc(apiKeys.createdAt)).all()
+  if (existing.length > 0) return { created: null, keys: existing.map(toSummary) }
+  const created = createApiKey('Default')
+  return { created, keys: [created.key] }
+}
+
 /** Revoke a key by id (idempotent). Future MCP calls with it will 401. */
 export function revokeApiKey(id: string): void {
   db.update(apiKeys).set({ revokedAt: new Date() }).where(eq(apiKeys.id, id)).run()

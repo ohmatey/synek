@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { listTimelines, createTimeline, renameTimeline, deleteTimeline } from '~/lib/server/timelines'
-import { listApiKeys, createApiKey, revokeApiKey } from '~/lib/server/api-keys'
+import { initApiKeys, createApiKey, revokeApiKey } from '~/lib/server/api-keys'
 
 export const Route = createFileRoute('/')({
   component: Home,
@@ -86,7 +86,14 @@ function ConnectPanel() {
   useEffect(() => setOrigin(window.location.origin), [])
   const url = `${origin}/api/mcp`
 
-  const { data: keys = [] } = useQuery({ queryKey: ['api-keys'], queryFn: () => listApiKeys() })
+  // On first run this mints a "Default" key and returns its show-once secret;
+  // afterwards it's a plain list (created === null).
+  const { data } = useQuery({ queryKey: ['api-keys'], queryFn: () => initApiKeys() })
+  const keys = data?.keys ?? []
+
+  useEffect(() => {
+    if (data?.created) setCreated({ raw: data.created.raw, label: data.created.key.label })
+  }, [data?.created])
 
   function copy(text: string, which: string) {
     void navigator.clipboard?.writeText(text)
