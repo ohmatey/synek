@@ -76,29 +76,22 @@ export function ChatPanel({ timelineId, initialPrompt }: { timelineId: string; i
     if (id === activeSessionId) setActiveSessionId(null)
   }
 
-  const activeTitle = sessions?.find((s) => s.id === activeSessionId)?.title ?? 'New conversation'
-
   return (
     <div className="chat">
       <header className="chat-header" ref={headerRef}>
-        <div className="chat-bar">
-          <span className="chat-bar-title" title={activeTitle}>
-            {activeTitle}
-          </span>
-          <div className="chat-bar-actions">
-            <button type="button" className="chat-bar-btn" onClick={() => void newChat()} title="Start a new chat">
-              + New chat
-            </button>
-            <button
-              type="button"
-              className="chat-bar-btn"
-              onClick={() => setHistoryOpen((v) => !v)}
-              aria-expanded={historyOpen}
-              title="Chat history"
-            >
-              History ▾
-            </button>
-          </div>
+        <div className="chat-bar-actions">
+          <button type="button" className="toolbar-btn" onClick={() => void newChat()} title="Start a new chat">
+            + New
+          </button>
+          <button
+            type="button"
+            className="toolbar-btn"
+            onClick={() => setHistoryOpen((v) => !v)}
+            aria-expanded={historyOpen}
+            title="Chat history"
+          >
+            History ▾
+          </button>
         </div>
         {historyOpen && (
           <SessionHistory
@@ -332,60 +325,68 @@ function ChatThread({
           </div>
         </div>
       )}
-      {files.length > 0 && (
-        <div className="chat-attachments">
-          {files.map((f, i) => (
-            <span className="chat-attachment" key={`${f.name}:${i}`}>
-              <span className="chat-attachment-name">
-                {f.type.startsWith('image/') ? '🖼' : '📄'} {f.name}
+      <div className="composer">
+        {files.length > 0 && (
+          <div className="composer-attachments">
+            {files.map((f, i) => (
+              <span className="attachment" key={`${f.name}:${i}`}>
+                <span className="attachment-icon" aria-hidden>
+                  {f.type.startsWith('image/') ? '🖼' : '📄'}
+                </span>
+                <span className="attachment-name">{f.name}</span>
+                <button
+                  type="button"
+                  className="attachment-remove"
+                  onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}
+                  aria-label={`Remove ${f.name}`}
+                >
+                  ✕
+                </button>
               </span>
-              <button
-                type="button"
-                className="chat-attachment-remove"
-                onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}
-                aria-label={`Remove ${f.name}`}
-              >
-                ✕
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <form
-        className="chat-form"
-        onSubmit={(e) => {
-          e.preventDefault()
-          void send()
-        }}
-      >
-        <input ref={fileRef} type="file" multiple accept={ACCEPT} className="chat-file-input" onChange={onPickFiles} />
-        <button
-          type="button"
-          className="chat-attach"
-          onClick={() => fileRef.current?.click()}
-          title="Attach images or documents"
-          aria-label="Attach files"
-          disabled={busy}
-        >
-          📎
-        </button>
-        <textarea
-          className="chat-input"
-          rows={1}
-          placeholder="Try: map the history of observability tooling…"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              void send()
-            }
+            ))}
+          </div>
+        )}
+        <form
+          className="composer-row"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void send()
           }}
-        />
-        <button className="chat-send" type="submit" disabled={busy || (!input.trim() && files.length === 0)}>
-          {busy ? '…' : 'Send'}
-        </button>
-      </form>
+        >
+          <input ref={fileRef} type="file" multiple accept={ACCEPT} className="chat-file-input" onChange={onPickFiles} />
+          <button
+            type="button"
+            className="composer-attach"
+            onClick={() => fileRef.current?.click()}
+            title="Attach images or documents"
+            aria-label="Attach files"
+            disabled={busy}
+          >
+            📎
+          </button>
+          <textarea
+            className="composer-input"
+            rows={1}
+            placeholder="Try: map the history of observability tooling…"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void send()
+              }
+            }}
+          />
+          <button
+            className="composer-send"
+            type="submit"
+            disabled={busy || (!input.trim() && files.length === 0)}
+            aria-label="Send"
+          >
+            {busy ? '…' : '↑'}
+          </button>
+        </form>
+      </div>
     </>
   )
 }

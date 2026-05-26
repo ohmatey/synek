@@ -84,6 +84,22 @@ body {
   width: var(--chat-pane-width);
   z-index: 7; /* above app-bar (6) / overlays (5) */
   display: flex;
+  transition:
+    transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 200ms ease;
+}
+
+/* Slid out — translate fully off the right edge (incl. the 12px inset) */
+.chat-pane.is-closed {
+  transform: translateX(calc(100% + 12px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-pane {
+    transition: none;
+  }
 }
 
 .chat {
@@ -98,55 +114,46 @@ body {
   overflow: hidden; /* clip the message list / form to the rounded corners */
 }
 
-/* Header holds a contained bar styled like the app bar (no full-width divider) */
-.chat-header {
-  position: relative;
-  padding: 12px;
-}
-
-.chat-bar {
-  display: flex;
+/* Shared pill button used across the floating overlays (toolbar, chat header) */
+.toolbar-btn {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 10px;
-  background: rgba(15, 17, 21, 0.6);
-  border: 1px solid #2a2f3c;
-  border-radius: 10px;
-}
-
-.chat-bar-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #e7e9ee;
-}
-
-.chat-bar-actions {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 6px;
-}
-
-.chat-bar-btn {
-  background: rgba(20, 23, 30, 0.9);
+  gap: 4px;
+  background: rgba(20, 23, 30, 0.92);
   color: #c7ccd8;
   border: 1px solid #2a2f3c;
   border-radius: 8px;
-  padding: 4px 9px;
+  padding: 5px 10px;
   font-size: 12px;
+  line-height: 1;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background 120ms ease;
 }
 
-.chat-bar-btn:hover {
+.toolbar-btn:hover:not(:disabled) {
   border-color: #3a6df0;
   color: #fff;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Header holds minimal action buttons that float over the transcript */
+.chat-header {
+  position: relative;
+  padding: 12px 12px 0;
+}
+
+.chat-bar-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 /* History popover — drops below the header bar */
@@ -252,111 +259,198 @@ body {
   color: #c7ccd8;
 }
 
-.chat-form {
-  display: flex;
-  gap: 8px;
-  padding: 12px;
-  border-top: 1px solid #232733;
-}
-
-.chat-input {
-  flex: 1;
-  resize: none;
-  background: #0f1115;
-  color: #e7e9ee;
+/* Composer — the sleek prompt bar shared by the chat panel and home page */
+.composer {
+  margin: 8px 12px 14px;
+  background: #14171e;
   border: 1px solid #2a2f3c;
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 16px;
+  padding: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.composer:focus-within {
+  border-color: #3a6df0;
+  box-shadow: 0 6px 24px rgba(58, 109, 240, 0.18);
+}
+
+.composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.composer-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  resize: none;
+  max-height: 160px;
+  background: transparent;
+  color: #e7e9ee;
+  border: none;
+  padding: 6px 4px;
   font: inherit;
+  line-height: 1.4;
 }
 
-/* Keep the placeholder on a single clipped line (typed text still wraps). */
-.chat-input::placeholder {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.composer-input:focus {
+  outline: none;
 }
 
-.chat-send {
+.composer-input::placeholder {
+  color: #6b7180;
+}
+
+/* Round ghost button for attaching files */
+.composer-attach {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  color: #8b93a7;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.composer-attach:hover:not(:disabled) {
+  background: #1b2230;
+}
+
+.composer-attach:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Circular accent send button (chat panel) */
+.composer-send {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   background: #3a6df0;
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 0 14px;
-  font-weight: 600;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 700;
   cursor: pointer;
+  transition: background 120ms ease;
 }
 
-.chat-send:disabled {
+.composer-send:hover:not(:disabled) {
+  background: #4b7bff;
+}
+
+.composer-send:disabled {
   background: #2a2f3c;
   color: #6b7180;
   cursor: not-allowed;
 }
 
-/* Attachments */
+/* Labeled pill submit button (home page) */
+.composer-submit {
+  flex: 0 0 auto;
+  align-self: stretch;
+  background: #3a6df0;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.composer-submit:hover:not(:disabled) {
+  background: #4b7bff;
+}
+
+.composer-submit:disabled {
+  background: #2a2f3c;
+  color: #6b7180;
+  cursor: not-allowed;
+}
+
+/* Home variant sits in normal page flow with a touch more presence */
+.composer-home {
+  margin: 0;
+  border-radius: 18px;
+  padding: 10px;
+}
+
+.composer-home .composer-input {
+  font-size: 15px;
+  padding: 8px 6px;
+}
+
+/* Attachments — sleek rounded chips */
 .chat-file-input {
   display: none;
 }
 
-.chat-attach {
-  flex: 0 0 auto;
-  align-self: stretch;
-  background: #0f1115;
-  border: 1px solid #2a2f3c;
-  border-radius: 8px;
-  padding: 0 10px;
-  font-size: 15px;
-  cursor: pointer;
-}
-
-.chat-attach:hover:not(:disabled) {
-  border-color: #3a6df0;
-}
-
-.chat-attach:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.chat-attachments {
+.composer-attachments {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 0 12px 8px;
+  padding: 2px 4px 8px;
 }
 
-.chat-attachment {
+.attachment {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   max-width: 100%;
-  padding: 3px 6px 3px 8px;
-  border-radius: 999px;
+  padding: 4px 6px 4px 8px;
+  border-radius: 10px;
   background: #1b2230;
   border: 1px solid #2f3a4c;
-  font-size: 11px;
-  color: #8fb0ff;
+  font-size: 12px;
+  color: #c7ccd8;
 }
 
-.chat-attachment-name {
+.attachment-icon {
+  flex: 0 0 auto;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.attachment-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 220px;
+  max-width: 180px;
 }
 
-.chat-attachment-remove {
+.attachment-remove {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   background: none;
   border: none;
+  border-radius: 6px;
   color: #8b93a7;
   cursor: pointer;
-  font-size: 11px;
-  padding: 0 2px;
+  font-size: 10px;
 }
 
-.chat-attachment-remove:hover {
-  color: #e06a6a;
+.attachment-remove:hover {
+  background: #2a1b22;
+  color: #ff6a8b;
 }
 
 /* Attachments inside the transcript */
@@ -660,7 +754,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 360px;
+  max-width: 420px;
   padding: 6px 10px;
   background: rgba(20, 23, 30, 0.92);
   border: 1px solid #2a2f3c;
@@ -697,7 +791,7 @@ body {
 }
 
 .app-bar-name {
-  max-width: 230px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -732,59 +826,162 @@ body {
   outline: none;
 }
 
-/* Undo/redo overlay — sits just below the app bar */
-.history-controls {
-  position: absolute;
-  top: 56px;
-  left: 12px;
-  z-index: 5;
-  display: flex;
-  gap: 6px;
+/* Timeline switcher dropdown */
+.app-bar-switcher {
+  position: relative;
+  flex: 0 0 auto;
 }
 
-.history-controls button {
-  background: rgba(20, 23, 30, 0.9);
-  color: #c7ccd8;
-  border: 1px solid #2a2f3c;
-  border-radius: 8px;
-  padding: 5px 10px;
-  font-size: 12px;
+.app-bar-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #7c8190;
+  font-size: 11px;
   cursor: pointer;
 }
 
-.history-controls button:hover:not(:disabled) {
-  border-color: #3a6df0;
+.app-bar-switch-btn:hover {
+  border-color: #2a2f3c;
   color: #fff;
 }
 
-.history-controls button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.app-bar-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 9;
+  min-width: 240px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 6px;
+  background: rgba(20, 23, 30, 0.98);
+  border: 1px solid #2a2f3c;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
-/* Export overlay (top-right) — sits left of the floating chat panel */
-.export-controls {
+.app-bar-menu-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: #7c8190;
+}
+
+.app-bar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: #c7ccd8;
+  cursor: pointer;
+}
+
+.app-bar-menu-item:hover {
+  background: #1b1f29;
+}
+
+.app-bar-menu-item.is-active {
+  background: #21314f;
+}
+
+.app-bar-menu-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #e7e9ee;
+}
+
+.app-bar-menu-check {
+  flex: 0 0 auto;
+  color: #8fb0ff;
+  font-size: 12px;
+}
+
+/* Right-hand toolbar (top-right) — undo/redo, export, chat toggle. Sits left of
+   the floating chat panel; slides to the edge when the chat is collapsed. */
+.canvas-toolbar {
   position: absolute;
   top: 12px;
   right: calc(var(--chat-pane-width) + 24px);
-  z-index: 5;
+  z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  transition: right 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.canvas-toolbar.chat-collapsed {
+  right: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-toolbar {
+    transition: none;
+  }
+}
+
+.history-controls {
   display: flex;
   gap: 6px;
 }
 
-.export-controls button {
-  background: rgba(20, 23, 30, 0.9);
-  color: #c7ccd8;
+.export-controls {
+  position: relative;
+  display: flex;
+}
+
+/* Export format menu */
+.export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 9;
+  min-width: 180px;
+  padding: 6px;
+  background: rgba(20, 23, 30, 0.98);
   border: 1px solid #2a2f3c;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.export-menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
   border-radius: 8px;
-  padding: 5px 10px;
-  font-size: 12px;
+  padding: 7px 9px;
   cursor: pointer;
 }
 
-.export-controls button:hover {
-  border-color: #3a6df0;
-  color: #fff;
+.export-menu-item:hover {
+  background: #1b1f29;
+}
+
+.export-menu-label {
+  font-size: 13px;
+  color: #e7e9ee;
+}
+
+.export-menu-hint {
+  font-size: 11px;
+  color: #7c8190;
 }
 
 /* Citation badge on nodes */
@@ -1705,54 +1902,6 @@ body {
   font-size: 14px;
 }
 
-.home-prompt {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-}
-
-.home-prompt-input {
-  flex: 1;
-  background: #14171e;
-  color: #e7e9ee;
-  border: 1px solid #2a2f3c;
-  border-radius: 10px;
-  padding: 12px 14px;
-  font: inherit;
-  font-size: 15px;
-  resize: none;
-  line-height: 1.4;
-}
-
-.home-prompt-input:focus {
-  outline: none;
-  border-color: #3a6df0;
-}
-
-.home-prompt-btn {
-  background: #3a6df0;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 0 18px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.home-prompt-btn:disabled {
-  background: #2a2f3c;
-  color: #6b7180;
-  cursor: not-allowed;
-}
-
-.home-attachments {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
 .home-blank {
   margin: 10px 0 24px;
   padding: 0;
@@ -1779,61 +1928,106 @@ body {
   font-size: 14px;
 }
 
-.home-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.home-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.home-table {
+  width: 100%;
+  border-collapse: collapse;
   background: #14171e;
   border: 1px solid #232733;
   border-radius: 10px;
-  padding: 6px 10px 6px 6px;
+  overflow: hidden;
 }
 
-.home-card:hover {
-  border-color: #2f3a4c;
+.home-table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7180;
+  padding: 10px 12px;
+  border-bottom: 1px solid #232733;
+  background: #11141a;
 }
 
-.home-card-open {
-  flex: 1;
+.home-th-date {
+  width: 140px;
+}
+
+.home-th-actions {
+  width: 48px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.home-row {
+  border-bottom: 1px solid #1c2027;
+}
+
+.home-row:last-child {
+  border-bottom: none;
+}
+
+.home-row:hover {
+  background: #1b1f29;
+}
+
+.home-cell-main {
+  padding: 4px 12px;
+}
+
+.home-row-open {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
   background: transparent;
   border: none;
   color: #e7e9ee;
   text-align: left;
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 8px 0;
   cursor: pointer;
 }
 
-.home-card-open:hover {
-  background: #1b1f29;
-}
-
-.home-card-title {
+.home-row-title {
   font-size: 15px;
   font-weight: 500;
 }
 
-.home-card-date {
+.home-row-desc {
   font-size: 12px;
+  color: #8b93a7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 480px;
+}
+
+.home-cell-date {
+  padding: 8px 12px;
+  font-size: 13px;
   color: #6b7180;
-  flex: 0 0 auto;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.home-cell-actions {
+  padding: 8px 12px;
+  text-align: right;
+  vertical-align: middle;
 }
 
 .home-card-edit {
-  flex: 1;
+  width: 100%;
   background: #0f1115;
   color: #e7e9ee;
   border: 1px solid #3a6df0;
@@ -1841,35 +2035,73 @@ body {
   padding: 8px 10px;
   font: inherit;
   font-size: 15px;
+  box-sizing: border-box;
 }
 
 .home-card-edit:focus {
   outline: none;
 }
 
-.home-card-actions {
-  display: flex;
-  gap: 4px;
-  flex: 0 0 auto;
+/* Per-row 3-dot actions menu */
+.home-menu {
+  position: relative;
+  display: inline-flex;
 }
 
-.home-card-btn {
+.home-menu-btn {
   background: transparent;
   color: #8b93a7;
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 5px 9px;
-  font-size: 12px;
+  padding: 2px 8px;
+  font-size: 18px;
+  line-height: 1;
   cursor: pointer;
 }
 
-.home-card-btn:hover {
+.home-menu-btn:hover,
+.home-menu-btn[aria-expanded='true'] {
   border-color: #2a2f3c;
   color: #e7e9ee;
 }
 
-.home-card-del:hover {
-  border-color: #4a2a2f;
+.home-menu-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  background: #14171e;
+  border: 1px solid #2a2f3c;
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.home-menu-item {
+  background: transparent;
+  color: #c7ccd8;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-menu-item:hover {
+  background: #1b1f29;
+  color: #fff;
+}
+
+.home-menu-del {
+  color: #d98a8a;
+}
+
+.home-menu-del:hover {
+  background: #2a1c1f;
   color: #e06a6a;
 }
 

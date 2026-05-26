@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { listTimelines, createTimeline, renameTimeline, deleteTimeline } from '~/lib/server/timelines'
 import { filesToParts } from '~/lib/files'
 import { stashAttachments } from '~/lib/pending-attachments'
@@ -8,6 +8,71 @@ import { stashAttachments } from '~/lib/pending-attachments'
 export const Route = createFileRoute('/')({
   component: Home,
 })
+
+const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+
+function RowMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div className="home-menu" ref={ref}>
+      <button
+        type="button"
+        className="home-menu-btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="Timeline actions"
+        title="Actions"
+      >
+        ⋯
+      </button>
+      {open && (
+        <div className="home-menu-list" role="menu">
+          <button
+            type="button"
+            className="home-menu-item"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onRename()
+            }}
+          >
+            Rename
+          </button>
+          <button
+            type="button"
+            className="home-menu-item home-menu-del"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onDelete()
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Home() {
   const qc = useQueryClient()
@@ -83,7 +148,7 @@ function Home() {
         </header>
 
         <form
-          className="home-prompt"
+          className="composer composer-home"
           onSubmit={(e) => {
             e.preventDefault()
             void build()
@@ -97,52 +162,55 @@ function Home() {
             className="chat-file-input"
             onChange={onPickFiles}
           />
-          <button
-            type="button"
-            className="chat-attach"
-            onClick={() => fileRef.current?.click()}
-            title="Attach images or documents"
-            aria-label="Attach files"
-            disabled={busy}
-          >
-            📎
-          </button>
-          <textarea
-            className="home-prompt-input"
-            rows={2}
-            placeholder="Map the history of… (e.g. observability tooling, the electric car, jazz)"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                void build()
-              }
-            }}
-          />
-          <button className="home-prompt-btn" type="submit" disabled={busy || !prompt.trim()}>
-            {busy ? 'Creating…' : 'Build timeline →'}
-          </button>
-        </form>
-        {files.length > 0 && (
-          <div className="home-attachments">
-            {files.map((f, i) => (
-              <span className="chat-attachment" key={`${f.name}:${i}`}>
-                <span className="chat-attachment-name">
-                  {f.type.startsWith('image/') ? '🖼' : '📄'} {f.name}
+          {files.length > 0 && (
+            <div className="composer-attachments">
+              {files.map((f, i) => (
+                <span className="attachment" key={`${f.name}:${i}`}>
+                  <span className="attachment-icon" aria-hidden>
+                    {f.type.startsWith('image/') ? '🖼' : '📄'}
+                  </span>
+                  <span className="attachment-name">{f.name}</span>
+                  <button
+                    type="button"
+                    className="attachment-remove"
+                    onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    ✕
+                  </button>
                 </span>
-                <button
-                  type="button"
-                  className="chat-attachment-remove"
-                  onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}
-                  aria-label={`Remove ${f.name}`}
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
+              ))}
+            </div>
+          )}
+          <div className="composer-row">
+            <button
+              type="button"
+              className="composer-attach"
+              onClick={() => fileRef.current?.click()}
+              title="Attach images or documents"
+              aria-label="Attach files"
+              disabled={busy}
+            >
+              📎
+            </button>
+            <textarea
+              className="composer-input"
+              rows={2}
+              placeholder="Map the history of… (e.g. observability tooling, the electric car, jazz)"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  void build()
+                }
+              }}
+            />
+            <button className="composer-submit" type="submit" disabled={busy || !prompt.trim()}>
+              {busy ? 'Creating…' : 'Build timeline →'}
+            </button>
           </div>
-        )}
+        </form>
         <button type="button" className="home-blank" onClick={() => void createBlank()} disabled={busy}>
           or start a blank timeline
         </button>
@@ -150,45 +218,55 @@ function Home() {
         {timelines.length === 0 ? (
           <p className="home-empty">No timelines yet — type an idea above to build your first.</p>
         ) : (
-          <ul className="home-list">
-            {timelines.map((t) => (
-              <li key={t.id} className="home-card">
-                {editingId === t.id ? (
-                  <input
-                    className="home-card-edit"
-                    autoFocus
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    onBlur={() => void saveRename(t.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void saveRename(t.id)
-                      if (e.key === 'Escape') setEditingId(null)
-                    }}
-                  />
-                ) : (
-                  <button type="button" className="home-card-open" onClick={() => open(t.id)}>
-                    <span className="home-card-title">{t.title}</span>
-                    <span className="home-card-date">{new Date(t.createdAt).toLocaleDateString()}</span>
-                  </button>
-                )}
-                <div className="home-card-actions">
-                  <button
-                    type="button"
-                    className="home-card-btn"
-                    onClick={() => {
-                      setEditingId(t.id)
-                      setEditTitle(t.title)
-                    }}
-                  >
-                    Rename
-                  </button>
-                  <button type="button" className="home-card-btn home-card-del" onClick={() => void remove(t.id, t.title)}>
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <table className="home-table">
+            <thead>
+              <tr>
+                <th scope="col">Timeline</th>
+                <th scope="col" className="home-th-date">Created</th>
+                <th scope="col" className="home-th-actions">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {timelines.map((t) => (
+                <tr key={t.id} className="home-row">
+                  <td className="home-cell-main">
+                    {editingId === t.id ? (
+                      <input
+                        className="home-card-edit"
+                        autoFocus
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        onBlur={() => void saveRename(t.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void saveRename(t.id)
+                          if (e.key === 'Escape') setEditingId(null)
+                        }}
+                      />
+                    ) : (
+                      <button type="button" className="home-row-open" onClick={() => open(t.id)}>
+                        <span className="home-row-title">{t.title}</span>
+                        {t.description ? <span className="home-row-desc">{t.description}</span> : null}
+                      </button>
+                    )}
+                  </td>
+                  <td className="home-cell-date">
+                    <time dateTime={new Date(t.createdAt).toISOString()}>{dateFmt.format(t.createdAt)}</time>
+                  </td>
+                  <td className="home-cell-actions">
+                    <RowMenu
+                      onRename={() => {
+                        setEditingId(t.id)
+                        setEditTitle(t.title)
+                      }}
+                      onDelete={() => void remove(t.id, t.title)}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

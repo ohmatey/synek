@@ -33,11 +33,11 @@ export function HistoryControls({ timelineId }: { timelineId: string }) {
 
   return (
     <div className="history-controls">
-      <button type="button" onClick={() => run(undoPatch)} disabled={!canUndo} title="Undo (⌘Z)">
-        ↶ Undo
+      <button type="button" className="toolbar-btn" onClick={() => run(undoPatch)} disabled={!canUndo} title="Undo (⌘Z)" aria-label="Undo">
+        ↶
       </button>
-      <button type="button" onClick={() => run(redoPatch)} disabled={!canRedo} title="Redo (⌘⇧Z)">
-        ↷ Redo
+      <button type="button" className="toolbar-btn" onClick={() => run(redoPatch)} disabled={!canRedo} title="Redo (⌘⇧Z)" aria-label="Redo">
+        ↷
       </button>
     </div>
   )

@@ -92,7 +92,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // node during a selection switch.
   const [draft, setDraft] = useState<{ id: string; draft: NodeDraft } | null>(null)
 
-  const { pending, focusIds, setFocusIds } = useBuildStream()
+  const { pending, focusIds, setFocusIds, chatOpen, setChatOpen } = useBuildStream()
 
   // --- Story playback (the reader shares the detail-panel slot) ---
   const qc = useQueryClient()
@@ -292,8 +292,19 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   return (
     <div className="canvas-root">
       <AppBar timelineId={timelineId} title={data?.title ?? 'Untitled timeline'} />
-      <HistoryControls timelineId={timelineId} />
-      <ExportControls graph={{ title: data?.title ?? 'Timeline', nodes: gnodes, edges: gedges }} />
+      <div className={`canvas-toolbar${chatOpen ? '' : ' chat-collapsed'}`}>
+        <HistoryControls timelineId={timelineId} />
+        <ExportControls graph={{ title: data?.title ?? 'Timeline', nodes: gnodes, edges: gedges }} />
+        <button
+          type="button"
+          className="toolbar-btn toolbar-btn-chat"
+          onClick={() => setChatOpen(!chatOpen)}
+          aria-pressed={chatOpen}
+          title={chatOpen ? 'Hide chat' : 'Show chat'}
+        >
+          {chatOpen ? 'Chat ›' : '‹ Chat'}
+        </button>
+      </div>
       {lensSize > 0 && !storyMomentId && (
         <div className="lens-bar">
           <span>Lens · {lensSize} node{lensSize === 1 ? '' : 's'}</span>
