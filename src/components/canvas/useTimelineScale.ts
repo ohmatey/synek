@@ -1,7 +1,27 @@
 import type { NodeType, NodeSize, NodeSubtype } from '~/lib/domain/types'
 
 const MS_PER_DAY = 86_400_000
-const PX_PER_DAY = 0.5
+
+// Horizontal time density: pixels of base layout per day. This is the *axis*
+// scale (how far apart dates sit), independent of React Flow's camera zoom
+// (which scales node size). The canvas owns this as state; these are the bounds
+// and the default the TimeScaleControls step between.
+export const BASE_PX_PER_DAY = 0.5
+export const MIN_PX_PER_DAY = 0.005 // compressed enough to fit millennia on screen
+export const MAX_PX_PER_DAY = 4
+
+const DAYS_PER_YEAR = 365.25
+
+function clampPxPerDay(v: number): number {
+  return Math.min(MAX_PX_PER_DAY, Math.max(MIN_PX_PER_DAY, v))
+}
+
+// Density (px/day) that fits `years` of time across `worldWidth` base pixels —
+// the basis for the timespan presets (Decade/Century/Millennium).
+export function pxPerDayForYears(years: number, worldWidth: number): number {
+  if (years <= 0 || worldWidth <= 0) return BASE_PX_PER_DAY
+  return clampPxPerDay(worldWidth / (years * DAYS_PER_YEAR))
+}
 
 // Vertical lane per node type (fallback only — real layout is computed by
 // layoutLaneY, which stacks lanes dynamically so they never overlap).
@@ -42,13 +62,116 @@ export function personCardWidth(size: NodeSize = 'medium'): number {
 }
 
 // x = date. The base scale; the canvas itself pans/zooms on top of this.
-export function instantToX(instant: number, minInstant: number): number {
-  return ((instant - minInstant) / MS_PER_DAY) * PX_PER_DAY
+export function instantToX(instant: number, minInstant: number, pxPerDay = BASE_PX_PER_DAY): number {
+  return ((instant - minInstant) / MS_PER_DAY) * pxPerDay
 }
 
 // Inverse of instantToX — used by the zoom-synced ruler to label screen positions.
-export function xToInstant(x: number, minInstant: number): number {
-  return minInstant + (x / PX_PER_DAY) * MS_PER_DAY
+export function xToInstant(x: number, minInstant: number, pxPerDay = BASE_PX_PER_DAY): number {
+  return minInstant + (x / pxPerDay) * MS_PER_DAY
+}
+
+// --- Time scale (instant ↔ x), linear or gap-collapsing -------------------
+//
+// A monotonic mapping the whole canvas (nodes, edges, ruler) shares. Linear by
+// default; in collapse mode, long empty spans between consecutive node dates are
+// capped to a fixed width so a lone outlier (e.g. a BCE node + a modern cluster)
+// doesn't blow the axis out to nothing-but-whitespace. `collapsedRanges` are the
+// x-spans that were squeezed, so the ruler can draw a break marker over them.
+export type TimeScale = {
+  toX: (instant: number) => number
+  toInstant: (x: number) => number
+  collapsedRanges: { x0: number; x1: number }[]
+}
+
+// Only genuinely large empty spans collapse; anything shorter stays linear so a
+// dense cluster keeps its natural rhythm (collapsing decade-scale gaps reads as
+// cramped). Tuned above typical in-cluster spacing.
+const GAP_MIN_YEARS = 75
+const GAP_MIN_DAYS = GAP_MIN_YEARS * DAYS_PER_YEAR
+// Rendered width a collapsed span shrinks to (px, before camera zoom).
+const COLLAPSED_PX = 72
+
+export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps: boolean): TimeScale {
+  const sorted = Array.from(new Set(instants)).sort((a, b) => a - b)
+  const min = sorted.length ? sorted[0]! : 0
+
+  if (!collapseGaps || sorted.length < 2) {
+    return {
+      toX: (i) => instantToX(i, min, pxPerDay),
+      toInstant: (x) => xToInstant(x, min, pxPerDay),
+      collapsedRanges: [],
+    }
+  }
+
+  // Piecewise-linear breakpoints: each anchor instant gets a cumulative x.
+  const anchorInstant = sorted
+  const anchorX: number[] = [0]
+  const collapsedRanges: { x0: number; x1: number }[] = []
+  for (let k = 1; k < sorted.length; k++) {
+    const days = (sorted[k]! - sorted[k - 1]!) / MS_PER_DAY
+    const linearPx = days * pxPerDay
+    const collapse = days > GAP_MIN_DAYS && linearPx > COLLAPSED_PX
+    const width = collapse ? COLLAPSED_PX : linearPx
+    const x0 = anchorX[k - 1]!
+    anchorX[k] = x0 + width
+    if (collapse) collapsedRanges.push({ x0, x1: x0 + width })
+  }
+
+  const lastK = sorted.length - 1
+  // Local px/day of the segment ending at anchor k (collapsed segments are slower).
+  const segPxPerDay = (k: number) => {
+    const days = (anchorInstant[k]! - anchorInstant[k - 1]!) / MS_PER_DAY
+    return days > 0 ? (anchorX[k]! - anchorX[k - 1]!) / days : pxPerDay
+  }
+
+  const toX = (instant: number): number => {
+    if (instant <= anchorInstant[0]!) return anchorX[0]! + ((instant - anchorInstant[0]!) / MS_PER_DAY) * pxPerDay
+    if (instant >= anchorInstant[lastK]!)
+      return anchorX[lastK]! + ((instant - anchorInstant[lastK]!) / MS_PER_DAY) * pxPerDay
+    let k = 1
+    while (k < lastK && anchorInstant[k]! < instant) k++
+    const ppd = segPxPerDay(k)
+    return anchorX[k - 1]! + ((instant - anchorInstant[k - 1]!) / MS_PER_DAY) * ppd
+  }
+
+  const toInstant = (x: number): number => {
+    if (x <= anchorX[0]!) return anchorInstant[0]! + (x - anchorX[0]!) / pxPerDay * MS_PER_DAY
+    if (x >= anchorX[lastK]!) return anchorInstant[lastK]! + (x - anchorX[lastK]!) / pxPerDay * MS_PER_DAY
+    let k = 1
+    while (k < lastK && anchorX[k]! < x) k++
+    const ppd = segPxPerDay(k)
+    return anchorInstant[k - 1]! + ((x - anchorX[k - 1]!) / ppd) * MS_PER_DAY
+  }
+
+  return { toX, toInstant, collapsedRanges }
+}
+
+// --- Per-timeline scale preference (localStorage) -------------------------
+export type ScalePref = { pxPerDay: number; collapseGaps: boolean }
+
+const scaleKey = (timelineId: string) => `strata:scale:${timelineId}`
+
+export function loadScalePref(timelineId: string): ScalePref | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(scaleKey(timelineId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<ScalePref>
+    const pxPerDay = typeof parsed.pxPerDay === 'number' ? clampPxPerDay(parsed.pxPerDay) : BASE_PX_PER_DAY
+    return { pxPerDay, collapseGaps: !!parsed.collapseGaps }
+  } catch {
+    return null
+  }
+}
+
+export function saveScalePref(timelineId: string, pref: ScalePref): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(scaleKey(timelineId), JSON.stringify(pref))
+  } catch {
+    // ignore quota / disabled storage
+  }
 }
 
 export function laneY(type: NodeType): number {

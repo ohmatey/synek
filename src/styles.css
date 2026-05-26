@@ -2023,6 +2023,79 @@ body {
   bottom: 32px;
 }
 
+/* Time-axis density control (top-left) — compresses/expands the timeline
+   horizontally, distinct from the camera-zoom Controls. */
+.react-flow__panel.time-scale {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px;
+  margin-top: 56px; /* clear the 48px floating top-bar */
+  padding: 6px 8px;
+  background: rgba(20, 23, 30, 0.92);
+  border: 1px solid #2a2f3c;
+  border-radius: 8px;
+}
+
+.time-scale-label {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7c8190;
+}
+
+.time-scale-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.time-scale-step {
+  display: flex;
+  gap: 4px;
+}
+
+.time-scale-step .toolbar-btn {
+  width: 26px;
+  justify-content: center;
+  padding: 5px 0;
+  font-size: 14px;
+}
+
+.time-scale-presets {
+  display: flex;
+  gap: 4px;
+}
+
+.time-scale-preset.is-active {
+  border-color: #3a6df0;
+  color: #fff;
+  background: rgba(58, 109, 240, 0.18);
+}
+
+.time-scale-gaps {
+  justify-content: center;
+}
+
+.time-scale-gaps.is-active {
+  border-color: #3a6df0;
+  color: #fff;
+  background: rgba(58, 109, 240, 0.18);
+}
+
+/* Break marker over a collapsed empty span on the ruler. */
+.time-break {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  height: 24px;
+  display: flex;
+  align-items: center;
+  color: #4a5060;
+  font-size: 13px;
+  pointer-events: none;
+}
+
 /* Home — timeline list */
 .home {
   min-height: 100vh;

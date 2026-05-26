@@ -14,7 +14,17 @@ import {
 import { EventNode } from './nodes/EventNode'
 import { EntityNode } from './nodes/EntityNode'
 import { PeriodNode } from './nodes/PeriodNode'
-import { instantToX, laneY, layoutLaneY, estimateNodeHeight, personCardWidth } from './useTimelineScale'
+import {
+  laneY,
+  layoutLaneY,
+  estimateNodeHeight,
+  personCardWidth,
+  makeTimeScale,
+  loadScalePref,
+  saveScalePref,
+  BASE_PX_PER_DAY,
+  type TimeScale,
+} from './useTimelineScale'
 import { formatInstant } from '~/lib/domain/dates'
 import { getGraph } from '~/lib/server/graph'
 import { AppBar } from './AppBar'
@@ -22,6 +32,7 @@ import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
 import { StoryReaderPanel } from './StoryReaderPanel'
 import { TimeRuler } from './TimeRuler'
+import { TimeScaleControls } from './TimeScaleControls'
 import { ExportControls } from './ExportControls'
 import { useBuildStream } from './build-stream'
 import { generateStory, getStories, regenerateStory } from '~/lib/server/stories'
@@ -88,6 +99,37 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     queryFn: () => getGraph({ data: timelineId }),
   })
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Horizontal time density (px/day) + gap-collapsing — the axis scale,
+  // independent of camera zoom. Seeded from the per-timeline saved preference.
+  const initialPref = useRef(loadScalePref(timelineId)).current
+  const [pxPerDay, setPxPerDay] = useState(initialPref?.pxPerDay ?? BASE_PX_PER_DAY)
+  const [collapseGaps, setCollapseGaps] = useState(initialPref?.collapseGaps ?? false)
+
+  // Reload the saved scale when switching timelines (the component persists
+  // across timeline changes; only React Flow remounts via key).
+  const firstTimeline = useRef(true)
+  useEffect(() => {
+    if (firstTimeline.current) {
+      firstTimeline.current = false
+      return
+    }
+    const pref = loadScalePref(timelineId)
+    setPxPerDay(pref?.pxPerDay ?? BASE_PX_PER_DAY)
+    setCollapseGaps(pref?.collapseGaps ?? false)
+  }, [timelineId])
+
+  // Persist the chosen scale per timeline (local-first; no DB).
+  useEffect(() => {
+    saveScalePref(timelineId, { pxPerDay, collapseGaps })
+  }, [timelineId, pxPerDay, collapseGaps])
+
+  // Latest anchor instants (node start/end), mirrored so the controls can build
+  // a prospective scale for keep-center re-anchoring without recomputing here.
+  const anchorsRef = useRef<number[]>([])
+  const buildScale = useCallback(
+    (ppd: number, gaps: boolean): TimeScale => makeTimeScale(anchorsRef.current, ppd, gaps),
+    [],
+  )
   // Draft is stamped with its node id so a stale draft never leaks onto another
   // node during a selection switch.
   const [draft, setDraft] = useState<{ id: string; draft: NodeDraft } | null>(null)
@@ -181,7 +223,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // node/edge arrays — is O(n log n) and rebuilt only when its inputs change.
   // Memoizing matters because the detail panel emits a fresh draft on every
   // keystroke; without this each keystroke re-packs lanes and re-diffs the graph.
-  const { rfNodes, rfEdges, minInstant } = useMemo(() => {
+  const { rfNodes, rfEdges, scale } = useMemo(() => {
     const focusSet = focusIds.length ? new Set(focusIds) : null
 
     // Overlay the panel's in-progress draft on the selected node — a live preview
@@ -190,16 +232,24 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       draft && draft.id === selectedId
         ? gnodes.map((n) => (n.id === selectedId ? { ...n, ...draft.draft } : n))
         : gnodes
-    // minInstant spans real + pending so optimistic nodes share the same scale.
-    const startInstants = [...effectiveNodes.map((n) => n.startInstant), ...pending.map((p) => p.startInstant)]
-    const minInstant = startInstants.length ? Math.min(...startInstants) : 0
+
+    // Anchor instants span real + pending (and span-ends) so optimistic nodes
+    // share the scale and gap-collapsing sees every date.
+    const anchors = [
+      ...effectiveNodes.map((n) => n.startInstant),
+      ...effectiveNodes.flatMap((n) => (n.endInstant != null ? [n.endInstant] : [])),
+      ...pending.map((p) => p.startInstant),
+      ...pending.flatMap((p) => (p.endInstant != null ? [p.endInstant] : [])),
+    ]
+    anchorsRef.current = anchors
+    const scale = makeTimeScale(anchors, pxPerDay, collapseGaps)
 
     const widthOf = (start: number, end: number | null) =>
-      end ? Math.max(48, instantToX(end, minInstant) - instantToX(start, minInstant)) : undefined
+      end ? Math.max(48, scale.toX(end) - scale.toX(start)) : undefined
 
     const realPositioned = effectiveNodes.map((n) => ({
       n,
-      x: instantToX(n.startInstant, minInstant),
+      x: scale.toX(n.startInstant),
       // Person cards are fixed-size polaroids anchored at the start instant
       // (the lifespan moves into the caption), not stretched across the span.
       width: n.subtype === 'person' ? personCardWidth(n.size) : widthOf(n.startInstant, n.endInstant),
@@ -207,7 +257,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     const pendingPositioned = pending.map((p) => ({
       p,
       id: `pending:${p.key}`,
-      x: instantToX(p.startInstant, minInstant),
+      x: scale.toX(p.startInstant),
       width: widthOf(p.startInstant, p.endInstant),
     }))
 
@@ -287,8 +337,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       }
     })
 
-    return { rfNodes, rfEdges, minInstant }
-  }, [gnodes, gedges, pending, draft, selectedId, focusIds])
+    return { rfNodes, rfEdges, scale }
+  }, [gnodes, gedges, pending, draft, selectedId, focusIds, pxPerDay, collapseGaps])
 
   const lensSize = focusIds.length
 
@@ -340,7 +390,19 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         <Controls showInteractive={false} />
         <AutoFit nodeCount={gnodes.length} pendingCount={pending.length} />
         <StoryCamera focusKey={storyFocusKey} ids={storyFocus ?? []} center={centerReq} />
-        {(gnodes.length > 0 || pending.length > 0) && <TimeRuler minInstant={minInstant} />}
+        {(gnodes.length > 0 || pending.length > 0) && (
+          <>
+            <TimeRuler scale={scale} />
+            <TimeScaleControls
+              pxPerDay={pxPerDay}
+              collapseGaps={collapseGaps}
+              scale={scale}
+              buildScale={buildScale}
+              onPxPerDay={setPxPerDay}
+              onCollapseGaps={setCollapseGaps}
+            />
+          </>
+        )}
         {!isLoading && gnodes.length === 0 && pending.length === 0 && (
           <Panel position="top-center">
             <div className="canvas-empty">
