@@ -6,7 +6,13 @@ const openrouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
 })
 
+// gpt-image-1 is NOT served by OpenRouter, so image generation talks to OpenAI
+// directly. Separate key from the chat gateway.
+const openaiDirect = createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
 const DEFAULT_MODEL = process.env.STRATA_MODEL || 'anthropic/claude-sonnet-4-6'
+
+export const IMAGE_MODEL_SLUG = process.env.STRATA_IMAGE_MODEL || 'gpt-image-1'
 
 // Story generation gets its own knob — storytelling and tool-following reward
 // different models. Falls back to the graph model when unset (point it at a
@@ -20,4 +26,8 @@ export function model(slug: string = DEFAULT_MODEL) {
 
 export function storyModel(slug: string = STORY_MODEL_SLUG) {
   return openrouter.chat(slug)
+}
+
+export function imageModel(slug: string = IMAGE_MODEL_SLUG) {
+  return openaiDirect.image(slug)
 }

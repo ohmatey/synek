@@ -1,0 +1,1 @@
+ALTER TABLE `generations` ADD `output_json` text;

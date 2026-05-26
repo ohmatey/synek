@@ -9,6 +9,12 @@ dist
 local.db
 local.db-*
 
+# E2E throwaway database + Playwright artifacts
+e2e.db
+e2e.db-*
+/test-results
+/playwright-report
+
 # Env
 .env
 .env.local

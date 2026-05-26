@@ -139,6 +139,9 @@ export const generations = sqliteTable(
     model: text('model').notNull(), // 'anthropic/claude-sonnet-4-6'
     promptTemplateId: text('prompt_template_id').references(() => promptTemplates.id),
     promptInputsJson: text('prompt_inputs_json', { mode: 'json' }).$type<Record<string, unknown>>(),
+    // Generic cached output. Stories keep content in their own tables; image/voice
+    // have no domain table, so the result (e.g. { dataUrl }) is cached here by cacheKey.
+    outputJson: text('output_json', { mode: 'json' }).$type<Record<string, unknown>>(),
     inputTokens: integer('input_tokens'),
     outputTokens: integer('output_tokens'),
     costCents: integer('cost_cents'),

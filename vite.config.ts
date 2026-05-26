@@ -5,7 +5,7 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 
 export default defineConfig({
   server: {
-    port: 3000,
+    port: Number(process.env.PORT) || 3001,
   },
   // tsconfigPaths resolves the ~/* alias (Vite 7; the native resolve option is Vite 8+).
   plugins: [tsconfigPaths(), tanstackStart(), viteReact()],

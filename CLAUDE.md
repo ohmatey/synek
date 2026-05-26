@@ -74,20 +74,26 @@ React Flow is **client-only** — always render it behind `<ClientOnly>` (SSR to
 ## Commands
 
 ```bash
-bun run dev          # dev server on http://localhost:3000 (generates src/routeTree.gen.ts)
+bun run dev          # dev server on http://localhost:3001 ($PORT overrides; generates src/routeTree.gen.ts)
+bun run dev:test     # seeded test instance: PORT=3001 + DATABASE_URL=e2e.db
 bun run build        # production build
 bun run typecheck    # tsc --noEmit
 bun run db:generate  # generate a migration from schema.ts
 bun run db:migrate   # apply migrations (also applied on server start, idempotent)
 bun run db:push      # push schema to the DB without a migration (dev)
 bun run db:seed      # seed example timelines (all, or one: bun run db:seed space-race)
+bun run seed:e2e     # seed the e2e.db file used by Playwright
+bun run test:e2e     # Playwright e2e (needs: bunx playwright install chromium)
 ```
 
 ## Env (`.env.example`)
 
 - `OPENROUTER_API_KEY` — the default model gateway (Core is bring-your-own-key)
 - `STRATA_MODEL` — OpenRouter model slug (default `anthropic/claude-sonnet-4-6`)
+- `OPENAI_API_KEY` — OpenAI key for **image generation only** (gpt-image-1 isn't on OpenRouter); chat works without it
+- `STRATA_IMAGE_MODEL` — OpenAI image model (default `gpt-image-1`)
 - `DATABASE_URL` — SQLite file (default `local.db`)
+- `PORT` — dev server port (default `3001`)
 
 ## Current status
 

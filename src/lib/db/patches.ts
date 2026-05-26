@@ -98,6 +98,12 @@ export class PatchBuilder {
     for (const e of graph.edges) this.edgeView.set(e.id, e)
   }
 
+  // Current view of a node (includes ops applied earlier this turn) — lets a
+  // tool merge into existing metadata rather than clobbering it.
+  getNode(id: string): NodeRow | undefined {
+    return this.nodeView.get(id)
+  }
+
   addNode(input: NewNode): NodeRow {
     const node: NodeRow = {
       id: crypto.randomUUID(),

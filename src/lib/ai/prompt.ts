@@ -17,7 +17,8 @@ Rules:
 - Never fabricate dates, funding amounts, or sources — accuracy matters more than completeness.
 - To connect nodes, call add_edge with the ids that add_node returned to you (or existing node ids below).
 - If the user asks a QUESTION about the existing timeline (rather than asking you to add or change it), answer briefly in chat and call \`focus\` with the ids of the nodes your answer is about — do NOT edit the graph just to answer. The canvas will highlight those nodes and dim the rest.
-- Build the graph through tool calls; keep chat replies short. The canvas is the output.`
+- Build the graph through tool calls; keep chat replies short. The canvas is the output.
+- When (and only when) the user asks to enrich, illustrate, or visualize, call \`generate_image\` for the nodes that most benefit — write a vivid, period-authentic visual brief per node. Don't illustrate everything; image generation is slow and costly, so favor a few high-impact nodes (key people, pivotal events).`
 
 // System prompt for the timeline-builder. When the timeline already has nodes,
 // they're listed (with ids) so the model can update/delete/connect them.

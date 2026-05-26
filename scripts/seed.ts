@@ -17,6 +17,17 @@ const Y = (y: number, m = 0, d = 1) => {
   return dt.getTime()
 }
 
+// Wikimedia Commons stable URL: Special:FilePath always resolves to the current
+// file (no brittle thumb hash). NOTE: remote — images are blank offline/in CI,
+// which is fine (the canvas + e2e assert the <img>, not the pixels).
+const wiki = (file: string, width = 320) =>
+  `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=${width}`
+const img = (file: string, alt: string): NonNullable<NodeMetadata['images']>[number] => ({
+  url: wiki(file),
+  alt,
+  show: true,
+})
+
 // Per-timeline builder: every node/edge is scoped to `tl`, so the same helper
 // names can be reused across timelines without collisions.
 function builder(tl: string) {
@@ -145,7 +156,13 @@ const SEEDS: Seeder[] = [
         summary: 'First crewed lunar landing.',
         metadata: { citations: [{ title: 'NASA — Apollo 11', url: 'https://www.nasa.gov/mission/apollo-11/' }] },
       })
-      const nasa = node({ type: 'entity', title: 'NASA', start: Y(1958), end: Y(2024) })
+      const nasa = node({
+        type: 'entity',
+        title: 'NASA',
+        start: Y(1958),
+        end: Y(2024),
+        metadata: { images: [img('NASA logo.svg', 'NASA logo')] },
+      })
 
       edge(cold, sputnik, 'caused')
       edge(sputnik, gagarin, 'succeeded', 'escalation')
@@ -160,7 +177,13 @@ const SEEDS: Seeder[] = [
     description: 'Exercises BCE/ancient fuzzy dates.',
     build: ({ node, edge }) => {
       const republic = node({ type: 'period', title: 'Roman Republic', start: Y(-509), end: Y(-27) })
-      const caesar = node({ type: 'entity', title: 'Julius Caesar', start: Y(-100), end: Y(-44) })
+      const caesar = node({
+        type: 'entity',
+        title: 'Julius Caesar',
+        start: Y(-100),
+        end: Y(-44),
+        metadata: { images: [img('Gaius Iulius Caesar (Vatican Museum).jpg', 'Bust of Julius Caesar')] },
+      })
       const rubicon = node({ type: 'event', title: 'Caesar crosses the Rubicon', start: Y(-49), summary: 'Civil war begins.' })
       const ides = node({ type: 'event', title: 'Assassination of Caesar', start: Y(-44, 2, 15), precision: 'day' })
       const empire = node({ type: 'event', title: 'Augustus becomes emperor', start: Y(-27), summary: 'The Republic becomes the Empire.' })
@@ -169,6 +192,68 @@ const SEEDS: Seeder[] = [
       edge(rubicon, ides, 'caused')
       edge(ides, empire, 'caused')
       edge(caesar, rubicon, 'caused')
+    },
+  },
+  {
+    // Image-dense fixture: historical figures (entity nodes) each with a
+    // portrait — the primary canvas to develop person/entity cards against,
+    // and the visual anchor for the e2e canvas spec.
+    id: 'figures',
+    title: 'Figures of science',
+    description: 'Portrait-rich entities for developing visual entity cards.',
+    build: ({ node, edge }) => {
+      const leonardo = node({
+        type: 'entity',
+        title: 'Leonardo da Vinci',
+        start: Y(1452),
+        end: Y(1519),
+        summary: 'Polymath of the High Renaissance.',
+        metadata: { images: [img('Francesco Melzi - Portrait of Leonardo - WGA14795.jpg', 'Portrait of Leonardo da Vinci')] },
+      })
+      const newton = node({
+        type: 'entity',
+        title: 'Isaac Newton',
+        start: Y(1643),
+        end: Y(1727),
+        summary: 'Laws of motion and universal gravitation.',
+        metadata: { images: [img('GodfreyKneller-IsaacNewton-1689.jpg', 'Portrait of Isaac Newton')] },
+      })
+      const darwin = node({
+        type: 'entity',
+        title: 'Charles Darwin',
+        start: Y(1809),
+        end: Y(1882),
+        summary: 'Theory of evolution by natural selection.',
+        metadata: { images: [img('Charles Darwin seated crop.jpg', 'Photograph of Charles Darwin')] },
+      })
+      const lovelace = node({
+        type: 'entity',
+        title: 'Ada Lovelace',
+        start: Y(1815),
+        end: Y(1852),
+        summary: 'First algorithm intended for a machine.',
+        metadata: { images: [img('Ada Lovelace portrait.jpg', 'Portrait of Ada Lovelace')] },
+      })
+      const curie = node({
+        type: 'entity',
+        title: 'Marie Curie',
+        start: Y(1867),
+        end: Y(1934),
+        summary: 'Pioneer of radioactivity; two Nobel Prizes.',
+        metadata: { images: [img('Marie Curie c. 1920s.jpg', 'Photograph of Marie Curie')] },
+      })
+      const einstein = node({
+        type: 'entity',
+        title: 'Albert Einstein',
+        start: Y(1879),
+        end: Y(1955),
+        summary: 'Relativity; reshaped modern physics.',
+        metadata: { images: [img('Einstein 1921 by F Schmutzer - restoration.jpg', 'Photograph of Albert Einstein')] },
+      })
+
+      edge(newton, darwin, 'influenced')
+      edge(newton, einstein, 'influenced')
+      edge(lovelace, curie, 'succeeded')
     },
   },
 ]

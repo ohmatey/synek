@@ -4,6 +4,9 @@ import { parseDate } from '~/lib/domain/dates'
 import type { PatchBuilder, NodePatch, EdgePatch } from '~/lib/db/patches'
 import type { NodeMetadata } from '~/lib/db/schema'
 import type { Precision } from '~/lib/domain/types'
+import { IMAGE_MODEL_SLUG } from '~/lib/ai/provider'
+import { buildImagePrompt, generateImageData } from '~/lib/ai/image'
+import { ensureImageTemplate, computeCacheKey, findCachedImageUrl, recordImageGeneration } from '~/lib/db/images'
 
 const citation = z.object({
   title: z.string(),
@@ -116,6 +119,47 @@ export function makeTools(builder: PatchBuilder) {
       description: 'Delete an edge by id.',
       inputSchema: z.object({ id: z.string() }),
       execute: async ({ id }) => (builder.deleteEdge(id) ? { id } : { error: `edge ${id} not found` }),
+    }),
+
+    generate_image: tool({
+      description:
+        'Generate a period-authentic illustration for an existing node and attach it (e.g. a portrait for a person, a scene for an event). Call this only when the user asks to enrich/illustrate/visualize. Write a vivid visual brief; do NOT illustrate every node — favor the few that benefit.',
+      inputSchema: z.object({
+        nodeId: z.string().describe('Existing node id to illustrate.'),
+        prompt: z.string().describe('A vivid visual description of what to depict for this node.'),
+        alt: z.string().optional().describe('Short alt text for the image.'),
+      }),
+      execute: async ({ nodeId, prompt, alt }) => {
+        const node = builder.getNode(nodeId)
+        if (!node) return { error: `node ${nodeId} not found` }
+
+        const template = ensureImageTemplate()
+        const promptInputs = { model: IMAGE_MODEL_SLUG, nodeId, prompt }
+        const cacheKey = computeCacheKey(template.id, promptInputs)
+
+        let dataUrl = findCachedImageUrl(cacheKey)
+        const cached = dataUrl !== null
+        if (!dataUrl) {
+          const gen = await generateImageData(buildImagePrompt(node, prompt))
+          dataUrl = gen.dataUrl
+          recordImageGeneration({
+            nodeId,
+            template,
+            cacheKey,
+            promptInputs,
+            dataUrl,
+            modelSlug: gen.modelSlug,
+            latencyMs: gen.latencyMs,
+          })
+        }
+
+        // Merge into metadata.images so citations/color/size are preserved; the
+        // inverse op records the prior metadata, so ⌘Z removes the image.
+        const prior = (node.metadata ?? {}) as NodeMetadata
+        const images = [...(prior.images ?? []), { url: dataUrl, alt: alt ?? node.title, show: true }]
+        builder.updateNode(nodeId, { metadata: { ...prior, images } })
+        return { nodeId, cached }
+      },
     }),
 
     focus: tool({
