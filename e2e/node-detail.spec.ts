@@ -18,6 +18,28 @@ test('clicking a node opens its detail panel', async ({ page }) => {
   await expect(panel).toBeHidden()
 })
 
+test('detail panel offers manual image upload and citations (no AI illustrate)', async ({ page }) => {
+  await page.goto('/timelines/figures')
+
+  const node = page.locator('.react-flow__node', { hasText: 'Charles Darwin' })
+  await expect(node).toBeAttached()
+  await node.dispatchEvent('click')
+
+  const panel = page.getByRole('dialog', { name: 'Node details' })
+  await expect(panel).toBeVisible()
+
+  // Images are user-supplied now — a manual Upload control, no AI generation.
+  await expect(panel.getByText('Images', { exact: true })).toBeVisible()
+  await expect(panel.getByRole('button', { name: '+ Upload' })).toBeVisible()
+
+  // Citations remain editable.
+  await expect(panel.getByText('Citations', { exact: true })).toBeVisible()
+  await expect(panel.getByRole('button', { name: '+ Add' })).toBeVisible()
+
+  // The removed in-app AI affordances must not reappear.
+  await expect(panel.getByRole('button', { name: /illustrate/i })).toHaveCount(0)
+})
+
 test('the Kind control reflects and updates an entity subtype', async ({ page }) => {
   await page.goto('/timelines/figures')
 

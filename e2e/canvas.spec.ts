@@ -46,6 +46,7 @@ test('time-scale compress pulls nodes closer horizontally', async ({ page }) => 
   const b = page.getByText('Caesar crosses the Rubicon').first()
   await expect(a).toBeVisible()
   await expect(b).toBeVisible()
+  await page.waitForTimeout(700) // let the initial fitView settle before measuring
 
   const gap = async () => {
     const [ba, bb] = await Promise.all([a.boundingBox(), b.boundingBox()])

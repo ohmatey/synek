@@ -13,6 +13,7 @@
     "db:seed": "tsx scripts/seed.ts",
     "cache:images": "tsx scripts/cache-seed-images.ts",
     "seed:e2e": "DATABASE_URL=e2e.db tsx scripts/seed.ts",
+    "e2e:serve": "vite build && tsx scripts/serve-build.ts",
     "test:e2e": "playwright test",
     "mcp:stdio": "tsx src/mcp/stdio.ts",
     "issue:key": "tsx scripts/issue-key.ts",
