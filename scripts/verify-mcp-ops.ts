@@ -1,3 +1,7 @@
+import { eq } from 'drizzle-orm'
+import { db } from '../src/lib/db'
+import { user } from '../src/lib/db/schema'
+import { auth } from '../src/lib/auth'
 import { ensureTimeline, loadGraph } from '../src/lib/db/graph'
 import { PatchBuilder, commitPatch, undo, redo, historyState } from '../src/lib/db/patches'
 import { applyOps } from '../src/lib/mcp/ops'
@@ -7,14 +11,29 @@ import { applyOps } from '../src/lib/mcp/ops'
 // it landed → undo/redo → assert history. Run under Node: `bun run verify:mcp`.
 
 const TL = 'verify-mcp'
+const VERIFY_EMAIL = 'verify@strata.app'
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`)
   console.log(`  ✓ ${msg}`)
 }
 
-function main() {
-  ensureTimeline(TL, 'verify-user', 'MCP verify')
+// Timelines are owner-scoped now, so we need a real user to own the verify
+// timeline. Create one (idempotent) via Better Auth, like the seed does.
+async function ensureVerifyUser(): Promise<string> {
+  try {
+    await auth.api.signUpEmail({ body: { email: VERIFY_EMAIL, password: 'verify-password-123', name: 'Verify' } })
+  } catch {
+    // already exists — fine
+  }
+  const row = db.select({ id: user.id }).from(user).where(eq(user.email, VERIFY_EMAIL)).get()
+  if (!row) throw new Error('could not create the verify user')
+  return row.id
+}
+
+async function main() {
+  const ownerId = await ensureVerifyUser()
+  ensureTimeline(TL, ownerId, 'MCP verify')
   const before = loadGraph(TL)
   const beforeNodes = before.nodes.length
   const beforeEdges = before.edges.length
@@ -52,4 +71,7 @@ function main() {
   process.exit(0)
 }
 
-main()
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})
