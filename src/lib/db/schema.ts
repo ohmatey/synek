@@ -31,13 +31,23 @@ export type EdgeMetadata = Record<string, unknown>
 const newId = () => crypto.randomUUID()
 const now = () => new Date()
 
-export const timelines = sqliteTable('timelines', {
-  id: text('id').primaryKey().$defaultFn(newId),
-  title: text('title').notNull(),
-  description: text('description'),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
-})
+export const timelines = sqliteTable(
+  'timelines',
+  {
+    id: text('id').primaryKey().$defaultFn(newId),
+    // Owner of the timeline. Nullable for migration safety; new timelines always
+    // set it. Each account owns many timelines (no separate "workspace" entity).
+    ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+    // Sharing: private by default. When true, anyone with the URL can view it
+    // read-only (no login). Only the owner can edit or toggle this.
+    isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
+    title: text('title').notNull(),
+    description: text('description'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  },
+  (t) => [index('timelines_owner_id_idx').on(t.ownerId)],
+)
 
 // MCP access keys — named, hashed, revocable credentials for the single local
 // user. The raw secret (`synek_<base64url>`) is shown once at creation and never

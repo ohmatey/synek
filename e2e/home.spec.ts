@@ -1,7 +1,18 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
-test('home lists seeded timelines and opens one', async ({ page }) => {
+// Timelines are owner-scoped, so the list/create UI requires a session. Sign in
+// as the seeded demo account (created by global-setup's seed) via the Connect
+// panel's login form.
+async function loginAsDemo(page: Page) {
   await page.goto('/')
+  await page.getByLabel('Email').fill('demo@strata.app')
+  await page.getByLabel('Password').fill('demo-password-123')
+  await page.getByRole('button', { name: 'Log in' }).click()
+}
+
+test('home lists the demo timelines and opens one (after login)', async ({ page }) => {
+  await loginAsDemo(page)
+  // The demo account owns the seeded timelines, so they appear once signed in.
   await expect(page.getByText('Figures of science')).toBeVisible()
   await expect(page.getByText('The Space Race')).toBeVisible()
 
@@ -9,9 +20,9 @@ test('home lists seeded timelines and opens one', async ({ page }) => {
   await expect(page).toHaveURL(/\/timelines\/figures/)
 })
 
-test('creating a timeline opens it', async ({ page }) => {
-  await page.goto('/')
-  // Scope to the create-timeline composer (the Keys panel also has a labelled input).
+test('creating a timeline opens it (after login)', async ({ page }) => {
+  await loginAsDemo(page)
+  // The create composer only renders when signed in.
   await page.getByPlaceholder(/Name a timeline/).fill('Renaissance art')
   await page.getByRole('button', { name: 'New timeline →' }).click()
 

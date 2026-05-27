@@ -1,6 +1,19 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
+
+// `figures` is owned by the seeded demo account. Node editing (Upload, Citations,
+// Kind) only renders for the owner, so sign in as demo before opening it. (The
+// canvas/seed-data specs cover the anonymous read-only public view.)
+async function loginAsDemo(page: Page) {
+  await page.goto('/')
+  await page.getByLabel('Email').fill('demo@strata.app')
+  await page.getByLabel('Password').fill('demo-password-123')
+  await page.getByRole('button', { name: 'Log in' }).click()
+  // Wait until signed in (the create composer appears) before navigating.
+  await expect(page.getByPlaceholder(/Name a timeline/)).toBeVisible()
+}
 
 test('clicking a node opens its detail panel', async ({ page }) => {
+  await loginAsDemo(page)
   await page.goto('/timelines/figures')
 
   // The timeline spans centuries, so edge nodes can sit outside the viewport.
@@ -19,6 +32,7 @@ test('clicking a node opens its detail panel', async ({ page }) => {
 })
 
 test('detail panel offers manual image upload and citations (no AI illustrate)', async ({ page }) => {
+  await loginAsDemo(page)
   await page.goto('/timelines/figures')
 
   const node = page.locator('.react-flow__node', { hasText: 'Charles Darwin' })
@@ -41,6 +55,7 @@ test('detail panel offers manual image upload and citations (no AI illustrate)',
 })
 
 test('the Kind control reflects and updates an entity subtype', async ({ page }) => {
+  await loginAsDemo(page)
   await page.goto('/timelines/figures')
 
   // Charles Darwin is seeded as subtype 'person'.

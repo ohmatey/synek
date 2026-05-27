@@ -1,12 +1,21 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
-import { loadGraph } from '~/lib/db/graph'
+import { loadGraph, getTimelineMeta } from '~/lib/db/graph'
+import { requireUser } from '~/lib/auth/session'
 import { PatchBuilder, commitPatch, type NodePatch } from '~/lib/db/patches'
 import type { NodeMetadata } from '~/lib/db/schema'
 
 // Manual node edits go through the SAME Patch path as the AI: build one
 // update/delete op, commit it as a single atomic Patch. So a hand edit is
 // undoable by the same ⌘Z stack — no separate history mechanism.
+
+// Manual edits are owner-only: require a session and assert the timeline belongs
+// to the caller before any mutation.
+async function assertOwnsTimeline(timelineId: string): Promise<void> {
+  const user = await requireUser()
+  const meta = getTimelineMeta(timelineId)
+  if (!meta || meta.ownerId !== user.id) throw new Error('forbidden: not your timeline')
+}
 
 const citation = z.object({
   title: z.string(),
@@ -39,8 +48,9 @@ const editInput = z.object({
 
 export const editNode = createServerFn({ method: 'POST' })
   .inputValidator((d: z.infer<typeof editInput>) => editInput.parse(d))
-  .handler(({ data }) => {
+  .handler(async ({ data }) => {
     const { timelineId, nodeId, patch } = data
+    await assertOwnsTimeline(timelineId)
     const graph = loadGraph(timelineId)
     const cur = graph.nodes.find((n) => n.id === nodeId)
     if (!cur) return { ok: false as const, error: 'node not found' }
@@ -80,8 +90,9 @@ const deleteInput = z.object({ timelineId: z.string(), nodeId: z.string() })
 
 export const deleteNode = createServerFn({ method: 'POST' })
   .inputValidator((d: z.infer<typeof deleteInput>) => deleteInput.parse(d))
-  .handler(({ data }) => {
+  .handler(async ({ data }) => {
     const { timelineId, nodeId } = data
+    await assertOwnsTimeline(timelineId)
     const graph = loadGraph(timelineId)
     const cur = graph.nodes.find((n) => n.id === nodeId)
     if (!cur) return { ok: false as const, error: 'node not found' }

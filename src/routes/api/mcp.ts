@@ -8,7 +8,11 @@ import { requireApiKey } from '~/lib/auth/guard'
 export const Route = createFileRoute('/api/mcp')({
   server: {
     handlers: {
-      POST: async ({ request }) => (await requireApiKey(request)) ?? handleMcpRequest(request),
+      POST: async ({ request }) => {
+        const auth = await requireApiKey(request)
+        if (auth instanceof Response) return auth
+        return handleMcpRequest(request, auth.userId)
+      },
     },
   },
 })

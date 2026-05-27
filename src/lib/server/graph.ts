@@ -1,16 +1,27 @@
 import { createServerFn } from '@tanstack/react-start'
-import { ensureTimeline, loadGraph, getTimelineTitle } from '~/lib/db/graph'
-import type { TimelineGraph } from '~/lib/domain/types'
+import { loadGraph, getTimelineMeta, canView } from '~/lib/db/graph'
+import { getCurrentUser } from '~/lib/auth/session'
+import type { TimelineGraphResult } from '~/lib/domain/types'
 
-// Client-callable RPC to load a timeline's graph as serializable DTOs. The db
-// import (bun:sqlite) is server-only and stripped from the client bundle.
+// Client-callable RPC to load a timeline's graph as serializable DTOs, gated by
+// visibility: the owner sees it (editable), anyone sees a public timeline
+// (read-only), private timelines you don't own are `forbidden`, and a missing id
+// is `notFound`. Viewing can be anonymous (getCurrentUser may be null), so this
+// does NOT auto-create timelines — creation happens via the home UI or MCP.
 export const getGraph = createServerFn({ method: 'GET' })
   .inputValidator((timelineId: string) => timelineId)
-  .handler(({ data: timelineId }): TimelineGraph => {
-    ensureTimeline(timelineId)
+  .handler(async ({ data: timelineId }): Promise<TimelineGraphResult> => {
+    const user = await getCurrentUser()
+    const meta = getTimelineMeta(timelineId)
+    if (!meta) return { status: 'notFound' }
+    if (!canView(meta, user?.id ?? null)) return { status: 'forbidden' }
+
     const { nodes, edges } = loadGraph(timelineId)
     return {
-      title: getTimelineTitle(timelineId),
+      status: 'ok',
+      isOwner: user?.id != null && meta.ownerId === user.id,
+      isPublic: meta.isPublic,
+      title: meta.title,
       nodes: nodes.map((n) => ({
         id: n.id,
         type: n.type,

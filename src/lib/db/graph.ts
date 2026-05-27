@@ -1,31 +1,69 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { db } from './index'
 import { timelines, nodes, edges, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
 
 export type Graph = { nodes: NodeRow[]; edges: EdgeRow[] }
 
-// Create the timeline row if it doesn't exist yet (Phase 0 uses a single 'default').
-export function ensureTimeline(id: string, title = 'Untitled timeline'): void {
-  db.insert(timelines).values({ id, title }).onConflictDoNothing().run()
+// Lightweight ownership/visibility view of a timeline (no graph payload).
+export type TimelineMeta = { id: string; title: string; ownerId: string | null; isPublic: boolean }
+
+// Create the timeline row if it doesn't exist yet, owned by `ownerId`. Used by the
+// MCP apply_patch path (build-as-you-go). Existing rows are left untouched.
+export function ensureTimeline(id: string, ownerId: string, title = 'Untitled timeline'): void {
+  db.insert(timelines).values({ id, title, ownerId }).onConflictDoNothing().run()
 }
 
-// --- timeline CRUD (multi-timeline) ---------------------------------------
+// --- timeline CRUD (multi-timeline, per-owner) ----------------------------
 
-export function listTimelines(): TimelineRow[] {
-  return db.select().from(timelines).orderBy(desc(timelines.createdAt)).all()
+// A single owner's timelines, newest first.
+export function listTimelines(ownerId: string): TimelineRow[] {
+  return db
+    .select()
+    .from(timelines)
+    .where(eq(timelines.ownerId, ownerId))
+    .orderBy(desc(timelines.createdAt))
+    .all()
 }
 
-export function createTimeline(title: string): TimelineRow {
-  return db.insert(timelines).values({ title }).returning().get()
+export function createTimeline(title: string, ownerId: string): TimelineRow {
+  return db.insert(timelines).values({ title, ownerId, isPublic: false }).returning().get()
 }
 
-export function renameTimeline(id: string, title: string): void {
-  db.update(timelines).set({ title, updatedAt: new Date() }).where(eq(timelines.id, id)).run()
+// Owner-scoped: a non-owner's call no-ops (0 rows matched).
+export function renameTimeline(id: string, title: string, ownerId: string): void {
+  db.update(timelines)
+    .set({ title, updatedAt: new Date() })
+    .where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId)))
+    .run()
 }
 
 // Cascades to the timeline's nodes/edges/patches (FK onDelete: 'cascade').
-export function deleteTimeline(id: string): void {
-  db.delete(timelines).where(eq(timelines.id, id)).run()
+// Owner-scoped: a non-owner's call no-ops.
+export function deleteTimeline(id: string, ownerId: string): void {
+  db.delete(timelines).where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId))).run()
+}
+
+// Owner-scoped public toggle.
+export function setTimelinePublic(id: string, ownerId: string, isPublic: boolean): void {
+  db.update(timelines)
+    .set({ isPublic, updatedAt: new Date() })
+    .where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId)))
+    .run()
+}
+
+// Ownership/visibility metadata for one timeline, or null if it doesn't exist.
+export function getTimelineMeta(id: string): TimelineMeta | null {
+  const row = db
+    .select({ id: timelines.id, title: timelines.title, ownerId: timelines.ownerId, isPublic: timelines.isPublic })
+    .from(timelines)
+    .where(eq(timelines.id, id))
+    .get()
+  return row ?? null
+}
+
+// True when `userId` may VIEW the timeline: it's public, or they own it.
+export function canView(meta: TimelineMeta, userId: string | null): boolean {
+  return meta.isPublic || (userId != null && meta.ownerId === userId)
 }
 
 export function getTimelineTitle(id: string): string {

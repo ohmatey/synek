@@ -7,19 +7,26 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 const MCP_URL = 'http://localhost:3001/api/mcp'
 
 // Create / revoke API keys with direct better-sqlite3 writes against the same
-// e2e.db file the server reads (WAL → writes are visible cross-process). This
-// mirrors lib/auth/api-keys.ts exactly (`synek_` + base64url, sha256 hash, 12-char
-// prefix). user_id is nullable, so these are unowned keys — the MCP guard validates
-// a key by hash regardless of owner, which is exactly the auth path under test.
+// e2e.db file the server reads (WAL → writes are visible cross-process). Mirrors
+// lib/auth/api-keys.ts (`synek_` + base64url, sha256 hash, 12-char prefix). The
+// key is owned by the seeded demo user, so MCP (now owner-scoped) sees the demo's
+// public timelines and can create/edit under that account.
 const e2eDb = () => new Database('e2e.db')
+
+function demoUserId(db: Database.Database): string {
+  const row = db.prepare("SELECT id FROM user WHERE email = 'demo@strata.app'").get() as { id: string } | undefined
+  if (!row) throw new Error('demo user not found — did the seed run in global-setup?')
+  return row.id
+}
 
 function createKey(label = 'e2e'): { raw: string; id: string } {
   const raw = 'synek_' + randomBytes(32).toString('base64url')
   const id = randomUUID()
   const db = e2eDb()
   try {
-    db.prepare('INSERT INTO api_keys (id, label, key_hash, prefix, created_at) VALUES (?, ?, ?, ?, ?)').run(
+    db.prepare('INSERT INTO api_keys (id, user_id, label, key_hash, prefix, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
       id,
+      demoUserId(db),
       label,
       createHash('sha256').update(raw).digest('hex'),
       raw.slice(0, 12),

@@ -110,12 +110,18 @@ Key management is now **gated behind login** (roadmap §1.6 + the public-self-ho
 
 Verified: `typecheck` clean · `vite build` green · e2e **19/19** (home test signs up → creates a key; canvas node-selection hardened to `dispatchEvent`; cold-start timeout headroom in the Playwright config).
 
-### Deferred — per-user timeline isolation (the real multi-tenant work)
+## Follow-up — per-user timelines + sharing (built)
 
-Open multi-user is only *fully* realized when **data** is isolated per user. Today timelines (and the MCP read/write surface) are still **shared** across accounts — fine for a single-operator instance, but a true multi-tenant deployment needs:
+Timelines are now **owned per account** (no "workspace" entity — direct `timelines.ownerId → user.id`), **private by default**, with a per-timeline **public toggle + share URL**. Access: list = your own; view = owner *or* `isPublic`; create/edit/rename/delete/toggle = owner; **MCP = scoped to the key's owner**.
 
-- `timelines.ownerId` (+ migration assigning existing rows) and per-user filtering in every timeline/graph/patch query.
-- MCP scoping: an api key → its owner → only that owner's timelines for `list/get/apply_patch/undo/redo`.
-- Decisions: shared vs private timelines, invitations/sharing, admin.
+- Schema: `timelines.ownerId` + `isPublic` (migration `0009`, with a backfill of pre-ownership rows to the first user). New `getTimelineMeta` / `setTimelinePublic` / `canView` in `db/graph.ts`; all CRUD owner-scoped.
+- Server fns: `timelines.ts` + new `setTimelineVisibility` require a session; `getGraph` is visibility-aware (returns `ok` with `isOwner`/`isPublic`, or `notFound`/`forbidden`, and no longer auto-creates); `nodes.ts` + `patches.ts` (undo/redo) assert ownership.
+- MCP: the guard resolves the owner (`verifyApiKey().userId` or session user) and threads it `route → handleMcpRequest → buildMcpServer(ownerId) → tools`; every tool is owner-scoped (verified: a second account's key sees 0 timelines and is denied `get_timeline` on the demo's public id).
+- Frontend: home timelines are login-gated + client-only; the canvas renders **read-only for non-owners** (`NodeDetailPanel readOnly`, hidden undo/redo + rename) and shows `notFound`/`private` states; owners get a **Share** control (toggle + copy URL) in `AppBar`.
+- Seed: a **demo account** (`demo@strata.app` / `demo-password-123`, env-overridable) owns the 5 example timelines, all `isPublic: true` — so the open-canvas demo and URL-based viewing stay login-free, and signing in as demo lists them.
 
-This is the deferred **S5 — Users + signal** track. Until it lands, treat multi-user as "accounts + per-user API keys over a shared workspace."
+Verified: `typecheck` clean · `vite build` green · e2e **19/19** (home logs in as demo; node-detail edits as owner; canvas/seed-data view the public seeds anonymously; MCP keys owned by demo) · live MCP owner-isolation check.
+
+### Still deferred
+
+Invitations / per-user sharing ACLs (only a single public on/off), org/team workspaces, transferring ownership, public timeline discovery/listing — the rest of the **S5 — Users + signal** track.

@@ -9,8 +9,8 @@ import { assertApiKey } from '~/lib/auth/guard'
 // NOTE: this opens the same SQLite file as the web app. WAL + busy_timeout make
 // concurrent reads safe, but run only ONE primary writer at a time (app OR stdio).
 async function main() {
-  await assertApiKey(process.env.STRATA_API_KEY)
-  const server = buildMcpServer()
+  const ownerId = await assertApiKey(process.env.STRATA_API_KEY)
+  const server = buildMcpServer(ownerId)
   await server.connect(new StdioServerTransport())
 }
 

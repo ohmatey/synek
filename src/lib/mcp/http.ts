@@ -4,8 +4,8 @@ import { buildMcpServer } from './server'
 // Stateless Streamable-HTTP: a fresh server + transport per request, so there's
 // no session store and no transport-reuse hazard. `enableJsonResponse` returns
 // one buffered JSON-RPC response (our tools are synchronous — no SSE needed).
-export async function handleMcpRequest(request: Request): Promise<Response> {
-  const server = buildMcpServer()
+export async function handleMcpRequest(request: Request, ownerId: string): Promise<Response> {
+  const server = buildMcpServer(ownerId)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

@@ -54,12 +54,21 @@ export type GraphEdge = {
 
 export type TimelineGraph = { title: string; nodes: GraphNode[]; edges: GraphEdge[] }
 
+// Result of loading a timeline for viewing. `ok` carries the graph plus access
+// flags (isOwner drives read-only UI; isPublic drives the share control). A
+// missing timeline is `notFound`; a private one you can't see is `forbidden`.
+export type TimelineGraphResult =
+  | ({ status: 'ok'; isOwner: boolean; isPublic: boolean } & TimelineGraph)
+  | { status: 'notFound' }
+  | { status: 'forbidden' }
+
 // Plain DTO for the home list — createdAt as epoch-ms (no Date over the RPC).
 export type TimelineSummary = {
   id: string
   title: string
   description: string | null
   createdAt: number
+  isPublic: boolean
 }
 
 // --- Story layer (S1), currently inert ------------------------------------

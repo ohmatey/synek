@@ -64,6 +64,13 @@
       "when": 1779805675195,
       "tag": "0008_skinny_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1779850972416,
+      "tag": "0009_lumpy_hawkeye",
+      "breakpoints": true
     }
   ]
 }

@@ -44,6 +44,7 @@ export function NodeDetailPanel({
   edges,
   nodes,
   timelineId,
+  readOnly = false,
   onClose,
   onSelectNode,
   onDraft,
@@ -52,6 +53,7 @@ export function NodeDetailPanel({
   edges: GraphEdge[]
   nodes: GraphNode[]
   timelineId: string
+  readOnly?: boolean
   onClose: () => void
   onSelectNode: (id: string) => void
   onDraft: (draft: NodeDraft | null) => void
@@ -199,7 +201,11 @@ export function NodeDetailPanel({
             }}
           />
         ) : (
-          <h2 className="detail-title" onClick={() => setEditing('title')} title="Click to edit">
+          <h2
+            className="detail-title"
+            onClick={() => !readOnly && setEditing('title')}
+            title={readOnly ? undefined : 'Click to edit'}
+          >
             {title.trim() || 'Untitled'}
           </h2>
         )}
@@ -222,8 +228,8 @@ export function NodeDetailPanel({
       ) : (
         <div
           className={`detail-desc${summary.trim() ? '' : ' detail-desc-empty'}`}
-          onClick={() => setEditing('summary')}
-          title="Click to edit"
+          onClick={() => !readOnly && setEditing('summary')}
+          title={readOnly ? undefined : 'Click to edit'}
         >
           {summary.trim() || 'Add a description…'}
         </div>
@@ -252,7 +258,7 @@ export function NodeDetailPanel({
               <span className="detail-hint">→ {formatInstant(parsedStart.instant, parsedStart.precision)}</span>
             </div>
           ) : (
-            <button type="button" className="detail-prop-val" onClick={() => setEditing('date')}>
+            <button type="button" className="detail-prop-val" onClick={() => !readOnly && setEditing('date')}>
               {formatInstant(parsedStart.instant, parsedStart.precision)}
             </button>
           )}
@@ -280,14 +286,14 @@ export function NodeDetailPanel({
                 {endParsed && <span className="detail-hint">→ {formatInstant(endParsed.instant, endParsed.precision)}</span>}
               </div>
             ) : (
-              <button type="button" className={`detail-prop-val${endParsed ? '' : ' detail-prop-empty'}`} onClick={() => setEditing('end')}>
+              <button type="button" className={`detail-prop-val${endParsed ? '' : ' detail-prop-empty'}`} onClick={() => !readOnly && setEditing('end')}>
                 {endParsed ? formatInstant(endParsed.instant, endParsed.precision) : 'Ongoing'}
               </button>
             )}
           </div>
         )}
 
-        {node.type === 'entity' && (
+        {!readOnly && node.type === 'entity' && (
           <div className="detail-prop">
             <span className="detail-prop-key">Kind</span>
             <div className="detail-sizes">
@@ -313,46 +319,50 @@ export function NodeDetailPanel({
           </div>
         )}
 
-        <div className="detail-prop">
-          <span className="detail-prop-key">Size</span>
-          <div className="detail-sizes">
-            {NODE_SIZES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`detail-size${size === s ? ' detail-size-active' : ''}`}
-                onClick={() => setSize(s)}
-              >
-                {s}
-              </button>
-            ))}
+        {!readOnly && (
+          <div className="detail-prop">
+            <span className="detail-prop-key">Size</span>
+            <div className="detail-sizes">
+              {NODE_SIZES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`detail-size${size === s ? ' detail-size-active' : ''}`}
+                  onClick={() => setSize(s)}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="detail-prop">
-          <span className="detail-prop-key">Color</span>
-          <div className="detail-swatches">
-            {COLOR_PRESETS.map((c) => (
+        {!readOnly && (
+          <div className="detail-prop">
+            <span className="detail-prop-key">Color</span>
+            <div className="detail-swatches">
+              {COLOR_PRESETS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`detail-swatch${color === c ? ' detail-swatch-active' : ''}`}
+                  style={{ background: c }}
+                  onClick={() => setColor(c)}
+                  aria-label={`Set color ${c}`}
+                />
+              ))}
               <button
-                key={c}
                 type="button"
-                className={`detail-swatch${color === c ? ' detail-swatch-active' : ''}`}
-                style={{ background: c }}
-                onClick={() => setColor(c)}
-                aria-label={`Set color ${c}`}
-              />
-            ))}
-            <button
-              type="button"
-              className={`detail-swatch detail-swatch-none${color === null ? ' detail-swatch-active' : ''}`}
-              onClick={() => setColor(null)}
-              title="Default"
-              aria-label="Default color"
-            >
-              ✕
-            </button>
+                className={`detail-swatch detail-swatch-none${color === null ? ' detail-swatch-active' : ''}`}
+                onClick={() => setColor(null)}
+                title="Default"
+                aria-label="Default color"
+              >
+                ✕
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="detail-field detail-section">
@@ -384,27 +394,37 @@ export function NodeDetailPanel({
       <div className="detail-field detail-section">
         <div className="detail-cite-head">
           <span className="detail-label">Images</span>
-          <div className="detail-img-actions">
-            <button type="button" className="detail-add" onClick={() => imgRef.current?.click()}>
-              + Upload
-            </button>
-          </div>
+          {!readOnly && (
+            <div className="detail-img-actions">
+              <button type="button" className="detail-add" onClick={() => imgRef.current?.click()}>
+                + Upload
+              </button>
+            </div>
+          )}
         </div>
-        <input ref={imgRef} type="file" accept="image/*" multiple className="chat-file-input" onChange={onPickImages} />
-        {images.length === 0 && <p className="detail-empty">No images yet — upload your own.</p>}
+        {!readOnly && (
+          <input ref={imgRef} type="file" accept="image/*" multiple className="chat-file-input" onChange={onPickImages} />
+        )}
+        {images.length === 0 && (
+          <p className="detail-empty">{readOnly ? 'No images.' : 'No images yet — upload your own.'}</p>
+        )}
         {images.length > 0 && (
           <div className="detail-images">
             {images.map((im, i) => (
               <div className={`detail-image${im.show ? ' detail-image-shown' : ''}`} key={i}>
                 <img className="detail-image-thumb" src={im.url} alt={im.alt ?? 'image'} />
                 {im.alt && <span className="detail-image-cap">{im.alt}</span>}
-                <label className="detail-image-show">
-                  <input type="checkbox" checked={!!im.show} onChange={() => toggleImage(i)} />
-                  Show
-                </label>
-                <button type="button" className="detail-remove" onClick={() => removeImage(i)} title="Remove">
-                  ✕
-                </button>
+                {!readOnly && (
+                  <>
+                    <label className="detail-image-show">
+                      <input type="checkbox" checked={!!im.show} onChange={() => toggleImage(i)} />
+                      Show
+                    </label>
+                    <button type="button" className="detail-remove" onClick={() => removeImage(i)} title="Remove">
+                      ✕
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -414,54 +434,70 @@ export function NodeDetailPanel({
       <div className="detail-field detail-section">
         <div className="detail-cite-head">
           <span className="detail-label">Citations</span>
-          <button type="button" className="detail-add" onClick={() => setCitations((cs) => [...cs, { ...EMPTY_CITATION }])}>
-            + Add
-          </button>
+          {!readOnly && (
+            <button type="button" className="detail-add" onClick={() => setCitations((cs) => [...cs, { ...EMPTY_CITATION }])}>
+              + Add
+            </button>
+          )}
         </div>
         {citations.length === 0 && <p className="detail-empty">No citations yet.</p>}
-        {citations.map((c, i) => (
-          <div className="detail-citation" key={i}>
-            <div className="detail-cite-row">
-              <input
-                className="detail-input"
-                placeholder="Source title"
-                value={c.title}
-                onChange={(e) => updateCitation(i, 'title', e.target.value)}
-              />
-              <button type="button" className="detail-remove" onClick={() => setCitations((cs) => cs.filter((_, j) => j !== i))} title="Remove">
-                ✕
-              </button>
-            </div>
-            <input
-              className="detail-input"
-              placeholder="URL (optional)"
-              value={c.url ?? ''}
-              onChange={(e) => updateCitation(i, 'url', e.target.value)}
-            />
-            <textarea
-              className="detail-input detail-textarea"
-              rows={2}
-              placeholder="Quote (optional)"
-              value={c.quote ?? ''}
-              onChange={(e) => updateCitation(i, 'quote', e.target.value)}
-            />
-            {c.url?.trim() && (
-              <a className="detail-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
-                Open source ↗
-              </a>
-            )}
-          </div>
-        ))}
+        {readOnly
+          ? citations.map((c, i) => (
+              <div className="detail-citation" key={i}>
+                <div className="detail-cite-title">{c.title || 'Untitled source'}</div>
+                {c.quote?.trim() && <p className="detail-cite-quote">“{c.quote}”</p>}
+                {c.url?.trim() && (
+                  <a className="detail-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
+                    Open source ↗
+                  </a>
+                )}
+              </div>
+            ))
+          : citations.map((c, i) => (
+              <div className="detail-citation" key={i}>
+                <div className="detail-cite-row">
+                  <input
+                    className="detail-input"
+                    placeholder="Source title"
+                    value={c.title}
+                    onChange={(e) => updateCitation(i, 'title', e.target.value)}
+                  />
+                  <button type="button" className="detail-remove" onClick={() => setCitations((cs) => cs.filter((_, j) => j !== i))} title="Remove">
+                    ✕
+                  </button>
+                </div>
+                <input
+                  className="detail-input"
+                  placeholder="URL (optional)"
+                  value={c.url ?? ''}
+                  onChange={(e) => updateCitation(i, 'url', e.target.value)}
+                />
+                <textarea
+                  className="detail-input detail-textarea"
+                  rows={2}
+                  placeholder="Quote (optional)"
+                  value={c.quote ?? ''}
+                  onChange={(e) => updateCitation(i, 'quote', e.target.value)}
+                />
+                {c.url?.trim() && (
+                  <a className="detail-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
+                    Open source ↗
+                  </a>
+                )}
+              </div>
+            ))}
       </div>
 
-      <footer className="detail-actions">
-        <button type="button" className="detail-delete" onClick={remove} disabled={busy}>
-          Delete
-        </button>
-        <button type="button" className="detail-save" onClick={save} disabled={busy}>
-          {busy ? 'Saving…' : 'Save'}
-        </button>
-      </footer>
+      {!readOnly && (
+        <footer className="detail-actions">
+          <button type="button" className="detail-delete" onClick={remove} disabled={busy}>
+            Delete
+          </button>
+          <button type="button" className="detail-save" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </footer>
+      )}
     </div>
   )
 }

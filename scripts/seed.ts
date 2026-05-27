@@ -7,9 +7,30 @@
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { db } from '../src/lib/db/index'
-import { timelines, nodes, edges, type NodeMetadata } from '../src/lib/db/schema'
+import { timelines, nodes, edges, user, type NodeMetadata } from '../src/lib/db/schema'
 import type { EdgeKind, NodeType, Precision } from '../src/lib/domain/types'
+import { auth } from '../src/lib/auth'
 import { seedImageUrl } from './seed-images'
+
+// The demo account that owns the seeded (public) timelines, so the open-canvas
+// demo and the URL-based viewer work without login, and logging in as demo shows
+// them in the owner list. Overridable via env.
+const DEMO_EMAIL = process.env.STRATA_DEMO_EMAIL || 'demo@strata.app'
+const DEMO_PASSWORD = process.env.STRATA_DEMO_PASSWORD || 'demo-password-123'
+const DEMO_NAME = 'Demo'
+
+// Create the demo user if absent (idempotent) and return its id. Uses Better
+// Auth's API so the password is hashed the same way the app expects.
+async function ensureDemoUser(): Promise<string> {
+  try {
+    await auth.api.signUpEmail({ body: { email: DEMO_EMAIL, password: DEMO_PASSWORD, name: DEMO_NAME } })
+  } catch {
+    // already exists — fine
+  }
+  const row = db.select({ id: user.id }).from(user).where(eq(user.email, DEMO_EMAIL)).get()
+  if (!row) throw new Error(`Could not create or find the demo user (${DEMO_EMAIL})`)
+  return row.id
+}
 
 // Year → sortable epoch-ms instant. Handles BCE/ancient years (negative ok).
 const Y = (y: number, m = 0, d = 1) => {
@@ -369,22 +390,33 @@ const SEEDS: Seeder[] = [
   },
 ]
 
-function seed(s: Seeder) {
+function seed(s: Seeder, ownerId: string) {
   db.delete(timelines).where(eq(timelines.id, s.id)).run() // cascades nodes/edges/patches
-  db.insert(timelines).values({ id: s.id, title: s.title, description: s.description }).run()
+  // Owned by the demo account and public, so the seeded timelines are viewable by
+  // URL without login (and appear in demo's list when signed in).
+  db.insert(timelines).values({ id: s.id, title: s.title, description: s.description, ownerId, isPublic: true }).run()
   s.build(builder(s.id))
   const count = db.select().from(nodes).where(eq(nodes.timelineId, s.id)).all().length
   console.log(`  ✓ ${s.id.padEnd(16)} "${s.title}" — ${count} nodes`)
 }
 
-const only = process.argv[2]
-const targets = only ? SEEDS.filter((s) => s.id === only) : SEEDS
+async function main() {
+  const only = process.argv[2]
+  const targets = only ? SEEDS.filter((s) => s.id === only) : SEEDS
 
-if (only && targets.length === 0) {
-  console.error(`No seed with id "${only}". Available: ${SEEDS.map((s) => s.id).join(', ')}`)
-  process.exit(1)
+  if (only && targets.length === 0) {
+    console.error(`No seed with id "${only}". Available: ${SEEDS.map((s) => s.id).join(', ')}`)
+    process.exit(1)
+  }
+
+  const ownerId = await ensureDemoUser()
+  console.log(`Demo user: ${DEMO_EMAIL}`)
+  console.log(`Seeding ${targets.length} timeline(s):`)
+  for (const s of targets) seed(s, ownerId)
+  console.log('Done.')
 }
 
-console.log(`Seeding ${targets.length} timeline(s):`)
-for (const s of targets) seed(s)
-console.log('Done.')
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})

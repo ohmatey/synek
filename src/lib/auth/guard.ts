@@ -9,34 +9,38 @@ const unauthorized = () =>
 
 const BEARER = /^Bearer\s+(.+)$/i
 
-// Authorize a Bearer token: a named api key (`synek_…`, hashed + revocable) takes
-// precedence; anything else falls back to a Better Auth session token (legacy
-// tokens from `bun run issue:key` / the old reveal flow keep working).
-async function isAuthorized(token: string | undefined, headers: Headers): Promise<boolean> {
+// Resolve the OWNER user id behind a Bearer credential, or null if unauthorized.
+// A named api key (`synek_…`, hashed + revocable) takes precedence and yields its
+// owner; otherwise we fall back to a Better Auth session token (legacy tokens from
+// `bun run issue:key` / the old reveal flow) and use its user id. The owner id
+// scopes every MCP operation to that user's timelines.
+async function resolveUserId(token: string | undefined, headers: Headers): Promise<string | null> {
   if (token && looksLikeApiKey(token)) {
-    if (verifyApiKey(token)) return true
-    // A revoked/unknown api key is a hard no — don't fall through to sessions.
-    return false
+    const row = verifyApiKey(token)
+    // A revoked/unknown/unowned api key is a hard no — don't fall through to sessions.
+    return row?.userId ?? null
   }
-  return !!(await auth.api.getSession({ headers }))
+  const session = await auth.api.getSession({ headers })
+  return session?.user?.id ?? null
 }
 
 const bearerToken = (headers: Headers): string | undefined => headers.get('authorization')?.match(BEARER)?.[1]?.trim()
 
-// HTTP guard: validate the Bearer credential before any MCP tool runs. Returns a
-// 401 Response to short-circuit, or null when authorized.
-export async function requireApiKey(request: Request): Promise<Response | null> {
-  const ok = await isAuthorized(bearerToken(request.headers), request.headers)
-  return ok ? null : unauthorized()
+// HTTP guard: resolve the owner from the Bearer credential before any MCP tool
+// runs. Returns `{ userId }` when authorized, or a 401 Response to short-circuit.
+export async function requireApiKey(request: Request): Promise<{ userId: string } | Response> {
+  const userId = await resolveUserId(bearerToken(request.headers), request.headers)
+  return userId ? { userId } : unauthorized()
 }
 
-// stdio guard: validate STRATA_API_KEY (an api key or a legacy session token)
-// before connecting the transport.
-export async function assertApiKey(token: string | undefined): Promise<void> {
+// stdio guard: validate STRATA_API_KEY (an api key or a legacy session token) and
+// return the owner user id, or throw.
+export async function assertApiKey(token: string | undefined): Promise<string> {
   if (!token) throw new Error('STRATA_API_KEY is required for the MCP stdio server')
-  const ok = await isAuthorized(token, new Headers({ authorization: `Bearer ${token}` }))
-  if (!ok)
+  const userId = await resolveUserId(token, new Headers({ authorization: `Bearer ${token}` }))
+  if (!userId)
     throw new Error(
       'STRATA_API_KEY is invalid, revoked, or expired — create one in the app’s Keys panel or run `bun run issue:key`',
     )
+  return userId
 }

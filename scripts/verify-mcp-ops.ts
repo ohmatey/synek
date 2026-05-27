@@ -14,7 +14,7 @@ function assert(cond: boolean, msg: string) {
 }
 
 function main() {
-  ensureTimeline(TL, 'MCP verify')
+  ensureTimeline(TL, 'verify-user', 'MCP verify')
   const before = loadGraph(TL)
   const beforeNodes = before.nodes.length
   const beforeEdges = before.edges.length

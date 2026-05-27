@@ -110,8 +110,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
 
   const { pending, focusIds, setFocusIds } = useBuildStream()
 
-  const gnodes = data?.nodes ?? []
-  const gedges = data?.edges ?? []
+  // getGraph returns a discriminated result: an `ok` payload (with the graph +
+  // access flags), or notFound/forbidden. Non-owners get a read-only canvas.
+  const graph = data && data.status === 'ok' ? data : null
+  const gnodes = graph?.nodes ?? []
+  const gedges = graph?.edges ?? []
+  const isOwner = graph?.isOwner ?? false
+  const isPublic = graph?.isPublic ?? false
+  const title = graph?.title ?? 'Untitled timeline'
   // Derive the selection from live data, so a deleted node closes the panel.
   const selectedNode = selectedId ? (gnodes.find((n) => n.id === selectedId) ?? null) : null
 
@@ -252,13 +258,32 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
 
   const lensSize = focusIds.length
 
+  // A private timeline you can't see, or a missing one — show a state, not the canvas.
+  if (data && data.status !== 'ok') {
+    return (
+      <div className="canvas-root">
+        <div className="canvas-state">
+          <h2>{data.status === 'forbidden' ? 'This timeline is private' : 'Timeline not found'}</h2>
+          <p>
+            {data.status === 'forbidden'
+              ? 'Its owner hasn’t made it public. Ask them to enable sharing, or sign in with the owning account.'
+              : 'It may have been deleted, or the link is wrong.'}
+          </p>
+          <a className="canvas-state-home" href="/">
+            ← Back home
+          </a>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="canvas-root">
       <div className="top-bar">
-        <AppBar timelineId={timelineId} title={data?.title ?? 'Untitled timeline'} />
+        <AppBar timelineId={timelineId} title={title} isOwner={isOwner} isPublic={isPublic} />
         <div className="canvas-toolbar">
-          <HistoryControls timelineId={timelineId} />
-          <ExportControls graph={{ title: data?.title ?? 'Timeline', nodes: gnodes, edges: gedges }} />
+          {isOwner && <HistoryControls timelineId={timelineId} />}
+          <ExportControls graph={{ title, nodes: gnodes, edges: gedges }} />
         </div>
       </div>
       {lensSize > 0 && (
@@ -315,6 +340,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           edges={gedges}
           nodes={gnodes}
           timelineId={timelineId}
+          readOnly={!isOwner}
           onClose={() => setSelectedId(null)}
           onSelectNode={setSelectedId}
           onDraft={handleDraft}

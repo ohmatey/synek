@@ -344,10 +344,18 @@ function KeysSection() {
   )
 }
 
-function Home() {
+// Your timelines — login-gated and owner-scoped. Client-only (uses useSession).
+function HomeTimelines() {
   const qc = useQueryClient()
   const navigate = useNavigate()
-  const { data: timelines = [] } = useQuery({ queryKey: ['timelines'], queryFn: () => listTimelines() })
+  const { data: session, isPending } = useSession()
+  const loggedIn = !!session?.user
+
+  const { data: timelines = [] } = useQuery({
+    queryKey: ['timelines'],
+    queryFn: () => listTimelines(),
+    enabled: loggedIn,
+  })
   const [title, setTitle] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
@@ -384,6 +392,90 @@ function Home() {
     await qc.invalidateQueries({ queryKey: ['timelines'] })
   }
 
+  if (isPending) return <p className="home-sub">Loading…</p>
+  if (!loggedIn) return <p className="home-empty">Sign in below to create and view your timelines.</p>
+
+  return (
+    <>
+      <form
+        className="composer composer-home"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void create()
+        }}
+      >
+        <div className="composer-row">
+          <input
+            className="composer-input"
+            placeholder="Name a timeline (e.g. observability tooling, the electric car, jazz)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <button className="composer-submit" type="submit" disabled={busy}>
+            {busy ? 'Creating…' : 'New timeline →'}
+          </button>
+        </div>
+      </form>
+
+      {timelines.length === 0 ? (
+        <p className="home-empty">No timelines yet — create your first above.</p>
+      ) : (
+        <table className="home-table">
+          <thead>
+            <tr>
+              <th scope="col">Timeline</th>
+              <th scope="col" className="home-th-date">Created</th>
+              <th scope="col" className="home-th-actions">
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {timelines.map((t) => (
+              <tr key={t.id} className="home-row">
+                <td className="home-cell-main">
+                  {editingId === t.id ? (
+                    <input
+                      className="home-card-edit"
+                      autoFocus
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onBlur={() => void saveRename(t.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void saveRename(t.id)
+                        if (e.key === 'Escape') setEditingId(null)
+                      }}
+                    />
+                  ) : (
+                    <button type="button" className="home-row-open" onClick={() => open(t.id)}>
+                      <span className="home-row-title">{t.title}</span>
+                      {t.description ? <span className="home-row-desc">{t.description}</span> : null}
+                      {t.isPublic ? <span className="home-row-public">Public</span> : null}
+                    </button>
+                  )}
+                </td>
+                <td className="home-cell-date">
+                  <time dateTime={new Date(t.createdAt).toISOString()}>{dateFmt.format(t.createdAt)}</time>
+                </td>
+                <td className="home-cell-actions">
+                  <RowMenu
+                    onRename={() => {
+                      setEditingId(t.id)
+                      setEditTitle(t.title)
+                    }}
+                    onDelete={() => void remove(t.id, t.title)}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  )
+}
+
+function Home() {
   return (
     <div className="home">
       <div className="home-inner">
@@ -392,81 +484,12 @@ function Home() {
           <p className="home-sub">Create a timeline, then build it from your MCP client.</p>
         </header>
 
-        <form
-          className="composer composer-home"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void create()
-          }}
-        >
-          <div className="composer-row">
-            <input
-              className="composer-input"
-              placeholder="Name a timeline (e.g. observability tooling, the electric car, jazz)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <button className="composer-submit" type="submit" disabled={busy}>
-              {busy ? 'Creating…' : 'New timeline →'}
-            </button>
-          </div>
-        </form>
+        {/* Client-only: timelines are owner-scoped and require a session. */}
+        <ClientOnly fallback={<p className="home-sub">Loading…</p>}>
+          <HomeTimelines />
+        </ClientOnly>
 
         <ConnectPanel />
-
-        {timelines.length === 0 ? (
-          <p className="home-empty">No timelines yet — create your first above.</p>
-        ) : (
-          <table className="home-table">
-            <thead>
-              <tr>
-                <th scope="col">Timeline</th>
-                <th scope="col" className="home-th-date">Created</th>
-                <th scope="col" className="home-th-actions">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {timelines.map((t) => (
-                <tr key={t.id} className="home-row">
-                  <td className="home-cell-main">
-                    {editingId === t.id ? (
-                      <input
-                        className="home-card-edit"
-                        autoFocus
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        onBlur={() => void saveRename(t.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void saveRename(t.id)
-                          if (e.key === 'Escape') setEditingId(null)
-                        }}
-                      />
-                    ) : (
-                      <button type="button" className="home-row-open" onClick={() => open(t.id)}>
-                        <span className="home-row-title">{t.title}</span>
-                        {t.description ? <span className="home-row-desc">{t.description}</span> : null}
-                      </button>
-                    )}
-                  </td>
-                  <td className="home-cell-date">
-                    <time dateTime={new Date(t.createdAt).toISOString()}>{dateFmt.format(t.createdAt)}</time>
-                  </td>
-                  <td className="home-cell-actions">
-                    <RowMenu
-                      onRename={() => {
-                        setEditingId(t.id)
-                        setEditTitle(t.title)
-                      }}
-                      onDelete={() => void remove(t.id, t.title)}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
       </div>
     </div>
   )
