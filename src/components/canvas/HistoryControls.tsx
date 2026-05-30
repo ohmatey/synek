@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getHistory, undoPatch, redoPatch } from '~/lib/server/patches'
+import { IconButton } from '@strata/ui'
+import { getHistory, redoPatch, undoPatch } from '~/lib/server/patches'
 
 type HistoryState = { canUndo: boolean; canRedo: boolean }
 type HistoryFn = (opts: { data: string }) => Promise<HistoryState>
@@ -32,13 +33,25 @@ export function HistoryControls({ timelineId }: { timelineId: string }) {
   }, [timelineId])
 
   return (
-    <div className="history-controls">
-      <button type="button" className="toolbar-btn" onClick={() => run(undoPatch)} disabled={!canUndo} title="Undo (⌘Z)" aria-label="Undo">
+    <div className="inline-flex items-center gap-1">
+      <IconButton
+        aria-label="Undo"
+        title="Undo (⌘Z)"
+        size="sm"
+        onClick={() => run(undoPatch)}
+        disabled={!canUndo}
+      >
         ↶
-      </button>
-      <button type="button" className="toolbar-btn" onClick={() => run(redoPatch)} disabled={!canRedo} title="Redo (⌘⇧Z)" aria-label="Redo">
+      </IconButton>
+      <IconButton
+        aria-label="Redo"
+        title="Redo (⌘⇧Z)"
+        size="sm"
+        onClick={() => run(redoPatch)}
+        disabled={!canRedo}
+      >
         ↷
-      </button>
+      </IconButton>
     </div>
   )
 }

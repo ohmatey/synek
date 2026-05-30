@@ -2,6 +2,7 @@ import { defineConfig, type PluginOption } from 'vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
+import tailwindcss from '@tailwindcss/vite'
 
 // Dev-only fix for the TanStack Start client entry not hydrating under `vite dev`.
 // The SSR HTML emits `<script src="/@id/virtual:tanstack-start-client-entry">`, but
@@ -31,6 +32,17 @@ export default defineConfig({
   server: {
     port: Number(process.env.PORT) || 3001,
   },
+  // Workspace packages (@strata/ui) ship TS/JSX source — Vite must transform them
+  // during SSR, not externalize them as bare imports.
+  ssr: {
+    noExternal: ['@strata/ui'],
+  },
   // tsconfigPaths resolves the ~/* alias (Vite 7; the native resolve option is Vite 8+).
-  plugins: [fixStartClientEntryDev(), tsconfigPaths(), tanstackStart(), viteReact()],
+  plugins: [
+    fixStartClientEntryDev(),
+    tsconfigPaths(),
+    tanstackStart(),
+    viteReact(),
+    tailwindcss(),
+  ],
 })

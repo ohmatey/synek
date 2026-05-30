@@ -1,0 +1,144 @@
+/* @strata/ui — semantic design tokens.
+ *
+ * Defines the single source of truth for color, radius, and shadow tokens.
+ * Components MUST reference these via `var(--token)` or Tailwind utilities
+ * derived from the @theme block, NEVER hardcoded hex.
+ *
+ * Themes:
+ *   - Default (no attribute) and [data-theme='dark'] → dark palette
+ *   - [data-theme='light']                          → light palette
+ *
+ * Accents (primary/story/influence/dialogue) are shared between themes but
+ * tuned per theme for contrast on their respective surfaces.
+ */
+
+@theme {
+  /* ─── Surfaces ─────────────────────────────────────────────── */
+  --color-bg-base: #0f1115;
+  --color-bg-surface: #14171e;
+  --color-bg-elevated: #1b1f29;
+  --color-bg-overlay: #20283a;
+
+  /* ─── Foreground / text ────────────────────────────────────── */
+  --color-fg-primary: #e7e9ee;
+  --color-fg-secondary: #c7ccd8;
+  --color-fg-muted: #7c8190;
+  --color-fg-subtle: #6b7180;
+
+  /* ─── Borders / dividers ───────────────────────────────────── */
+  --color-border-default: #2a2f3c;
+  --color-border-subtle: #232733;
+  --color-border-faint: #1c2029;
+
+  /* ─── Accent / brand ───────────────────────────────────────── */
+  --color-accent-primary: #3a6df0;
+  --color-accent-primary-soft: #2b4ea8;
+  --color-accent-story: #e0a458;
+  --color-accent-influence: #9b8cff;
+  --color-accent-dialogue: #6aa9ff;
+
+  /* ─── Tinted surfaces (accent-soft fills) ──────────────────── */
+  --color-story-soft: #2a2113;
+  --color-influence-soft: #2a2540;
+  --color-dialogue-soft: #1a2540;
+  --color-primary-soft: #1a2540;
+
+  /* ─── Semantic state ───────────────────────────────────────── */
+  --color-success: #52c41a;
+  --color-success-soft: #1f3a2a;
+  --color-warning: #f0b429;
+  --color-danger: #ff6a8b;
+  --color-danger-soft: #e06a6a;
+  --color-danger-soft-bg: #2a1b22;
+
+  /* ─── Inverse-on-accent text (always white-ish) ─────────────── */
+  --color-on-accent: #ffffff;
+
+  /* ─── Radii ────────────────────────────────────────────────── */
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --radius-pill: 999px;
+
+  /* ─── Shadows ──────────────────────────────────────────────── */
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-overlay: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+  /* ─── Focus ring (consumed by primitives) ──────────────────── */
+  --color-focus-ring: color-mix(in srgb, var(--color-accent-primary) 55%, transparent);
+
+  /* ─── Canvas layout (kept from legacy CSS) ─────────────────── */
+  --chat-pane-width: 440px;
+  --dock-top: 56px;
+  --dock-bottom: 34px;
+}
+
+/* ─── Light theme overrides ──────────────────────────────────── */
+:root[data-theme='light'],
+[data-theme='light'] {
+  --color-bg-base: #fafbfc;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #f3f5f8;
+  --color-bg-overlay: #e8ecf2;
+
+  --color-fg-primary: #14171e;
+  --color-fg-secondary: #3a4050;
+  --color-fg-muted: #6b7180;
+  --color-fg-subtle: #8b909c;
+
+  --color-border-default: #d8dde5;
+  --color-border-subtle: #e4e8ee;
+  --color-border-faint: #eef1f5;
+
+  --color-accent-primary: #2752c8;
+  --color-accent-primary-soft: #c7d4f3;
+  --color-accent-story: #b87716;
+  --color-accent-influence: #6c5ce7;
+  --color-accent-dialogue: #2f7adf;
+
+  --color-story-soft: #fcefd6;
+  --color-influence-soft: #ece7ff;
+  --color-dialogue-soft: #dfecff;
+  --color-primary-soft: #dfecff;
+
+  --color-success: #2f9e0e;
+  --color-success-soft: #dff5d5;
+  --color-warning: #c98a0a;
+  --color-danger: #d92753;
+  --color-danger-soft: #c14848;
+  --color-danger-soft-bg: #fbe2e8;
+
+  --color-on-accent: #ffffff;
+
+  --shadow-panel: 0 8px 24px rgba(20, 25, 40, 0.08);
+  --shadow-overlay: 0 12px 40px rgba(20, 25, 40, 0.16);
+  --shadow-card: 0 2px 8px rgba(20, 25, 40, 0.06);
+}
+
+/* ─── xyflow CSS-var overrides (per theme) ───────────────────── */
+:root,
+[data-theme='dark'] {
+  --xy-background-color: var(--color-bg-base);
+  --xy-background-pattern-color: var(--color-border-faint);
+  --xy-controls-button-background-color: var(--color-bg-surface);
+  --xy-controls-button-background-color-hover: var(--color-bg-elevated);
+  --xy-controls-button-color: var(--color-fg-secondary);
+  --xy-controls-button-color-hover: var(--color-fg-primary);
+  --xy-controls-button-border-color: var(--color-border-default);
+  --xy-edge-stroke: var(--color-border-default);
+  --xy-edge-stroke-selected: var(--color-accent-primary);
+  --xy-minimap-background-color: var(--color-bg-surface);
+}
+
+[data-theme='light'] {
+  --xy-background-color: var(--color-bg-base);
+  --xy-background-pattern-color: var(--color-border-default);
+  --xy-controls-button-background-color: var(--color-bg-surface);
+  --xy-controls-button-background-color-hover: var(--color-bg-elevated);
+  --xy-controls-button-color: var(--color-fg-secondary);
+  --xy-controls-button-color-hover: var(--color-fg-primary);
+  --xy-controls-button-border-color: var(--color-border-default);
+  --xy-edge-stroke: var(--color-border-default);
+  --xy-edge-stroke-selected: var(--color-accent-primary);
+  --xy-minimap-background-color: var(--color-bg-surface);
+}

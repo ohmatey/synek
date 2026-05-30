@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { toJSON, toMarkdown, toSVG, slugify } from '~/lib/domain/export'
+import { Menu, MenuItem, MenuList, MenuTrigger, cn } from '@strata/ui'
+import { slugify, toJSON, toMarkdown, toSVG } from '~/lib/domain/export'
 import type { TimelineGraph } from '~/lib/domain/types'
 
 function download(filename: string, content: string, mime: string) {
@@ -11,6 +11,14 @@ function download(filename: string, content: string, mime: string) {
   a.click()
   a.remove()
   URL.revokeObjectURL(url)
+}
+
+// Read a CSS variable from <html> at call time — picks up the live theme,
+// so PNG exports get a light bg in light mode and dark in dark mode.
+function readToken(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return raw || fallback
 }
 
 // Rasterize the (untainted) SVG to PNG via an <img> + <canvas>.
@@ -26,7 +34,7 @@ function downloadPng(svg: string, filename: string) {
     canvas.height = h
     const ctx = canvas.getContext('2d')
     if (ctx) {
-      ctx.fillStyle = '#0f1115'
+      ctx.fillStyle = readToken('--color-bg-base', '#0f1115')
       ctx.fillRect(0, 0, w, h)
       ctx.drawImage(img, 0, 0, w, h)
     }
@@ -53,31 +61,13 @@ const FORMATS = [
   { id: 'png', label: 'PNG', hint: 'Raster image' },
 ] as const
 
+type FormatId = (typeof FORMATS)[number]['id']
+
 export function ExportControls({ graph }: { graph: TimelineGraph }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
   if (graph.nodes.length === 0) return null
   const slug = slugify(graph.title)
 
-  function run(format: (typeof FORMATS)[number]['id']) {
-    setOpen(false)
+  function run(format: FormatId) {
     if (format === 'json') download(`${slug}.json`, toJSON(graph), 'application/json')
     else if (format === 'markdown') download(`${slug}.md`, toMarkdown(graph), 'text/markdown')
     else if (format === 'svg') download(`${slug}.svg`, toSVG(graph), 'image/svg+xml')
@@ -85,26 +75,25 @@ export function ExportControls({ graph }: { graph: TimelineGraph }) {
   }
 
   return (
-    <div className="export-controls" ref={ref}>
-      <button
-        type="button"
-        className="toolbar-btn"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
+    <Menu>
+      <MenuTrigger
         title="Export timeline"
+        className={cn(
+          'inline-flex h-7 items-center gap-1 rounded-[var(--radius-control)] border px-2.5 text-xs font-medium',
+          'border-[var(--color-border-default)] bg-[var(--color-bg-surface)] text-[var(--color-fg-primary)]',
+          'hover:bg-[var(--color-bg-elevated)] transition-colors',
+          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]',
+        )}
       >
         Export ▾
-      </button>
-      {open && (
-        <div className="export-menu" role="menu">
-          {FORMATS.map((f) => (
-            <button key={f.id} type="button" className="export-menu-item" role="menuitem" onClick={() => run(f.id)}>
-              <span className="export-menu-label">{f.label}</span>
-              <span className="export-menu-hint">{f.hint}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      </MenuTrigger>
+      <MenuList align="end" className="min-w-[14rem]">
+        {FORMATS.map((f) => (
+          <MenuItem key={f.id} onSelect={() => run(f.id)} hint={f.hint}>
+            {f.label}
+          </MenuItem>
+        ))}
+      </MenuList>
+    </Menu>
   )
 }

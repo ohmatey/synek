@@ -11,6 +11,7 @@ import {
   type Node,
   type Edge,
 } from '@xyflow/react'
+import { useTheme } from '@strata/ui'
 import { EventNode } from './nodes/EventNode'
 import { EntityNode } from './nodes/EntityNode'
 import { PeriodNode } from './nodes/PeriodNode'
@@ -57,14 +58,15 @@ function AutoFit({ nodeCount, pendingCount }: { nodeCount: number; pendingCount:
   return null
 }
 
-// Per-kind edge styling: color, stroke width, and dash. Influence/rivalry read
-// as softer dashed lines; causal/succession as solid.
+// Per-kind edge styling: color (as a CSS var so it flips light/dark via the
+// active theme), stroke width, and dash. Influence/rivalry read as softer
+// dashed lines; causal/succession as solid.
 const EDGE_STYLE: Record<EdgeKind, { color: string; width: number; dash?: string }> = {
-  caused: { color: '#e0a458', width: 2 },
-  succeeded: { color: '#6aa9ff', width: 2 },
-  influenced: { color: '#9b8cff', width: 1.5, dash: '6 4' },
-  acquired: { color: '#ff6a8b', width: 2 },
-  competed_with: { color: '#52c41a', width: 1.5, dash: '2 5' },
+  caused: { color: 'var(--color-accent-story)', width: 2 },
+  succeeded: { color: 'var(--color-accent-dialogue)', width: 2 },
+  influenced: { color: 'var(--color-accent-influence)', width: 1.5, dash: '6 4' },
+  acquired: { color: 'var(--color-danger)', width: 2 },
+  competed_with: { color: 'var(--color-success)', width: 1.5, dash: '2 5' },
 }
 
 export function TimelineCanvas({ timelineId }: { timelineId: string }) {
@@ -72,6 +74,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     queryKey: ['graph', timelineId],
     queryFn: () => getGraph({ data: timelineId }),
   })
+  const { resolvedTheme } = useTheme()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // Horizontal time density (px/day) + gap-collapsing — the axis scale,
   // independent of camera zoom. Seeded from the per-timeline saved preference.
@@ -302,6 +305,11 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         edges={rfEdges}
         nodeTypes={nodeTypes}
         nodesDraggable={false}
+        // Flip xyflow's built-in styles (controls, minimap, attribution, default
+        // edge defaults) to match the active app theme. Node accent colors
+        // (per-node borderColor) are intentionally NOT theme-coupled — those are
+        // domain accents (per node type / per node config), not surface chrome.
+        colorMode={resolvedTheme}
         onNodeClick={(_, n) => setSelectedId(n.id)}
         onPaneClick={() => setSelectedId(null)}
         fitView

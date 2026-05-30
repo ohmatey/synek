@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react'
 import { Outlet, createRootRoute, HeadContent, Scripts } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ThemeProvider, themeInitScript } from '@strata/ui'
 import '@xyflow/react/dist/style.css'
 import '../styles.css'
 
@@ -23,9 +24,11 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
-      <RootDocument>
-        <Outlet />
-      </RootDocument>
+      <ThemeProvider>
+        <RootDocument>
+          <Outlet />
+        </RootDocument>
+      </ThemeProvider>
     </QueryClientProvider>
   )
 }
@@ -34,6 +37,10 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
       <head>
+        {/* Pre-hydration: read cookie + prefers-color-scheme, set <html data-theme>
+            synchronously before first paint so the page never flashes the wrong theme.
+            Must render in <head> (not via <Scripts/>) — runs before body parses. */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <HeadContent />
       </head>
       <body>

@@ -7,20 +7,26 @@ import { NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
 import type { GraphNode, GraphEdge, CanvasCitation, NodeImage, NodeSize, NodeSubtype, NodeType, Precision, EdgeKind } from '~/lib/domain/types'
 import type { NodeDraft } from './types'
 
-// Mirrors the canvas edge palette (kept local to avoid importing TimelineCanvas,
-// which imports this panel).
+// Mirrors the canvas edge palette. CSS vars flip per theme automatically;
+// kept local to avoid importing TimelineCanvas (which imports this panel).
 const REL_COLOR: Record<EdgeKind, string> = {
-  caused: '#e0a458',
-  succeeded: '#6aa9ff',
-  influenced: '#9b8cff',
-  acquired: '#ff6a8b',
-  competed_with: '#52c41a',
+  caused: 'var(--color-accent-story)',
+  succeeded: 'var(--color-accent-dialogue)',
+  influenced: 'var(--color-accent-influence)',
+  acquired: 'var(--color-danger)',
+  competed_with: 'var(--color-success)',
 }
 
 // Default accent per node type (used for the title dot when no custom color).
-const TYPE_DOT: Record<NodeType, string> = { period: '#9b8cff', entity: '#6b7a90', event: '#3a6df0' }
+const TYPE_DOT: Record<NodeType, string> = {
+  period: 'var(--color-accent-influence)',
+  entity: 'var(--color-fg-muted)',
+  event: 'var(--color-accent-primary)',
+}
 
-// Swatches offered in the Color property.
+// Swatches offered in the node Color property. Kept as raw hex on purpose:
+// node accents are user-chosen domain identity — they must read the same in
+// both themes (a "red" node stays red regardless of light/dark).
 const COLOR_PRESETS = ['#3a6df0', '#6aa9ff', '#52c41a', '#e0a458', '#9b8cff', '#ff6a8b']
 
 // Render an instant back into a string parseDate() can re-read. formatInstant
