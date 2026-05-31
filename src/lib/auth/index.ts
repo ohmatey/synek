@@ -13,7 +13,7 @@ const YEAR_SECONDS = 60 * 60 * 24 * 365
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || `http://localhost:${process.env.PORT || 3001}`,
   // Local-first default so the app runs without setup; set BETTER_AUTH_SECRET in prod.
-  secret: process.env.BETTER_AUTH_SECRET || 'strata-local-dev-secret-change-me-0000000000',
+  secret: process.env.BETTER_AUTH_SECRET || 'synek-local-dev-secret-change-me-0000000000',
   database: drizzleAdapter(db, { provider: 'sqlite', schema }),
   emailAndPassword: { enabled: true },
   // Long expiry so the minted token behaves like a stable API key.

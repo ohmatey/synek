@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, type ButtonProps } from '@strata/ui'
+import { Button, type ButtonProps } from '@synek/ui'
 
 interface CopyButtonProps extends Omit<ButtonProps, 'onClick' | 'children'> {
   text: string

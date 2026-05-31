@@ -8,7 +8,7 @@ export function Landing() {
           A timeline canvas your AI builds for you.
         </h2>
         <p className="mt-4 max-w-prose text-base text-[var(--color-fg-secondary)] leading-relaxed">
-          Strata holds no AI of its own. Connect your MCP client (Claude Desktop, Claude Code) with
+          Synek holds no AI of its own. Connect your MCP client (Claude Desktop, Claude Code) with
           an API key and ask it to build and edit a visual, time-anchored mesh of events, people,
           and ideas. The canvas is the viewer; your client brings the model.
         </p>

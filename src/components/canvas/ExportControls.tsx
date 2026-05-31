@@ -1,4 +1,4 @@
-import { Menu, MenuItem, MenuList, MenuTrigger, cn } from '@strata/ui'
+import { Menu, MenuItem, MenuList, MenuTrigger, cn } from '@synek/ui'
 import { slugify, toJSON, toMarkdown, toSVG } from '~/lib/domain/export'
 import type { TimelineGraph } from '~/lib/domain/types'
 

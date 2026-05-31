@@ -1,4 +1,4 @@
-// @strata/ui — barrel exports.
+// @synek/ui — barrel exports.
 
 // ─── Theme ────────────────────────────────────────────────────
 export { ThemeProvider, useThemeContext } from './theme/ThemeProvider'

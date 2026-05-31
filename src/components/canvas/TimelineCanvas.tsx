@@ -11,7 +11,7 @@ import {
   type Node,
   type Edge,
 } from '@xyflow/react'
-import { useTheme } from '@strata/ui'
+import { useTheme } from '@synek/ui'
 import { EventNode } from './nodes/EventNode'
 import { EntityNode } from './nodes/EntityNode'
 import { PeriodNode } from './nodes/PeriodNode'

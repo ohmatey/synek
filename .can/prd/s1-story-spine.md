@@ -19,7 +19,7 @@ updated: 2026-05-25
 | 3 | Reader dock | Reuses the **node-detail slot** (`.detail-panel`). Selecting a story **clears the node dialog** — mutually exclusive. |
 | 4 | `people` table | **Schema-only scaffold.** S1 stories are omniscient; dialogue speakers stay unnamed (`speaker_person_id` null). |
 | 5 | POV | **Omniscient only.** POV choice + switching is S3; the schema permits it but S1 doesn't expose it. |
-| 6 | Story model | **Separate `STRATA_STORY_MODEL`** env (falls back to `STRATA_MODEL`). Graph-building keeps `STRATA_MODEL`. |
+| 6 | Story model | **Separate `SYNEK_STORY_MODEL`** env (falls back to `SYNEK_MODEL`). Graph-building keeps `SYNEK_MODEL`. |
 | 7 | Generation context | **Moment + edge-linked neighbors** (uses the graph you already built). |
 | 8 | Regeneration | **Silent cache by content hash + explicit Regenerate** (archives the prior story). |
 
@@ -161,7 +161,7 @@ A **new generation capability**, separate from the graph-tool/Patch loop. New fi
    - Resolve the **active** `prompt_template` for `purpose='story'` (seeded — see below).
    - Build `promptInputs` (moment fields, neighbor summaries + their ids, requested length/tone) → `cacheKey = sha256(templateId + stableStringify(promptInputs))`.
    - **Cache check:** if a `generations` row with that `cacheKey` exists, return its target story (no model call).
-   - Else call **`generateObject`** (AI SDK v6) with `model(process.env.STRATA_STORY_MODEL || process.env.STRATA_MODEL)` and this Zod schema (structured output, **no graph mutation**):
+   - Else call **`generateObject`** (AI SDK v6) with `model(process.env.SYNEK_STORY_MODEL || process.env.SYNEK_MODEL)` and this Zod schema (structured output, **no graph mutation**):
      ```ts
      z.object({
        title: z.string(),
@@ -223,7 +223,7 @@ Story generation **does not** go through the graph Patch system — it isn't a g
 
 ## Decisions to confirm (minor — sensible defaults chosen)
 
-- **Default `STRATA_STORY_MODEL`** — fall back to `STRATA_MODEL` (`anthropic/claude-sonnet-4-6`); document pointing it at a stronger model (e.g. `anthropic/claude-opus-4-7`) for richer prose. Add to `.env.example`.
+- **Default `SYNEK_STORY_MODEL`** — fall back to `SYNEK_MODEL` (`anthropic/claude-sonnet-4-6`); document pointing it at a stronger model (e.g. `anthropic/claude-opus-4-7`) for richer prose. Add to `.env.example`.
 - **Story length default** — target **3–6 beats, ~1–3 min** read; expose as a generation option later.
 - **`relatedNodeIds` storage** — JSON array now (above); promote to a `segment_nodes` join only if it needs metadata.
 - **Chat-pane during reading** — left as-is in S1; consider collapsing it for reading focus if the canvas feels crowded.

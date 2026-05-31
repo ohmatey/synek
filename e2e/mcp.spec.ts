@@ -14,7 +14,7 @@ const MCP_URL = 'http://localhost:3001/api/mcp'
 const e2eDb = () => new Database('e2e.db')
 
 function demoUserId(db: Database.Database): string {
-  const row = db.prepare("SELECT id FROM user WHERE email = 'demo@strata.app'").get() as { id: string } | undefined
+  const row = db.prepare("SELECT id FROM user WHERE email = 'demo@synek.app'").get() as { id: string } | undefined
   if (!row) throw new Error('demo user not found — did the seed run in global-setup?')
   return row.id
 }
@@ -58,7 +58,7 @@ async function connect(token: string): Promise<Client> {
   const transport = new StreamableHTTPClientTransport(new URL(MCP_URL), {
     requestInit: { headers: { Authorization: `Bearer ${token}` } },
   })
-  const client = new Client({ name: 'strata-e2e', version: '1.0.0' })
+  const client = new Client({ name: 'synek-e2e', version: '1.0.0' })
   await client.connect(transport)
   return client
 }

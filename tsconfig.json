@@ -13,8 +13,8 @@
     "resolveJsonModule": true,
     "paths": {
       "~/*": ["./src/*"],
-      "@strata/ui": ["./packages/ui/src/index.ts"],
-      "@strata/ui/*": ["./packages/ui/src/*"]
+      "@synek/ui": ["./packages/ui/src/index.ts"],
+      "@synek/ui/*": ["./packages/ui/src/*"]
     }
   },
   "include": ["src", "vite.config.ts", "drizzle.config.ts", "packages/ui/src"]

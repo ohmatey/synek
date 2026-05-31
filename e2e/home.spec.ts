@@ -5,7 +5,7 @@ import { test, expect, type Page } from '@playwright/test'
 // panel's login form.
 async function loginAsDemo(page: Page) {
   await page.goto('/')
-  await page.getByLabel('Email').fill('demo@strata.app')
+  await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
 }

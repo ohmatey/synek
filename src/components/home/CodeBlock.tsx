@@ -1,4 +1,4 @@
-import { cn } from '@strata/ui'
+import { cn } from '@synek/ui'
 import { CopyButton } from './CopyButton'
 
 export function CodeBlock({ code, className }: { code: string; className?: string }) {

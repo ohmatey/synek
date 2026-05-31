@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, Card, Input } from '@strata/ui'
+import { Button, Card, Input } from '@synek/ui'
 import { signIn, signUp } from '~/lib/auth/client'
 
 type Mode = 'signin' | 'signup'

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Card } from '@strata/ui'
+import { Card } from '@synek/ui'
 import { TimelinesSection } from './TimelinesSection'
 import { KeysPanel } from './KeysPanel'
 import { ConnectGuide } from './ConnectGuide'

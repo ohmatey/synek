@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ClientOnly } from '@strata/ui'
+import { ClientOnly } from '@synek/ui'
 import { useSession } from '~/lib/auth/client'
 import { AppHeader, Landing, SignedIn } from '~/components/home'
 

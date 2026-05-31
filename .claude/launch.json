@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "strata",
+      "name": "synek",
       "runtimeExecutable": "bunx",
       "runtimeArgs": ["vite", "dev", "--port", "3456"],
       "port": 3456

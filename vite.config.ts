@@ -14,7 +14,7 @@ function fixStartClientEntryDev(): PluginOption {
   const RAW = '/@id/virtual:tanstack-start-client-entry'
   const ENCODED = '/@id/__x00__virtual:tanstack-start-client-entry'
   return {
-    name: 'strata:fix-start-client-entry-dev',
+    name: 'synek:fix-start-client-entry-dev',
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {
@@ -32,10 +32,10 @@ export default defineConfig({
   server: {
     port: Number(process.env.PORT) || 3001,
   },
-  // Workspace packages (@strata/ui) ship TS/JSX source — Vite must transform them
+  // Workspace packages (@synek/ui) ship TS/JSX source — Vite must transform them
   // during SSR, not externalize them as bare imports.
   ssr: {
-    noExternal: ['@strata/ui'],
+    noExternal: ['@synek/ui'],
   },
   // tsconfigPaths resolves the ~/* alias (Vite 7; the native resolve option is Vite 8+).
   plugins: [

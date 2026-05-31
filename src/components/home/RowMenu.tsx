@@ -1,4 +1,4 @@
-import { Menu, MenuItem, MenuList, MenuTrigger } from '@strata/ui'
+import { Menu, MenuItem, MenuList, MenuTrigger } from '@synek/ui'
 
 export function RowMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () => void }) {
   return (

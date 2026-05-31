@@ -1,4 +1,4 @@
-/* @strata/ui — semantic design tokens.
+/* @synek/ui — semantic design tokens.
  *
  * Defines the single source of truth for color, radius, and shadow tokens.
  * Components MUST reference these via `var(--token)` or Tailwind utilities

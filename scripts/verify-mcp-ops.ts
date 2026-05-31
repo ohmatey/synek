@@ -11,7 +11,7 @@ import { applyOps } from '../src/lib/mcp/ops'
 // it landed → undo/redo → assert history. Run under Node: `bun run verify:mcp`.
 
 const TL = 'verify-mcp'
-const VERIFY_EMAIL = 'verify@strata.app'
+const VERIFY_EMAIL = 'verify@synek.app'
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`)

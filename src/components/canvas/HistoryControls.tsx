@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconButton } from '@strata/ui'
+import { IconButton } from '@synek/ui'
 import { getHistory, redoPatch, undoPatch } from '~/lib/server/patches'
 
 type HistoryState = { canUndo: boolean; canRedo: boolean }

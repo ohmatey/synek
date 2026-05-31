@@ -150,7 +150,7 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
 // --- Per-timeline scale preference (localStorage) -------------------------
 export type ScalePref = { pxPerDay: number; collapseGaps: boolean }
 
-const scaleKey = (timelineId: string) => `strata:scale:${timelineId}`
+const scaleKey = (timelineId: string) => `synek:scale:${timelineId}`
 
 export function loadScalePref(timelineId: string): ScalePref | null {
   if (typeof window === 'undefined') return null

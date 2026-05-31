@@ -77,7 +77,7 @@ Raw key format: `synek_<32 random bytes, base64url>`. One migration (`drizzle/00
 
 - Existing session tokens still authorize (guard fallback) — no break for anyone already connected.
 - First home load auto-seeds a **"Default"** key and shows its secret once (so the panel is never empty and the secret is never lost). Revoked rows count, so a full revoke never resurrects it.
-- `STRATA_API_KEY` (stdio) accepts either a `synek_` key or a legacy session token, transparently.
+- `SYNEK_API_KEY` (stdio) accepts either a `synek_` key or a legacy session token, transparently.
 
 ## Out of scope (this phase)
 
@@ -118,7 +118,7 @@ Timelines are now **owned per account** (no "workspace" entity — direct `timel
 - Server fns: `timelines.ts` + new `setTimelineVisibility` require a session; `getGraph` is visibility-aware (returns `ok` with `isOwner`/`isPublic`, or `notFound`/`forbidden`, and no longer auto-creates); `nodes.ts` + `patches.ts` (undo/redo) assert ownership.
 - MCP: the guard resolves the owner (`verifyApiKey().userId` or session user) and threads it `route → handleMcpRequest → buildMcpServer(ownerId) → tools`; every tool is owner-scoped (verified: a second account's key sees 0 timelines and is denied `get_timeline` on the demo's public id).
 - Frontend: home timelines are login-gated + client-only; the canvas renders **read-only for non-owners** (`NodeDetailPanel readOnly`, hidden undo/redo + rename) and shows `notFound`/`private` states; owners get a **Share** control (toggle + copy URL) in `AppBar`.
-- Seed: a **demo account** (`demo@strata.app` / `demo-password-123`, env-overridable) owns the 5 example timelines, all `isPublic: true` — so the open-canvas demo and URL-based viewing stay login-free, and signing in as demo lists them.
+- Seed: a **demo account** (`demo@synek.app` / `demo-password-123`, env-overridable) owns the 5 example timelines, all `isPublic: true` — so the open-canvas demo and URL-based viewing stay login-free, and signing in as demo lists them.
 
 Verified: `typecheck` clean · `vite build` green · e2e **19/19** (home logs in as demo; node-detail edits as owner; canvas/seed-data view the public seeds anonymously; MCP keys owned by demo) · live MCP owner-isolation check.
 

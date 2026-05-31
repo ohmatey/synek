@@ -1,5 +1,5 @@
 {
-  "name": "strata",
+  "name": "synek",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -33,7 +33,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "zod": "^4.4.3",
-    "@strata/ui": "workspace:*"
+    "@synek/ui": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

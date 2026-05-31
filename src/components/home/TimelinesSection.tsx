@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input, cn } from '@strata/ui'
+import { Badge, Button, Card, Input, cn } from '@synek/ui'
 import { createTimeline, deleteTimeline, listTimelines, renameTimeline } from '~/lib/server/timelines'
 import { RowMenu } from './RowMenu'
 

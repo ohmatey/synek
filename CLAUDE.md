@@ -1,6 +1,6 @@
-# Strata
+# Synek
 
-**Strata** (product/display name: *Chronograph*) is a temporally-anchored **knowledge canvas**, driven from **outside via an MCP server**. The app holds no AI of its own: you connect your own MCP client (Claude Desktop / Claude Code) with an API key, and that client's model creates and manages a visual mesh of typed nodes and relationships along a horizontal timeline. The canvas is the output and viewer; your MCP client is how you build it.
+**Synek** (product/display name: *Chronograph*) is a temporally-anchored **knowledge canvas**, driven from **outside via an MCP server**. The app holds no AI of its own: you connect your own MCP client (Claude Desktop / Claude Code) with an API key, and that client's model creates and manages a visual mesh of typed nodes and relationships along a horizontal timeline. The canvas is the output and viewer; your MCP client is how you build it.
 
 ## Scope guardrail — read before adding anything
 
@@ -69,7 +69,7 @@ drizzle/                           generated migrations (committed)
 
 ## MCP server (`src/lib/mcp/`, `src/routes/api/mcp.ts`, `src/mcp/stdio.ts`)
 
-The app exposes one MCP server (`buildMcpServer()` in `mcp/server.ts`) over **two transports** sharing all logic: Streamable HTTP at `/api/mcp` (stateless, fresh server+transport per request — `mcp/http.ts` via the SDK's `WebStandardStreamableHTTPServerTransport`) and a stdio binary (`mcp/stdio.ts`, run with `bun run mcp:stdio`). Tools: `list_timelines`, `create_timeline`, `get_timeline`, `apply_patch`, `undo`, `redo`; plus a read-only `strata://timeline/{id}` resource. **All writes go through `apply_patch`** — one call carries a batch of ops (`add_node`/`update_node`/`delete_node`/`add_edge`/`update_edge`/`delete_edge`) and commits as **one Patch**. Within a batch, `ref` on an `add_node` aliases the new id so a later `add_edge` can wire to it (`mcp/ops.ts` resolves refs). Both transports validate `Authorization: Bearer <token>` via Better Auth before any tool runs (`auth/guard.ts`). Clients are encouraged to **cite freely**; citations are stored in `node.metadata.citations`.
+The app exposes one MCP server (`buildMcpServer()` in `mcp/server.ts`) over **two transports** sharing all logic: Streamable HTTP at `/api/mcp` (stateless, fresh server+transport per request — `mcp/http.ts` via the SDK's `WebStandardStreamableHTTPServerTransport`) and a stdio binary (`mcp/stdio.ts`, run with `bun run mcp:stdio`). Tools: `list_timelines`, `create_timeline`, `get_timeline`, `apply_patch`, `undo`, `redo`; plus a read-only `synek://timeline/{id}` resource. **All writes go through `apply_patch`** — one call carries a batch of ops (`add_node`/`update_node`/`delete_node`/`add_edge`/`update_edge`/`delete_edge`) and commits as **one Patch**. Within a batch, `ref` on an `add_node` aliases the new id so a later `add_edge` can wire to it (`mcp/ops.ts` resolves refs). Both transports validate `Authorization: Bearer <token>` via Better Auth before any tool runs (`auth/guard.ts`). Clients are encouraged to **cite freely**; citations are stored in `node.metadata.citations`.
 
 ## Canvas conventions
 
@@ -99,7 +99,7 @@ bun run verify:mcp   # data-layer check of the apply_patch → Patch → undo/re
 - `PORT` — dev server port (default `3001`)
 - `BETTER_AUTH_SECRET` — set a real secret outside local dev (`openssl rand -base64 32`)
 - `BETTER_AUTH_URL` — auth base URL (default `http://localhost:3001`)
-- `STRATA_API_KEY` — the bearer token your MCP client sends; mint with `bun run issue:key`. Used by the stdio server.
+- `SYNEK_API_KEY` — the bearer token your MCP client sends; mint with `bun run issue:key`. Used by the stdio server.
 
 ## Current status
 

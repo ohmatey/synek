@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Input } from '@strata/ui'
+import { Badge, Button, Input } from '@synek/ui'
 import { createApiKey, initApiKeys, revokeApiKey } from '~/lib/server/api-keys'
 import { CopyButton } from './CopyButton'
 

@@ -1,6 +1,6 @@
 // Cookie name used to persist the user's theme preference.
 // Read/written on both server and client.
-export const THEME_COOKIE = 'strata-theme'
+export const THEME_COOKIE = 'synek-theme'
 
 // Inline script string injected into <head> BEFORE React hydrates.
 // Reads the cookie + OS preference, sets `data-theme` on <html>, and sets

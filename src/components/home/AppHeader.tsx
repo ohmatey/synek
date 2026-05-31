@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, ClientOnly, ThemeToggle, cn } from '@strata/ui'
+import { Button, ClientOnly, ThemeToggle, cn } from '@synek/ui'
 import { signOut, useSession } from '~/lib/auth/client'
 
 function AuthArea() {
@@ -53,7 +53,7 @@ export function AppHeader() {
     >
       <a href="/" className="flex items-center gap-2 text-[var(--color-fg-primary)]">
         <img src="/favicon.svg" alt="" width={24} height={24} className="opacity-90" />
-        <span className="text-sm font-semibold tracking-tight">Strata</span>
+        <span className="text-sm font-semibold tracking-tight">Synek</span>
       </a>
       <div className="flex items-center gap-2">
         <ThemeToggle />

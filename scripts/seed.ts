@@ -15,8 +15,8 @@ import { seedImageUrl } from './seed-images'
 // The demo account that owns the seeded (public) timelines, so the open-canvas
 // demo and the URL-based viewer work without login, and logging in as demo shows
 // them in the owner list. Overridable via env.
-const DEMO_EMAIL = process.env.STRATA_DEMO_EMAIL || 'demo@strata.app'
-const DEMO_PASSWORD = process.env.STRATA_DEMO_PASSWORD || 'demo-password-123'
+const DEMO_EMAIL = process.env.SYNEK_DEMO_EMAIL || 'demo@synek.app'
+const DEMO_PASSWORD = process.env.SYNEK_DEMO_PASSWORD || 'demo-password-123'
 const DEMO_NAME = 'Demo'
 
 // Create the demo user if absent (idempotent) and return its id. Uses Better

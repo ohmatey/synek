@@ -2,14 +2,14 @@
 
 ## 0.1.0 — 2026-05-27
 
-First tagged release. Strata (display name **Synek**) is a local-first, **MCP-driven**
+First tagged release. Synek (display name **Synek**) is a local-first, **MCP-driven**
 timeline knowledge canvas: the app holds no AI of its own — your MCP client (Claude
 Desktop / Claude Code) builds and edits timelines, and the canvas is the viewer.
 
 ### Architecture
 - **MCP server** over two transports — Streamable HTTP at `/api/mcp` and a stdio binary
   (`bun run mcp:stdio`). Tools: `list_timelines`, `create_timeline`, `get_timeline`,
-  `apply_patch`, `undo`, `redo`, plus a read-only `strata://timeline/{id}` resource.
+  `apply_patch`, `undo`, `redo`, plus a read-only `synek://timeline/{id}` resource.
 - **One logical edit = one atomic, undoable Patch** — `apply_patch` carries a batch of ops
   (add/update/delete node/edge) committed as a single Patch; `ref` aliases wire edges to
   nodes created in the same call.
@@ -31,7 +31,7 @@ Desktop / Claude Code) builds and edits timelines, and the canvas is the viewer.
 ### App shell & onboarding
 - A proper **app layout**: header with logo + app name and an auth area (Sign in when logged
   out; your email + Sign out when logged in).
-- **Landing → onboarding flow** for logged-out visitors (what Strata is + sign in / create
+- **Landing → onboarding flow** for logged-out visitors (what Synek is + sign in / create
   account), and a signed-in **dashboard**: your timelines + a **Connect an MCP client** guide.
 - The connect guide walks **login → API key → connect**: create/copy a key (shown once), the
   endpoint, and copy-paste setup for **Claude Code** (`claude mcp add`) and **Claude Desktop**
@@ -39,7 +39,7 @@ Desktop / Claude Code) builds and edits timelines, and the canvas is the viewer.
   Synek plugin).
 
 ### Demo
-- The seed creates a demo account (`demo@strata.app` / `demo-password-123`, env-overridable)
+- The seed creates a demo account (`demo@synek.app` / `demo-password-123`, env-overridable)
   that owns 5 public example timelines, so the open-canvas demo and URL viewing work without
   login.
 

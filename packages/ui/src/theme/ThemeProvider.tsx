@@ -21,7 +21,7 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-const LS_KEY = 'strata.theme'
+const LS_KEY = 'synek.theme'
 
 function readCookie(): Theme | null {
   if (typeof document === 'undefined') return null

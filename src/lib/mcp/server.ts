@@ -19,10 +19,10 @@ const json = (data: unknown) => ({ content: [{ type: 'text' as const, text: JSON
 // resource. ALL writes go through apply_patch.
 export function buildMcpServer(ownerId: string): McpServer {
   const server = new McpServer(
-    { name: 'strata', version: '0.1.0' },
+    { name: 'synek', version: '0.1.0' },
     {
       instructions:
-        'Strata is a timeline knowledge canvas. Read with list_timelines / get_timeline. ' +
+        'Synek is a timeline knowledge canvas. Read with list_timelines / get_timeline. ' +
         'MUTATE ONLY via apply_patch — one call = one undoable Patch holding a batch of ops. ' +
         'Within a batch, set `ref` on an add_node and reuse that alias as an edge endpoint to wire edges to nodes created in the same call. ' +
         'undo / redo step the per-timeline history. You only see and edit your own timelines.',
@@ -110,10 +110,10 @@ export function buildMcpServer(ownerId: string): McpServer {
   // Read-only resource mirror — this owner's timelines only, never writes.
   server.registerResource(
     'timeline',
-    new ResourceTemplate('strata://timeline/{timelineId}', {
+    new ResourceTemplate('synek://timeline/{timelineId}', {
       list: async () => ({
         resources: listTimelines(ownerId).map((t) => ({
-          uri: `strata://timeline/${t.id}`,
+          uri: `synek://timeline/${t.id}`,
           name: t.title,
           mimeType: 'application/json',
         })),

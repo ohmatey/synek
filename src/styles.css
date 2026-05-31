@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import '@strata/ui/tokens.css';
+@import '@synek/ui/tokens.css';
 
 * {
   box-sizing: border-box;

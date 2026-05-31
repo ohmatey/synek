@@ -29,7 +29,7 @@ function main() {
   }
 
   const { raw, key } = createApiKey(label, owner.id)
-  console.log(`\nSYNEK API KEY "${key.label}" for ${owner.email} — shown once. Copy into .env as STRATA_API_KEY:\n`)
+  console.log(`\nSYNEK API KEY "${key.label}" for ${owner.email} — shown once. Copy into .env as SYNEK_API_KEY:\n`)
   console.log(raw)
   console.log('\nConnect a client to http://localhost:3001/api/mcp with header  Authorization: Bearer <key>')
   console.log('Manage or revoke keys anytime in the app’s "Connect an MCP client" panel.\n')

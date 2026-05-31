@@ -33,14 +33,14 @@ export async function requireApiKey(request: Request): Promise<{ userId: string 
   return userId ? { userId } : unauthorized()
 }
 
-// stdio guard: validate STRATA_API_KEY (an api key or a legacy session token) and
+// stdio guard: validate SYNEK_API_KEY (an api key or a legacy session token) and
 // return the owner user id, or throw.
 export async function assertApiKey(token: string | undefined): Promise<string> {
-  if (!token) throw new Error('STRATA_API_KEY is required for the MCP stdio server')
+  if (!token) throw new Error('SYNEK_API_KEY is required for the MCP stdio server')
   const userId = await resolveUserId(token, new Headers({ authorization: `Bearer ${token}` }))
   if (!userId)
     throw new Error(
-      'STRATA_API_KEY is invalid, revoked, or expired — create one in the app’s Keys panel or run `bun run issue:key`',
+      'SYNEK_API_KEY is invalid, revoked, or expired — create one in the app’s Keys panel or run `bun run issue:key`',
     )
   return userId
 }

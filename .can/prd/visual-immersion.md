@@ -30,7 +30,7 @@ This phase makes the map do emotional work on first sight, so that the story lay
 
 | Fork | Decision | Source |
 |---|---|---|
-| Card subtype | Entities carry a `subtype` (person/org/place/work); **AI suggests, user overrides** | visual-cards session ([[strata-visual-cards]]) |
+| Card subtype | Entities carry a `subtype` (person/org/place/work); **AI suggests, user overrides** | visual-cards session ([[synek-visual-cards]]) |
 | Portrait style | **Period-authentic**, labelled "illustration, not a photograph" | visual-cards session |
 | Image generation | `generate_image` chat tool exists (gpt-image-1, one undoable Patch, provenance + cache) | shipped |
 | Image storage | **Data-URLs** in `node.metadata.images` | shipped |
@@ -110,7 +110,7 @@ This phase makes the map do emotional work on first sight, so that the story lay
 
 ## Success metrics
 
-> **Honest constraint:** Strata is local-first with **no analytics/signal layer** (S5 is deferred per [CLAUDE.md] scope). We cannot instrument adoption funnels server-side. So success is defined as **observable proxies** a design partner (or the single user) can judge, plus a qualitative bar — not dashboard metrics.
+> **Honest constraint:** Synek is local-first with **no analytics/signal layer** (S5 is deferred per [CLAUDE.md] scope). We cannot instrument adoption funnels server-side. So success is defined as **observable proxies** a design partner (or the single user) can judge, plus a qualitative bar — not dashboard metrics.
 
 **Leading (judge within a session / first run)**
 - **First-sight legibility:** in a 5-second exposure test, a viewer correctly identifies which nodes are *people* ≥90% of the time. *(Method: design-partner test, n≥5.)*
@@ -135,7 +135,7 @@ This phase makes the map do emotional work on first sight, so that the story lay
 
 No hard external deadline (pre-money Core). Suggested phasing — each independently shippable:
 
-- **Phase A (P0): The inhabited map.** Subtype + person card + framing + composed empty state. *This is the demo that changes the first impression.* Verifiable via the existing Playwright harness ([[strata-preview-hydration]]) + extending the canvas spec to assert framing.
+- **Phase A (P0): The inhabited map.** Subtype + person card + framing + composed empty state. *This is the demo that changes the first impression.* Verifiable via the existing Playwright harness ([[synek-preview-hydration]]) + extending the canvas spec to assert framing.
 - **Phase B (P1): Alive & legible.** "Illustrate this" action, captions, placeholder cleanup, offline caching. *Needs `OPENAI_API_KEY` to exercise generation live.*
 - **Phase C (P2): Atmosphere.** Era tint / hero banner; place & work depth.
 

@@ -11,7 +11,7 @@ import {
   MenuTrigger,
   ThemeToggle,
   cn,
-} from '@strata/ui'
+} from '@synek/ui'
 import { listTimelines, renameTimeline, setTimelineVisibility } from '~/lib/server/timelines'
 
 // Top-left identity bar: logo + the timeline name (editable inline by the owner),
@@ -63,7 +63,7 @@ export function AppBar({
         title="Home"
       >
         <img src="/favicon.svg" alt="" width={18} height={18} className="opacity-90" />
-        Strata
+        Synek
       </Link>
       <span aria-hidden className="text-[var(--color-fg-subtle)]">
         /
