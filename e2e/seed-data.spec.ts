@@ -91,7 +91,7 @@ for (const tl of TIMELINES) {
     await page.goto(`/timelines/${tl.id}`)
 
     // Title (scoped to the app bar — the switcher menu also lists titles).
-    await expect(page.locator('.app-bar-name')).toHaveText(tl.title)
+    await expect(page.getByTestId('timeline-name')).toHaveText(tl.title)
 
     // Every seed node renders (React Flow keeps off-screen nodes in the DOM).
     await expect(page.locator('.react-flow__node')).toHaveCount(tl.nodeCount)

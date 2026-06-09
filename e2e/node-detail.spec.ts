@@ -4,7 +4,7 @@ import { test, expect, type Page } from '@playwright/test'
 // Kind) only renders for the owner, so sign in as demo before opening it. (The
 // canvas/seed-data specs cover the anonymous read-only public view.)
 async function loginAsDemo(page: Page) {
-  await page.goto('/')
+  await page.goto('/login')
   await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
@@ -44,11 +44,11 @@ test('detail panel offers manual image upload and citations (no AI illustrate)',
 
   // Images are user-supplied now — a manual Upload control, no AI generation.
   await expect(panel.getByText('Images', { exact: true })).toBeVisible()
-  await expect(panel.getByRole('button', { name: '+ Upload' })).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Upload' })).toBeVisible()
 
   // Citations remain editable.
   await expect(panel.getByText('Citations', { exact: true })).toBeVisible()
-  await expect(panel.getByRole('button', { name: '+ Add' })).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Add' })).toBeVisible()
 
   // The removed in-app AI affordances must not reappear.
   await expect(panel.getByRole('button', { name: /illustrate/i })).toHaveCount(0)
@@ -69,8 +69,8 @@ test('the Kind control reflects and updates an entity subtype', async ({ page })
   // Seeded as person → that option is active; switching to org activates it.
   const person = panel.getByRole('button', { name: 'person', exact: true })
   const org = panel.getByRole('button', { name: 'org', exact: true })
-  await expect(person).toHaveClass(/detail-size-active/)
+  await expect(person).toHaveAttribute('aria-pressed', 'true')
   await org.click()
-  await expect(org).toHaveClass(/detail-size-active/)
-  await expect(person).not.toHaveClass(/detail-size-active/)
+  await expect(org).toHaveAttribute('aria-pressed', 'true')
+  await expect(person).toHaveAttribute('aria-pressed', 'false')
 })

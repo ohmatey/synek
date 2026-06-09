@@ -93,16 +93,20 @@ export function AppBar({
             <button
               type="button"
               title="Rename timeline"
+              data-testid="timeline-name"
               onClick={() => {
                 setDraft(title)
                 setEditing(true)
               }}
-              className="max-w-[24ch] truncate text-sm font-medium transition-colors hover:text-primary"
+              className="max-w-[24ch] cursor-pointer truncate rounded text-sm font-medium outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               {title}
             </button>
           ) : (
-            <span className="max-w-[24ch] truncate text-sm font-medium text-muted-foreground">
+            <span
+              data-testid="timeline-name"
+              className="max-w-[24ch] truncate text-sm font-medium text-muted-foreground"
+            >
               {title}
             </span>
           )}

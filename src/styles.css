@@ -629,6 +629,46 @@ body {
   color: var(--color-fg-subtle);
 }
 
+/* Inline-edit title is a button inside the <h2> heading so it's keyboard-operable
+   while the heading semantics (and the accessible name) are preserved. */
+.detail-title-edit {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: text;
+  border-radius: 6px;
+}
+
+.detail-title-edit:focus-visible,
+.detail-desc:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+
+/* Read-only viewers don't edit — drop the click-to-edit cursor + hover affordance. */
+.detail-title-static,
+.detail-desc-static {
+  cursor: default;
+}
+
+.detail-title-static:hover,
+.detail-desc-static:hover {
+  background: none;
+}
+
+/* Crisp keyboard-focus rings on the native control buttons + canvas chrome that
+   otherwise fall back to the faint UA outline. */
+.detail-prop-val:focus-visible,
+.detail-relation:focus-visible,
+.detail-swatch:focus-visible,
+.detail-cite-link:focus-visible,
+.lens-bar button:focus-visible,
+.canvas-state-home:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+
 .detail-desc-input {
   width: 100%;
   resize: vertical;

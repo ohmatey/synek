@@ -61,6 +61,8 @@ test('time-scale compress pulls nodes closer horizontally', async ({ page }) => 
   }
 
   const before = await gap()
+  // The time-scale controls now live in the display-settings popover — open it first.
+  await page.getByTestId('canvas-settings').click()
   const compress = page.getByTestId('time-scale-compress')
   await compress.click()
   await compress.click()
@@ -87,6 +89,8 @@ test('collapse gaps compresses empty spans and persists per timeline', async ({ 
   await page.waitForTimeout(700) // initial fitView settles
 
   const before = await nodeSpread(page)
+  // The gap-collapse toggle now lives in the display-settings popover — open it first.
+  await page.getByTestId('canvas-settings').click()
   const toggle = page.getByTestId('time-scale-collapse-gaps')
   await toggle.click()
   await page.waitForTimeout(700)
@@ -98,5 +102,7 @@ test('collapse gaps compresses empty spans and persists per timeline', async ({ 
   // Persisted per timeline (localStorage): survives a reload.
   await page.reload()
   await expect(page.getByText('Julius Caesar')).toBeVisible()
+  // The popover closes on reload — reopen it to read the persisted toggle state.
+  await page.getByTestId('canvas-settings').click()
   await expect(page.getByTestId('time-scale-collapse-gaps')).toHaveAttribute('aria-pressed', 'true')
 })

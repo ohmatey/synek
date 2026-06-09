@@ -210,13 +210,18 @@ export function NodeDetailPanel({
               }
             }}
           />
+        ) : readOnly ? (
+          <h2 className="detail-title detail-title-static">{title.trim() || 'Untitled'}</h2>
         ) : (
-          <h2
-            className="detail-title"
-            onClick={() => !readOnly && setEditing('title')}
-            title={readOnly ? undefined : 'Click to edit'}
-          >
-            {title.trim() || 'Untitled'}
+          <h2 className="detail-title">
+            <button
+              type="button"
+              className="detail-title-edit"
+              onClick={() => setEditing('title')}
+              title="Click to edit"
+            >
+              {title.trim() || 'Untitled'}
+            </button>
           </h2>
         )}
       </div>
@@ -235,11 +240,23 @@ export function NodeDetailPanel({
             if (e.key === 'Escape') setEditing(null)
           }}
         />
+      ) : readOnly ? (
+        <div className={`detail-desc detail-desc-static${summary.trim() ? '' : ' detail-desc-empty'}`}>
+          {summary.trim() || 'No description.'}
+        </div>
       ) : (
         <div
           className={`detail-desc${summary.trim() ? '' : ' detail-desc-empty'}`}
-          onClick={() => !readOnly && setEditing('summary')}
-          title={readOnly ? undefined : 'Click to edit'}
+          role="button"
+          tabIndex={0}
+          onClick={() => setEditing('summary')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setEditing('summary')
+            }
+          }}
+          title="Click to edit"
         >
           {summary.trim() || 'Add a description…'}
         </div>
@@ -312,6 +329,7 @@ export function NodeDetailPanel({
                   key={s}
                   size="sm"
                   variant={subtype === s ? 'default' : 'outline'}
+                  aria-pressed={subtype === s}
                   className="h-7 px-2.5 text-xs capitalize"
                   onClick={() => setSubtype(s)}
                 >
@@ -321,6 +339,7 @@ export function NodeDetailPanel({
               <Button
                 size="sm"
                 variant={subtype === null ? 'default' : 'outline'}
+                aria-pressed={subtype === null}
                 className="h-7 px-2.5 text-xs"
                 onClick={() => setSubtype(null)}
                 title="No specific kind"
@@ -340,6 +359,7 @@ export function NodeDetailPanel({
                   key={s}
                   size="sm"
                   variant={size === s ? 'default' : 'outline'}
+                  aria-pressed={size === s}
                   className="h-7 flex-1 px-2 text-xs capitalize"
                   onClick={() => setSize(s)}
                 >

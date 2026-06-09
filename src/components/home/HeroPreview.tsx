@@ -21,7 +21,7 @@ export function HeroPreview() {
 
           {/* Preview switcher — segmented control over the three sample timelines. */}
           <div
-            role="tablist"
+            role="group"
             aria-label="Preview a timeline"
             className="flex items-center gap-0.5 overflow-x-auto rounded-lg border border-border/60 bg-background/50 p-0.5"
           >
@@ -31,11 +31,10 @@ export function HeroPreview() {
                 <button
                   key={p.key}
                   type="button"
-                  role="tab"
-                  aria-selected={selected}
+                  aria-pressed={selected}
                   onClick={() => setActive(p.key)}
                   className={cn(
-                    'whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                    'cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60',
                     selected
                       ? 'bg-card text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground',

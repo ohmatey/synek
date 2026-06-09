@@ -87,7 +87,10 @@ export function KeysPanel({ onFreshKey }: { onFreshKey: (raw: string) => void })
             Copy your key now — “{created.label}” won’t be shown again
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <code className="flex-1 break-all rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-foreground">
+            <code
+              data-testid="fresh-key"
+              className="flex-1 break-all rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-foreground"
+            >
               {created.raw}
             </code>
             <div className="flex shrink-0 gap-2">
@@ -102,7 +105,7 @@ export function KeysPanel({ onFreshKey }: { onFreshKey: (raw: string) => void })
 
       {keys.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-border">
-          <table className="w-full text-sm">
+          <table data-testid="keys-table" className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-3 py-2 font-medium">Key</th>

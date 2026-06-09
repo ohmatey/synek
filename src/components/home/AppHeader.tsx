@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useRouter } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, LogOut, Monitor, Moon, Sun } from 'lucide-react'
 import { ClientOnly, ThemeToggle, useThemeContext, type Theme } from '@synek/ui'
@@ -21,12 +21,16 @@ const THEMES: { value: Theme; label: string; icon: typeof Monitor }[] = [
 
 function ProfileMenu({ name, email }: { name: string | null; email: string }) {
   const qc = useQueryClient()
+  const router = useRouter()
   const { theme, setTheme } = useThemeContext()
   const initial = (name || email || '?').trim().charAt(0).toUpperCase()
 
   async function logout() {
     await signOut()
     await qc.invalidateQueries()
+    // Re-run the home route loader so the server-resolved auth state (which drives
+    // landing-vs-dashboard) flips back to the public landing.
+    await router.invalidate()
   }
 
   return (
@@ -35,7 +39,7 @@ function ProfileMenu({ name, email }: { name: string | null; email: string }) {
         <button
           type="button"
           aria-label="Account menu"
-          className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-primary to-influence text-xs font-semibold text-white shadow-sm ring-1 ring-inset ring-white/15 outline-none transition-[box-shadow,transform] hover:ring-white/30 focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+          className="grid size-8 cursor-pointer place-items-center rounded-full bg-gradient-to-br from-primary to-influence text-xs font-semibold text-white shadow-sm ring-1 ring-inset ring-white/15 outline-none transition-[box-shadow,transform] hover:ring-white/30 focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
         >
           {initial}
         </button>
@@ -97,9 +101,33 @@ function HeaderAccount() {
   return <ProfileMenu name={session.user.name ?? null} email={session.user.email} />
 }
 
+// Marketing anchors live only on the landing page, so they're dead links once
+// you're signed in (the workspace has no such sections) — show them only then.
+function MarketingNav() {
+  const { data: session, isPending } = useSession()
+  if (isPending || session?.user) return null
+
+  return (
+    <nav className="hidden items-center gap-1 md:flex">
+      <a
+        href="#how-it-works"
+        className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        How it works
+      </a>
+      <a
+        href="#features"
+        className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        Features
+      </a>
+    </nav>
+  )
+}
+
 export function AppHeader() {
   return (
-    <header className="sticky top-0 z-30 border-b border-border/60 bg-background/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-border/40 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-6">
         <a href="/" className="group flex items-center gap-2.5">
           <span className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-primary to-influence shadow-sm ring-1 ring-inset ring-white/10 transition-transform group-hover:scale-105">
@@ -108,20 +136,9 @@ export function AppHeader() {
           <span className="text-sm font-semibold tracking-tight">Synek</span>
         </a>
 
-        <nav className="hidden items-center gap-1 md:flex">
-          <a
-            href="#how-it-works"
-            className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            How it works
-          </a>
-          <a
-            href="#features"
-            className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            Features
-          </a>
-        </nav>
+        <ClientOnly>
+          <MarketingNav />
+        </ClientOnly>
 
         <div className="flex items-center justify-end">
           <ClientOnly fallback={<span className="size-8 rounded-full bg-muted/60" />}>

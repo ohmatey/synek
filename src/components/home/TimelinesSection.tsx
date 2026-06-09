@@ -128,7 +128,7 @@ export function TimelinesSection() {
                   <button
                     type="button"
                     onClick={() => open(t.id)}
-                    className="flex flex-1 items-center gap-3 rounded-md py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    className="flex flex-1 cursor-pointer items-center gap-3 rounded-md py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   >
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="flex items-center gap-2">
