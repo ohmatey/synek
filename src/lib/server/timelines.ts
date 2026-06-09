@@ -6,6 +6,7 @@ import {
   renameTimeline as dbRenameTimeline,
   deleteTimeline as dbDeleteTimeline,
   setTimelinePublic as dbSetTimelinePublic,
+  setTimelineView as dbSetTimelineView,
 } from '~/lib/db/graph'
 import { requireUser } from '~/lib/auth/session'
 import type { TimelineRow } from '~/lib/db/schema'
@@ -61,4 +62,21 @@ export const setTimelineVisibility = createServerFn({ method: 'POST' })
     const user = await requireUser()
     dbSetTimelinePublic(data.id, user.id, data.isPublic)
     return { ok: true as const, isPublic: data.isPublic }
+  })
+
+// Owner-only: save the current time-axis scale as this timeline's default,
+// applied on open for devices without a local override.
+export const setTimelineView = createServerFn({ method: 'POST' })
+  .inputValidator((d: { id: string; view: { pxPerDay: number; collapseGaps: boolean } }) =>
+    z
+      .object({
+        id: z.string(),
+        view: z.object({ pxPerDay: z.number().positive(), collapseGaps: z.boolean() }),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    dbSetTimelineView(data.id, user.id, data.view)
+    return { ok: true as const }
   })

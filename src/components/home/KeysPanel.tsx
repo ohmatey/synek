@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Input } from '@synek/ui'
+import { KeyRound, Loader2, ShieldCheck } from 'lucide-react'
+import { Badge } from '~/components/ui/badge'
+import { Button } from '~/components/ui/button'
+import { Input } from '~/components/ui/input'
 import { createApiKey, initApiKeys, revokeApiKey } from '~/lib/server/api-keys'
 import { CopyButton } from './CopyButton'
 
@@ -43,13 +46,14 @@ export function KeysPanel({ onFreshKey }: { onFreshKey: (raw: string) => void })
   }
 
   async function revoke(id: string, name: string) {
-    if (!window.confirm(`Revoke “${name}”? Any client using it will stop working immediately.`)) return
+    if (!window.confirm(`Revoke “${name}”? Any client using it will stop working immediately.`))
+      return
     await revokeApiKey({ data: id })
     await qc.invalidateQueries({ queryKey: ['api-keys'] })
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <form
         className="flex flex-col gap-2 sm:flex-row sm:items-center"
         onSubmit={(e) => {
@@ -57,7 +61,7 @@ export function KeysPanel({ onFreshKey }: { onFreshKey: (raw: string) => void })
           void create()
         }}
       >
-        <span className="text-xs uppercase tracking-wide text-[var(--color-fg-muted)] sm:w-20">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground sm:w-20">
           New key
         </span>
         <Input
@@ -67,7 +71,8 @@ export function KeysPanel({ onFreshKey }: { onFreshKey: (raw: string) => void })
           onChange={(e) => setLabel(e.target.value)}
           aria-label="API key label"
         />
-        <Button type="submit" loading={busy} disabled={!label.trim()}>
+        <Button type="submit" variant="outline" disabled={busy || !label.trim()}>
+          {busy ? <Loader2 className="animate-spin" /> : <KeyRound />}
           Create key
         </Button>
       </form>
@@ -75,78 +80,80 @@ export function KeysPanel({ onFreshKey }: { onFreshKey: (raw: string) => void })
       {created && (
         <div
           role="status"
-          className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-[var(--color-accent-primary)] bg-[var(--color-primary-soft)] p-3 sm:flex-row sm:items-center"
+          className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4"
         >
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-accent-primary)] sm:w-20">
-            Copy now
-          </span>
-          <code className="home-connect-token flex-1 break-all rounded bg-[var(--color-bg-base)] px-2 py-1 font-mono text-xs text-[var(--color-fg-primary)]">
-            {created.raw}
-          </code>
-          <CopyButton text={created.raw} variant="primary" size="sm" />
-          <Button variant="ghost" size="sm" onClick={() => setCreated(null)}>
-            Done
-          </Button>
-          <span className="text-[11px] text-[var(--color-fg-muted)]">
-            Save it now — “{created.label}” won’t be shown again.
-          </span>
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <ShieldCheck className="size-4" />
+            Copy your key now — “{created.label}” won’t be shown again
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <code className="flex-1 break-all rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-foreground">
+              {created.raw}
+            </code>
+            <div className="flex shrink-0 gap-2">
+              <CopyButton text={created.raw} label="Copy" variant="default" />
+              <Button variant="ghost" size="sm" onClick={() => setCreated(null)}>
+                Done
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
       {keys.length > 0 && (
-        <table className="home-keys-table w-full text-sm">
-          <thead>
-            <tr className="border-b border-[var(--color-border-subtle)] text-left text-xs uppercase tracking-wide text-[var(--color-fg-muted)]">
-              <th className="py-2 font-medium">Key</th>
-              <th className="py-2 font-medium">Secret</th>
-              <th className="py-2 font-medium hidden md:table-cell">Created</th>
-              <th className="py-2 font-medium hidden md:table-cell">Last used</th>
-              <th className="py-2 w-20 text-right">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {keys.map((k) => (
-              <tr
-                key={k.id}
-                className={`border-b border-[var(--color-border-faint)] last:border-b-0 ${
-                  k.revokedAt ? 'opacity-60' : ''
-                }`}
-              >
-                <td className="py-2 text-[var(--color-fg-primary)]">{k.label}</td>
-                <td className="py-2 text-[var(--color-fg-muted)]">
-                  <code className="font-mono text-xs">{k.prefix}…</code>
-                  {k.revokedAt && (
-                    <Badge variant="danger" appearance="soft" className="ml-2">
-                      revoked
-                    </Badge>
-                  )}
-                </td>
-                <td className="py-2 hidden md:table-cell text-xs text-[var(--color-fg-muted)]">
-                  <time dateTime={new Date(k.createdAt).toISOString()}>
-                    {dateFmt.format(k.createdAt)}
-                  </time>
-                </td>
-                <td className="py-2 hidden md:table-cell text-xs text-[var(--color-fg-muted)]">
-                  {k.lastUsedAt ? dateFmt.format(k.lastUsedAt) : '—'}
-                </td>
-                <td className="py-2 text-right">
-                  {!k.revokedAt && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => void revoke(k.id, k.label)}
-                      className="text-[var(--color-danger)] hover:bg-[var(--color-danger-soft-bg)]"
-                    >
-                      Revoke
-                    </Button>
-                  )}
-                </td>
+        <div className="overflow-hidden rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="px-3 py-2 font-medium">Key</th>
+                <th className="px-3 py-2 font-medium">Secret</th>
+                <th className="hidden px-3 py-2 font-medium md:table-cell">Created</th>
+                <th className="hidden px-3 py-2 font-medium md:table-cell">Last used</th>
+                <th className="w-16 px-3 py-2 text-right">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {keys.map((k) => (
+                <tr
+                  key={k.id}
+                  className={`border-b border-border last:border-b-0 ${k.revokedAt ? 'opacity-55' : ''}`}
+                >
+                  <td className="px-3 py-2.5 font-medium">{k.label}</td>
+                  <td className="px-3 py-2.5 text-muted-foreground">
+                    <code className="font-mono text-xs">{k.prefix}…</code>
+                    {k.revokedAt && (
+                      <Badge variant="destructive" className="ml-2 rounded-full">
+                        revoked
+                      </Badge>
+                    )}
+                  </td>
+                  <td className="hidden px-3 py-2.5 text-xs text-muted-foreground md:table-cell">
+                    <time dateTime={new Date(k.createdAt).toISOString()}>
+                      {dateFmt.format(k.createdAt)}
+                    </time>
+                  </td>
+                  <td className="hidden px-3 py-2.5 text-xs text-muted-foreground md:table-cell">
+                    {k.lastUsedAt ? dateFmt.format(k.lastUsedAt) : '—'}
+                  </td>
+                  <td className="px-3 py-2.5 text-right">
+                    {!k.revokedAt && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void revoke(k.id, k.label)}
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        Revoke
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

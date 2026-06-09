@@ -1,6 +1,15 @@
-import { Menu, MenuItem, MenuList, MenuTrigger, cn } from '@synek/ui'
+import { ChevronDown, Download } from 'lucide-react'
+import { Button } from '~/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
+import { cn } from '~/lib/utils'
 import { slugify, toJSON, toMarkdown, toSVG } from '~/lib/domain/export'
 import type { TimelineGraph } from '~/lib/domain/types'
+import { floatChip } from './chrome'
 
 function download(filename: string, content: string, mime: string) {
   const url = URL.createObjectURL(new Blob([content], { type: mime }))
@@ -75,25 +84,22 @@ export function ExportControls({ graph }: { graph: TimelineGraph }) {
   }
 
   return (
-    <Menu>
-      <MenuTrigger
-        title="Export timeline"
-        className={cn(
-          'inline-flex h-7 items-center gap-1 rounded-[var(--radius-control)] border px-2.5 text-xs font-medium',
-          'border-[var(--color-border-default)] bg-[var(--color-bg-surface)] text-[var(--color-fg-primary)]',
-          'hover:bg-[var(--color-bg-elevated)] transition-colors',
-          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]',
-        )}
-      >
-        Export ▾
-      </MenuTrigger>
-      <MenuList align="end" className="min-w-[14rem]">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className={cn(floatChip, 'h-8')} title="Export timeline">
+          <Download />
+          Export
+          <ChevronDown className="text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
         {FORMATS.map((f) => (
-          <MenuItem key={f.id} onSelect={() => run(f.id)} hint={f.hint}>
-            {f.label}
-          </MenuItem>
+          <DropdownMenuItem key={f.id} onSelect={() => run(f.id)} className="flex-col items-start gap-0.5">
+            <span className="font-medium">{f.label}</span>
+            <span className="text-xs text-muted-foreground">{f.hint}</span>
+          </DropdownMenuItem>
         ))}
-      </MenuList>
-    </Menu>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

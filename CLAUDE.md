@@ -19,6 +19,7 @@ If a change starts to look like one of these, stop and confirm. The product earn
 |---|---|
 | Framework | TanStack Start (SSR + server functions + file routing) + TanStack Query |
 | UI / runtime | React 19, Bun, Vite |
+| Components | **shadcn/ui** (new-york, Radix + CVA) in `src/components/ui/`, on **Tailwind v4**. `cn()` in `src/lib/utils.ts`. Semantic tokens + light/dark theme live in `@synek/ui` (`packages/ui` — `tokens.css` aliases shadcn's `--background`/`--primary`/… onto the brand palette; `ThemeProvider` drives `[data-theme]`). Toasts via `sonner` |
 | Canvas | React Flow (`@xyflow/react` v12) — **client-only** |
 | AI | **None in-app.** Intelligence comes from the user's MCP client. The app exposes an MCP server (`@modelcontextprotocol/sdk`) — HTTP at `/api/mcp` + a stdio binary |
 | DB | SQLite via Drizzle (`drizzle-orm/better-sqlite3` — Vite SSR runs under **Node**, so *not* `bun:sqlite`). **Postgres is deferred** — keep the schema portable |
@@ -59,7 +60,7 @@ drizzle/                           generated migrations (committed)
 
 ## Data model (`src/lib/db/schema.ts`)
 
-`timelines`, `nodes`, `edges`, `patches`. Kept Postgres-portable: app-generated `text` ids (`crypto.randomUUID()`), JSON via `text({ mode: 'json' })`, system time via `integer({ mode: 'timestamp_ms' })`.
+`timelines`, `nodes`, `edges`, `patches`. Kept Postgres-portable: app-generated `text` ids (`crypto.randomUUID()`), JSON via `text({ mode: 'json' })`, system time via `integer({ mode: 'timestamp_ms' })`. `timelines.viewSettings` is a JSON column holding the owner-saved default time-axis scale (`{ pxPerDay, collapseGaps }`), applied on open when a device has no local override; set via the `setTimelineView` RPC from the canvas's display-settings popover.
 
 **Domain time** (the axis) is a sortable `integer` instant (epoch-ms, negative = BCE) + a `precision` enum (`year|quarter|month|day`) — history needs fuzzy/ancient dates ("Q3 2008", "49 BCE"), not a JS `Date`. Events have `endInstant = null`; entities/periods set a span.
 

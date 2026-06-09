@@ -1,13 +1,30 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, Card, Input } from '@synek/ui'
+import { Loader2 } from 'lucide-react'
+import { Button } from '~/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '~/components/ui/card'
+import { Input } from '~/components/ui/input'
+import { Label } from '~/components/ui/label'
+import { Tabs, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { signIn, signUp } from '~/lib/auth/client'
 
 type Mode = 'signin' | 'signup'
 
-export function AuthForms() {
+export function AuthForms({
+  initialMode = 'signin',
+  onAuthed,
+}: {
+  initialMode?: Mode
+  onAuthed?: () => void
+}) {
   const qc = useQueryClient()
-  const [mode, setMode] = useState<Mode>('signin')
+  const [mode, setMode] = useState<Mode>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -29,6 +46,7 @@ export function AuthForms() {
         return
       }
       await qc.invalidateQueries()
+      onAuthed?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed')
     } finally {
@@ -37,63 +55,87 @@ export function AuthForms() {
   }
 
   return (
-    <Card id="auth" elevation="raised" padding="lg" className="w-full max-w-md">
-      <h2 className="mb-1 text-lg font-semibold text-[var(--color-fg-primary)]">
-        {mode === 'signup' ? 'Create your account' : 'Sign in'}
-      </h2>
-      <p className="mb-4 text-sm text-[var(--color-fg-muted)]">
-        {mode === 'signup'
-          ? 'An account holds your timelines and API keys.'
-          : 'Sign in to your timelines and API keys.'}
-      </p>
-      <form className="flex flex-col gap-3" onSubmit={submit}>
-        {mode === 'signup' && (
-          <Input
-            placeholder="Name (optional)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            aria-label="Name"
-          />
-        )}
-        <Input
-          type="email"
-          required
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          aria-label="Email"
-        />
-        <Input
-          type="password"
-          required
-          minLength={8}
-          placeholder="Password (min 8 characters)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          aria-label="Password"
-        />
-        <Button type="submit" variant="primary" loading={busy}>
-          {mode === 'signup' ? 'Create account' : 'Log in'}
-        </Button>
-      </form>
-      {error && (
-        <p
-          role="alert"
-          className="mt-3 rounded-[var(--radius-control)] border border-[var(--color-danger)] bg-[var(--color-danger-soft-bg)] px-3 py-2 text-xs text-[var(--color-danger)]"
+    <Card
+      id="auth"
+      className="w-full border-border/70 bg-card/80 shadow-xl backdrop-blur-md"
+    >
+      <CardHeader>
+        <CardTitle className="text-xl">
+          {mode === 'signup' ? 'Create your account' : 'Welcome back'}
+        </CardTitle>
+        <CardDescription>
+          {mode === 'signup'
+            ? 'An account holds your timelines and API keys.'
+            : 'Sign in to your timelines and API keys.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
+        <Tabs
+          value={mode}
+          onValueChange={(v) => {
+            setMode(v as Mode)
+            setError(null)
+          }}
         >
-          {error}
-        </p>
-      )}
-      <button
-        type="button"
-        className="mt-4 text-xs text-[var(--color-fg-muted)] hover:text-[var(--color-fg-secondary)] transition-colors"
-        onClick={() => {
-          setMode((m) => (m === 'signup' ? 'signin' : 'signup'))
-          setError(null)
-        }}
-      >
-        {mode === 'signup' ? 'Have an account? Log in' : 'New here? Create an account'}
-      </button>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="signin">Sign in</TabsTrigger>
+            <TabsTrigger value="signup">Create account</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <form className="flex flex-col gap-4" onSubmit={submit}>
+          {mode === 'signup' && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="auth-name">Name</Label>
+              <Input
+                id="auth-name"
+                placeholder="Ada Lovelace"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="name"
+              />
+            </div>
+          )}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="auth-email">Email</Label>
+            <Input
+              id="auth-email"
+              type="email"
+              required
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="auth-password">Password</Label>
+            <Input
+              id="auth-password"
+              type="password"
+              required
+              minLength={8}
+              placeholder={mode === 'signup' ? 'At least 8 characters' : '••••••••'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            />
+          </div>
+          <Button type="submit" disabled={busy} className="mt-1 w-full">
+            {busy && <Loader2 className="animate-spin" />}
+            {mode === 'signup' ? 'Create account' : 'Log in'}
+          </Button>
+        </form>
+
+        {error && (
+          <p
+            role="alert"
+            className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            {error}
+          </p>
+        )}
+      </CardContent>
     </Card>
   )
 }

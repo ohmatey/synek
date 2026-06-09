@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { ExternalLink, Loader2, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Button } from '~/components/ui/button'
+import { Input } from '~/components/ui/input'
+import { Textarea } from '~/components/ui/textarea'
 import { parseDate, formatInstant } from '~/lib/domain/dates'
 import { editNode, deleteNode } from '~/lib/server/nodes'
 import { fileToDataUrl } from '~/lib/files'
@@ -184,9 +188,9 @@ export function NodeDetailPanel({
     <div className="detail-panel" role="dialog" aria-label="Node details">
       <header className="detail-head">
         <span className={`detail-type detail-type-${node.type}`}>{node.type}</span>
-        <button type="button" className="detail-close" onClick={onClose} title="Close" aria-label="Close">
-          ✕
-        </button>
+        <Button variant="ghost" size="icon" className="-mr-1 size-7" onClick={onClose} aria-label="Close">
+          <X />
+        </Button>
       </header>
 
       {/* Title — doc heading with an accent dot, click to edit */}
@@ -302,25 +306,27 @@ export function NodeDetailPanel({
         {!readOnly && node.type === 'entity' && (
           <div className="detail-prop">
             <span className="detail-prop-key">Kind</span>
-            <div className="detail-sizes">
+            <div className="flex flex-1 flex-wrap gap-1.5">
               {NODE_SUBTYPES.map((s) => (
-                <button
+                <Button
                   key={s}
-                  type="button"
-                  className={`detail-size${subtype === s ? ' detail-size-active' : ''}`}
+                  size="sm"
+                  variant={subtype === s ? 'default' : 'outline'}
+                  className="h-7 px-2.5 text-xs capitalize"
                   onClick={() => setSubtype(s)}
                 >
                   {s}
-                </button>
+                </Button>
               ))}
-              <button
-                type="button"
-                className={`detail-size${subtype === null ? ' detail-size-active' : ''}`}
+              <Button
+                size="sm"
+                variant={subtype === null ? 'default' : 'outline'}
+                className="h-7 px-2.5 text-xs"
                 onClick={() => setSubtype(null)}
                 title="No specific kind"
               >
                 —
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -328,16 +334,17 @@ export function NodeDetailPanel({
         {!readOnly && (
           <div className="detail-prop">
             <span className="detail-prop-key">Size</span>
-            <div className="detail-sizes">
+            <div className="flex flex-1 gap-1.5">
               {NODE_SIZES.map((s) => (
-                <button
+                <Button
                   key={s}
-                  type="button"
-                  className={`detail-size${size === s ? ' detail-size-active' : ''}`}
+                  size="sm"
+                  variant={size === s ? 'default' : 'outline'}
+                  className="h-7 flex-1 px-2 text-xs capitalize"
                   onClick={() => setSize(s)}
                 >
                   {s}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -401,15 +408,14 @@ export function NodeDetailPanel({
         <div className="detail-cite-head">
           <span className="detail-label">Images</span>
           {!readOnly && (
-            <div className="detail-img-actions">
-              <button type="button" className="detail-add" onClick={() => imgRef.current?.click()}>
-                + Upload
-              </button>
-            </div>
+            <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => imgRef.current?.click()}>
+              <Upload />
+              Upload
+            </Button>
           )}
         </div>
         {!readOnly && (
-          <input ref={imgRef} type="file" accept="image/*" multiple className="chat-file-input" onChange={onPickImages} />
+          <input ref={imgRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickImages} />
         )}
         {images.length === 0 && (
           <p className="detail-empty">{readOnly ? 'No images.' : 'No images yet — upload your own.'}</p>
@@ -426,9 +432,9 @@ export function NodeDetailPanel({
                       <input type="checkbox" checked={!!im.show} onChange={() => toggleImage(i)} />
                       Show
                     </label>
-                    <button type="button" className="detail-remove" onClick={() => removeImage(i)} title="Remove">
-                      ✕
-                    </button>
+                    <Button variant="ghost" size="icon" className="size-6 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => removeImage(i)} title="Remove">
+                      <X className="size-3.5" />
+                    </Button>
                   </>
                 )}
               </div>
@@ -441,9 +447,10 @@ export function NodeDetailPanel({
         <div className="detail-cite-head">
           <span className="detail-label">Citations</span>
           {!readOnly && (
-            <button type="button" className="detail-add" onClick={() => setCitations((cs) => [...cs, { ...EMPTY_CITATION }])}>
-              + Add
-            </button>
+            <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => setCitations((cs) => [...cs, { ...EMPTY_CITATION }])}>
+              <Plus />
+              Add
+            </Button>
           )}
         </div>
         {citations.length === 0 && <p className="detail-empty">No citations yet.</p>}
@@ -461,33 +468,39 @@ export function NodeDetailPanel({
             ))
           : citations.map((c, i) => (
               <div className="detail-citation" key={i}>
-                <div className="detail-cite-row">
-                  <input
-                    className="detail-input"
+                <div className="flex items-center gap-2">
+                  <Input
+                    className="h-8 flex-1"
                     placeholder="Source title"
                     value={c.title}
                     onChange={(e) => updateCitation(i, 'title', e.target.value)}
                   />
-                  <button type="button" className="detail-remove" onClick={() => setCitations((cs) => cs.filter((_, j) => j !== i))} title="Remove">
-                    ✕
-                  </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setCitations((cs) => cs.filter((_, j) => j !== i))}
+                    title="Remove citation"
+                  >
+                    <X className="size-4" />
+                  </Button>
                 </div>
-                <input
-                  className="detail-input"
+                <Input
+                  className="h-8"
                   placeholder="URL (optional)"
                   value={c.url ?? ''}
                   onChange={(e) => updateCitation(i, 'url', e.target.value)}
                 />
-                <textarea
-                  className="detail-input detail-textarea"
+                <Textarea
+                  className="min-h-14"
                   rows={2}
                   placeholder="Quote (optional)"
                   value={c.quote ?? ''}
                   onChange={(e) => updateCitation(i, 'quote', e.target.value)}
                 />
                 {c.url?.trim() && (
-                  <a className="detail-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
-                    Open source ↗
+                  <a className="detail-cite-link inline-flex items-center gap-1" href={c.url} target="_blank" rel="noreferrer noopener">
+                    Open source <ExternalLink className="size-3" />
                   </a>
                 )}
               </div>
@@ -496,12 +509,19 @@ export function NodeDetailPanel({
 
       {!readOnly && (
         <footer className="detail-actions">
-          <button type="button" className="detail-delete" onClick={remove} disabled={busy}>
+          <Button
+            variant="outline"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={remove}
+            disabled={busy}
+          >
+            <Trash2 />
             Delete
-          </button>
-          <button type="button" className="detail-save" onClick={save} disabled={busy}>
+          </Button>
+          <Button onClick={save} disabled={busy}>
+            {busy && <Loader2 className="animate-spin" />}
             {busy ? 'Saving…' : 'Save'}
-          </button>
+          </Button>
         </footer>
       )}
     </div>

@@ -13,22 +13,22 @@
  */
 
 @theme {
-  /* ─── Surfaces ─────────────────────────────────────────────── */
-  --color-bg-base: #0f1115;
-  --color-bg-surface: #14171e;
-  --color-bg-elevated: #1b1f29;
-  --color-bg-overlay: #20283a;
+  /* ─── Surfaces (Linear-cool: near-black, faint blue lift per tier) ─── */
+  --color-bg-base: #08090c;
+  --color-bg-surface: #0e0f13;
+  --color-bg-elevated: #16181e;
+  --color-bg-overlay: #1c1f28;
 
   /* ─── Foreground / text ────────────────────────────────────── */
-  --color-fg-primary: #e7e9ee;
-  --color-fg-secondary: #c7ccd8;
-  --color-fg-muted: #7c8190;
-  --color-fg-subtle: #6b7180;
+  --color-fg-primary: #f4f5f7;
+  --color-fg-secondary: #c3c7d1;
+  --color-fg-muted: #878d9c;
+  --color-fg-subtle: #6a7081;
 
-  /* ─── Borders / dividers ───────────────────────────────────── */
-  --color-border-default: #2a2f3c;
-  --color-border-subtle: #232733;
-  --color-border-faint: #1c2029;
+  /* ─── Borders / dividers (very subtle — barely-there hairlines) ─── */
+  --color-border-default: #23262f;
+  --color-border-subtle: #1a1c23;
+  --color-border-faint: #131419;
 
   /* ─── Accent / brand ───────────────────────────────────────── */
   --color-accent-primary: #3a6df0;
@@ -141,4 +141,99 @@
   --xy-edge-stroke: var(--color-border-default);
   --xy-edge-stroke-selected: var(--color-accent-primary);
   --xy-minimap-background-color: var(--color-bg-surface);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   shadcn/ui token layer
+   --------------------------------------------------------------------
+   shadcn's semantic tokens (--background, --primary, --card, …) are
+   aliased onto the brand palette above. Because var() resolves lazily,
+   a single :root mapping automatically follows the per-theme overrides
+   ([data-theme='light']) — no need to redeclare them per theme.
+   @theme inline then exposes them as Tailwind utilities (bg-background,
+   text-muted-foreground, border-border, rounded-lg, …).
+   ════════════════════════════════════════════════════════════════════ */
+:root {
+  --radius: 0.7rem;
+
+  --background: var(--color-bg-base);
+  --foreground: var(--color-fg-primary);
+
+  --card: var(--color-bg-surface);
+  --card-foreground: var(--color-fg-primary);
+
+  --popover: var(--color-bg-elevated);
+  --popover-foreground: var(--color-fg-primary);
+
+  --primary: var(--color-accent-primary);
+  --primary-foreground: var(--color-on-accent);
+
+  --secondary: var(--color-bg-elevated);
+  --secondary-foreground: var(--color-fg-primary);
+
+  --muted: var(--color-bg-elevated);
+  --muted-foreground: var(--color-fg-muted);
+
+  --accent: var(--color-bg-overlay);
+  --accent-foreground: var(--color-fg-primary);
+
+  --destructive: var(--color-danger);
+  --destructive-foreground: var(--color-on-accent);
+
+  --border: var(--color-border-default);
+  --input: var(--color-border-default);
+  --ring: var(--color-accent-primary);
+
+  /* Brand extras — kept available as Tailwind utilities for bespoke UI. */
+  --story: var(--color-accent-story);
+  --influence: var(--color-accent-influence);
+  --dialogue: var(--color-accent-dialogue);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+
+  /* Data-viz ramp (on-brand). */
+  --chart-1: var(--color-accent-primary);
+  --chart-2: var(--color-accent-dialogue);
+  --chart-3: var(--color-accent-influence);
+  --chart-4: var(--color-accent-story);
+  --chart-5: var(--color-success);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-story: var(--story);
+  --color-influence: var(--influence);
+  --color-dialogue: var(--dialogue);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }

@@ -1,24 +1,35 @@
-import { Menu, MenuItem, MenuList, MenuTrigger } from '@synek/ui'
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Button } from '~/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
 
 export function RowMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () => void }) {
   return (
-    <Menu>
-      <MenuTrigger
-        aria-label="Timeline actions"
-        title="Actions"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] border border-transparent text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-fg-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
-      >
-        ⋯
-      </MenuTrigger>
-      <MenuList align="end">
-        <MenuItem onSelect={onRename}>Rename</MenuItem>
-        <MenuItem
-          onSelect={onDelete}
-          className="text-[var(--color-danger)] hover:bg-[var(--color-danger-soft-bg)] focus:bg-[var(--color-danger-soft-bg)]"
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 text-muted-foreground data-[state=open]:bg-accent"
+          aria-label="Timeline actions"
         >
+          <MoreHorizontal />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-36">
+        <DropdownMenuItem onSelect={onRename}>
+          <Pencil />
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+          <Trash2 />
           Delete
-        </MenuItem>
-      </MenuList>
-    </Menu>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

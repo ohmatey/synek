@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
   Panel,
@@ -32,7 +33,7 @@ import { AppBar } from './AppBar'
 import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
 import { TimeRuler } from './TimeRuler'
-import { TimeScaleControls } from './TimeScaleControls'
+import { CanvasSettings } from './CanvasSettings'
 import { ExportControls } from './ExportControls'
 import { useBuildStream } from './build-stream'
 import type { CanvasNodeData, NodeDraft } from './types'
@@ -123,6 +124,19 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const title = graph?.title ?? 'Untitled timeline'
   // Derive the selection from live data, so a deleted node closes the panel.
   const selectedNode = selectedId ? (gnodes.find((n) => n.id === selectedId) ?? null) : null
+
+  // Apply the owner-saved default scale once per timeline, but only when this
+  // device has no local override (the local working scale wins on a return visit).
+  const serverDefaultFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (serverDefaultFor.current === timelineId) return
+    const vs = graph?.viewSettings
+    if (!vs) return
+    serverDefaultFor.current = timelineId
+    if (loadScalePref(timelineId)) return
+    setPxPerDay(vs.pxPerDay)
+    setCollapseGaps(vs.collapseGaps)
+  }, [graph?.viewSettings, timelineId])
 
   // Stable so the panel's draft-emit effect doesn't loop on every render.
   const handleDraft = useCallback(
@@ -281,79 +295,81 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   }
 
   return (
-    <div className="canvas-root">
-      <div className="top-bar">
-        <AppBar timelineId={timelineId} title={title} isOwner={isOwner} isPublic={isPublic} />
-        <div className="canvas-toolbar">
-          {isOwner && <HistoryControls timelineId={timelineId} />}
-          <ExportControls graph={{ title, nodes: gnodes, edges: gedges }} />
+    <ReactFlowProvider>
+      <div className="canvas-root">
+        <div className="top-bar">
+          <AppBar timelineId={timelineId} title={title} isOwner={isOwner} isPublic={isPublic} />
+          <div className="canvas-toolbar">
+            {isOwner && <HistoryControls timelineId={timelineId} />}
+            {(gnodes.length > 0 || pending.length > 0) && (
+              <CanvasSettings
+                timelineId={timelineId}
+                isOwner={isOwner}
+                pxPerDay={pxPerDay}
+                collapseGaps={collapseGaps}
+                scale={scale}
+                buildScale={buildScale}
+                onPxPerDay={setPxPerDay}
+                onCollapseGaps={setCollapseGaps}
+              />
+            )}
+            <ExportControls graph={{ title, nodes: gnodes, edges: gedges }} />
+          </div>
         </div>
+        {lensSize > 0 && (
+          <div className="lens-bar">
+            <span>Lens · {lensSize} node{lensSize === 1 ? '' : 's'}</span>
+            <button type="button" onClick={() => setFocusIds([])} title="Clear lens">
+              Clear ✕
+            </button>
+          </div>
+        )}
+        <ReactFlow
+          // Remount only when switching timelines; within one, nodes keep their
+          // identity (diffed by id) so position changes glide instead of snapping.
+          key={timelineId}
+          nodes={rfNodes}
+          edges={rfEdges}
+          nodeTypes={nodeTypes}
+          nodesDraggable={false}
+          // Flip xyflow's built-in styles (controls, minimap, attribution, default
+          // edge defaults) to match the active app theme. Node accent colors
+          // (per-node borderColor) are intentionally NOT theme-coupled — those are
+          // domain accents (per node type / per node config), not surface chrome.
+          colorMode={resolvedTheme}
+          onNodeClick={(_, n) => setSelectedId(n.id)}
+          onPaneClick={() => setSelectedId(null)}
+          fitView
+          fitViewOptions={{ padding: 0.2, duration: 600 }}
+          minZoom={0.1}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background gap={48} />
+          <Controls showInteractive={false} />
+          <AutoFit nodeCount={gnodes.length} pendingCount={pending.length} />
+          {(gnodes.length > 0 || pending.length > 0) && <TimeRuler scale={scale} />}
+          {!isLoading && gnodes.length === 0 && pending.length === 0 && (
+            <Panel position="top-center">
+              <div className="canvas-empty">
+                Connect an MCP client to build this timeline — nodes will appear here along the axis.
+              </div>
+            </Panel>
+          )}
+        </ReactFlow>
+        {selectedNode ? (
+          <NodeDetailPanel
+            key={selectedNode.id}
+            node={selectedNode}
+            edges={gedges}
+            nodes={gnodes}
+            timelineId={timelineId}
+            readOnly={!isOwner}
+            onClose={() => setSelectedId(null)}
+            onSelectNode={setSelectedId}
+            onDraft={handleDraft}
+          />
+        ) : null}
       </div>
-      {lensSize > 0 && (
-        <div className="lens-bar">
-          <span>Lens · {lensSize} node{lensSize === 1 ? '' : 's'}</span>
-          <button type="button" onClick={() => setFocusIds([])} title="Clear lens">
-            Clear ✕
-          </button>
-        </div>
-      )}
-      <ReactFlow
-        // Remount only when switching timelines; within one, nodes keep their
-        // identity (diffed by id) so position changes glide instead of snapping.
-        key={timelineId}
-        nodes={rfNodes}
-        edges={rfEdges}
-        nodeTypes={nodeTypes}
-        nodesDraggable={false}
-        // Flip xyflow's built-in styles (controls, minimap, attribution, default
-        // edge defaults) to match the active app theme. Node accent colors
-        // (per-node borderColor) are intentionally NOT theme-coupled — those are
-        // domain accents (per node type / per node config), not surface chrome.
-        colorMode={resolvedTheme}
-        onNodeClick={(_, n) => setSelectedId(n.id)}
-        onPaneClick={() => setSelectedId(null)}
-        fitView
-        fitViewOptions={{ padding: 0.2, duration: 600 }}
-        minZoom={0.1}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background gap={48} />
-        <Controls showInteractive={false} />
-        <AutoFit nodeCount={gnodes.length} pendingCount={pending.length} />
-        {(gnodes.length > 0 || pending.length > 0) && (
-          <>
-            <TimeRuler scale={scale} />
-            <TimeScaleControls
-              pxPerDay={pxPerDay}
-              collapseGaps={collapseGaps}
-              scale={scale}
-              buildScale={buildScale}
-              onPxPerDay={setPxPerDay}
-              onCollapseGaps={setCollapseGaps}
-            />
-          </>
-        )}
-        {!isLoading && gnodes.length === 0 && pending.length === 0 && (
-          <Panel position="top-center">
-            <div className="canvas-empty">
-              Connect an MCP client to build this timeline — nodes will appear here along the axis.
-            </div>
-          </Panel>
-        )}
-      </ReactFlow>
-      {selectedNode ? (
-        <NodeDetailPanel
-          key={selectedNode.id}
-          node={selectedNode}
-          edges={gedges}
-          nodes={gnodes}
-          timelineId={timelineId}
-          readOnly={!isOwner}
-          onClose={() => setSelectedId(null)}
-          onSelectNode={setSelectedId}
-          onDraft={handleDraft}
-        />
-      ) : null}
-    </div>
+    </ReactFlowProvider>
   )
 }

@@ -1,21 +1,26 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Check, ChevronDown, Link2, Loader2, Lock } from 'lucide-react'
+import { ThemeToggle } from '@synek/ui'
+import { Badge } from '~/components/ui/badge'
+import { Button } from '~/components/ui/button'
+import { Input } from '~/components/ui/input'
 import {
-  Badge,
-  Button,
-  Input,
-  Menu,
-  MenuItem,
-  MenuList,
-  MenuTrigger,
-  ThemeToggle,
-  cn,
-} from '@synek/ui'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import { cn } from '~/lib/utils'
+import { CopyButton } from '~/components/home/CopyButton'
 import { listTimelines, renameTimeline, setTimelineVisibility } from '~/lib/server/timelines'
+import { floatChip } from './chrome'
 
-// Top-left identity bar: logo + the timeline name (editable inline by the owner),
-// a switcher dropdown (owner only), Share control (owner only), and theme toggle.
+// Top-left identity: a row of independently floating chips — logo, the timeline
+// name (editable inline by the owner) + switcher, Share, and the theme toggle.
+// No grouping background; each piece floats over the canvas on its own.
 export function AppBar({
   timelineId,
   title,
@@ -50,28 +55,26 @@ export function AppBar({
   }
 
   return (
-    <div
-      className={cn(
-        'pointer-events-auto flex items-center gap-2 rounded-[var(--radius-control)]',
-        'border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)]/85',
-        'px-3 py-1.5 backdrop-blur shadow-[var(--shadow-card)]',
-      )}
-    >
+    <div className="flex items-center gap-2">
+      {/* Logo chip */}
       <Link
         to="/"
-        className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-fg-primary)] hover:text-[var(--color-accent-primary)] transition-colors"
+        className={cn(
+          floatChip,
+          'flex h-8 items-center gap-1.5 px-2.5 text-sm font-semibold transition-colors hover:text-primary',
+        )}
         title="Home"
       >
-        <img src="/favicon.svg" alt="" width={18} height={18} className="opacity-90" />
+        <span className="grid size-5 place-items-center rounded-md bg-gradient-to-br from-primary to-influence ring-1 ring-inset ring-white/10">
+          <img src="/favicon.svg" alt="" width={12} height={12} className="opacity-95" />
+        </span>
         Synek
       </Link>
-      <span aria-hidden className="text-[var(--color-fg-subtle)]">
-        /
-      </span>
+
+      {/* Timeline name (+ switcher) chip */}
       {isOwner && editing ? (
         <Input
           autoFocus
-          size="sm"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => void save()}
@@ -82,73 +85,75 @@ export function AppBar({
               setEditing(false)
             }
           }}
-          className="w-56"
+          className={cn(floatChip, 'h-8 w-56')}
         />
-      ) : isOwner ? (
-        <button
-          type="button"
-          title="Rename timeline"
-          onClick={() => {
-            setDraft(title)
-            setEditing(true)
-          }}
-          className={cn(
-            'app-bar-name rounded px-1.5 py-0.5 text-sm font-medium text-[var(--color-fg-primary)]',
-            'transition-colors hover:bg-[var(--color-bg-elevated)] truncate max-w-[28ch]',
-          )}
-        >
-          {title}
-        </button>
       ) : (
-        <span className="app-bar-name px-1.5 py-0.5 text-sm font-medium text-[var(--color-fg-secondary)] truncate max-w-[28ch]">
-          {title}
-        </span>
-      )}
+        <div className={cn(floatChip, 'flex h-8 items-center gap-0.5 pl-2.5 pr-1')}>
+          {isOwner ? (
+            <button
+              type="button"
+              title="Rename timeline"
+              onClick={() => {
+                setDraft(title)
+                setEditing(true)
+              }}
+              className="max-w-[24ch] truncate text-sm font-medium transition-colors hover:text-primary"
+            >
+              {title}
+            </button>
+          ) : (
+            <span className="max-w-[24ch] truncate text-sm font-medium text-muted-foreground">
+              {title}
+            </span>
+          )}
 
-      {isOwner && (
-        <Menu>
-          <MenuTrigger
-            aria-label="Switch timeline"
-            title="Switch timeline"
-            className="inline-flex h-7 w-7 items-center justify-center rounded text-xs text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-fg-primary)]"
-          >
-            ▾
-          </MenuTrigger>
-          <MenuList className="max-h-72 overflow-auto">
-            {(timelines ?? []).length === 0 ? (
-              <div className="px-3 py-2 text-xs text-[var(--color-fg-muted)]">
-                No timelines yet.
-              </div>
-            ) : (
-              (timelines ?? []).map((t) => (
-                <MenuItem
-                  key={t.id}
-                  onSelect={() => {
-                    if (t.id !== timelineId)
-                      void navigate({ to: '/timelines/$id', params: { id: t.id } })
-                  }}
-                  className={t.id === timelineId ? 'text-[var(--color-accent-primary)]' : undefined}
+          {isOwner && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 text-muted-foreground"
+                  aria-label="Switch timeline"
+                  title="Switch timeline"
                 >
-                  <span className="flex items-center gap-2">
-                    {t.title}
-                    {t.id === timelineId && <span aria-hidden>✓</span>}
-                  </span>
-                </MenuItem>
-              ))
-            )}
-          </MenuList>
-        </Menu>
+                  <ChevronDown />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-72 w-60 overflow-auto">
+                {(timelines ?? []).length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">No timelines yet.</div>
+                ) : (
+                  (timelines ?? []).map((t) => (
+                    <DropdownMenuItem
+                      key={t.id}
+                      onSelect={() => {
+                        if (t.id !== timelineId)
+                          void navigate({ to: '/timelines/$id', params: { id: t.id } })
+                      }}
+                      className={cn(t.id === timelineId && 'text-primary')}
+                    >
+                      <span className="flex-1 truncate">{t.title}</span>
+                      {t.id === timelineId && <Check className="size-4" />}
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       )}
 
+      {/* Share chip (owner) / read-only badge (public viewer) */}
       {isOwner && <ShareControl timelineId={timelineId} isPublic={isPublic} />}
       {!isOwner && isPublic && (
-        <Badge variant="primary" appearance="soft">
+        <Badge variant="soft" className={cn(floatChip, 'h-8 rounded-lg px-3')}>
           Public · read-only
         </Badge>
       )}
 
-      <span aria-hidden className="mx-0.5 h-4 w-px bg-[var(--color-border-subtle)]" />
-      <ThemeToggle className="h-7 w-7" />
+      {/* Theme toggle chip */}
+      <ThemeToggle className="size-8" />
     </div>
   )
 }
@@ -158,20 +163,8 @@ function ShareControl({ timelineId, isPublic }: { timelineId: string; isPublic: 
   const qc = useQueryClient()
   const [pub, setPub] = useState(isPublic)
   const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => setPub(isPublic), [isPublic])
-
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
 
   const shareUrl =
     typeof window !== 'undefined' ? `${window.location.origin}/timelines/${timelineId}` : ''
@@ -191,54 +184,39 @@ function ShareControl({ timelineId, isPublic }: { timelineId: string; isPublic: 
   }
 
   return (
-    <div ref={ref} className="relative inline-block">
-      <Button
-        size="sm"
-        variant={pub ? 'primary' : 'ghost'}
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        {pub ? '🔗 Public' : '🔒 Private'}
-      </Button>
-      {open && (
-        <div
-          className={cn(
-            'absolute right-0 top-full z-50 mt-1 flex flex-col gap-2 p-3',
-            'min-w-[20rem] rounded-[var(--radius-control)]',
-            'bg-[var(--color-bg-overlay)] border border-[var(--color-border-default)]',
-            'shadow-[var(--shadow-overlay)] text-sm text-[var(--color-fg-primary)]',
-          )}
-        >
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={pub}
-              disabled={busy}
-              onChange={() => void toggle()}
-              className="accent-[var(--color-accent-primary)]"
-            />
-            Anyone with the link can view
-          </label>
-          {pub && (
-            <div className="flex items-center gap-2">
-              <code className="flex-1 truncate rounded bg-[var(--color-bg-base)] px-2 py-1 font-mono text-xs text-[var(--color-fg-secondary)] border border-[var(--color-border-default)]">
-                {shareUrl}
-              </code>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(shareUrl)
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 1500)
-                }}
-              >
-                {copied ? 'Copied' : 'Copy'}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant={pub ? 'default' : 'outline'} className={cn('h-8', !pub && floatChip)}>
+          {pub ? <Link2 /> : <Lock />}
+          {pub ? 'Public' : 'Private'}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80">
+        <label className="flex cursor-pointer items-start gap-2.5 text-sm">
+          <input
+            type="checkbox"
+            checked={pub}
+            disabled={busy}
+            onChange={() => void toggle()}
+            className="mt-0.5 size-4 accent-primary"
+          />
+          <span className="flex flex-col gap-0.5">
+            <span className="font-medium">Anyone with the link can view</span>
+            <span className="text-xs text-muted-foreground">
+              Read-only — viewers can’t edit your timeline.
+            </span>
+          </span>
+          {busy && <Loader2 className="ml-auto size-4 animate-spin text-muted-foreground" />}
+        </label>
+        {pub && (
+          <div className="mt-3 flex items-center gap-2">
+            <code className="flex-1 truncate rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs text-muted-foreground">
+              {shareUrl}
+            </code>
+            <CopyButton text={shareUrl} variant="outline" />
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   )
 }

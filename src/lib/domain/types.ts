@@ -57,8 +57,17 @@ export type TimelineGraph = { title: string; nodes: GraphNode[]; edges: GraphEdg
 // Result of loading a timeline for viewing. `ok` carries the graph plus access
 // flags (isOwner drives read-only UI; isPublic drives the share control). A
 // missing timeline is `notFound`; a private one you can't see is `forbidden`.
+// Per-timeline display defaults (the time-axis scale), saved by the owner and
+// applied on open when the device has no local override.
+export type TimelineViewSettings = { pxPerDay: number; collapseGaps: boolean }
+
 export type TimelineGraphResult =
-  | ({ status: 'ok'; isOwner: boolean; isPublic: boolean } & TimelineGraph)
+  | ({
+      status: 'ok'
+      isOwner: boolean
+      isPublic: boolean
+      viewSettings: TimelineViewSettings | null
+    } & TimelineGraph)
   | { status: 'notFound' }
   | { status: 'forbidden' }
 

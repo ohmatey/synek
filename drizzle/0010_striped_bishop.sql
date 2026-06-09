@@ -1,0 +1,1 @@
+ALTER TABLE `timelines` ADD `view_settings` text;

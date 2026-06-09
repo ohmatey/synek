@@ -1,35 +1,45 @@
 import { useState } from 'react'
-import { Button, type ButtonProps } from '@synek/ui'
+import { Check, Copy } from 'lucide-react'
+import { toast } from 'sonner'
+import { Button } from '~/components/ui/button'
 
-interface CopyButtonProps extends Omit<ButtonProps, 'onClick' | 'children'> {
+interface CopyButtonProps extends Omit<React.ComponentProps<typeof Button>, 'onClick' | 'children'> {
   text: string
+  /** When set, renders an icon + text button; otherwise an icon-only button. */
   label?: string
   copiedLabel?: string
 }
 
-/** Copies `text` to clipboard on click; flips label to "Copied" for 1.5s. */
+/** Copies `text` to the clipboard; flips to a check + toast for 1.5s. */
 export function CopyButton({
   text,
-  label = 'Copy',
+  label,
   copiedLabel = 'Copied',
   size = 'sm',
-  variant = 'secondary',
+  variant = 'outline',
   ...rest
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
+
+  function copy() {
+    void navigator.clipboard?.writeText(text)
+    setCopied(true)
+    toast.success('Copied to clipboard')
+    setTimeout(() => setCopied(false), 1500)
+  }
+
   return (
     <Button
       type="button"
-      size={size}
+      size={label ? size : 'icon'}
       variant={variant}
-      onClick={() => {
-        void navigator.clipboard?.writeText(text)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
-      }}
+      onClick={copy}
+      aria-label={label ? undefined : 'Copy to clipboard'}
+      className={label ? undefined : size === 'sm' ? 'size-8' : undefined}
       {...rest}
     >
-      {copied ? copiedLabel : label}
+      {copied ? <Check className="text-success" /> : <Copy />}
+      {label && (copied ? copiedLabel : label)}
     </Button>
   )
 }

@@ -1,8 +1,22 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input, cn } from '@synek/ui'
-import { createTimeline, deleteTimeline, listTimelines, renameTimeline } from '~/lib/server/timelines'
+import { ArrowRight, Loader2, Plus } from 'lucide-react'
+import { Badge } from '~/components/ui/badge'
+import { Button } from '~/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '~/components/ui/card'
+import { Input } from '~/components/ui/input'
+import {
+  createTimeline,
+  deleteTimeline,
+  listTimelines,
+  renameTimeline,
+} from '~/lib/server/timelines'
 import { RowMenu } from './RowMenu'
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
@@ -54,99 +68,104 @@ export function TimelinesSection() {
   }
 
   return (
-    <Card elevation="flat" padding="lg" className="flex flex-col gap-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
-        Your timelines
-      </h2>
-      <form
-        className="flex flex-col gap-2 sm:flex-row"
-        onSubmit={(e) => {
-          e.preventDefault()
-          void create()
-        }}
-      >
-        <Input
-          className="flex-1"
-          placeholder="Name a timeline (e.g. observability tooling, the electric car, jazz)"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <Button type="submit" variant="primary" loading={busy} className="shrink-0">
-          New timeline →
-        </Button>
-      </form>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          Your timelines
+          {timelines.length > 0 && (
+            <Badge variant="secondary" className="rounded-full">
+              {timelines.length}
+            </Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
+        <form
+          className="flex flex-col gap-2 sm:flex-row"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void create()
+          }}
+        >
+          <Input
+            className="flex-1"
+            placeholder="Name a timeline (e.g. observability tooling, the electric car, jazz)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <Button type="submit" disabled={busy} className="shrink-0">
+            {busy ? <Loader2 className="animate-spin" /> : <Plus />}
+            New timeline
+          </Button>
+        </form>
 
-      {timelines.length === 0 ? (
-        <p className="rounded-[var(--radius-control)] border border-dashed border-[var(--color-border-default)] px-4 py-6 text-center text-sm text-[var(--color-fg-muted)]">
-          No timelines yet — create your first above, then build it from your MCP client.
-        </p>
-      ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[var(--color-border-subtle)] text-left text-xs uppercase tracking-wide text-[var(--color-fg-muted)]">
-              <th scope="col" className="py-2 font-medium">Timeline</th>
-              <th scope="col" className="py-2 font-medium hidden sm:table-cell">Created</th>
-              <th scope="col" className="py-2 w-12 text-right">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+        {timelines.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
+            <p className="text-sm text-muted-foreground">
+              No timelines yet — create your first above, then build it from your MCP client.
+            </p>
+          </div>
+        ) : (
+          <ul className="-mx-2 flex flex-col">
             {timelines.map((t) => (
-              <tr
+              <li
                 key={t.id}
-                className="group border-b border-[var(--color-border-faint)] last:border-b-0 transition-colors hover:bg-[var(--color-bg-elevated)]"
+                className="group flex items-center gap-3 rounded-lg px-2 transition-colors hover:bg-accent/60"
               >
-                <td className="py-2">
-                  {editingId === t.id ? (
-                    <Input
-                      autoFocus
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onBlur={() => void saveRename(t.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void saveRename(t.id)
-                        if (e.key === 'Escape') setEditingId(null)
-                      }}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => open(t.id)}
-                      className={cn(
-                        'flex w-full flex-col items-start gap-0.5 text-left',
-                        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]',
-                      )}
-                    >
-                      <span className="flex items-center gap-2 text-[var(--color-fg-primary)]">
-                        {t.title}
-                        {t.isPublic && <Badge variant="primary" appearance="soft">Public</Badge>}
+                {editingId === t.id ? (
+                  <Input
+                    autoFocus
+                    className="my-1.5 h-9"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onBlur={() => void saveRename(t.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void saveRename(t.id)
+                      if (e.key === 'Escape') setEditingId(null)
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => open(t.id)}
+                    className="flex flex-1 items-center gap-3 rounded-md py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate font-medium">{t.title}</span>
+                        {t.isPublic && (
+                          <Badge variant="success" className="rounded-full">
+                            Public
+                          </Badge>
+                        )}
                       </span>
                       {t.description && (
-                        <span className="text-xs text-[var(--color-fg-muted)]">{t.description}</span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {t.description}
+                        </span>
                       )}
-                    </button>
-                  )}
-                </td>
-                <td className="py-2 hidden sm:table-cell text-[var(--color-fg-muted)] text-xs">
-                  <time dateTime={new Date(t.createdAt).toISOString()}>
-                    {dateFmt.format(t.createdAt)}
-                  </time>
-                </td>
-                <td className="py-2 text-right">
-                  <RowMenu
-                    onRename={() => {
-                      setEditingId(t.id)
-                      setEditTitle(t.title)
-                    }}
-                    onDelete={() => void remove(t.id, t.title)}
-                  />
-                </td>
-              </tr>
+                    </span>
+                    <time
+                      dateTime={new Date(t.createdAt).toISOString()}
+                      className="hidden shrink-0 text-xs text-muted-foreground sm:block"
+                    >
+                      {dateFmt.format(t.createdAt)}
+                    </time>
+                    <ArrowRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                  </button>
+                )}
+                <RowMenu
+                  onRename={() => {
+                    setEditingId(t.id)
+                    setEditTitle(t.title)
+                  }}
+                  onDelete={() => void remove(t.id, t.title)}
+                />
+              </li>
             ))}
-          </tbody>
-        </table>
-      )}
+          </ul>
+        )}
+      </CardContent>
     </Card>
   )
 }

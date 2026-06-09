@@ -1,65 +1,133 @@
+import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, ClientOnly, ThemeToggle, cn } from '@synek/ui'
+import { Check, LogOut, Monitor, Moon, Sun } from 'lucide-react'
+import { ClientOnly, ThemeToggle, useThemeContext, type Theme } from '@synek/ui'
+import { Button } from '~/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
 import { signOut, useSession } from '~/lib/auth/client'
 
-function AuthArea() {
+const THEMES: { value: Theme; label: string; icon: typeof Monitor }[] = [
+  { value: 'system', label: 'System', icon: Monitor },
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+]
+
+function ProfileMenu({ name, email }: { name: string | null; email: string }) {
   const qc = useQueryClient()
-  const { data: session, isPending } = useSession()
+  const { theme, setTheme } = useThemeContext()
+  const initial = (name || email || '?').trim().charAt(0).toUpperCase()
 
   async function logout() {
     await signOut()
     await qc.invalidateQueries()
   }
 
-  if (isPending) return <span className="text-xs text-[var(--color-fg-muted)]">…</span>
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Account menu"
+          className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-primary to-influence text-xs font-semibold text-white shadow-sm ring-1 ring-inset ring-white/15 outline-none transition-[box-shadow,transform] hover:ring-white/30 focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+        >
+          {initial}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={8} className="w-60">
+        <div className="flex items-center gap-2.5 px-2 py-1.5">
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-influence text-xs font-semibold text-white ring-1 ring-inset ring-white/15">
+            {initial}
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-medium">{name || 'Your account'}</span>
+            <span className="truncate text-xs text-muted-foreground">{email}</span>
+          </span>
+        </div>
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Theme
+        </DropdownMenuLabel>
+        {THEMES.map((t) => (
+          <DropdownMenuItem
+            key={t.value}
+            onSelect={(e) => {
+              e.preventDefault() // keep the menu open so themes can be previewed
+              setTheme(t.value)
+            }}
+          >
+            <t.icon />
+            {t.label}
+            {theme === t.value && <Check className="ml-auto size-4 text-primary" />}
+          </DropdownMenuItem>
+        ))}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onSelect={() => void logout()}>
+          <LogOut />
+          Log out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function HeaderAccount() {
+  const { data: session, isPending } = useSession()
+
+  if (isPending) return <span className="size-8 animate-pulse rounded-full bg-muted" />
 
   if (!session?.user)
     return (
-      <a
-        href="#auth"
-        className={cn(
-          'inline-flex h-8 items-center rounded-[var(--radius-control)] px-3 text-sm font-medium',
-          'bg-[var(--color-accent-primary)] text-[var(--color-on-accent)]',
-          'hover:brightness-110 transition-[filter]',
-        )}
-      >
-        Sign in
-      </a>
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+        <Button asChild size="sm">
+          <Link to="/login">Sign in</Link>
+        </Button>
+      </div>
     )
 
-  return (
-    <div className="flex items-center gap-2">
-      <span
-        className="hidden max-w-[18ch] truncate text-xs text-[var(--color-fg-muted)] sm:inline"
-        title={session.user.email}
-      >
-        {session.user.email}
-      </span>
-      <Button size="sm" variant="ghost" onClick={() => void logout()}>
-        Sign out
-      </Button>
-    </div>
-  )
+  return <ProfileMenu name={session.user.name ?? null} email={session.user.email} />
 }
 
 export function AppHeader() {
   return (
-    <header
-      className={cn(
-        'sticky top-0 z-20 flex h-14 items-center justify-between gap-4 px-6',
-        'border-b border-[var(--color-border-subtle)]',
-        'bg-[var(--color-bg-base)]/85 backdrop-blur',
-      )}
-    >
-      <a href="/" className="flex items-center gap-2 text-[var(--color-fg-primary)]">
-        <img src="/favicon.svg" alt="" width={24} height={24} className="opacity-90" />
-        <span className="text-sm font-semibold tracking-tight">Synek</span>
-      </a>
-      <div className="flex items-center gap-2">
-        <ThemeToggle />
-        <ClientOnly>
-          <AuthArea />
-        </ClientOnly>
+    <header className="sticky top-0 z-30 border-b border-border/60 bg-background/70 backdrop-blur-xl">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-6">
+        <a href="/" className="group flex items-center gap-2.5">
+          <span className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-primary to-influence shadow-sm ring-1 ring-inset ring-white/10 transition-transform group-hover:scale-105">
+            <img src="/favicon.svg" alt="" width={16} height={16} className="opacity-95" />
+          </span>
+          <span className="text-sm font-semibold tracking-tight">Synek</span>
+        </a>
+
+        <nav className="hidden items-center gap-1 md:flex">
+          <a
+            href="#how-it-works"
+            className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            How it works
+          </a>
+          <a
+            href="#features"
+            className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Features
+          </a>
+        </nav>
+
+        <div className="flex items-center justify-end">
+          <ClientOnly fallback={<span className="size-8 rounded-full bg-muted/60" />}>
+            <HeaderAccount />
+          </ClientOnly>
+        </div>
       </div>
     </header>
   )

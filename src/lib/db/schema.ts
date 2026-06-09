@@ -16,6 +16,7 @@ import {
   type NodeImage,
   type NodeSize,
   type NodeSubtype,
+  type TimelineViewSettings,
 } from '~/lib/domain/types'
 
 export type Citation = { title: string; url?: string; quote?: string }
@@ -43,6 +44,8 @@ export const timelines = sqliteTable(
     isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
     title: text('title').notNull(),
     description: text('description'),
+    // Owner-saved display defaults (the time-axis scale) applied on open.
+    viewSettings: text('view_settings', { mode: 'json' }).$type<TimelineViewSettings>(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
   },

@@ -1,11 +1,18 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from './index'
 import { timelines, nodes, edges, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
+import type { TimelineViewSettings } from '~/lib/domain/types'
 
 export type Graph = { nodes: NodeRow[]; edges: EdgeRow[] }
 
 // Lightweight ownership/visibility view of a timeline (no graph payload).
-export type TimelineMeta = { id: string; title: string; ownerId: string | null; isPublic: boolean }
+export type TimelineMeta = {
+  id: string
+  title: string
+  ownerId: string | null
+  isPublic: boolean
+  viewSettings: TimelineViewSettings | null
+}
 
 // Create the timeline row if it doesn't exist yet, owned by `ownerId`. Used by the
 // MCP apply_patch path (build-as-you-go). Existing rows are left untouched.
@@ -51,10 +58,24 @@ export function setTimelinePublic(id: string, ownerId: string, isPublic: boolean
     .run()
 }
 
+// Owner-scoped: persist the timeline's default time-axis scale.
+export function setTimelineView(id: string, ownerId: string, view: TimelineViewSettings): void {
+  db.update(timelines)
+    .set({ viewSettings: view, updatedAt: new Date() })
+    .where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId)))
+    .run()
+}
+
 // Ownership/visibility metadata for one timeline, or null if it doesn't exist.
 export function getTimelineMeta(id: string): TimelineMeta | null {
   const row = db
-    .select({ id: timelines.id, title: timelines.title, ownerId: timelines.ownerId, isPublic: timelines.isPublic })
+    .select({
+      id: timelines.id,
+      title: timelines.title,
+      ownerId: timelines.ownerId,
+      isPublic: timelines.isPublic,
+      viewSettings: timelines.viewSettings,
+    })
     .from(timelines)
     .where(eq(timelines.id, id))
     .get()
