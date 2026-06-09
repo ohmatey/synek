@@ -1,4 +1,4 @@
-import { Link, useRouter } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, LogOut, Monitor, Moon, Sun } from 'lucide-react'
 import { ClientOnly, ThemeToggle, useThemeContext, type Theme } from '@synek/ui'
@@ -21,16 +21,12 @@ const THEMES: { value: Theme; label: string; icon: typeof Monitor }[] = [
 
 function ProfileMenu({ name, email }: { name: string | null; email: string }) {
   const qc = useQueryClient()
-  const router = useRouter()
   const { theme, setTheme } = useThemeContext()
   const initial = (name || email || '?').trim().charAt(0).toUpperCase()
 
   async function logout() {
     await signOut()
     await qc.invalidateQueries()
-    // Re-run the home route loader so the server-resolved auth state (which drives
-    // landing-vs-dashboard) flips back to the public landing.
-    await router.invalidate()
   }
 
   return (
