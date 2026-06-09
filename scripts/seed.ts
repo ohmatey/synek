@@ -93,6 +93,200 @@ type Seeder = {
 
 const SEEDS: Seeder[] = [
   {
+    // The flagship seed and the NOW.0 de-risking experiment: the hero use case
+    // ("visualize Stoicism while I use Claude") rendered as real content, so the
+    // canvas is never a cold blank box. Portrait-rich (faces not boxes), BCE
+    // dates, and a legible succession/influence story from Zeno to Marcus.
+    id: 'stoicism',
+    title: 'Stoicism',
+    description: 'The Stoic tradition from the Painted Porch to the Roman emperors — Zeno to Marcus Aurelius.',
+    build: ({ node, edge }) => {
+      // --- The three Stoa eras (period bands) ---
+      const earlyStoa = node({
+        type: 'period',
+        title: 'Early Stoa',
+        summary: 'The founding generations in Athens — Zeno, Cleanthes, Chrysippus.',
+        start: Y(-301),
+        end: Y(-150),
+      })
+      const middleStoa = node({
+        type: 'period',
+        title: 'Middle Stoa',
+        summary: 'Stoicism opens to other schools and reaches Rome.',
+        start: Y(-150),
+        end: Y(-30),
+      })
+      const romanStoa = node({
+        type: 'period',
+        title: 'Roman (Late) Stoa',
+        summary: 'The imperial age — a slave, a statesman, and an emperor.',
+        start: Y(-30),
+        end: Y(180),
+      })
+
+      // --- Where it began ---
+      const porch = node({
+        type: 'entity',
+        title: 'The Stoa Poikile',
+        summary: 'The "Painted Porch" in the Athenian Agora where Zeno taught — the school takes its name from it.',
+        start: Y(-301),
+        end: Y(-150),
+        metadata: {
+          subtype: 'place',
+          images: [img('Attica 06-13 Athens 22 View from Acropolis Hill - Museum of Ancient Agora.jpg', 'A reconstructed stoa in the Athenian Agora')],
+        },
+      })
+
+      // --- The people (entity / person → portrait cards) ---
+      const crates = node({
+        type: 'entity',
+        title: 'Crates of Thebes',
+        summary: 'The Cynic philosopher whose teaching shaped the young Zeno.',
+        start: Y(-365),
+        end: Y(-285),
+        metadata: { subtype: 'person', images: [img('Crates of Thebes Villa Farnesina.jpg', 'Crates of Thebes')] },
+      })
+      const zeno = node({
+        type: 'entity',
+        title: 'Zeno of Citium',
+        summary: 'Founder of Stoicism.',
+        start: Y(-334),
+        end: Y(-262),
+        metadata: { subtype: 'person', images: [img('Paolo Monti - Servizio fotografico (Napoli, 1969) - BEIC 6353768.jpg', 'Bust of Zeno of Citium, Naples')] },
+      })
+      const cleanthes = node({
+        type: 'entity',
+        title: 'Cleanthes',
+        summary: 'Second head of the Stoa; author of the Hymn to Zeus.',
+        start: Y(-330),
+        end: Y(-230),
+        metadata: { subtype: 'person', images: [img('Cleanthes from L. Annaei Senecae philosophi Opera, 1605, title page detail.png', 'Engraved portrait of Cleanthes')] },
+      })
+      const chrysippus = node({
+        type: 'entity',
+        title: 'Chrysippus',
+        summary: 'Third head of the Stoa and its great systematizer.',
+        start: Y(-279),
+        end: Y(-206),
+        metadata: {
+          subtype: 'person',
+          citations: [{ title: 'Diogenes Laërtius, Lives 7.183', url: 'https://en.wikipedia.org/wiki/Chrysippus', quote: 'If Chrysippus had not existed, neither would the Stoa.' }],
+          images: [img('Chrysippos BM 1846.jpg', 'Bust of Chrysippus, British Museum')],
+        },
+      })
+      const panaetius = node({
+        type: 'entity',
+        title: 'Panaetius',
+        summary: 'Head of the Stoa who carried it into the Roman world.',
+        start: Y(-185),
+        end: Y(-110),
+        metadata: { subtype: 'person', images: [img('Panaetius Nuremberg Chronicle.jpg', 'Woodcut of Panaetius')] },
+      })
+      const posidonius = node({
+        type: 'entity',
+        title: 'Posidonius',
+        summary: 'Polymath of the Middle Stoa — philosophy, science, history.',
+        start: Y(-135),
+        end: Y(-51),
+        metadata: { subtype: 'person', images: [img('Posidonio, replica augustea (23 ac.-14 dc ca) da originale del 100-50 ac. ca. 6142.JPG', 'Bust of Posidonius, Naples')] },
+      })
+      const seneca = node({
+        type: 'entity',
+        title: 'Seneca the Younger',
+        summary: 'Statesman, dramatist, and Stoic letter-writer.',
+        start: Y(-4),
+        end: Y(65),
+        metadata: { subtype: 'person', images: [img('Duble herma of Socrates and Seneca Antikensammlung Berlin 07.jpg', 'Double herm of Socrates and Seneca, Berlin')] },
+      })
+      const epictetus = node({
+        type: 'entity',
+        title: 'Epictetus',
+        summary: 'Born a slave; taught that freedom lies in what is up to us.',
+        start: Y(50),
+        end: Y(135),
+        metadata: { subtype: 'person', images: [img('Epicteti Enchiridion Latinis versibus adumbratum (Oxford 1715) frontispiece (cropped).jpg', 'Frontispiece portrait of Epictetus')] },
+      })
+      const marcus = node({
+        type: 'entity',
+        title: 'Marcus Aurelius',
+        summary: 'Roman emperor and the last great Stoic.',
+        start: Y(121),
+        end: Y(180),
+        metadata: { subtype: 'person', images: [img('MSR-ra-61-b-1-DM.jpg', 'Bust of Marcus Aurelius')] },
+      })
+
+      // --- The turning-point events ---
+      const founding = node({
+        type: 'event',
+        title: 'Zeno founds the Stoa',
+        summary: 'Zeno begins teaching at the Stoa Poikile in Athens (c. 301 BCE).',
+        start: Y(-301),
+        metadata: {
+          citations: [{ title: 'Stoicism — Stanford Encyclopedia of Philosophy', url: 'https://plato.stanford.edu/entries/stoicism/' }],
+        },
+      })
+      const systematized = node({
+        type: 'event',
+        title: 'Chrysippus systematizes the Stoa',
+        summary: 'Stoic logic, physics, and ethics welded into one coherent system.',
+        start: Y(-232),
+      })
+      const toRome = node({
+        type: 'event',
+        title: 'Stoicism reaches Rome',
+        summary: 'Panaetius and the Scipionic Circle bring Stoicism to the Roman elite.',
+        start: Y(-140),
+      })
+
+      // --- The surviving texts (entity / work) ---
+      const letters = node({
+        type: 'entity',
+        title: 'Letters to Lucilius',
+        summary: "Seneca's moral letters — Stoic practice in everyday life.",
+        start: Y(64),
+        metadata: { subtype: 'work' },
+      })
+      const discourses = node({
+        type: 'entity',
+        title: 'Discourses & Enchiridion',
+        summary: "Epictetus' teaching, recorded by his student Arrian.",
+        start: Y(108),
+        metadata: {
+          subtype: 'work',
+          citations: [{ title: 'Discourses of Epictetus', url: 'https://en.wikipedia.org/wiki/Discourses_of_Epictetus' }],
+          images: [img('The Discourses of Epictetus - Elizabeth Carter - 1759 - page 1.jpg', 'Title page of the Discourses (Carter, 1759)')],
+        },
+      })
+      const meditations = node({
+        type: 'entity',
+        title: 'Meditations',
+        summary: 'The private notebook of an emperor, written on campaign.',
+        start: Y(175),
+        metadata: {
+          subtype: 'work',
+          citations: [{ title: 'Meditations', url: 'https://en.wikipedia.org/wiki/Meditations' }],
+          images: [img('Marcus Aurelius. De seipso, seu vita sua (Xylander, 1558).jpg', 'Title page of Meditations (Xylander, 1558)')],
+        },
+      })
+
+      // --- The story: lineage, influence, and authorship ---
+      edge(crates, zeno, 'influenced', 'Cynic teacher')
+      edge(zeno, founding, 'caused')
+      edge(founding, earlyStoa, 'caused')
+      edge(zeno, cleanthes, 'succeeded', '2nd head')
+      edge(cleanthes, chrysippus, 'succeeded', '3rd head')
+      edge(chrysippus, systematized, 'caused')
+      edge(chrysippus, panaetius, 'influenced')
+      edge(panaetius, toRome, 'caused')
+      edge(panaetius, posidonius, 'influenced', 'taught')
+      edge(posidonius, seneca, 'influenced')
+      edge(seneca, letters, 'caused', 'wrote')
+      edge(epictetus, discourses, 'caused', 'recorded by Arrian')
+      edge(epictetus, marcus, 'influenced', 'shaped the Meditations')
+      edge(marcus, meditations, 'caused', 'wrote')
+    },
+  },
+  {
     id: 'observability',
     title: 'Observability tooling',
     description: 'How cloud-native monitoring and tracing evolved.',

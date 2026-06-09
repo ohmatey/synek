@@ -43,6 +43,20 @@ export const SEED_IMAGE_FILES = [
   'Ada Lovelace portrait.jpg',
   'Marie Curie c. 1920s.jpg',
   'Einstein 1921 by F Schmutzer - restoration.jpg',
+  // stoicism (Wikimedia Commons filenames confirmed via the page-images API —
+  // each is a live Wikipedia infobox image, so the cache download resolves)
+  'Crates of Thebes Villa Farnesina.jpg',
+  'Paolo Monti - Servizio fotografico (Napoli, 1969) - BEIC 6353768.jpg',
+  'Cleanthes from L. Annaei Senecae philosophi Opera, 1605, title page detail.png',
+  'Chrysippos BM 1846.jpg',
+  'Panaetius Nuremberg Chronicle.jpg',
+  'Posidonio, replica augustea (23 ac.-14 dc ca) da originale del 100-50 ac. ca. 6142.JPG',
+  'Duble herma of Socrates and Seneca Antikensammlung Berlin 07.jpg',
+  'Epicteti Enchiridion Latinis versibus adumbratum (Oxford 1715) frontispiece (cropped).jpg',
+  'MSR-ra-61-b-1-DM.jpg',
+  'Attica 06-13 Athens 22 View from Acropolis Hill - Museum of Ancient Agora.jpg',
+  'Marcus Aurelius. De seipso, seu vita sua (Xylander, 1558).jpg',
+  'The Discourses of Epictetus - Elizabeth Carter - 1759 - page 1.jpg',
 ] as const
 
 // Stable, filesystem-safe name (preserves the extension so content-type is right).
