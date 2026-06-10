@@ -85,6 +85,13 @@
       "when": 1781063015494,
       "tag": "0011_tiny_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1781092226430,
+      "tag": "0012_gigantic_sentinel",
+      "breakpoints": true
     }
   ]
 }

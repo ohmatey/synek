@@ -7,6 +7,7 @@ syncedAt: 2026-06-09T00:00:00.000Z
 
 > Offline source of truth for Sal. **Core UX first — most lovable product before any thought of money.**
 > **Scope guardrail:** This repo is the single-user, local-first Core. Cloud/SaaS, teams, billing, public sharing, hosted models, scheduled jobs, and integrations are explicitly deferred (see **Deferred** below) until the core feels undeniable. See `CLAUDE.md` for the full guardrail.
+> **Hosting is the eventual destination** (see **Hosting horizon** below). We build nothing hosted yet, but architectural decisions should be *hosting-aware*: every "the user brings their own X" in the local Core (model, key, DB, secrets) is the local-first shape of a managed, metered service later. Pick local-first defaults that have a clean hosted upgrade path — don't pick ones that have to be torn out.
 
 ---
 
@@ -20,8 +21,8 @@ syncedAt: 2026-06-09T00:00:00.000Z
 | NOW.1 `npx synek` installer | ✅ Shipped (`bun run setup`, ef43bd9) |
 | NOW.2 Handoff + login | ✅ Shipped — N.2.1 viewer URL already returned by `create_timeline`; N.2.2 instructions now frame "spatial memory" + share-the-link **and** introduce `write_story`. OAuth + login prior. |
 | NOW.3 Live canvas (SSE) | ✅ Shipped — bus + SSE route (prior) + `useTimelineStream` client (N.3.3), arrival animation reused (N.3.4), graceful polling fallback (N.3.5: 10s baseline for stdio + 2s on SSE drop). Data-layer/build verified; live in-browser pass still owed. |
-| NOW.4 Visual warmth | 🟡 Subtypes + per-subtype cards + **era tint (N.4.3)** shipped; **`generate_image` (N.4.5)** still owed (deferred this pass). |
-| NOW.5 Stories as MCP tools | ✅ Shipped (minimal slice) — `write_story` (N.5.1), playback reader (N.5.2), depth badge (N.5.3), instructions (N.5.4). Data-layer verified (`bun run verify:story`). Known limit: undo of a moment doesn't restore its story (tracked follow-up). |
+| NOW.4 Visual warmth | 🟡 Subtypes + per-subtype cards + **era tint (N.4.3)** + **Claude-sourced images on `apply_patch` (N.4.5a)** shipped; **generated illustrations (N.4.5b)** deferred. |
+| NOW.5 Stories as MCP tools | ✅ Shipped (minimal slice) — `write_story` (N.5.1), playback reader (N.5.2), depth badge (N.5.3), instructions (N.5.4). Data-layer verified (`bun run verify:story`). Undo-restores-story follow-up now **FIXED** (StorySnapshot on add_node across the FK cascade, `00b8365`; `bun run verify:story-undo`). |
 
 ---
 
@@ -114,7 +115,7 @@ Maps to: KEYS (PRD `prd/mcp-api-keys.md`, status: built at the data layer; UX ow
 - **N.3.4** — New nodes animate in (existing fade-in animation, already shipped) so the build looks live
 - **N.3.5** — Graceful fallback: on SSE connection failure, fall back to polling `GET /api/timelines/:id/patches?after=<seq>` (1–2s) so the viewer still converges if the stream drops
 
-### NOW.4 — Visual warmth (VIS — faces not boxes) — 🟡 PARTIAL (subtypes + cards + era tint N.4.3 shipped; generate_image N.4.5 owed)
+### NOW.4 — Visual warmth (VIS — faces not boxes) — 🟡 PARTIAL (subtypes + cards + era tint N.4.3 + Claude-sourced images N.4.5a shipped; generated illustrations N.4.5b deferred)
 
 *Why:* The demo screenshot/recording lives or dies on the visual first impression. A cold gray box diagram of correct Stoic philosophers is not something anyone screenshots or shares. VIS is supporting work for the hero moment — it makes the canvas do emotional work before a story is tapped.
 
@@ -124,11 +125,12 @@ Maps to: VIS PRD (`prd/visual-immersion.md`, status: proposed).
 - **N.4.2** — Per-subtype canvas cards: `PersonCard` leads with a framed portrait; org gets a logo lockup; event/place/work get their own visual treatment. Consistent framing (no decapitated portraits, no stretched logos).
 - **N.4.3** — Era tint: `PeriodNode` carries a faint background tint derived from the period's date range — the mood of the age reads at a glance.
 - **N.4.4** — Seed imagery renders offline: Wikimedia URLs for the Stoicism seed; data-URL fallback for generated images. Demo never shows broken images.
-- **N.4.5** — `generate_image` MCP tool: Claude can call it to produce a period-authentic illustration for a node (gpt-image-1, one undoable Patch, provenance + cache). Labelled "illustration, not a photograph." New env `OPENAI_API_KEY` + `SYNEK_IMAGE_MODEL`.
+- **N.4.5a** — ✅ SHIPPED — Claude-sourced images via `apply_patch`: `add_node`/`update_node` take an `images: [{ url, alt?, show? }]` field (`src/lib/mcp/ops.ts`). Claude web-searches for a real, web-accessible image (Wikimedia portrait, official logo, public-domain art) and passes the URL; Synek stores + renders it (`show` defaults `true` → it appears on the canvas). On `update_node` the array **replaces** the node's images; omit to leave them untouched. MCP `instructions` now tell Claude to give nodes a face. **Zero generation cost, no new API key — the pure inversion (Claude sources, Synek stores).** Storage + render already existed; this opened the MCP seam. Data-layer verified (`bun run verify:mcp` — incl. default-show + replace semantics).
+- **N.4.5b** — DEFERRED (within NOW) — *generated* illustrations for nodes with **no** sourceable image: an image-model call (gpt-image-1 or equivalent) → one undoable Patch, provenance + cache, labelled "illustration, not a photograph." Off the demo critical path (Stoicism has real portraits) and the only piece with a real per-image **cost**. **Local-first shape:** bring-your-own key in `.env` (provider-agnostic `SYNEK_IMAGE_*`), graceful error when absent, no settings UI — the user is already the host, so "the user pays" is the default, not new infra. **Hosted shape:** the same call moves behind a metered/billed service (see *Hosting horizon* → *Deferred D.1*). Revisit only when a real timeline can't be illustrated from sourced images.
 
 Non-goals from VIS PRD apply: no deep entity ontology, no stock-photo pipeline, no video/audio, no theming engine.
 
-### NOW.5 — Stories as MCP tools (S1, minimal slice) — ✅ SHIPPED (N.5.1–N.5.4; undo-restores-story is a tracked follow-up)
+### NOW.5 — Stories as MCP tools (S1, minimal slice) — ✅ SHIPPED (N.5.1–N.5.4; undo-restores-story follow-up FIXED in `00b8365`)
 
 *Why:* The hero experience ends with "with stories." Without the story layer, Synek is a well-organized diagram. With it, Synek is a place where ideas become narratives. This is a thin vertical slice — one story per moment, no citations yet.
 
@@ -153,6 +155,7 @@ Ship after the demo recording is made. These deepen the experience for users who
 
 Maps to: S2 PRD (`prd/s2-artifact-grounding.md`). Depends on N.5 (stories exist).
 
+- **S2.0 — ✅ SHIPPED (slice 1, inline grounding)** — `write_story` beats take an optional `citations: { title, url?, quote? }[]` (same shape as node citations), persisted as a JSON column on `story_segments` (no join table — deferred until artifact reuse is real) and rendered inline under each beat in `NodeDetailPanel`. Postgres-portable; undo/redo-faithful (the moment-delete snapshot spreads the full segment row). Migration `0012`. Data-layer verified (`bun run verify:story` — incl. title+url+quote round-trip, title-only, empty, rewrite clears). Full normalized model (S2.1–S2.4 below) still deferred; backfill path documented in the PRD.
 - S2.1 — `sources` + `artifacts` tables (BCE-safe `dateInstant`)
 - S2.2 — `story_artifacts` + `segment_citations` joins
 - S2.3 — Grounded generation: `write_story` v2 accepts artifact references; beats name their source
@@ -230,11 +233,29 @@ Maps to: 2.6 (`#local-19`, planned). Self-hoster count; fully opt-in.
 
 ---
 
+## Hosting horizon — acknowledged, not yet built
+
+> **Synek will be a hosted product.** Local-first is the *discipline* that forces a lovable Core, not the final destination. Nothing hosted gets built before the demo and a lovable Core (the scope guardrail stands), but the Core is designed so the hosted version is an upgrade, not a rewrite. This section records the carry-forward intent so today's decisions don't paint us into a local-only corner.
+
+**Design rule:** every "bring your own X" in the local Core is the local-first shape of a managed service later. Prefer local-first defaults with a clean hosted upgrade path.
+
+| Local Core (today) | Hosted shape (later, D.1) |
+|---|---|
+| User's own MCP client + model (the whole inversion) | Unchanged — the user's Claude stays the brain; we host the canvas + storage, not a model |
+| Bearer token in `.env`, single local user | Real accounts/sessions (Better Auth already at the data layer); the bearer seam stays for MCP |
+| SQLite file, single writer | Postgres (schema already kept portable — **NEXT.4** is the bridge); per-tenant isolation |
+| **N.4.5b** generated images = BYO `SYNEK_IMAGE_*` key | Same call behind a **metered/billed** image service — the cost question this raised is a *hosted* concern, solved with metering, not local plumbing |
+| Local in-process SSE bus | Same protocol; needs a shared bus (Redis/PG LISTEN) once there's >1 process/worker |
+
+**What this does NOT license now:** no accounts UI, no billing, no multi-tenant tables, no hosted cron. Those remain in **Deferred** until the Core earns it. The point is only that when we cross that line, the seams are already in the right places.
+
+---
+
 ## Deferred — parked (local-first / single-user; no money yet)
 
 Schema hooks exist where noted; no committed phase.
 
-- **D.1 — Cloud SaaS, hosted models, workspaces/teams/roles, billing** `#local-20`
+- **D.1 — Cloud SaaS, hosted models, workspaces/teams/roles, billing** `#local-20` — the destination sketched in **Hosting horizon** above; includes the metered/billed image service that **N.4.5b** defers.
 - **D.2 — Proactive industry-mapping agent, scheduled jobs, signal ingestion, weekly briefings, integrations (Slack/Notion/etc.)** `#local-21`
   The local-first variant is specced as **L: Living Timelines** (LATER.2). This stub covers the cloud/hosted-cron and weekly-briefing variants that land only with a multi-user/SaaS posture.
 - **D.3 — Public read-only sharing, enterprise SSO/audit logs** `#local-22`

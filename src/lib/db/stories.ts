@@ -1,6 +1,7 @@
 import { asc, desc, eq, inArray } from 'drizzle-orm'
 import { db } from './index'
 import { stories, storySegments, nodes } from './schema'
+import type { Citation } from './schema'
 import type { DepthTier, PovType, SegmentKind, StoryDTO } from '~/lib/domain/types'
 
 // The story layer hangs off `nodes.id` (a "moment"). Stories are deliberately NOT
@@ -14,6 +15,7 @@ export type NewStorySegment = {
   kind?: SegmentKind
   settingNote?: string | null
   relatedNodeIds?: string[]
+  citations?: Citation[]
 }
 
 export type NewStory = {
@@ -77,6 +79,7 @@ export function writeStory(
           bodyText: s.bodyText,
           settingNote: s.settingNote ?? null,
           relatedNodeIds: s.relatedNodeIds ?? null,
+          citations: s.citations ?? null,
         })
         .run()
     })
@@ -115,8 +118,27 @@ export function getStoryForMoment(momentId: string): StoryDTO | null {
       bodyText: s.bodyText,
       settingNote: s.settingNote,
       relatedNodeIds: s.relatedNodeIds ?? [],
+      citations: s.citations ?? [],
     })),
   }
+}
+
+// A cheap content signature over the stories attached to these moments. Because
+// writeStory REPLACES the row (minting a new story id) on every call, the signature
+// changes on any write/rewrite — even a same-depth one the depth badge can't see.
+// The canvas threads this through the graph poll so a separate-process (stdio)
+// story write refreshes an already-open reader within the polling interval.
+export function storyVersionForMoments(momentIds: string[]): string {
+  if (momentIds.length === 0) return ''
+  const rows = db
+    .select({ id: stories.id, momentId: stories.momentId, updatedAt: stories.updatedAt })
+    .from(stories)
+    .where(inArray(stories.momentId, momentIds))
+    .all()
+  return rows
+    .map((r) => `${r.momentId}:${r.id}:${r.updatedAt?.getTime() ?? 0}`)
+    .sort()
+    .join('|')
 }
 
 // Which of the given moments have a story, and at what depth — one query, for the

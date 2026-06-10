@@ -236,6 +236,10 @@ export const storySegments = sqliteTable('story_segments', {
   audioUrl: text('audio_url'), // optional pre-gen TTS; unused in S1
   settingNote: text('setting_note'), // "rain on cobblestones, smell of woodsmoke"
   relatedNodeIds: text('related_node_ids', { mode: 'json' }).$type<string[]>(), // beat → tappable map links
+  // S2 slice 1 — per-beat source grounding. Same shape as a node's
+  // `metadata.citations` (Citation), stored inline as JSON (no join table yet —
+  // see .can/prd/s2-artifact-grounding.md for the deferred normalized model).
+  citations: text('citations', { mode: 'json' }).$type<Citation[]>(),
   speakerPersonId: text('speaker_person_id').references(() => people.id), // null in S1 (S4)
   generationId: text('generation_id').references(() => generations.id),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),

@@ -1274,6 +1274,83 @@ body {
   color: var(--color-fg-muted);
 }
 
+/* Story meta row (GAP 4·A): depth tier · POV (when not omniscient) · read time. */
+.detail-story-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.detail-story-tier,
+.detail-story-pov,
+.detail-story-mins {
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--color-fg-muted);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* "Deep" tier reads as handcrafted — accent it, and give the deep reader a
+   slightly larger title so the tier is felt, not just labelled. */
+.detail-story-tier-deep {
+  color: var(--color-accent-story);
+  border-color: var(--color-accent-story);
+  background: color-mix(in oklab, var(--color-accent-story) 14%, transparent);
+}
+
+.detail-story-deep .detail-story-title {
+  font-size: 16.5px;
+}
+
+/* Story-less moment (GAP 3·B): prompt-copy handoff to the user's Claude. */
+.detail-story-ask {
+  gap: 8px;
+}
+
+/* Beat-by-beat stepper (GAP 1·B): walks the reader + canvas camera beat to beat. */
+.detail-story-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.detail-story-step {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--color-fg-primary);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-subtle);
+  cursor: pointer;
+}
+
+.detail-story-step:hover:not(:disabled) {
+  border-color: var(--color-accent-primary);
+}
+
+.detail-story-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.detail-story-step-label {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
 .detail-story-beats {
   list-style: none;
   margin: 4px 0 0;
@@ -1289,6 +1366,18 @@ body {
   gap: 4px;
   padding-left: 10px;
   border-left: 2px solid var(--color-border-subtle);
+  transition: opacity 0.15s ease;
+}
+
+/* When a beat is active, hold it at full strength and let the rest recede; at
+   "Overview" (no active beat) the list reads normally. */
+.detail-story-beats-stepping .detail-story-beat {
+  opacity: 0.55;
+}
+
+.detail-story-beat.detail-story-beat-active {
+  opacity: 1;
+  border-left-color: var(--color-accent-primary);
 }
 
 .detail-story-beat.detail-story-dialogue {
@@ -1333,6 +1422,17 @@ body {
 
 .detail-story-link:hover {
   text-decoration: underline;
+}
+
+/* Detail: per-beat source citations (S2 grounding) */
+
+.detail-story-cites {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--color-border);
 }
 
 /* Detail: size selector */

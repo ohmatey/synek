@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -50,7 +50,7 @@ import { CanvasEmpty } from './CanvasEmpty'
 import { ExportControls } from './ExportControls'
 import { useBuildStream } from './build-stream'
 import type { CanvasNodeData, NodeDraft } from './types'
-import type { EdgeKind, NodeSubtype, NodeType } from '~/lib/domain/types'
+import type { EdgeKind, NodeSubtype, NodeType, StoryDTO } from '~/lib/domain/types'
 
 // The token a node is filtered by: entities filter by their subtype (person/
 // org/place/work, or 'entity' when untyped); everything else by its type.
@@ -76,6 +76,21 @@ function ViewportInit({ timelineId, nodeCount }: { timelineId: string; nodeCount
     if (saved) rf.setViewport(saved)
     else rf.fitView({ padding: 0.2, duration: 0 })
   }, [timelineId, nodeCount, rf])
+  return null
+}
+
+// Frames the story camera target(s) — the moment on open, then the current beat's
+// node as the reader steps (GAP 1·B), "walking you around the map". maxZoom caps the
+// zoom so a single small node isn't blown up; this is reader-driven, never data-driven,
+// so it doesn't fight ViewportInit's saved-camera restore.
+function StoryCamera({ ids }: { ids: string[] }) {
+  const rf = useReactFlow()
+  const key = ids.join(',')
+  useEffect(() => {
+    if (!ids.length) return
+    rf.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.3, duration: 450, maxZoom: 1.2 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rf, key])
   return null
 }
 
@@ -139,6 +154,23 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     refetchInterval: autoRefresh ? pollingInterval : false,
   })
 
+  // A separate-process (stdio) story write emits no SSE frame, so an open reader
+  // (keyed ['story', nodeId]) won't refresh from the stream — it converges only
+  // via the graph poll. getGraph carries a storyVersion signature that shifts on
+  // any story write/rewrite; when it changes here, invalidate the ['story'] family
+  // so an open reader refetches. (Same-process writes still refresh instantly via
+  // the SSE 'story' frame in useTimelineStream; this is the poll-based floor.)
+  const qc = useQueryClient()
+  const storyVersion = data && data.status === 'ok' ? data.storyVersion : null
+  const prevStoryVersion = useRef<string | null>(null)
+  useEffect(() => {
+    if (storyVersion == null) return
+    if (prevStoryVersion.current != null && prevStoryVersion.current !== storyVersion) {
+      void qc.invalidateQueries({ queryKey: ['story'] })
+    }
+    prevStoryVersion.current = storyVersion
+  }, [storyVersion, qc])
+
   // Reload the saved scale + refresh pref when switching timelines (the component
   // persists across timeline changes; only React Flow remounts via key).
   const firstTimeline = useRef(true)
@@ -151,6 +183,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     setPxPerDay(pref?.pxPerDay ?? BASE_PX_PER_DAY)
     setCollapseGaps(pref?.collapseGaps ?? false)
     setAutoRefresh(pref?.autoRefresh ?? true)
+    // New timeline → re-baseline the story-version watch so the first load of the
+    // new graph isn't mistaken for a story write.
+    prevStoryVersion.current = null
   }, [timelineId])
 
   // Persist the chosen scale per timeline (local-first; no DB).
@@ -170,6 +205,31 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const [draft, setDraft] = useState<{ id: string; draft: NodeDraft } | null>(null)
 
   const { pending, focusIds, setFocusIds } = useBuildStream()
+
+  // Story lens: when a story opens, ring the moment + its referenced nodes and dim
+  // the rest, reusing the build-stream lens machinery (rf-focused/rf-dimmed + the
+  // lens bar). Set by the detail panel reporting its loaded story up; cleared when
+  // the reader closes. While active it overrides the build-stream focus.
+  const [storyLens, setStoryLens] = useState<{ momentId: string; title: string; focusIds: string[] } | null>(null)
+  // The node ids the story camera frames (GAP 1·B): the moment on open, the current
+  // beat's target as the reader steps. Null → fall back to framing the moment.
+  const [storyCamIds, setStoryCamIds] = useState<string[] | null>(null)
+  const handleStoryLoaded = useCallback(
+    (story: StoryDTO | null) => {
+      setStoryCamIds(null) // reset the camera to the moment on (re)load / clear
+      if (!story || !selectedId) {
+        setStoryLens(null)
+        return
+      }
+      const ids = new Set<string>([selectedId])
+      for (const b of story.beats) for (const id of b.relatedNodeIds) ids.add(id)
+      setStoryLens({ momentId: selectedId, title: story.title, focusIds: [...ids] })
+    },
+    [selectedId],
+  )
+  const handleStoryCamera = useCallback((ids: string[]) => setStoryCamIds(ids), [])
+  // A story lens wins over the build-stream lens while reading.
+  const effectiveFocusIds = storyLens ? storyLens.focusIds : focusIds
 
   // getGraph returns a discriminated result: an `ok` payload (with the graph +
   // access flags), or notFound/forbidden. Non-owners get a read-only canvas.
@@ -247,7 +307,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // Memoizing matters because the detail panel emits a fresh draft on every
   // keystroke; without this each keystroke re-packs lanes and re-diffs the graph.
   const { rfNodes, rfEdges, scale } = useMemo(() => {
-    const focusSet = focusIds.length ? new Set(focusIds) : null
+    const focusSet = effectiveFocusIds.length ? new Set(effectiveFocusIds) : null
 
     // Overlay the panel's in-progress draft on the selected node — a live preview
     // that's never persisted until Save (closing/canceling just drops it).
@@ -385,7 +445,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     })
 
     return { rfNodes, rfEdges, scale }
-  }, [gnodes, gedges, pending, draft, selectedId, focusIds, pxPerDay, collapseGaps, hiddenKinds])
+  }, [gnodes, gedges, pending, draft, selectedId, effectiveFocusIds, pxPerDay, collapseGaps, hiddenKinds])
 
   // Layer the transient "new node" glow on top WITHOUT re-running lane packing
   // (a cheap shallow remap, vs. recomputing the whole layout in the memo above).
@@ -412,7 +472,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     [timelineId],
   )
 
-  const lensSize = focusIds.length
+  const lensSize = effectiveFocusIds.length
 
   // A private timeline you can't see, or a missing one — show a state, not the canvas.
   if (data && data.status !== 'ok') {
@@ -469,9 +529,17 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         </div>
         {lensSize > 0 && (
           <div className="lens-bar">
-            <span>Lens · {lensSize} node{lensSize === 1 ? '' : 's'}</span>
-            <button type="button" onClick={() => setFocusIds([])} title="Clear lens">
-              Clear ✕
+            <span>
+              {storyLens ? `Story · ${storyLens.title}` : `Lens · ${lensSize} node${lensSize === 1 ? '' : 's'}`}
+            </span>
+            <button
+              type="button"
+              // Closing a story lens closes the reader (which clears the lens via the
+              // panel's unmount); a build lens just clears its focus.
+              onClick={() => (storyLens ? setSelectedId(null) : setFocusIds([]))}
+              title={storyLens ? 'Close story' : 'Clear lens'}
+            >
+              {storyLens ? 'Close ✕' : 'Clear ✕'}
             </button>
           </div>
         )}
@@ -500,6 +568,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           <Background gap={48} />
           <Controls showInteractive={false} />
           <ViewportInit timelineId={timelineId} nodeCount={gnodes.length} />
+          {storyLens && <StoryCamera ids={storyCamIds?.length ? storyCamIds : [storyLens.momentId]} />}
           {(gnodes.length > 0 || pending.length > 0) && <TimeRuler scale={scale} />}
           {!isLoading && gnodes.length === 0 && pending.length === 0 && (
             <Panel position="top-center">
@@ -522,6 +591,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             onClose={() => setSelectedId(null)}
             onSelectNode={setSelectedId}
             onDraft={handleDraft}
+            onStoryLoaded={handleStoryLoaded}
+            onStoryCamera={handleStoryCamera}
           />
         ) : null}
       </div>

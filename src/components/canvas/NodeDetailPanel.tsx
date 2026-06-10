@@ -8,8 +8,9 @@ import { parseDate, formatInstant } from '~/lib/domain/dates'
 import { editNode, deleteNode } from '~/lib/server/nodes'
 import { getStory } from '~/lib/server/stories'
 import { fileToDataUrl } from '~/lib/files'
+import { CopyButton } from '~/components/home/CopyButton'
 import { NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
-import type { GraphNode, GraphEdge, CanvasCitation, NodeImage, NodeSize, NodeSubtype, NodeType, Precision, EdgeKind } from '~/lib/domain/types'
+import type { GraphNode, GraphEdge, CanvasCitation, NodeImage, NodeSize, NodeSubtype, NodeType, Precision, EdgeKind, PovType, StoryDTO } from '~/lib/domain/types'
 import type { NodeDraft } from './types'
 
 // Mirrors the canvas edge palette. CSS vars flip per theme automatically;
@@ -51,6 +52,16 @@ function toInputDate(instant: number, precision: Precision): string {
 
 const EMPTY_CITATION: CanvasCitation = { title: '' }
 
+// Human labels for the story POV. Only surfaced when it's NOT the S1 default
+// ('omniscient') — showing "Omniscient" on every story is noise, but the moment a
+// client passes a real vantage (witness/first-person/diary) the reader names it.
+const POV_LABEL: Record<PovType, string> = {
+  omniscient: 'Omniscient',
+  first_person: 'First person',
+  witness: 'Witness',
+  diary: 'Diary',
+}
+
 export function NodeDetailPanel({
   node,
   edges,
@@ -60,6 +71,8 @@ export function NodeDetailPanel({
   onClose,
   onSelectNode,
   onDraft,
+  onStoryLoaded,
+  onStoryCamera,
 }: {
   node: GraphNode
   edges: GraphEdge[]
@@ -69,6 +82,12 @@ export function NodeDetailPanel({
   onClose: () => void
   onSelectNode: (id: string) => void
   onDraft: (draft: NodeDraft | null) => void
+  // Fired when this node's story resolves (or null if it has none) so the canvas
+  // can lens the moment + its related nodes. Must be stable (the effect depends on it).
+  onStoryLoaded?: (story: StoryDTO | null) => void
+  // Fired as the reader steps beats: the node ids the canvas camera should frame
+  // (the current beat's target, or the moment at "overview"). Must be stable.
+  onStoryCamera?: (targetIds: string[]) => void
 }) {
   const qc = useQueryClient()
   const hasSpan = node.type !== 'event'
@@ -80,6 +99,46 @@ export function NodeDetailPanel({
     queryKey: ['story', node.id],
     queryFn: () => getStory({ data: node.id }),
   })
+
+  // Report the loaded story up to the canvas (frames + lenses the moment). `story`
+  // is undefined while loading, then StoryDTO | null; fire only once resolved, and
+  // re-fire when it changes (e.g. a live write_story refetch updates the lens).
+  useEffect(() => {
+    if (story !== undefined) onStoryLoaded?.(story ?? null)
+  }, [story, onStoryLoaded])
+  // Clear the lens when the reader closes (this panel is keyed by node id, so a
+  // selection switch unmounts it — cleanup clears, the next instance re-sets).
+  useEffect(() => () => onStoryLoaded?.(null), [onStoryLoaded])
+
+  // GAP 1·B — beat-by-beat stepping. `pos` 0 = overview (camera on the moment);
+  // pos k (1..N) selects beat k. Stepping pans the canvas camera to that beat's
+  // first related node (or back to the moment), "walking you around the map".
+  const beatCount = story?.beats.length ?? 0
+  const [pos, setPos] = useState(0)
+  useEffect(() => setPos(0), [story?.id]) // reset to overview when the story changes
+  const safePos = Math.min(pos, beatCount)
+  const activeBeatIdx = safePos > 0 ? safePos - 1 : -1
+  useEffect(() => {
+    if (!story) return
+    const target = safePos > 0 ? (story.beats[safePos - 1]?.relatedNodeIds[0] ?? node.id) : node.id
+    onStoryCamera?.([target])
+  }, [story, safePos, node.id, onStoryCamera])
+  // Keep the active beat scrolled into view as the user steps.
+  const beatsRef = useRef<HTMLOListElement | null>(null)
+  useEffect(() => {
+    if (activeBeatIdx < 0) return
+    beatsRef.current?.children[activeBeatIdx]?.scrollIntoView({ block: 'nearest' })
+  }, [activeBeatIdx])
+
+  // GAP 3·B — the app holds no AI, so it can't generate a story; instead, a
+  // story-less moment offers a ready-made prompt the user pastes into their
+  // connected Claude, which writes the story back via the write_story MCP tool.
+  const askPrompt =
+    `Using the Synek MCP tools, write a short, source-grounded story onto this moment with write_story.\n` +
+    `- momentId: ${node.id}\n` +
+    `- timelineId: ${timelineId}\n` +
+    `- moment: "${node.title}"\n` +
+    `Use 3–5 beats. Ground every factual beat with a real citation (title + url + a short verbatim quote). Keep it readable and faithful to what actually happened.`
 
   // Edges touching this node, resolved to the other endpoint's title.
   const nodeById = new Map(nodes.map((n) => [n.id, n]))
@@ -483,13 +542,51 @@ export function NodeDetailPanel({
       </div>
 
       {story && (
-        <div className="detail-field detail-section detail-story">
+        <div className={`detail-field detail-section detail-story${story.depthTier === 'deep' ? ' detail-story-deep' : ''}`}>
           <span className="detail-label">Story</span>
           <h3 className="detail-story-title">{story.title}</h3>
           {story.hook && <p className="detail-story-hook">{story.hook}</p>}
-          <ol className="detail-story-beats">
-            {story.beats.map((b) => (
-              <li key={b.id} className={`detail-story-beat detail-story-${b.kind}`}>
+          <div className="detail-story-meta">
+            <span className={`detail-story-tier${story.depthTier === 'deep' ? ' detail-story-tier-deep' : ''}`}>
+              {story.depthTier === 'deep' ? 'Deep' : 'Light'}
+            </span>
+            {story.povType !== 'omniscient' && <span className="detail-story-pov">{POV_LABEL[story.povType]}</span>}
+            {story.estimatedMinutes != null && <span className="detail-story-mins">~{story.estimatedMinutes} min</span>}
+          </div>
+          {beatCount > 1 && (
+            <div className="detail-story-stepper">
+              <button
+                type="button"
+                className="detail-story-step"
+                disabled={safePos === 0}
+                onClick={() => setPos((p) => Math.max(0, p - 1))}
+                aria-label="Previous beat"
+              >
+                ‹
+              </button>
+              <span className="detail-story-step-label">
+                {safePos === 0 ? 'Overview' : `Beat ${safePos} of ${beatCount}`}
+              </span>
+              <button
+                type="button"
+                className="detail-story-step"
+                disabled={safePos >= beatCount}
+                onClick={() => setPos((p) => Math.min(beatCount, p + 1))}
+                aria-label="Next beat"
+              >
+                ›
+              </button>
+            </div>
+          )}
+          <ol
+            className={`detail-story-beats${activeBeatIdx >= 0 ? ' detail-story-beats-stepping' : ''}`}
+            ref={beatsRef}
+          >
+            {story.beats.map((b, i) => (
+              <li
+                key={b.id}
+                className={`detail-story-beat detail-story-${b.kind}${i === activeBeatIdx ? ' detail-story-beat-active' : ''}`}
+              >
                 {b.settingNote && <span className="detail-story-setting">{b.settingNote}</span>}
                 <p className="detail-story-text">{b.bodyText}</p>
                 {b.relatedNodeIds.length > 0 && (
@@ -511,9 +608,39 @@ export function NodeDetailPanel({
                     })}
                   </div>
                 )}
+                {b.citations.length > 0 && (
+                  <div className="detail-story-cites">
+                    {b.citations.map((c, i) => (
+                      <div className="detail-citation" key={i}>
+                        <div className="detail-cite-title">{c.title || 'Untitled source'}</div>
+                        {c.quote?.trim() && <p className="detail-cite-quote">“{c.quote}”</p>}
+                        {c.url?.trim() && (
+                          <a className="detail-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
+                            Open source ↗
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </li>
             ))}
           </ol>
+        </div>
+      )}
+
+      {story === null && !readOnly && (
+        <div className="detail-field detail-section detail-story-ask">
+          <span className="detail-label">Story</span>
+          <p className="detail-empty">No story on this moment yet.</p>
+          <CopyButton
+            text={askPrompt}
+            label="Ask Claude to tell this story"
+            copiedLabel="Prompt copied — paste into Claude"
+          />
+          <p className="detail-hint">
+            Copies a prompt; paste it into your connected Claude to write a grounded story onto this moment.
+          </p>
         </div>
       )}
 

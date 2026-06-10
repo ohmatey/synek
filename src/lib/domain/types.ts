@@ -79,6 +79,11 @@ export type TimelineGraphResult =
       isOwner: boolean
       isPublic: boolean
       viewSettings: TimelineViewSettings | null
+      // A cheap content signature over every story on this timeline. It changes
+      // whenever any story is written/rewritten, so the canvas can detect a
+      // separate-process (stdio) story write via the graph poll and refresh an
+      // already-open reader even when the depth badge is unchanged.
+      storyVersion: string
     } & TimelineGraph)
   | { status: 'notFound' }
   | { status: 'forbidden' }
@@ -119,6 +124,9 @@ export type StoryBeat = {
   bodyText: string
   settingNote: string | null
   relatedNodeIds: string[]
+  // S2 slice 1 — real sources backing this beat. Same shape as a node's
+  // citations (CanvasCitation), so the reader renders them identically.
+  citations: CanvasCitation[]
 }
 
 export type StoryDTO = {

@@ -1,9 +1,9 @@
 ---
 phase: S2
 title: "Artifact grounding (the moat)"
-status: planned
+status: "slice-1 shipped (S2.0 inline citations, 2026-06-10); S2.1–S2.4 deferred"
 era: "Story Layer (the pivot)"
-updated: 2026-05-25
+updated: 2026-06-10
 ---
 
 # S2 — Artifact grounding (the moat)
@@ -34,6 +34,49 @@ This is the **defensibility layer**. If a competitor can't easily replicate the 
 - **Multiple POVs** → S3. **Interior monologues** → S4.
 - **Automated source ingestion / web crawling / scraping** — out of scope (that's deferred signal-ingestion territory). Artifact entry is **manual or AI-*suggested*-then-confirmed**, never auto-harvested.
 - **Users / saved sources / signal** → deferred.
+
+## Phasing — Slice 1 shipped (S2.0), full model deferred
+
+The full S2 is four sub-tasks (**S2.1–S2.4**, detailed from *Data model delta* onward) that introduce first-class `sources` + `artifacts` tables, `story_artifacts` / `segment_citations` joins, a `write_story` v2 referencing pre-registered artifacts by id, and an artifact-card browse UX. That end-state is right but premature now, so a **minimal slice shipped first** and the normalized model becomes a later migration.
+
+Why defer the full shape:
+
+- **No artifact corpus exists yet.** First-class `artifacts` rows only pay off once an artifact is registered once and reused across many beats/stories (reliability scoring, browse-artifact-to-its-stories, dedupe). Today every citation is one-shot, produced inline by the MCP client as it writes the story. A join table over a single-use entity is pure overhead.
+- **The node-citation shape already exists and is proven.** Graph nodes carry `metadata.citations: { title, url?, quote? }[]` (`Citation` in `schema.ts`), set via `apply_patch`. Reusing that exact shape on beats keeps one mental model and one renderer idiom, and is trivially Postgres-portable (a JSON text column).
+- **Undo/redo is already safe for new segment columns.** `restoreStory` in `db/patches.ts` spreads the full `StorySegmentRow` (`{ ...seg }`), so any column added to `story_segments` round-trips through the moment-delete/undo snapshot for free — no engine change.
+
+### Slice 1 — S2.0 inline per-beat citations ✅ shipped 2026-06-10
+
+- Optional `citations: { title, url?, quote? }[]` per beat on the `write_story` input schema (mirrors the node-citation shape exactly).
+- Persisted as a JSON column `citations` on `story_segments` (**not** a join table).
+- Surfaced in `StoryBeat` / `StoryDTO` and rendered inline under each beat in `NodeDetailPanel`, matching the existing node-citation presentation.
+- Postgres-portable: `text({ mode: 'json' })`, same as `relatedNodeIds`. Migration `0012`.
+
+Done-when (slice): a beat written with citations round-trips through `write_story` → `getStoryForMoment` → the reader and shows its sources inline; undo/redo of the moment preserves the citations. Verified by `bun run verify:story` (extended — title+url+quote round-trip, title-only, empty, rewrite-clears) + `bun run typecheck`.
+
+### Deferred to the full model (S2.1–S2.4)
+
+The sections below specify the deferred end-state:
+
+- **S2.1** — `sources` + `artifacts` tables (BCE-safe `dateInstant`, reliability).
+- **S2.2** — `story_artifacts` + `segment_citations` joins (artifact reuse, browse-back).
+- **S2.3** — `write_story` v2 referencing registered artifacts by id (+ a `register_artifact` MCP tool, or artifact creation folded into `apply_patch`).
+- **S2.4** — Artifact-card UX (tap a beat sentence → transcript/image/reliability card), browse artifacts to their anchored stories.
+
+**Migration path:** Slice-1's inline `story_segments.citations` is forward-compatible. When artifacts become first-class, a backfill reads each beat's inline citations, upserts `artifacts` rows (dedupe by url/title), and writes `segment_citations` joins; the inline column can then be dropped or kept as a denormalized cache. No data is lost and no MCP contract breaks (the inline field stays accepted, just additionally normalized).
+
+### Slice-1 decisions
+
+| Question | Decision |
+|---|---|
+| JSON column vs `segment_citations` join now? | **JSON column.** No reuse yet; join is premature. |
+| Citation shape | **Reuse node `Citation` `{ title, url?, quote? }[]`** verbatim. |
+| New `sources`/`artifacts` tables now? | **Defer.** Build when artifact reuse is real. |
+| Provenance (`generations` table) | Out of slice; still unwired. Not needed to ground beats. |
+
+---
+
+> **The sections below (Data model delta → Dependencies) specify the deferred full model (S2.1–S2.4).** S2.0 shipped the inline-citation slice described above; this is the later migration, undertaken when artifact reuse is real.
 
 ## Data model delta (`src/lib/db/schema.ts`)
 
