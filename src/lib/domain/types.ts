@@ -1,4 +1,7 @@
-export const NODE_TYPES = ['event', 'entity', 'period'] as const
+// `concept` models an idea/doctrine/principle (e.g. "the dichotomy of control")
+// — distinct from an event (a point in time) or an entity (a person/org/place/
+// work). Its `start` marks when it was first articulated; the span may be open.
+export const NODE_TYPES = ['event', 'entity', 'period', 'concept'] as const
 export type NodeType = (typeof NODE_TYPES)[number]
 
 export const EDGE_KINDS = ['caused', 'succeeded', 'influenced', 'acquired', 'competed_with'] as const

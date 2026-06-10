@@ -7,7 +7,7 @@ import { cn } from '~/lib/utils'
 import { getHistory, redoPatch, undoPatch } from '~/lib/server/patches'
 import { floatChip } from './chrome'
 
-type HistoryState = { canUndo: boolean; canRedo: boolean }
+type HistoryState = { canUndo: boolean; canRedo: boolean; appliedCount: number }
 type HistoryFn = (opts: { data: string }) => Promise<HistoryState>
 
 export function HistoryControls({ timelineId }: { timelineId: string }) {
@@ -18,6 +18,7 @@ export function HistoryControls({ timelineId }: { timelineId: string }) {
   })
   const canUndo = data?.canUndo ?? false
   const canRedo = data?.canRedo ?? false
+  const appliedCount = data?.appliedCount ?? 0
 
   async function run(fn: HistoryFn) {
     const state = await fn({ data: timelineId })
@@ -43,15 +44,22 @@ export function HistoryControls({ timelineId }: { timelineId: string }) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-7"
-            aria-label="Undo"
+            className="relative size-7"
+            aria-label={`Undo (${appliedCount} patch${appliedCount === 1 ? '' : 'es'})`}
             onClick={() => run(undoPatch)}
             disabled={!canUndo}
           >
             <Undo2 />
+            {appliedCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-muted px-0.5 text-[9px] font-bold tabular-nums text-muted-foreground">
+                {appliedCount > 99 ? '99+' : appliedCount}
+              </span>
+            )}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Undo · ⌘Z</TooltipContent>
+        <TooltipContent>
+          Undo · ⌘Z{appliedCount > 0 ? ` · ${appliedCount} patch${appliedCount === 1 ? '' : 'es'}` : ''}
+        </TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>

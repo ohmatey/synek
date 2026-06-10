@@ -20,6 +20,9 @@ const kindEnum = z.enum(['caused', 'succeeded', 'influenced', 'acquired', 'compe
 const subtypeEnum = z.enum(['person', 'org', 'place', 'work'])
 const subtypeHint =
   'For entity nodes, the kind: person, org (company/institution), place, or work (a creation/publication).'
+const typeHint =
+  'event = a point in time; entity = a person/org/place/work (set subtype); period = a span/era; ' +
+  'concept = an idea/doctrine/principle (its start = when first articulated, end optional).'
 const refHint =
   'Optional local alias for THIS node so a later add_edge in the same batch can reference it before it has a real id.'
 
@@ -29,7 +32,7 @@ export const opSchema = z.discriminatedUnion('op', [
   z.object({
     op: z.literal('add_node'),
     ref: z.string().optional().describe(refHint),
-    type: z.enum(['event', 'entity', 'period']),
+    type: z.enum(['event', 'entity', 'period', 'concept']).describe(typeHint),
     title: z.string(),
     summary: z.string().optional(),
     start: z.string().describe(dateHint),
@@ -41,6 +44,10 @@ export const opSchema = z.discriminatedUnion('op', [
   z.object({
     op: z.literal('update_node'),
     id: z.string().describe('Target node id (or a ref from earlier in this batch).'),
+    type: z
+      .enum(['event', 'entity', 'period', 'concept'])
+      .optional()
+      .describe('Reclassify the node (e.g. event → concept). Edges, citations, and images are kept.'),
     title: z.string().optional(),
     summary: z.string().optional(),
     start: z.string().optional().describe(dateHint),
@@ -113,6 +120,7 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
       case 'update_node': {
         const id = resolve(op.id)
         const np: NodePatch = {}
+        if (op.type) np.type = op.type
         if (op.title !== undefined) np.title = op.title
         if (op.summary !== undefined) np.summary = op.summary
         if (op.start) {

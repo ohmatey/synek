@@ -284,8 +284,9 @@ body {
   font-weight: 600;
   line-height: 1.15;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .sf-person-dates {
@@ -302,7 +303,7 @@ body {
 }
 
 /* Org logo lockup (logo inline with the label, contained not cropped) */
-.sf-entity-org {
+.sf-entity-org .sf-entity-row {
   gap: 7px;
 }
 
@@ -355,10 +356,18 @@ body {
   flex: 0 0 auto;
 }
 
+/* Events carry no inline body; a diamond marks "there's a description here". */
+.sf-event-rich .sf-dot {
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
 .sf-entity {
   display: flex;
-  align-items: center;
-  height: 34px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 34px;
   padding: 6px 10px;
   background: var(--color-bg-overlay);
   border: 1px solid var(--color-border-default);
@@ -367,21 +376,90 @@ body {
   overflow: hidden;
 }
 
-.sf-period {
+.sf-entity-row {
   display: flex;
   align-items: center;
-  height: 60px;
+  min-width: 0;
+}
+
+.sf-period {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 60px;
   padding: 6px 10px;
   background: rgba(155, 140, 255, 0.12);
   border: 1px dashed rgba(155, 140, 255, 0.5);
   border-radius: 8px;
   color: var(--color-accent-influence);
+  overflow: hidden;
+}
+
+.sf-period > .sf-cite {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  margin-left: 0;
 }
 
 .sf-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* In the (vertical) entity/period cards the title may wrap to two lines. */
+.sf-entity-row .sf-label,
+.sf-period .sf-label {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+}
+
+/* Clamped description shown on the card body (entity/period/person). */
+.sf-summary {
+  font-size: 0.82em;
+  font-style: italic;
+  line-height: 1.25;
+  color: var(--color-fg-muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.sf-period-span {
+  font-size: 0.78em;
+  color: var(--color-accent-influence);
+  opacity: 0.75;
+}
+
+/* Concept: an idea/doctrine. Soft tinted "idea" chip, visually distinct from
+   entities, with a lightbulb marker. */
+.sf-concept {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 40px;
+  padding: 6px 10px;
+  background: color-mix(in oklab, var(--color-accent-dialogue) 12%, var(--color-bg-overlay));
+  border: 1px solid color-mix(in oklab, var(--color-accent-dialogue) 45%, transparent);
+  border-radius: 10px;
+  color: var(--color-fg-secondary);
+  overflow: hidden;
+}
+
+.sf-concept-icon {
+  width: 12px;
+  height: 12px;
+  margin-right: 5px;
+  flex: 0 0 auto;
+  color: var(--color-accent-dialogue);
 }
 
 /* Hide connection handles for now (no manual editing yet). */
@@ -549,31 +627,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.detail-type {
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--color-border-default);
-}
-
-.detail-type-event {
-  color: var(--color-accent-dialogue);
-  border-color: var(--color-accent-primary);
-}
-
-.detail-type-entity {
-  color: var(--color-fg-secondary);
-  border-color: var(--color-border-default);
-}
-
-.detail-type-period {
-  color: var(--color-accent-influence);
-  border-color: rgba(155, 140, 255, 0.5);
 }
 
 /* Read-first doc layout: title, description, property rows */
@@ -1259,14 +1312,6 @@ body {
 
 .detail-cite-link:hover {
   text-decoration: underline;
-}
-
-.detail-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 4px;
 }
 
 /* Zoom-synced date ruler */

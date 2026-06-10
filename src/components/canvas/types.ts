@@ -17,6 +17,13 @@ export type CanvasNodeData = {
   title: string
   width?: number
   date?: string
+  // Formatted end date for span nodes (period/entity) — rendered as `start–end`.
+  endDate?: string
+  // Truncated description shown on the card body (clamped via CSS).
+  summary?: string
+  // True when the node has a summary — drives a "more here" affordance on cards
+  // (e.g. EventNode) that don't render the summary text inline.
+  hasSummary?: boolean
   citations?: number
   images?: NodeImage[]
   size?: NodeSize

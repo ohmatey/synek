@@ -12,10 +12,16 @@ import {
   type Node,
   type Edge,
 } from '@xyflow/react'
+import { Maximize2 } from 'lucide-react'
 import { useTheme } from '@synek/ui'
+import { Button } from '~/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
+import { cn } from '~/lib/utils'
 import { EventNode } from './nodes/EventNode'
 import { EntityNode } from './nodes/EntityNode'
 import { PeriodNode } from './nodes/PeriodNode'
+import { ConceptNode } from './nodes/ConceptNode'
+import { floatChip } from './chrome'
 import {
   laneY,
   layoutLaneY,
@@ -24,7 +30,10 @@ import {
   makeTimeScale,
   loadScalePref,
   saveScalePref,
+  loadViewport,
+  saveViewport,
   BASE_PX_PER_DAY,
+  type SavedViewport,
   type TimeScale,
 } from './useTimelineScale'
 import { formatInstant } from '~/lib/domain/dates'
@@ -34,29 +43,63 @@ import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
 import { TimeRuler } from './TimeRuler'
 import { CanvasSettings } from './CanvasSettings'
+import { FilterControls } from './FilterControls'
+import { McpStatusChip } from './McpStatusChip'
+import { CanvasEmpty } from './CanvasEmpty'
 import { ExportControls } from './ExportControls'
 import { useBuildStream } from './build-stream'
 import type { CanvasNodeData, NodeDraft } from './types'
-import type { EdgeKind } from '~/lib/domain/types'
+import type { EdgeKind, NodeSubtype, NodeType } from '~/lib/domain/types'
+
+// The token a node is filtered by: entities filter by their subtype (person/
+// org/place/work, or 'entity' when untyped); everything else by its type.
+function kindToken(n: { type: NodeType; subtype?: NodeSubtype | null }): string {
+  return n.type === 'entity' ? (n.subtype ?? 'entity') : n.type
+}
 
 // Memoized module-level — required by React Flow.
-const nodeTypes = { event: EventNode, entity: EntityNode, period: PeriodNode }
+const nodeTypes = { event: EventNode, entity: EntityNode, period: PeriodNode, concept: ConceptNode }
 
-// Re-frame the view when the set of nodes changes (e.g. an external MCP edit lands
-// and the graph refetches) — without remounting React Flow, so existing nodes keep
-// their identity and glide to new positions instead of snapping. Skips the first
-// render (the `fitView` prop frames the initial graph).
-function AutoFit({ nodeCount, pendingCount }: { nodeCount: number; pendingCount: number }) {
+// Frame the graph ONCE, the first time nodes arrive (the query loads async, so the
+// initial graph appears after mount). If the user has a saved camera for this
+// timeline, restore that instead of fitting. Crucially it does NOT re-fit on later
+// node-count changes — so a live refetch (or an MCP write) never yanks the user's
+// zoom/pan. Re-framing on demand is the explicit Fit button.
+function ViewportInit({ timelineId, nodeCount }: { timelineId: string; nodeCount: number }) {
   const rf = useReactFlow()
-  const first = useRef(true)
+  const done = useRef(false)
   useEffect(() => {
-    if (first.current) {
-      first.current = false
-      return
-    }
-    rf.fitView({ padding: 0.2, duration: 450 })
-  }, [nodeCount, pendingCount, rf])
+    if (done.current || nodeCount === 0) return
+    done.current = true
+    const saved = loadViewport(timelineId)
+    if (saved) rf.setViewport(saved)
+    else rf.fitView({ padding: 0.2, duration: 0 })
+  }, [timelineId, nodeCount, rf])
   return null
+}
+
+// Manual "Fit view" — re-frames the whole graph on demand (replaces the old
+// auto-refit-on-every-change behavior).
+function FitButton() {
+  const rf = useReactFlow()
+  return (
+    <div className={cn(floatChip, 'inline-flex items-center p-1')}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            aria-label="Fit view"
+            onClick={() => rf.fitView({ padding: 0.2, duration: 450 })}
+          >
+            <Maximize2 />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Fit view</TooltipContent>
+      </Tooltip>
+    </div>
+  )
 }
 
 // Per-kind edge styling: color (as a CSS var so it flips light/dark via the
@@ -71,10 +114,6 @@ const EDGE_STYLE: Record<EdgeKind, { color: string; width: number; dash?: string
 }
 
 export function TimelineCanvas({ timelineId }: { timelineId: string }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['graph', timelineId],
-    queryFn: () => getGraph({ data: timelineId }),
-  })
   const { resolvedTheme } = useTheme()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // Horizontal time density (px/day) + gap-collapsing — the axis scale,
@@ -82,9 +121,19 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const initialPref = useRef(loadScalePref(timelineId)).current
   const [pxPerDay, setPxPerDay] = useState(initialPref?.pxPerDay ?? BASE_PX_PER_DAY)
   const [collapseGaps, setCollapseGaps] = useState(initialPref?.collapseGaps ?? false)
+  // Background poll for external MCP writes — on by default, toggled in settings.
+  const [autoRefresh, setAutoRefresh] = useState(initialPref?.autoRefresh ?? true)
 
-  // Reload the saved scale when switching timelines (the component persists
-  // across timeline changes; only React Flow remounts via key).
+  const { data, isLoading } = useQuery({
+    queryKey: ['graph', timelineId],
+    queryFn: () => getGraph({ data: timelineId }),
+    // Reflect MCP writes in place (no page reload). ViewportInit keeps the
+    // camera stable across these refetches, so new nodes appear without a jump.
+    refetchInterval: autoRefresh ? 10_000 : false,
+  })
+
+  // Reload the saved scale + refresh pref when switching timelines (the component
+  // persists across timeline changes; only React Flow remounts via key).
   const firstTimeline = useRef(true)
   useEffect(() => {
     if (firstTimeline.current) {
@@ -94,12 +143,13 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     const pref = loadScalePref(timelineId)
     setPxPerDay(pref?.pxPerDay ?? BASE_PX_PER_DAY)
     setCollapseGaps(pref?.collapseGaps ?? false)
+    setAutoRefresh(pref?.autoRefresh ?? true)
   }, [timelineId])
 
   // Persist the chosen scale per timeline (local-first; no DB).
   useEffect(() => {
-    saveScalePref(timelineId, { pxPerDay, collapseGaps })
-  }, [timelineId, pxPerDay, collapseGaps])
+    saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh })
+  }, [timelineId, pxPerDay, collapseGaps, autoRefresh])
 
   // Latest anchor instants (node start/end), mirrored so the controls can build
   // a prospective scale for keep-center re-anchoring without recomputing here.
@@ -124,6 +174,47 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const title = graph?.title ?? 'Untitled timeline'
   // Derive the selection from live data, so a deleted node closes the panel.
   const selectedNode = selectedId ? (gnodes.find((n) => n.id === selectedId) ?? null) : null
+
+  // Per-kind visibility filter — session-only (a returning user shouldn't find
+  // nodes "missing"). Node counts feed the filter chips.
+  const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(() => new Set())
+  const kindCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const n of gnodes) m.set(kindToken(n), (m.get(kindToken(n)) ?? 0) + 1)
+    return m
+  }, [gnodes])
+  const toggleKind = useCallback((token: string) => {
+    setHiddenKinds((prev) => {
+      const next = new Set(prev)
+      if (next.has(token)) next.delete(token)
+      else next.add(token)
+      return next
+    })
+  }, [])
+  const resetKinds = useCallback(() => setHiddenKinds(new Set()), [])
+
+  // Briefly glow nodes that newly arrived (e.g. from a live MCP write) so the
+  // user notices what changed — without the camera moving.
+  const [glowIds, setGlowIds] = useState<Set<string>>(() => new Set())
+  const prevIdsRef = useRef<Set<string> | null>(null)
+  const glowTimelineRef = useRef(timelineId)
+  const nodeIdKey = gnodes.map((n) => n.id).join(',')
+  useEffect(() => {
+    const current = new Set(gnodes.map((n) => n.id))
+    const prev = prevIdsRef.current
+    prevIdsRef.current = current
+    if (glowTimelineRef.current !== timelineId) {
+      glowTimelineRef.current = timelineId
+      return // timeline switched — establish a baseline, don't glow everything
+    }
+    if (!prev) return // first load — don't glow the whole graph
+    const fresh = [...current].filter((id) => !prev.has(id))
+    if (fresh.length === 0) return
+    setGlowIds(new Set(fresh))
+    const t = setTimeout(() => setGlowIds(new Set()), 2000)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeIdKey, timelineId])
 
   // Apply the owner-saved default scale once per timeline, but only when this
   // device has no local override (the local working scale wins on a return visit).
@@ -169,10 +260,17 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     anchorsRef.current = anchors
     const scale = makeTimeScale(anchors, pxPerDay, collapseGaps)
 
+    // Kind filter: keep the time axis anchored on the full set (so toggling a
+    // kind doesn't reflow the scale), but only render/lay out the visible nodes.
+    const hiddenNodeIds = hiddenKinds.size
+      ? new Set(effectiveNodes.filter((n) => hiddenKinds.has(kindToken(n))).map((n) => n.id))
+      : null
+    const visibleNodes = hiddenNodeIds ? effectiveNodes.filter((n) => !hiddenNodeIds.has(n.id)) : effectiveNodes
+
     const widthOf = (start: number, end: number | null) =>
       end ? Math.max(48, scale.toX(end) - scale.toX(start)) : undefined
 
-    const realPositioned = effectiveNodes.map((n) => ({
+    const realPositioned = visibleNodes.map((n) => ({
       n,
       x: scale.toX(n.startInstant),
       // Person cards are fixed-size polaroids anchored at the start instant
@@ -194,7 +292,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         type: r.n.type,
         x: r.x,
         width: r.width,
-        height: estimateNodeHeight(r.n.type, r.n.size, r.n.images.some((i) => i.show), r.n.subtype),
+        height: estimateNodeHeight(r.n.type, r.n.size, r.n.images.some((i) => i.show), r.n.subtype, !!r.n.summary),
       })),
       ...pendingPositioned.map((pp) => ({
         id: pp.id,
@@ -211,6 +309,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         title: n.title,
         width,
         date: formatInstant(n.startInstant, n.precision),
+        endDate: n.endInstant != null ? formatInstant(n.endInstant, n.precision) : undefined,
+        summary: n.summary ?? undefined,
+        hasSummary: !!n.summary,
         citations: n.citations.length,
         images: n.images.filter((i) => i.show),
         size: n.size,
@@ -257,7 +358,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       const dim = focusSet && !bothFocused
       const isPeriodEdge = periodIds.has(e.sourceId) || periodIds.has(e.targetId)
       const touchesSelection = selectedId != null && (e.sourceId === selectedId || e.targetId === selectedId)
-      const hidden = isPeriodEdge && !touchesSelection && !bothFocused
+      const touchesHidden = !!hiddenNodeIds && (hiddenNodeIds.has(e.sourceId) || hiddenNodeIds.has(e.targetId))
+      const hidden = touchesHidden || (isPeriodEdge && !touchesSelection && !bothFocused)
       return {
         id: e.id,
         source: e.sourceId,
@@ -271,7 +373,32 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     })
 
     return { rfNodes, rfEdges, scale }
-  }, [gnodes, gedges, pending, draft, selectedId, focusIds, pxPerDay, collapseGaps])
+  }, [gnodes, gedges, pending, draft, selectedId, focusIds, pxPerDay, collapseGaps, hiddenKinds])
+
+  // Layer the transient "new node" glow on top WITHOUT re-running lane packing
+  // (a cheap shallow remap, vs. recomputing the whole layout in the memo above).
+  const displayNodes = useMemo(
+    () =>
+      glowIds.size === 0
+        ? rfNodes
+        : rfNodes.map((node) =>
+            glowIds.has(node.id)
+              ? { ...node, className: [node.className, 'rf-focused'].filter(Boolean).join(' ') }
+              : node,
+          ),
+    [rfNodes, glowIds],
+  )
+
+  // Debounced persistence of the camera, so a reload/live-refetch restores the
+  // user's framing instead of snapping back to fit.
+  const vpSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const persistViewport = useCallback(
+    (_: unknown, vp: SavedViewport) => {
+      if (vpSaveTimer.current) clearTimeout(vpSaveTimer.current)
+      vpSaveTimer.current = setTimeout(() => saveViewport(timelineId, vp), 200)
+    },
+    [timelineId],
+  )
 
   const lensSize = focusIds.length
 
@@ -300,17 +427,29 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         <div className="top-bar">
           <AppBar timelineId={timelineId} title={title} isOwner={isOwner} isPublic={isPublic} />
           <div className="canvas-toolbar">
+            {isOwner && <McpStatusChip />}
             {isOwner && <HistoryControls timelineId={timelineId} />}
+            {gnodes.length > 0 && (
+              <FilterControls
+                counts={kindCounts}
+                hiddenKinds={hiddenKinds}
+                onToggle={toggleKind}
+                onReset={resetKinds}
+              />
+            )}
+            {(gnodes.length > 0 || pending.length > 0) && <FitButton />}
             {(gnodes.length > 0 || pending.length > 0) && (
               <CanvasSettings
                 timelineId={timelineId}
                 isOwner={isOwner}
                 pxPerDay={pxPerDay}
                 collapseGaps={collapseGaps}
+                autoRefresh={autoRefresh}
                 scale={scale}
                 buildScale={buildScale}
                 onPxPerDay={setPxPerDay}
                 onCollapseGaps={setCollapseGaps}
+                onAutoRefresh={setAutoRefresh}
               />
             )}
             <ExportControls graph={{ title, nodes: gnodes, edges: gedges }} />
@@ -328,7 +467,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           // Remount only when switching timelines; within one, nodes keep their
           // identity (diffed by id) so position changes glide instead of snapping.
           key={timelineId}
-          nodes={rfNodes}
+          nodes={displayNodes}
           edges={rfEdges}
           nodeTypes={nodeTypes}
           nodesDraggable={false}
@@ -339,20 +478,24 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           colorMode={resolvedTheme}
           onNodeClick={(_, n) => setSelectedId(n.id)}
           onPaneClick={() => setSelectedId(null)}
-          fitView
-          fitViewOptions={{ padding: 0.2, duration: 600 }}
+          // Initial framing is owned by ViewportInit (restores saved camera, or
+          // fits once on first load) — NOT the `fitView` prop, which would also
+          // re-fit on async data and fight viewport restore.
+          onMoveEnd={persistViewport}
           minZoom={0.1}
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={48} />
           <Controls showInteractive={false} />
-          <AutoFit nodeCount={gnodes.length} pendingCount={pending.length} />
+          <ViewportInit timelineId={timelineId} nodeCount={gnodes.length} />
           {(gnodes.length > 0 || pending.length > 0) && <TimeRuler scale={scale} />}
           {!isLoading && gnodes.length === 0 && pending.length === 0 && (
             <Panel position="top-center">
-              <div className="canvas-empty">
-                Connect an MCP client to build this timeline — nodes will appear here along the axis.
-              </div>
+              {isOwner ? (
+                <CanvasEmpty />
+              ) : (
+                <div className="canvas-empty">This timeline is empty — its author hasn’t added anything yet.</div>
+              )}
             </Panel>
           )}
         </ReactFlow>

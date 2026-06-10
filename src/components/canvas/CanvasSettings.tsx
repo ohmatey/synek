@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useReactFlow, useStore } from '@xyflow/react'
-import { Check, Loader2, Minus, Plus, SlidersHorizontal } from 'lucide-react'
+import { Check, Loader2, Minus, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '~/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
@@ -36,19 +36,23 @@ export function CanvasSettings({
   isOwner,
   pxPerDay,
   collapseGaps,
+  autoRefresh,
   scale,
   buildScale,
   onPxPerDay,
   onCollapseGaps,
+  onAutoRefresh,
 }: {
   timelineId: string
   isOwner: boolean
   pxPerDay: number
   collapseGaps: boolean
+  autoRefresh: boolean
   scale: TimeScale
   buildScale: (pxPerDay: number, collapseGaps: boolean) => TimeScale
   onPxPerDay: (next: number) => void
   onCollapseGaps: (next: boolean) => void
+  onAutoRefresh: (next: boolean) => void
 }) {
   const rf = useReactFlow()
   const width = useStore((s) => s.width)
@@ -80,7 +84,7 @@ export function CanvasSettings({
     setSaving(true)
     try {
       await setTimelineView({ data: { id: timelineId, view: { pxPerDay, collapseGaps } } })
-      saveScalePref(timelineId, { pxPerDay, collapseGaps })
+      saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh })
       toast.success('Saved as this timeline’s default scale')
     } catch {
       toast.error('Couldn’t save the default')
@@ -166,6 +170,25 @@ export function CanvasSettings({
             >
               {collapseGaps && <Check />}
               Collapse long gaps
+            </Button>
+          </div>
+
+          <Separator />
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Live updates
+            </span>
+            <Button
+              variant={autoRefresh ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 justify-center text-xs"
+              data-testid="auto-refresh-toggle"
+              onClick={() => onAutoRefresh(!autoRefresh)}
+              aria-pressed={autoRefresh}
+              title="Automatically pick up changes made by your MCP client (no page reload)"
+            >
+              <RefreshCw className={autoRefresh ? 'animate-none' : undefined} />
+              Auto-refresh {autoRefresh ? 'on' : 'off'}
             </Button>
           </div>
 

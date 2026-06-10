@@ -28,7 +28,8 @@ export function PersonCard({ data }: NodeProps) {
       </div>
       <div className="sf-person-plate" style={d.color ? { borderTopColor: d.color } : undefined}>
         <span className="sf-person-name">{d.title}</span>
-        {d.date && <span className="sf-person-dates">{d.date}</span>}
+        {d.date && <span className="sf-person-dates">{d.endDate ? `${d.date}–${d.endDate}` : d.date}</span>}
+        {d.summary ? <span className="sf-summary">{d.summary}</span> : null}
       </div>
       {d.citations ? (
         <div className="sf-person-badges">

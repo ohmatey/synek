@@ -11,6 +11,7 @@ export function EntityNode(props: NodeProps) {
   // other entities keep the label bar + image strip below.
   const isOrg = d.subtype === 'org'
   const logo = isOrg ? d.images?.[0] : undefined
+  const dateLabel = d.endDate ? `${d.date}–${d.endDate}` : d.date
   return (
     <div className={`sf-node sf-size-${d.size ?? 'medium'}`}>
       <div
@@ -18,10 +19,13 @@ export function EntityNode(props: NodeProps) {
         style={{ width: d.width, borderColor: d.color ?? undefined }}
       >
         <Handle type="target" position={Position.Left} className="sf-handle" />
-        {logo ? <img className="sf-logo" src={logo.url} alt={logo.alt ?? ''} /> : null}
-        <span className="sf-label">{d.title}</span>
-        {d.date && <span className="sf-date">{d.date}</span>}
-        {d.citations ? <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span> : null}
+        <div className="sf-entity-row">
+          {logo ? <img className="sf-logo" src={logo.url} alt={logo.alt ?? ''} /> : null}
+          <span className="sf-label">{d.title}</span>
+          {dateLabel && <span className="sf-date">{dateLabel}</span>}
+          {d.citations ? <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span> : null}
+        </div>
+        {d.summary ? <span className="sf-summary">{d.summary}</span> : null}
         <Handle type="source" position={Position.Right} className="sf-handle" />
       </div>
       {!isOrg && d.images?.length ? (

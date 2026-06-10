@@ -28,12 +28,13 @@ export function pxPerDayForYears(years: number, worldWidth: number): number {
 export const LANE_Y: Record<NodeType, number> = {
   period: 24,
   entity: 150,
+  concept: 225,
   event: 300,
 }
 
 // Lanes are laid out top → bottom in this order, each placed below the previous
 // lane's full (variable) height.
-const LANE_ORDER: NodeType[] = ['period', 'entity', 'event']
+const LANE_ORDER: NodeType[] = ['period', 'entity', 'concept', 'event']
 const LANE_TOP = 24
 const LANE_GAP = 40 // vertical gap between lanes
 const ROW_GAP = 12 // vertical gap between stacked rows within a lane
@@ -44,9 +45,11 @@ const NOMINAL_WIDTH = 130
 
 // Rough rendered node heights (px) used for vertical packing. Mirrors the CSS:
 // a body height per type, scaled by size, plus an image strip when shown.
-const TYPE_BODY: Record<NodeType, number> = { period: 56, entity: 34, event: 26 }
+const TYPE_BODY: Record<NodeType, number> = { period: 72, entity: 34, concept: 40, event: 26 }
 const SIZE_SCALE: Record<NodeSize, number> = { small: 0.85, medium: 1, large: 1.3 }
 const IMG_STRIP: Record<NodeSize, number> = { small: 30, medium: 44, large: 66 }
+// Extra height a node gains when it renders a clamped (~2-line) summary on the card.
+const SUMMARY_BODY = 32
 
 // Person "polaroid" card: a framed portrait + a name/date plate. Fixed size
 // (anchored at the start instant), not stretched across the lifespan span. The
@@ -148,7 +151,9 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
 }
 
 // --- Per-timeline scale preference (localStorage) -------------------------
-export type ScalePref = { pxPerDay: number; collapseGaps: boolean }
+// `autoRefresh` drives the canvas's background poll for external MCP writes;
+// default on so a freshly-built timeline updates in place.
+export type ScalePref = { pxPerDay: number; collapseGaps: boolean; autoRefresh: boolean }
 
 const scaleKey = (timelineId: string) => `synek:scale:${timelineId}`
 
@@ -159,7 +164,7 @@ export function loadScalePref(timelineId: string): ScalePref | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<ScalePref>
     const pxPerDay = typeof parsed.pxPerDay === 'number' ? clampPxPerDay(parsed.pxPerDay) : BASE_PX_PER_DAY
-    return { pxPerDay, collapseGaps: !!parsed.collapseGaps }
+    return { pxPerDay, collapseGaps: !!parsed.collapseGaps, autoRefresh: parsed.autoRefresh !== false }
   } catch {
     return null
   }
@@ -174,6 +179,35 @@ export function saveScalePref(timelineId: string, pref: ScalePref): void {
   }
 }
 
+// --- Per-timeline viewport (camera pan/zoom) ------------------------------
+// Persisted so a reload (or a live refetch) restores the user's framing
+// instead of snapping back to fitView.
+export type SavedViewport = { x: number; y: number; zoom: number }
+
+const viewportKey = (timelineId: string) => `synek:viewport:${timelineId}`
+
+export function loadViewport(timelineId: string): SavedViewport | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(viewportKey(timelineId))
+    if (!raw) return null
+    const p = JSON.parse(raw) as Partial<SavedViewport>
+    if (typeof p.x !== 'number' || typeof p.y !== 'number' || typeof p.zoom !== 'number') return null
+    return { x: p.x, y: p.y, zoom: p.zoom }
+  } catch {
+    return null
+  }
+}
+
+export function saveViewport(timelineId: string, vp: SavedViewport): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(viewportKey(timelineId), JSON.stringify(vp))
+  } catch {
+    // ignore quota / disabled storage
+  }
+}
+
 export function laneY(type: NodeType): number {
   return LANE_Y[type]
 }
@@ -183,9 +217,11 @@ export function estimateNodeHeight(
   size: NodeSize = 'medium',
   hasImages = false,
   subtype: NodeSubtype | null = null,
+  hasSummary = false,
 ): number {
-  if (subtype === 'person') return Math.round(PERSON_CARD_BODY * SIZE_SCALE[size])
-  return Math.round(TYPE_BODY[type] * SIZE_SCALE[size]) + (hasImages ? IMG_STRIP[size] : 0)
+  const summary = hasSummary ? Math.round(SUMMARY_BODY * SIZE_SCALE[size]) : 0
+  if (subtype === 'person') return Math.round(PERSON_CARD_BODY * SIZE_SCALE[size]) + summary
+  return Math.round(TYPE_BODY[type] * SIZE_SCALE[size]) + (hasImages ? IMG_STRIP[size] : 0) + summary
 }
 
 // Lay nodes out so none overlap: within each lane, greedily pack into rows by x

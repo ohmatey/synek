@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, max } from 'drizzle-orm'
+import { and, asc, count, desc, eq, max } from 'drizzle-orm'
 import { db } from './index'
 import {
   nodes,
@@ -22,7 +22,7 @@ export type NewNode = {
   metadata?: NodeMetadata | null
 }
 export type NodePatch = Partial<
-  Pick<NodeRow, 'title' | 'summary' | 'startInstant' | 'endInstant' | 'precision' | 'metadata'>
+  Pick<NodeRow, 'type' | 'title' | 'summary' | 'startInstant' | 'endInstant' | 'precision' | 'metadata'>
 >
 export type NewEdge = { sourceId: string; targetId: string; kind: EdgeKind; label?: string | null }
 export type EdgePatch = Partial<Pick<EdgeRow, 'kind' | 'label'>>
@@ -245,18 +245,22 @@ export function redo(timelineId: string): boolean {
   return true
 }
 
-export function historyState(timelineId: string): { canUndo: boolean; canRedo: boolean } {
-  const applied = db
-    .select({ id: patches.id })
-    .from(patches)
-    .where(and(eq(patches.timelineId, timelineId), eq(patches.status, 'applied')))
-    .limit(1)
-    .get()
+export function historyState(timelineId: string): {
+  canUndo: boolean
+  canRedo: boolean
+  appliedCount: number
+} {
+  const appliedCount =
+    db
+      .select({ c: count() })
+      .from(patches)
+      .where(and(eq(patches.timelineId, timelineId), eq(patches.status, 'applied')))
+      .get()?.c ?? 0
   const undone = db
     .select({ id: patches.id })
     .from(patches)
     .where(and(eq(patches.timelineId, timelineId), eq(patches.status, 'undone')))
     .limit(1)
     .get()
-  return { canUndo: !!applied, canRedo: !!undone }
+  return { canUndo: appliedCount > 0, canRedo: !!undone, appliedCount }
 }

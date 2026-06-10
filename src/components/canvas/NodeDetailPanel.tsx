@@ -26,6 +26,7 @@ const TYPE_DOT: Record<NodeType, string> = {
   period: 'var(--color-accent-influence)',
   entity: 'var(--color-fg-muted)',
   event: 'var(--color-accent-primary)',
+  concept: 'var(--color-accent-dialogue)',
 }
 
 // Swatches offered in the node Color property. Kept as raw hex on purpose:
@@ -187,10 +188,30 @@ export function NodeDetailPanel({
   return (
     <div className="detail-panel" role="dialog" aria-label="Node details">
       <header className="detail-head">
-        <span className={`detail-type detail-type-${node.type}`}>{node.type}</span>
-        <Button variant="ghost" size="icon" className="-mr-1 size-7" onClick={onClose} aria-label="Close">
-          <X />
-        </Button>
+        {!readOnly && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={remove}
+            disabled={busy}
+            aria-label="Delete node"
+            title="Delete"
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        )}
+        <div className="ml-auto flex items-center gap-1.5">
+          {!readOnly && (
+            <Button size="sm" className="h-7 px-3" onClick={save} disabled={busy}>
+              {busy && <Loader2 className="size-3.5 animate-spin" />}
+              {busy ? 'Saving…' : 'Save'}
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" className="-mr-1 size-7" onClick={onClose} aria-label="Close">
+            <X />
+          </Button>
+        </div>
       </header>
 
       {/* Title — doc heading with an accent dot, click to edit */}
@@ -527,23 +548,6 @@ export function NodeDetailPanel({
             ))}
       </div>
 
-      {!readOnly && (
-        <footer className="detail-actions">
-          <Button
-            variant="outline"
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={remove}
-            disabled={busy}
-          >
-            <Trash2 />
-            Delete
-          </Button>
-          <Button onClick={save} disabled={busy}>
-            {busy && <Loader2 className="animate-spin" />}
-            {busy ? 'Saving…' : 'Save'}
-          </Button>
-        </footer>
-      )}
     </div>
   )
 }

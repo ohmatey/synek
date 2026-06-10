@@ -5,7 +5,11 @@ export function EventNode({ data }: NodeProps) {
   const d = data as CanvasNodeData
   return (
     <div className={`sf-node sf-size-${d.size ?? 'medium'}`}>
-      <div className="sf-event" style={d.color ? { borderColor: d.color } : undefined}>
+      <div
+        className={`sf-event${d.hasSummary ? ' sf-event-rich' : ''}`}
+        style={d.color ? { borderColor: d.color } : undefined}
+        title={d.hasSummary ? 'Has a description — click to read' : undefined}
+      >
         <Handle type="target" position={Position.Left} className="sf-handle" />
         <span className="sf-dot" style={d.color ? { background: d.color } : undefined} aria-hidden />
         <span className="sf-label">{d.title}</span>
