@@ -1,0 +1,510 @@
+{
+  "title": "The AI / LLM Race",
+  "nodes": [
+    {
+      "id": "9cab35ba-6411-4388-8b62-12a5347f60c8",
+      "type": "entity",
+      "title": "OpenAI",
+      "summary": "Founded by Sam Altman, Elon Musk, Ilya Sutskever, Greg Brockman and others as a nonprofit AI lab; pivoted to 'capped-profit' in 2019 with major Microsoft backing.",
+      "startInstant": 1448928000000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "subtype": "org",
+        "lane": "OpenAI"
+      }
+    },
+    {
+      "id": "10f392b8-2bc4-4043-95e0-f808249b07f6",
+      "type": "entity",
+      "title": "Google DeepMind",
+      "summary": "Formed by merging Google Brain (the home of the Transformer) and DeepMind into one AI unit to accelerate Google's response to ChatGPT.",
+      "startInstant": 1680307200000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "subtype": "org",
+        "lane": "Google"
+      }
+    },
+    {
+      "id": "535b618f-3c73-4d36-ac7a-ff0493d83db1",
+      "type": "entity",
+      "title": "Anthropic",
+      "summary": "Founded by ex-OpenAI researchers Dario and Daniela Amodei; safety-focused lab behind Claude.",
+      "startInstant": 1609459200000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "subtype": "org",
+        "lane": "Anthropic"
+      }
+    },
+    {
+      "id": "0e09c851-fcea-448c-a9af-9fb989014a7f",
+      "type": "entity",
+      "title": "Meta AI (FAIR)",
+      "summary": "Meta's AI research arm; drove the open-weight movement with the LLaMA family.",
+      "startInstant": 1385856000000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "subtype": "org",
+        "lane": "Meta"
+      }
+    },
+    {
+      "id": "4ae2c513-24bd-4762-8e93-a07a742c66e3",
+      "type": "entity",
+      "title": "Mistral AI",
+      "summary": "Paris-based lab founded by ex-DeepMind/Meta researchers; Europe's open-weight champion.",
+      "startInstant": 1680307200000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "subtype": "org",
+        "lane": "Mistral"
+      }
+    },
+    {
+      "id": "d59d7c0a-e984-453c-b494-0ae931cb50c2",
+      "type": "entity",
+      "title": "xAI",
+      "summary": "Elon Musk's AI company, builder of Grok, integrated with X (Twitter).",
+      "startInstant": 1677628800000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "subtype": "org",
+        "lane": "xAI"
+      }
+    },
+    {
+      "id": "8f73ffd4-382a-4a4c-af89-bfab26556490",
+      "type": "entity",
+      "title": "DeepSeek",
+      "summary": "Chinese lab (spun out of hedge fund High-Flyer) that shocked the industry with frontier-level models trained at a fraction of the cost.",
+      "startInstant": 1688169600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "subtype": "org",
+        "lane": "DeepSeek"
+      }
+    },
+    {
+      "id": "388681a7-51dd-4ff0-9b9c-be87c016b804",
+      "type": "concept",
+      "title": "The Transformer architecture",
+      "summary": "\"Attention Is All You Need\" (Vaswani et al., Google) introduced the self-attention Transformer — the foundation of every modern large language model.",
+      "startInstant": 1496275200000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "citations": [
+          {
+            "title": "Attention Is All You Need",
+            "url": "https://arxiv.org/abs/1706.03762"
+          }
+        ],
+        "lane": "Foundations"
+      }
+    },
+    {
+      "id": "a5528309-c5f0-462c-b0ae-9aef3fcf1fa3",
+      "type": "event",
+      "title": "GPT-1",
+      "summary": "OpenAI's first Generative Pre-trained Transformer (117M params); proved unsupervised pre-training + fine-tuning.",
+      "startInstant": 1527811200000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "OpenAI"
+      }
+    },
+    {
+      "id": "fab8b1af-6c41-42c1-9a6d-a4edd547ba69",
+      "type": "event",
+      "title": "BERT",
+      "summary": "Google's bidirectional encoder; dominated NLP benchmarks and powered Search, establishing pre-trained Transformers as the paradigm.",
+      "startInstant": 1538352000000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Google"
+      }
+    },
+    {
+      "id": "bd05282b-571d-479f-bd3d-98e0e256b071",
+      "type": "event",
+      "title": "GPT-2",
+      "summary": "OpenAI's 1.5B-param model, initially withheld as 'too dangerous to release' — first mainstream debate about LLM risk.",
+      "startInstant": 1548979200000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "OpenAI"
+      }
+    },
+    {
+      "id": "44eeb328-439f-43f7-8425-54217a4c25a8",
+      "type": "event",
+      "title": "GPT-3",
+      "summary": "175B params; few-shot in-context learning made the API era possible and seeded the modern race.",
+      "startInstant": 1588291200000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "OpenAI"
+      }
+    },
+    {
+      "id": "646198f6-09e8-41e7-b068-5b170eb3084f",
+      "type": "event",
+      "title": "ChatGPT launch",
+      "summary": "OpenAI releases ChatGPT (GPT-3.5). Fastest product to 100M users; the 'iPhone moment' that ignited the public LLM race.",
+      "startInstant": 1669766400000,
+      "endInstant": null,
+      "precision": "day",
+      "metadata": {
+        "citations": [
+          {
+            "title": "Introducing ChatGPT",
+            "url": "https://openai.com/blog/chatgpt"
+          }
+        ],
+        "lane": "OpenAI"
+      }
+    },
+    {
+      "id": "8bf7a7bc-3816-40aa-aee7-7770b78bff96",
+      "type": "event",
+      "title": "LLaMA",
+      "summary": "Meta's first LLaMA; weights leaked online and kicked off the open-weight ecosystem (Alpaca, Vicuna, llama.cpp).",
+      "startInstant": 1675209600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Meta"
+      }
+    },
+    {
+      "id": "61c63572-6299-4bf0-8258-b36d6d99d507",
+      "type": "event",
+      "title": "Google Bard + Bing Chat",
+      "summary": "Google rushes out Bard while Microsoft launches GPT-4-powered Bing Chat — the search-engine front opens.",
+      "startInstant": 1675209600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Google"
+      }
+    },
+    {
+      "id": "7b5a8842-3d69-48f9-8a96-0bdb19aced19",
+      "type": "event",
+      "title": "GPT-4",
+      "summary": "OpenAI's multimodal flagship; large jump in reasoning and the benchmark to beat for over a year.",
+      "startInstant": 1678752000000,
+      "endInstant": null,
+      "precision": "day",
+      "metadata": {
+        "citations": [
+          {
+            "title": "GPT-4",
+            "url": "https://openai.com/research/gpt-4"
+          }
+        ],
+        "lane": "OpenAI"
+      }
+    },
+    {
+      "id": "309d64f0-e0db-4e0e-9bcc-3dbce1725e69",
+      "type": "event",
+      "title": "Claude (1)",
+      "summary": "Anthropic's first public assistant, emphasizing Constitutional AI and safety.",
+      "startInstant": 1677628800000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Anthropic"
+      }
+    },
+    {
+      "id": "d425dd2b-8f4e-4721-9c1a-4fdfc2b45f2f",
+      "type": "event",
+      "title": "Grok",
+      "summary": "xAI's first model, launched on X with a deliberately irreverent persona.",
+      "startInstant": 1698796800000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "xAI"
+      }
+    },
+    {
+      "id": "8af1bd19-3498-4877-bb9e-b84d40ccd339",
+      "type": "event",
+      "title": "Claude 2",
+      "summary": "Anthropic's 100K-token context model; pushed long-context as a differentiator.",
+      "startInstant": 1688169600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Anthropic"
+      }
+    },
+    {
+      "id": "995521bb-1eae-44b6-84cb-744492923d78",
+      "type": "event",
+      "title": "Llama 2",
+      "summary": "Meta releases Llama 2 under a commercial-friendly open license — the open-weight inflection point.",
+      "startInstant": 1688169600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Meta"
+      }
+    },
+    {
+      "id": "0bffc633-64f5-4ab1-b6fe-f0cae93bf47c",
+      "type": "event",
+      "title": "Mistral 7B / Mixtral 8x7B",
+      "summary": "Mistral's efficient open models; Mixtral's mixture-of-experts matched far larger models and mainstreamed MoE.",
+      "startInstant": 1701388800000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Mistral"
+      }
+    },
+    {
+      "id": "a39b7416-8aa3-492d-a63d-075e438efdf6",
+      "type": "event",
+      "title": "Gemini 1.0",
+      "summary": "Google's natively multimodal model family (Ultra/Pro/Nano); Bard rebranded to Gemini.",
+      "startInstant": 1701388800000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Google"
+      }
+    },
+    {
+      "id": "7bc195ae-b2ca-4ed2-962e-00ac85d32943",
+      "type": "event",
+      "title": "Gemini 1.5 Pro",
+      "summary": "Up to 1M-token context window — a step-change in long-context that pressured every rival.",
+      "startInstant": 1706745600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Google"
+      }
+    },
+    {
+      "id": "b473bd46-4c09-468e-8724-72f263132e62",
+      "type": "event",
+      "title": "Claude 3 (Opus/Sonnet/Haiku)",
+      "summary": "Anthropic's three-tier family; Opus was widely seen as the first model to clearly rival/beat GPT-4.",
+      "startInstant": 1709251200000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Anthropic"
+      }
+    },
+    {
+      "id": "06d43bd9-bae8-406e-add2-da9926306926",
+      "type": "event",
+      "title": "Llama 3",
+      "summary": "Meta's strongest open weights yet (8B/70B, later 405B) — closed the gap to frontier closed models.",
+      "startInstant": 1711929600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Meta"
+      }
+    },
+    {
+      "id": "69e9b4ee-4927-465d-be52-94213fe78641",
+      "type": "event",
+      "title": "GPT-4o",
+      "summary": "OpenAI's natively multimodal 'omni' model with real-time voice — refocused the race on latency and interaction.",
+      "startInstant": 1714521600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "OpenAI"
+      }
+    },
+    {
+      "id": "2947ba8c-2006-4555-b49f-097ed22025c6",
+      "type": "event",
+      "title": "Claude 3.5 Sonnet",
+      "summary": "Beat GPT-4o on many benchmarks at lower cost; later versions introduced Computer Use, making agents a front.",
+      "startInstant": 1717200000000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Anthropic"
+      }
+    },
+    {
+      "id": "bf1976c2-3906-4d72-b841-6828fcd238de",
+      "type": "event",
+      "title": "OpenAI o1",
+      "summary": "First mainstream 'reasoning' model that thinks before answering — opened the test-time-compute / reasoning era.",
+      "startInstant": 1725148800000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "OpenAI"
+      }
+    },
+    {
+      "id": "aa0b1e7e-75bf-4283-8758-b3393b66850e",
+      "type": "event",
+      "title": "Gemini 2.0 + Flash",
+      "summary": "Google's agentic, fast multimodal generation; Flash made cheap high-quality inference a competitive weapon.",
+      "startInstant": 1733011200000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Google"
+      }
+    },
+    {
+      "id": "6d7abbe8-6966-4ad1-85df-808e566b1931",
+      "type": "event",
+      "title": "DeepSeek R1",
+      "summary": "Open reasoning model rivaling o1 at a fraction of the training cost; triggered a market shock and a wave of open reasoning models.",
+      "startInstant": 1735689600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "citations": [
+          {
+            "title": "DeepSeek-R1",
+            "url": "https://arxiv.org/abs/2501.12948"
+          }
+        ],
+        "lane": "DeepSeek"
+      }
+    },
+    {
+      "id": "6483b2f7-6260-44df-a6f6-bb89cb3be8cf",
+      "type": "event",
+      "title": "Grok 3",
+      "summary": "xAI's frontier model trained on the massive Colossus GPU cluster; vaulted xAI into the top tier.",
+      "startInstant": 1738368000000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "xAI"
+      }
+    },
+    {
+      "id": "668c851f-719e-4845-8387-abc2d92b1a04",
+      "type": "event",
+      "title": "Claude 3.7 Sonnet",
+      "summary": "Anthropic's first hybrid reasoning model (instant + extended thinking in one), with Claude Code for agentic coding.",
+      "startInstant": 1738368000000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Anthropic"
+      }
+    },
+    {
+      "id": "0b2cd91b-fcba-4dba-b22b-801366f904f8",
+      "type": "event",
+      "title": "GPT-4.5",
+      "summary": "OpenAI's largest pre-trained (non-reasoning) model — emphasized knowledge and 'EQ' as scaling-by-pretraining neared limits.",
+      "startInstant": 1738368000000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "OpenAI"
+      }
+    },
+    {
+      "id": "88153cac-5205-4740-bfa5-4aaed0c58889",
+      "type": "event",
+      "title": "Gemini 2.5 Pro",
+      "summary": "Google's 'thinking' model topped reasoning and coding leaderboards — Google decisively back at the frontier.",
+      "startInstant": 1740787200000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Google"
+      }
+    },
+    {
+      "id": "311cc0df-8285-4108-82bb-86b89b2d4b39",
+      "type": "event",
+      "title": "Llama 4",
+      "summary": "Meta's mixture-of-experts open models (Scout/Maverick) with very long context, defending the open-weight frontier.",
+      "startInstant": 1743465600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Meta"
+      }
+    },
+    {
+      "id": "8b031463-9bb7-4831-9492-e1e04a90e9d5",
+      "type": "event",
+      "title": "Claude 4 (Opus & Sonnet)",
+      "summary": "Anthropic's flagship, setting new bars on agentic coding (SWE-bench) and sustained autonomous task execution.",
+      "startInstant": 1746057600000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "Anthropic"
+      }
+    },
+    {
+      "id": "963b0157-c3ea-41ce-ba0c-90c747e35603",
+      "type": "event",
+      "title": "GPT-5",
+      "summary": "OpenAI's unified system that automatically routes between fast and deep-reasoning modes — folding the reasoning era back into one product.",
+      "startInstant": 1754006400000,
+      "endInstant": null,
+      "precision": "month",
+      "metadata": {
+        "lane": "OpenAI"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "5dbe8333-410d-4ad1-bba9-d4f12e91c844",
+      "sourceId": "a5528309-c5f0-462c-b0ae-9aef3fcf1fa3",
+      "targetId": "388681a7-51dd-4ff0-9b9c-be87c016b804",
+      "kind": "influenced",
+      "label": "built on"
+    },
+    {
+      "id": "6a18b3cb-c0a4-4052-b0d7-24303a95db80",
+      "sourceId": "fab8b1af-6c41-42c1-9a6d-a4edd547ba69",
+      "targetId": "388681a7-51dd-4ff0-9b9c-be87c016b804",
+      "kind": "influenced",
+      "label": "built on"
+    },
+    {
+      "id": "2fadcc71-677e-4cb9-a048-cd29f20a46e8",
+      "sourceId": "646198f6-09e8-41e7-b068-5b170eb3084f",
+      "targetId": "61c63572-6299-4bf0-8258-b36d6d99d507",
+      "kind": "caused",
+      "label": "triggered Google's response"
+    },
+    {
+      "id": "9b90e826-ece6-4f93-9f68-e8adc0022895",
+      "sourceId": "bf1976c2-3906-4d72-b841-6828fcd238de",
+      "targetId": "6d7abbe8-6966-4ad1-85df-808e566b1931",
+      "kind": "influenced",
+      "label": "reasoning race"
+    }
+  ]
+}

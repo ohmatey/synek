@@ -292,6 +292,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         type: r.n.type,
         x: r.x,
         width: r.width,
+        lane: r.n.lane,
         height: estimateNodeHeight(r.n.type, r.n.size, r.n.images.some((i) => i.show), r.n.subtype, !!r.n.summary),
       })),
       ...pendingPositioned.map((pp) => ({

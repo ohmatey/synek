@@ -91,6 +91,7 @@ export function NodeDetailPanel({
   const [size, setSize] = useState<NodeSize>(node.size)
   const [color, setColor] = useState<string | null>(node.color)
   const [subtype, setSubtype] = useState<NodeSubtype | null>(node.subtype)
+  const [lane, setLane] = useState<string>(node.lane ?? '')
   const imgRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   // Read-first: only the clicked field shows an editor at a time.
@@ -140,6 +141,7 @@ export function NodeDetailPanel({
             size,
             color,
             subtype,
+            lane: lane.trim() ? lane.trim() : null,
           },
         },
       })
@@ -388,6 +390,32 @@ export function NodeDetailPanel({
                 </Button>
               ))}
             </div>
+          </div>
+        )}
+
+        {!readOnly && (
+          <div className="detail-prop">
+            <span className="detail-prop-key">Lane</span>
+            <Input
+              className="h-7 flex-1 text-xs"
+              placeholder="Swimlane — e.g. a company / track (blank = by type)"
+              value={lane}
+              onChange={(e) => setLane(e.target.value)}
+              list="synek-lane-options"
+            />
+            {/* Suggest lanes already in use elsewhere on this timeline. */}
+            <datalist id="synek-lane-options">
+              {Array.from(new Set(nodes.map((n) => n.lane).filter((l): l is string => !!l))).map((l) => (
+                <option key={l} value={l} />
+              ))}
+            </datalist>
+          </div>
+        )}
+
+        {readOnly && node.lane && (
+          <div className="detail-prop">
+            <span className="detail-prop-key">Lane</span>
+            <span className="detail-prop-val">{node.lane}</span>
           </div>
         )}
 

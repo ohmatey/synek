@@ -36,6 +36,7 @@ export const getGraph = createServerFn({ method: 'GET' })
         size: n.metadata?.size ?? 'medium',
         color: n.metadata?.color ?? null,
         subtype: n.metadata?.subtype ?? null,
+        lane: n.metadata?.lane ?? null,
       })),
       edges: edges.map((e) => ({
         id: e.id,

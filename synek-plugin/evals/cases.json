@@ -1,0 +1,47 @@
+{
+  "description": "Eval scenarios for the building-timelines skill. Each case is a user prompt plus the grading flags grade-timeline.mjs should run with. Multi-track cases assert that the skill produces competitor/parallel swimlanes; single-track cases assert it does NOT over-impose lanes on a single narrative.",
+  "cases": [
+    {
+      "id": "ai-llm-race",
+      "prompt": "Create a timeline of the AI LLM race with each key moment tracked, including model launches by key competitors.",
+      "multiTrack": true,
+      "minLanes": 5,
+      "notes": "The canonical case. Expect one swimlane per company (OpenAI, Anthropic, Google, Meta, xAI, Mistral, DeepSeek), models left→right, almost no intra-lane succeeded edges."
+    },
+    {
+      "id": "console-wars",
+      "prompt": "Map the home video game console wars from the 1980s to today, tracking each manufacturer's console launches.",
+      "multiTrack": true,
+      "minLanes": 3,
+      "notes": "Expect lanes for Nintendo, Sega, Sony, Microsoft. Generations read as parallel rows, not one stacked block."
+    },
+    {
+      "id": "browser-wars",
+      "prompt": "Build a timeline of the web browser wars and each major browser's releases.",
+      "multiTrack": true,
+      "minLanes": 3,
+      "notes": "Expect lanes for Netscape/Mozilla, Microsoft (IE/Edge), Google (Chrome), Apple (Safari), Opera."
+    },
+    {
+      "id": "space-race",
+      "prompt": "Make a timeline of the Cold War space race between the US and USSR.",
+      "multiTrack": true,
+      "minLanes": 2,
+      "notes": "Two lanes (USA / USSR). Cross-lane edges for reactions (Sputnik caused NASA's founding) are good; per-lane succeeded chains are not."
+    },
+    {
+      "id": "stoicism-founding",
+      "prompt": "Map the founding and early scholarchs of the Stoic school in Athens.",
+      "multiTrack": false,
+      "minLanes": 1,
+      "notes": "A single tradition handed down — NOT multi-track. The skill should lean on the type lanes (people/events/periods) and succession edges, and should NOT invent company-style swimlanes. Run the grader WITHOUT --multi-track."
+    },
+    {
+      "id": "apollo-program",
+      "prompt": "Create a timeline of NASA's Apollo program from Apollo 1 to Apollo 17.",
+      "multiTrack": false,
+      "minLanes": 1,
+      "notes": "Single-narrative sequence. Lanes optional; grader run without --multi-track. Mainly tests richness (summaries, citations) and that a long sequence still reads cleanly (≤3 rows)."
+    }
+  ]
+}
