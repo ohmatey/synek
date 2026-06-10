@@ -108,7 +108,7 @@ export function buildMcpServer(ownerId: string): McpServer {
     {
       title: 'Write a story onto a moment',
       description:
-        'Attach a narrative to a moment (a node) as an ordered list of beats (segments). Stories are SEPARATE from the graph — written directly, with their own provenance, and NOT part of the undo/redo Patch stack. Re-calling REPLACES the moment\'s existing story. Pass the node id as `momentId`. The canvas shows a badge on moments with a story and plays the beats back when the user opens the node.',
+        'Attach a narrative to a moment (a node) as an ordered list of beats (segments). Stories are SEPARATE from the graph — written directly, with their own provenance, and NOT part of the undo/redo Patch stack. Re-calling REPLACES the moment\'s existing story. Pass the node id as `momentId`. The canvas shows a badge on moments with a story and plays the beats back when the user opens the node. Ground each beat in real sources: pass `citations` (title + optional url + verbatim quote) on every beat that makes a factual claim — stories without sources are just plausible fiction.',
       inputSchema: {
         momentId: z.string(),
         title: z.string(),
@@ -123,6 +123,11 @@ export function buildMcpServer(ownerId: string): McpServer {
               kind: z.enum(SEGMENT_KINDS).optional(),
               settingNote: z.string().optional(),
               relatedNodeIds: z.array(z.string()).optional(),
+              // Real sources grounding this beat (cite freely). Same shape as a
+              // node's citations: a title plus an optional url and a verbatim quote.
+              citations: z
+                .array(z.object({ title: z.string(), url: z.string().optional(), quote: z.string().optional() }))
+                .optional(),
             }),
           )
           .min(1),

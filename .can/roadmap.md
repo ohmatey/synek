@@ -155,6 +155,7 @@ Ship after the demo recording is made. These deepen the experience for users who
 
 Maps to: S2 PRD (`prd/s2-artifact-grounding.md`). Depends on N.5 (stories exist).
 
+- **S2.0 — ✅ SHIPPED (slice 1, inline grounding)** — `write_story` beats take an optional `citations: { title, url?, quote? }[]` (same shape as node citations), persisted as a JSON column on `story_segments` (no join table — deferred until artifact reuse is real) and rendered inline under each beat in `NodeDetailPanel`. Postgres-portable; undo/redo-faithful (the moment-delete snapshot spreads the full segment row). Migration `0012`. Data-layer verified (`bun run verify:story` — incl. title+url+quote round-trip, title-only, empty, rewrite clears). Full normalized model (S2.1–S2.4 below) still deferred; backfill path documented in the PRD.
 - S2.1 — `sources` + `artifacts` tables (BCE-safe `dateInstant`)
 - S2.2 — `story_artifacts` + `segment_citations` joins
 - S2.3 — Grounded generation: `write_story` v2 accepts artifact references; beats name their source

@@ -5,7 +5,13 @@ import { auth } from '../src/lib/auth'
 import { ensureTimeline, loadGraph } from '../src/lib/db/graph'
 import { PatchBuilder, commitPatch } from '../src/lib/db/patches'
 import { applyOps } from '../src/lib/mcp/ops'
-import { writeStory, getStoryForMoment, storyDepthByMoment, getMomentTimelineId } from '../src/lib/db/stories'
+import {
+  writeStory,
+  getStoryForMoment,
+  storyDepthByMoment,
+  storyVersionForMoments,
+  getMomentTimelineId,
+} from '../src/lib/db/stories'
 
 // Proves the write_story data path (N.5.1/N.5.2/N.5.3) WITHOUT the SDK: add a
 // node (a "moment") via the normal Patch path, write a story onto it, then assert
@@ -55,7 +61,15 @@ async function main() {
     [
       { bodyText: 'Beat one.', kind: 'narration' },
       { bodyText: 'Beat two.', kind: 'dialogue', settingNote: 'rain on glass' },
-      { bodyText: 'Beat three.', kind: 'sensory', relatedNodeIds: [momentId] },
+      {
+        bodyText: 'Beat three.',
+        kind: 'sensory',
+        relatedNodeIds: [momentId],
+        citations: [
+          { title: 'A primary source', url: 'https://example.com/doc', quote: 'the exact words' },
+          { title: 'A second source' },
+        ],
+      },
     ],
   )
   assert(w.segmentCount === 3, 'writeStory reports 3 segments')
@@ -72,16 +86,41 @@ async function main() {
   )
   assert(story!.beats[2]!.relatedNodeIds.length === 1, 'beat relatedNodeIds round-trip')
 
+  // S2 slice 1 — per-beat citations (real source grounding) round-trip.
+  assert(story!.beats[0]!.citations.length === 0, 'a beat without citations reads back as []')
+  const cites = story!.beats[2]!.citations
+  assert(cites.length === 2, 'beat citations round-trip (count)')
+  assert(
+    cites[0]!.title === 'A primary source' &&
+      cites[0]!.url === 'https://example.com/doc' &&
+      cites[0]!.quote === 'the exact words',
+    'beat citation title + url + quote round-trip',
+  )
+  assert(cites[1]!.title === 'A second source' && !cites[1]!.url && !cites[1]!.quote, 'a title-only citation round-trips')
+
   // Depth-badge lookup for the canvas.
   const depths = storyDepthByMoment([momentId])
   assert(depths.get(momentId) === 'deep', 'storyDepthByMoment reports the moment + depth')
+
+  // Story-version signature (the poll-based seam that refreshes an open reader for
+  // separate-process/stdio writes the in-process SSE bus can't reach).
+  assert(storyVersionForMoments([]) === '', 'storyVersionForMoments is empty for no moments')
+  const ver1 = storyVersionForMoments([momentId])
+  assert(ver1 !== '' && ver1.startsWith(momentId), 'storyVersionForMoments reflects the moment with a story')
 
   // Replace-semantics: re-writing leaves exactly one story with the new beats.
   const w2 = writeStory(momentId, { title: 'The Turn (v2)' }, [{ bodyText: 'Only beat.' }])
   assert(w2.segmentCount === 1, 'rewrite reports 1 segment')
   const story2 = getStoryForMoment(momentId)
   assert(story2!.title === 'The Turn (v2)' && story2!.beats.length === 1, 'rewrite REPLACED the prior story')
+  assert(story2!.beats[0]!.citations.length === 0, 'rewrite dropped the prior beat citations')
   assert(storyDepthByMoment([momentId]).get(momentId) === 'light', 'rewrite reset depth to default (light)')
+
+  // A rewrite mints a new story id, so the signature SHIFTS even though the depth
+  // badge is unchanged across a same-presence rewrite — this is exactly what lets
+  // the canvas refresh an open reader on a same-depth stdio rewrite.
+  const ver2 = storyVersionForMoments([momentId])
+  assert(ver2 !== ver1, 'storyVersionForMoments shifts after a rewrite (open reader will refresh)')
 
   console.log('\nwrite_story path verified ✓')
   process.exit(0)
