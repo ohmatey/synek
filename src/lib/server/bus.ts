@@ -11,10 +11,13 @@ import { EventEmitter } from 'node:events'
 
 export type TimelineEvent = {
   timelineId: string
-  kind: 'patch' | 'undo' | 'redo'
+  // `patch`/`undo`/`redo` are graph mutations; `story` is a write_story commit
+  // (separate from the Patch stack). Clients refetch on ANY kind.
+  kind: 'patch' | 'undo' | 'redo' | 'story'
   // The patch seq involved. For `patch`, the newly-committed seq; for undo/redo,
-  // the seq of the patch that flipped. Clients refetch on ANY event, so this is
-  // for SSE frame ids / debugging, not load-bearing for correctness.
+  // the seq of the patch that flipped; for `story`, the timeline's current max
+  // applied seq (so it never rewinds Last-Event-ID). Clients refetch on ANY
+  // event, so this is for SSE frame ids / debugging, not load-bearing.
   seq: number
 }
 

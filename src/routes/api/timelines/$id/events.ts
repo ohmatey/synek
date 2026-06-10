@@ -1,23 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { and, eq, max } from 'drizzle-orm'
 import { auth } from '~/lib/auth'
-import { db } from '~/lib/db'
-import { patches } from '~/lib/db/schema'
 import { getTimelineMeta, canView } from '~/lib/db/graph'
+import { maxAppliedSeq } from '~/lib/db/patches'
 import { onTimelineEvent, type TimelineEvent } from '~/lib/server/bus'
 
 // Live updates (NOW.3 / B.2). The viewer opens an EventSource here and the server
-// pushes one frame per committed patch (and per undo/redo). The client refetches
-// the graph on each frame — authoritative, no client-side op replay.
+// pushes one frame per committed patch (and per undo/redo/story). The client
+// refetches the graph on each frame — authoritative, no client-side op replay.
 //
 // AUTH: via the Better Auth SESSION COOKIE, not the Bearer guard — an EventSource
 // cannot set an Authorization header. The viewer is already cookie-authenticated.
-const maxAppliedSeq = (timelineId: string): number =>
-  db
-    .select({ m: max(patches.seq) })
-    .from(patches)
-    .where(and(eq(patches.timelineId, timelineId), eq(patches.status, 'applied')))
-    .get()?.m ?? 0
 
 export const Route = createFileRoute('/api/timelines/$id/events')({
   server: {

@@ -36,8 +36,9 @@ import {
   type SavedViewport,
   type TimeScale,
 } from './useTimelineScale'
-import { formatInstant } from '~/lib/domain/dates'
+import { formatInstant, eraTint } from '~/lib/domain/dates'
 import { getGraph } from '~/lib/server/graph'
+import { useTimelineStream } from './useTimelineStream'
 import { AppBar } from './AppBar'
 import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
@@ -121,15 +122,21 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const initialPref = useRef(loadScalePref(timelineId)).current
   const [pxPerDay, setPxPerDay] = useState(initialPref?.pxPerDay ?? BASE_PX_PER_DAY)
   const [collapseGaps, setCollapseGaps] = useState(initialPref?.collapseGaps ?? false)
-  // Background poll for external MCP writes — on by default, toggled in settings.
+  // Live updates from the MCP client — on by default, toggled in settings.
   const [autoRefresh, setAutoRefresh] = useState(initialPref?.autoRefresh ?? true)
+
+  // Near-real-time stream (SSE). While the stream is healthy it drives freshness
+  // (refetch on each frame) and pollingInterval stays false; if it drops, the hook
+  // surfaces a polling interval the query below falls back to (also the only path
+  // that picks up writes from the separate-process stdio MCP server).
+  const { pollingInterval } = useTimelineStream({ timelineId, enabled: autoRefresh })
 
   const { data, isLoading } = useQuery({
     queryKey: ['graph', timelineId],
     queryFn: () => getGraph({ data: timelineId }),
-    // Reflect MCP writes in place (no page reload). ViewportInit keeps the
-    // camera stable across these refetches, so new nodes appear without a jump.
-    refetchInterval: autoRefresh ? 10_000 : false,
+    // ViewportInit keeps the camera stable across refetches, so new nodes appear
+    // without a jump. SSE drives refetches live; this interval is the fallback.
+    refetchInterval: autoRefresh ? pollingInterval : false,
   })
 
   // Reload the saved scale + refresh pref when switching timelines (the component
@@ -318,6 +325,10 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         size: n.size,
         color: n.color,
         subtype: n.subtype,
+        hasStory: n.hasStory,
+        storyDepth: n.storyDepth,
+        // Period background reads the era of its date range (period nodes only).
+        tint: n.type === 'period' ? eraTint(n.startInstant, n.endInstant) : undefined,
       }
       rfNodes.push({
         id: n.id,

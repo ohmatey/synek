@@ -185,10 +185,10 @@ export function CanvasSettings({
               data-testid="auto-refresh-toggle"
               onClick={() => onAutoRefresh(!autoRefresh)}
               aria-pressed={autoRefresh}
-              title="Automatically pick up changes made by your MCP client (no page reload)"
+              title="Stream changes from your MCP client in near-real-time (no page reload)"
             >
               <RefreshCw className={autoRefresh ? 'animate-none' : undefined} />
-              Auto-refresh {autoRefresh ? 'on' : 'off'}
+              Live updates {autoRefresh ? 'on' : 'off'}
             </Button>
           </div>
 

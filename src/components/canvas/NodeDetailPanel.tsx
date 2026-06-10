@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Loader2, Plus, Trash2, Upload, X } from 'lucide-react'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
 import { parseDate, formatInstant } from '~/lib/domain/dates'
 import { editNode, deleteNode } from '~/lib/server/nodes'
+import { getStory } from '~/lib/server/stories'
 import { fileToDataUrl } from '~/lib/files'
 import { NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
 import type { GraphNode, GraphEdge, CanvasCitation, NodeImage, NodeSize, NodeSubtype, NodeType, Precision, EdgeKind } from '~/lib/domain/types'
@@ -71,6 +72,14 @@ export function NodeDetailPanel({
 }) {
   const qc = useQueryClient()
   const hasSpan = node.type !== 'event'
+
+  // The story written onto this moment (by an MCP client via write_story), if any.
+  // Read-only playback; null until/unless one exists. The panel is keyed by node
+  // id, so this refetches when the selection changes.
+  const { data: story } = useQuery({
+    queryKey: ['story', node.id],
+    queryFn: () => getStory({ data: node.id }),
+  })
 
   // Edges touching this node, resolved to the other endpoint's title.
   const nodeById = new Map(nodes.map((n) => [n.id, n]))
@@ -472,6 +481,41 @@ export function NodeDetailPanel({
           </ul>
         )}
       </div>
+
+      {story && (
+        <div className="detail-field detail-section detail-story">
+          <span className="detail-label">Story</span>
+          <h3 className="detail-story-title">{story.title}</h3>
+          {story.hook && <p className="detail-story-hook">{story.hook}</p>}
+          <ol className="detail-story-beats">
+            {story.beats.map((b) => (
+              <li key={b.id} className={`detail-story-beat detail-story-${b.kind}`}>
+                {b.settingNote && <span className="detail-story-setting">{b.settingNote}</span>}
+                <p className="detail-story-text">{b.bodyText}</p>
+                {b.relatedNodeIds.length > 0 && (
+                  <div className="detail-story-links">
+                    {b.relatedNodeIds.map((id) => {
+                      const other = nodeById.get(id)
+                      if (!other) return null
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          className="detail-story-link"
+                          onClick={() => onSelectNode(id)}
+                          title={`Go to ${other.title}`}
+                        >
+                          → {other.title}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       <div className="detail-field detail-section">
         <div className="detail-cite-head">

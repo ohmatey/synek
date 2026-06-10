@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { CanvasNodeData } from '../types'
+import { StoryBadge } from './StoryBadge'
 
 export function EventNode({ data }: NodeProps) {
   const d = data as CanvasNodeData
@@ -15,6 +16,7 @@ export function EventNode({ data }: NodeProps) {
         <span className="sf-label">{d.title}</span>
         {d.date && <span className="sf-date">{d.date}</span>}
         {d.citations ? <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span> : null}
+        <StoryBadge data={d} />
         <Handle type="source" position={Position.Right} className="sf-handle" />
       </div>
       {d.images?.length ? (

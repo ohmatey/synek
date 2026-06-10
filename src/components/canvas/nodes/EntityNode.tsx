@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { CanvasNodeData } from '../types'
 import { PersonCard } from './PersonCard'
+import { StoryBadge } from './StoryBadge'
 
 export function EntityNode(props: NodeProps) {
   const d = props.data as CanvasNodeData
@@ -24,6 +25,7 @@ export function EntityNode(props: NodeProps) {
           <span className="sf-label">{d.title}</span>
           {dateLabel && <span className="sf-date">{dateLabel}</span>}
           {d.citations ? <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span> : null}
+          <StoryBadge data={d} />
         </div>
         {d.summary ? <span className="sf-summary">{d.summary}</span> : null}
         <Handle type="source" position={Position.Right} className="sf-handle" />

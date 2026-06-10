@@ -49,6 +49,11 @@ export type GraphNode = {
   // row-group (e.g. all of a company's model launches), ordered left→right by
   // date. Null/absent → the node falls back to its type lane. See layoutLaneY.
   lane: string | null
+  // True when a story has been written onto this moment (drives the depth badge);
+  // `storyDepth` carries its tier when present. Written via the MCP write_story
+  // tool, separate from the graph Patch stack.
+  hasStory: boolean
+  storyDepth: DepthTier | null
 }
 
 export type GraphEdge = {
@@ -103,3 +108,25 @@ export type StoryStatus = (typeof STORY_STATUS)[number]
 
 export const SEGMENT_KINDS = ['narration', 'dialogue', 'sensory', 'interior'] as const
 export type SegmentKind = (typeof SEGMENT_KINDS)[number]
+
+// Client-serializable story payload for the node-detail playback reader (plain
+// primitives only — the RPC serializer rejects Date/unknown). A story is an
+// ordered list of beats (segments) attached to a moment/node.
+export type StoryBeat = {
+  id: string
+  sequence: number
+  kind: SegmentKind
+  bodyText: string
+  settingNote: string | null
+  relatedNodeIds: string[]
+}
+
+export type StoryDTO = {
+  id: string
+  title: string
+  hook: string | null
+  povType: PovType
+  depthTier: DepthTier
+  estimatedMinutes: number | null
+  beats: StoryBeat[]
+}

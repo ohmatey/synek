@@ -252,6 +252,19 @@ export function redo(timelineId: string): boolean {
   return true
 }
 
+// Highest applied patch seq on a timeline (0 if none). Used by the SSE route's
+// catch-up replay and to stamp non-patch live events (e.g. stories) with a seq
+// that never rewinds a client's Last-Event-ID below a real patch.
+export function maxAppliedSeq(timelineId: string): number {
+  return (
+    db
+      .select({ m: max(patches.seq) })
+      .from(patches)
+      .where(and(eq(patches.timelineId, timelineId), eq(patches.status, 'applied')))
+      .get()?.m ?? 0
+  )
+}
+
 export function historyState(timelineId: string): {
   canUndo: boolean
   canRedo: boolean

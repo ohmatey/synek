@@ -8,7 +8,10 @@ import {
   getTimelineTitle,
   getTimelineMeta,
 } from '~/lib/db/graph'
-import { PatchBuilder, commitPatch, undo, redo, historyState } from '~/lib/db/patches'
+import { PatchBuilder, commitPatch, undo, redo, historyState, maxAppliedSeq } from '~/lib/db/patches'
+import { writeStory, getMomentTimelineId } from '~/lib/db/stories'
+import { emitTimelineEvent } from '~/lib/server/bus'
+import { POV_TYPES, DEPTH_TIERS, SEGMENT_KINDS } from '~/lib/domain/types'
 import { BASE_URL } from '~/lib/auth'
 import { opSchema, applyOps } from './ops'
 
@@ -31,9 +34,11 @@ export function buildMcpServer(ownerId: string): McpServer {
         'After create_timeline, SHARE the returned `url` with the user so they can open the canvas and watch it build. ' +
         'The canvas updates LIVE as you apply patches — never tell the user to refresh. ' +
         'Read with list_timelines / get_timeline. ' +
-        'MUTATE ONLY via apply_patch — one call = one undoable Patch holding a batch of ops. ' +
+        'MUTATE the graph ONLY via apply_patch — one call = one undoable Patch holding a batch of ops. ' +
         'Within a batch, set `ref` on an add_node and reuse that alias as an edge endpoint to wire edges to nodes created in the same call. ' +
-        'undo / redo step the per-timeline history. You only see and edit your own timelines.',
+        'undo / redo step the per-timeline history. ' +
+        'To attach a NARRATIVE to a moment (node), call write_story with that node\'s id (momentId) and an ordered list of beats — stories are separate from the graph, written directly, and are NOT part of the undo/redo Patch stack. ' +
+        'You only see and edit your own timelines.',
     },
   )
 
@@ -94,6 +99,45 @@ export function buildMcpServer(ownerId: string): McpServer {
       const { results } = applyOps(builder, ops)
       const patchId = commitPatch(timelineId, builder, (summary || 'MCP edit').slice(0, 200))
       return json({ patchId, results, ...historyState(timelineId) })
+    },
+  )
+
+  server.registerTool(
+    'write_story',
+    {
+      title: 'Write a story onto a moment',
+      description:
+        'Attach a narrative to a moment (a node) as an ordered list of beats (segments). Stories are SEPARATE from the graph — written directly, with their own provenance, and NOT part of the undo/redo Patch stack. Re-calling REPLACES the moment\'s existing story. Pass the node id as `momentId`. The canvas shows a badge on moments with a story and plays the beats back when the user opens the node.',
+      inputSchema: {
+        momentId: z.string(),
+        title: z.string(),
+        hook: z.string().optional(),
+        povType: z.enum(POV_TYPES).optional(),
+        depthTier: z.enum(DEPTH_TIERS).optional(),
+        estimatedMinutes: z.number().int().positive().optional(),
+        segments: z
+          .array(
+            z.object({
+              bodyText: z.string(),
+              kind: z.enum(SEGMENT_KINDS).optional(),
+              settingNote: z.string().optional(),
+              relatedNodeIds: z.array(z.string()).optional(),
+            }),
+          )
+          .min(1),
+      },
+    },
+    async ({ momentId, title, hook, povType, depthTier, estimatedMinutes, segments }) => {
+      // write_story keys off a node id; resolve its timeline and run the same
+      // owner check the timeline-scoped tools use.
+      const timelineId = getMomentTimelineId(momentId)
+      const meta = timelineId ? getTimelineMeta(timelineId) : null
+      if (!timelineId || !meta || meta.ownerId !== ownerId) throw new Error(`moment "${momentId}" not found`)
+      const result = writeStory(momentId, { title, hook, povType, depthTier, estimatedMinutes }, segments)
+      // Nudge live viewers to refetch so the depth badge appears in near-real-time
+      // (same SSE channel as patches; seq = current max so it never rewinds Last-Event-ID).
+      emitTimelineEvent({ timelineId, kind: 'story', seq: maxAppliedSeq(timelineId) })
+      return json(result)
     },
   )
 
