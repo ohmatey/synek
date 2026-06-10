@@ -43,6 +43,8 @@ const editInput = z.object({
     size: z.enum(['small', 'medium', 'large']).optional(),
     color: z.string().nullable().optional(),
     subtype: z.enum(['person', 'org', 'place', 'work']).nullable().optional(),
+    // Swimlane key. "" / null clears it (back to type-lane layout).
+    lane: z.string().nullable().optional(),
   }),
 })
 
@@ -67,7 +69,8 @@ export const editNode = createServerFn({ method: 'POST' })
       patch.images !== undefined ||
       patch.size !== undefined ||
       patch.color !== undefined ||
-      patch.subtype !== undefined
+      patch.subtype !== undefined ||
+      patch.lane !== undefined
     ) {
       const metadata: NodeMetadata = { ...(cur.metadata ?? {}) }
       if (patch.citations !== undefined) metadata.citations = patch.citations
@@ -75,6 +78,11 @@ export const editNode = createServerFn({ method: 'POST' })
       if (patch.size !== undefined) metadata.size = patch.size
       if (patch.color !== undefined) metadata.color = patch.color ?? undefined
       if (patch.subtype !== undefined) metadata.subtype = patch.subtype ?? undefined
+      // Empty string or null clears the swimlane.
+      if (patch.lane !== undefined) {
+        if (patch.lane) metadata.lane = patch.lane
+        else delete metadata.lane
+      }
       np.metadata = metadata
     }
     // Empty patch → no-op (avoids an empty `SET` and a meaningless Patch row).

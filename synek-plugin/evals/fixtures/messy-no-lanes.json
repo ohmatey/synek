@@ -1,0 +1,21 @@
+{
+  "title": "AI race (anti-pattern: no lanes, succeeded-chain hairball)",
+  "nodes": [
+    { "id": "n1", "type": "event", "title": "GPT-3", "summary": "OpenAI 175B model.", "startInstant": 1588291200000, "precision": "month", "metadata": null },
+    { "id": "n2", "type": "event", "title": "ChatGPT", "summary": "OpenAI assistant.", "startInstant": 1669766400000, "precision": "day", "metadata": null },
+    { "id": "n3", "type": "event", "title": "GPT-4", "summary": "OpenAI multimodal.", "startInstant": 1678752000000, "precision": "day", "metadata": null },
+    { "id": "n4", "type": "event", "title": "Claude 1", "summary": "Anthropic assistant.", "startInstant": 1677628800000, "precision": "month", "metadata": null },
+    { "id": "n5", "type": "event", "title": "Claude 2", "summary": "Anthropic long-context.", "startInstant": 1688169600000, "precision": "month", "metadata": null },
+    { "id": "n6", "type": "event", "title": "Bard", "summary": "Google assistant.", "startInstant": 1675209600000, "precision": "month", "metadata": null },
+    { "id": "n7", "type": "event", "title": "Gemini 1.0", "summary": "Google multimodal.", "startInstant": 1701388800000, "precision": "month", "metadata": null },
+    { "id": "n8", "type": "event", "title": "Llama 2", "summary": "Meta open weights.", "startInstant": 1688169600000, "precision": "month", "metadata": null }
+  ],
+  "edges": [
+    { "id": "e1", "sourceId": "n2", "targetId": "n1", "kind": "succeeded" },
+    { "id": "e2", "sourceId": "n3", "targetId": "n2", "kind": "succeeded" },
+    { "id": "e3", "sourceId": "n5", "targetId": "n4", "kind": "succeeded" },
+    { "id": "e4", "sourceId": "n7", "targetId": "n6", "kind": "succeeded" },
+    { "id": "e5", "sourceId": "n4", "targetId": "n1", "kind": "competed_with" },
+    { "id": "e6", "sourceId": "n6", "targetId": "n1", "kind": "competed_with" }
+  ]
+}

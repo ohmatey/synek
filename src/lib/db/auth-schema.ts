@@ -54,3 +54,50 @@ export const verification = sqliteTable('verification', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
+
+// --- OAuth provider tables (Better Auth `mcp` plugin, built on oidc-provider) ---
+// These back the MCP OAuth front door: Claude Code dynamically registers a client
+// (oauthApplication), the user consents (oauthConsent), and the issued bearer is an
+// oauthAccessToken. Property keys are the better-auth field names (camelCase) so the
+// drizzle adapter resolves them; column names stay snake_case. Hand-written to mirror
+// the plugin schema and stay in the project's single drizzle-kit migration pipeline.
+
+export const oauthApplication = sqliteTable('oauth_application', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  icon: text('icon'),
+  metadata: text('metadata'),
+  clientId: text('client_id').notNull().unique(),
+  clientSecret: text('client_secret'),
+  redirectUrls: text('redirect_urls').notNull(),
+  type: text('type').notNull(),
+  disabled: integer('disabled', { mode: 'boolean' }).default(false),
+  userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const oauthAccessToken = sqliteTable('oauth_access_token', {
+  id: text('id').primaryKey(),
+  accessToken: text('access_token').notNull().unique(),
+  refreshToken: text('refresh_token').notNull().unique(),
+  accessTokenExpiresAt: integer('access_token_expires_at', { mode: 'timestamp' }).notNull(),
+  refreshTokenExpiresAt: integer('refresh_token_expires_at', { mode: 'timestamp' }).notNull(),
+  clientId: text('client_id').notNull(),
+  userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+  scopes: text('scopes').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const oauthConsent = sqliteTable('oauth_consent', {
+  id: text('id').primaryKey(),
+  clientId: text('client_id').notNull(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  scopes: text('scopes').notNull(),
+  consentGiven: integer('consent_given', { mode: 'boolean' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})

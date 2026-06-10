@@ -2,8 +2,16 @@ import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
 
 // Better Auth core tables (user/session/account/verification) — kept in this
 // schema so they share the project's drizzle-kit migration pipeline.
-import { user, session, account, verification } from './auth-schema'
-export { user, session, account, verification }
+import {
+  user,
+  session,
+  account,
+  verification,
+  oauthApplication,
+  oauthAccessToken,
+  oauthConsent,
+} from './auth-schema'
+export { user, session, account, verification, oauthApplication, oauthAccessToken, oauthConsent }
 
 import {
   NODE_TYPES,
@@ -26,6 +34,9 @@ export type NodeMetadata = {
   images?: NodeImage[]
   size?: NodeSize
   subtype?: NodeSubtype
+  // Swimlane grouping key (e.g. "OpenAI"). Nodes sharing a lane render in one
+  // horizontal row-group on the canvas; absent → laid out by node type.
+  lane?: string
 }
 export type EdgeMetadata = Record<string, unknown>
 

@@ -79,6 +79,7 @@ React Flow is **client-only** — always render it behind `<ClientOnly>` (SSR to
 ## Commands
 
 ```bash
+bun run setup        # one-step on-ramp: writes .env (generates a secret), migrates, seeds Stoicism, mints an MCP key (stdio path), prints how to connect Claude Code (OAuth) / Desktop (stdio). `--start` also boots dev. (scripts/synek.ts)
 bun run dev          # dev server on http://localhost:3001 ($PORT overrides; generates src/routeTree.gen.ts)
 bun run dev:test     # seeded test instance: PORT=3001 + DATABASE_URL=e2e.db
 bun run build        # production build

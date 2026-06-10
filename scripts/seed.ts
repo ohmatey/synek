@@ -39,9 +39,10 @@ const Y = (y: number, m = 0, d = 1) => {
   return dt.getTime()
 }
 
-// Images resolve to LOCAL paths under public/seed/ (offline-safe) — run
-// `bun run cache:images` to download them. `file` is the Wikimedia Commons
-// source name (the canonical list + remote source live in ./seed-images.ts).
+// Images render directly from their public Wikimedia Commons URL (no download).
+// `file` is the Commons source name; `seedImageUrl` resolves it to a remote URL
+// (the canonical list lives in ./seed-images.ts; `bun run cache:images` can still
+// mirror them locally for an offline setup).
 const img = (file: string, alt: string): NonNullable<NodeMetadata['images']>[number] => ({
   url: seedImageUrl(file),
   alt,

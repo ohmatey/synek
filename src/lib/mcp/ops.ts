@@ -25,6 +25,11 @@ const typeHint =
   'concept = an idea/doctrine/principle (its start = when first articulated, end optional).'
 const refHint =
   'Optional local alias for THIS node so a later add_edge in the same batch can reference it before it has a real id.'
+const laneHint =
+  'Swimlane this node belongs to (a short group name, e.g. a company/actor like "OpenAI"). ' +
+  'Nodes sharing a lane render as one horizontal row, ordered left→right by date — ideal for comparing ' +
+  'parallel tracks (rival companies, branches, factions). Omit for one-off nodes; reuse the EXACT same ' +
+  'string for every node in a track.'
 
 // One edit in a batch. `ref` (on add_node/add_edge) lets a single batch create a
 // node and then connect an edge to it — the alias resolves to the new id.
@@ -40,6 +45,7 @@ export const opSchema = z.discriminatedUnion('op', [
     precision: precisionEnum.optional(),
     citations: z.array(citation).optional(),
     subtype: subtypeEnum.optional().describe(subtypeHint),
+    lane: z.string().optional().describe(laneHint),
   }),
   z.object({
     op: z.literal('update_node'),
@@ -55,6 +61,7 @@ export const opSchema = z.discriminatedUnion('op', [
     precision: precisionEnum.optional(),
     citations: z.array(citation).optional(),
     subtype: subtypeEnum.optional().describe(subtypeHint),
+    lane: z.string().optional().describe(laneHint + ' Pass "" to clear the lane.'),
   }),
   z.object({
     op: z.literal('delete_node'),
@@ -97,10 +104,11 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
         const start = parseDate(op.start)
         const end = op.end ? parseDate(op.end) : null
         const metadata: NodeMetadata | null =
-          op.citations?.length || op.subtype
+          op.citations?.length || op.subtype || op.lane
             ? {
                 ...(op.citations?.length ? { citations: op.citations } : {}),
                 ...(op.subtype ? { subtype: op.subtype } : {}),
+                ...(op.lane ? { lane: op.lane } : {}),
               }
             : null
         const node = builder.addNode({
@@ -131,13 +139,19 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
         if (op.end) np.endInstant = parseDate(op.end).instant
         if (op.precision) np.precision = op.precision
         // Merge metadata so existing images/color/size aren't clobbered.
-        if (op.citations || op.subtype) {
+        if (op.citations || op.subtype || op.lane !== undefined) {
           const prior = (builder.getNode(id)?.metadata ?? {}) as NodeMetadata
-          np.metadata = {
+          const merged: NodeMetadata = {
             ...prior,
             ...(op.citations ? { citations: op.citations } : {}),
             ...(op.subtype ? { subtype: op.subtype } : {}),
           }
+          // lane === "" clears the swimlane; any other string sets it.
+          if (op.lane !== undefined) {
+            if (op.lane === '') delete merged.lane
+            else merged.lane = op.lane
+          }
+          np.metadata = merged
         }
         results.push(builder.updateNode(id, np) ? { op: op.op, id } : { op: op.op, error: `node ${id} not found` })
         break

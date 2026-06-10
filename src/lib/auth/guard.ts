@@ -1,24 +1,39 @@
-import { auth } from './index'
+import { auth, BASE_URL } from './index'
 import { looksLikeApiKey, verifyApiKey } from './api-keys'
 
+// 401 that points OAuth-capable clients (Claude Code) at our protected-resource
+// metadata per RFC 9728 — this `WWW-Authenticate` header is what makes the client
+// kick off the browser "Authorize" flow instead of just failing.
 const unauthorized = () =>
-  new Response(JSON.stringify({ error: 'unauthorized: missing or invalid API key' }), {
+  new Response(JSON.stringify({ error: 'unauthorized: missing or invalid credential' }), {
     status: 401,
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      'WWW-Authenticate': `Bearer resource_metadata="${BASE_URL}/.well-known/oauth-protected-resource"`,
+    },
   })
 
 const BEARER = /^Bearer\s+(.+)$/i
 
 // Resolve the OWNER user id behind a Bearer credential, or null if unauthorized.
-// A named api key (`synek_…`, hashed + revocable) takes precedence and yields its
-// owner; otherwise we fall back to a Better Auth session token (legacy tokens from
-// `bun run issue:key` / the old reveal flow) and use its user id. The owner id
-// scopes every MCP operation to that user's timelines.
+// Three credential shapes, in priority order:
+//  1. A named api key (`synek_…`, hashed + revocable) — used by the stdio server
+//     and as a static fallback. A revoked/unknown one is a hard no.
+//  2. An OAuth access token from the `mcp` plugin's browser flow (the default for
+//     the Claude Code plugin) — validated via getMcpSession.
+//  3. A legacy Better Auth session token. The owner id scopes every MCP op.
 async function resolveUserId(token: string | undefined, headers: Headers): Promise<string | null> {
   if (token && looksLikeApiKey(token)) {
     const row = verifyApiKey(token)
-    // A revoked/unknown/unowned api key is a hard no — don't fall through to sessions.
     return row?.userId ?? null
+  }
+  // OAuth access token (Claude Code → "Authorize" → token). getMcpSession reads the
+  // Bearer header itself; it returns null (or throws) for non-OAuth tokens.
+  try {
+    const mcpSession = await auth.api.getMcpSession({ headers })
+    if (mcpSession?.userId) return mcpSession.userId
+  } catch {
+    // not an OAuth token — fall through
   }
   const session = await auth.api.getSession({ headers })
   return session?.user?.id ?? null

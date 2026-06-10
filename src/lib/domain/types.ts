@@ -45,6 +45,10 @@ export type GraphNode = {
   size: NodeSize
   color: string | null
   subtype: NodeSubtype | null
+  // Optional swimlane key: nodes sharing a `lane` are laid out in one horizontal
+  // row-group (e.g. all of a company's model launches), ordered left→right by
+  // date. Null/absent → the node falls back to its type lane. See layoutLaneY.
+  lane: string | null
 }
 
 export type GraphEdge = {

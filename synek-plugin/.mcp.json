@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "synek": {
+      "type": "http",
+      "url": "${SYNEK_MCP_URL:-http://localhost:3001/api/mcp}"
+    }
+  }
+}

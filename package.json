@@ -5,6 +5,7 @@
   "type": "module",
   "workspaces": ["packages/*"],
   "scripts": {
+    "setup": "tsx scripts/synek.ts",
     "dev": "vite dev",
     "dev:test": "PORT=3001 DATABASE_URL=e2e.db vite dev",
     "build": "vite build",

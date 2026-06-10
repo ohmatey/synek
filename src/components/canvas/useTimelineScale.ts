@@ -224,54 +224,85 @@ export function estimateNodeHeight(
   return Math.round(TYPE_BODY[type] * SIZE_SCALE[size]) + (hasImages ? IMG_STRIP[size] : 0) + summary
 }
 
-// Lay nodes out so none overlap: within each lane, greedily pack into rows by x
-// (a node takes the first row whose last box has cleared), stacking rows by their
-// *actual* heights; then place each lane below the previous one's full extent so
-// tall/imaged nodes never bleed into the next lane. Returns the top-left y per id.
-export function layoutLaneY(
-  items: { id: string; type: NodeType; x: number; width?: number; height?: number }[],
-): Map<string, number> {
-  const yById = new Map<string, number>()
-  const byLane = new Map<NodeType, typeof items>()
-  for (const it of items) {
-    const arr = byLane.get(it.type) ?? []
-    arr.push(it)
-    byLane.set(it.type, arr)
+type LayoutItem = { id: string; type: NodeType; x: number; width?: number; height?: number; lane?: string | null }
+
+// Pack one lane's items so none overlap: greedily into rows by x (a node takes
+// the first row whose last box has cleared), stacking rows by their *actual*
+// heights. Writes the top-left y per id into `out`; returns the y just below
+// this lane's full extent (so the next lane can start there).
+function packLane(arr: LayoutItem[], base: number, out: Map<string, number>): number {
+  if (arr.length === 0) return base
+  arr.sort((a, b) => a.x - b.x)
+
+  const rowRight: number[] = [] // right edge (x) currently occupied per row
+  const rowHeight: number[] = [] // tallest box in each row
+  const rowOf = new Map<string, number>()
+  for (const it of arr) {
+    const w = it.width ?? NOMINAL_WIDTH
+    const h = it.height ?? estimateNodeHeight(it.type)
+    let row = rowRight.findIndex((right) => it.x >= right)
+    if (row === -1) {
+      row = rowRight.length
+      rowRight.push(0)
+      rowHeight.push(0)
+    }
+    rowRight[row] = it.x + w + H_GAP
+    rowHeight[row] = Math.max(rowHeight[row]!, h)
+    rowOf.set(it.id, row)
   }
+
+  // Cumulative y for each row, starting at the lane base.
+  const rowY: number[] = []
+  let acc = base
+  for (let r = 0; r < rowHeight.length; r++) {
+    rowY[r] = acc
+    acc += rowHeight[r]! + ROW_GAP
+  }
+  for (const it of arr) out.set(it.id, rowY[rowOf.get(it.id)!]!)
+
+  return acc - ROW_GAP + LANE_GAP // next lane starts below this one's extent
+}
+
+// Lay nodes out so none overlap, top → bottom. Two kinds of lane:
+//   1. Named swimlanes — nodes that carry a `lane` string are grouped by it, one
+//      horizontal row-group each, so parallel tracks (e.g. rival companies) read
+//      as clean waterfalls left→right by date. Lanes are ordered by their
+//      earliest node, so the canvas cascades by first activity.
+//   2. Type lanes — nodes with no `lane` fall back to the per-type lanes
+//      (period → entity → concept → event), stacked below any swimlanes.
+// Returns the top-left y per id. With no laned nodes this is exactly the old
+// type-lane layout, so existing timelines are unaffected.
+export function layoutLaneY(items: LayoutItem[]): Map<string, number> {
+  const yById = new Map<string, number>()
+  const hasLane = (it: LayoutItem) => it.lane != null && it.lane !== ''
 
   let base = LANE_TOP
-  for (const type of LANE_ORDER) {
-    const arr = byLane.get(type)
-    if (!arr || arr.length === 0) continue
-    arr.sort((a, b) => a.x - b.x)
 
-    const rowRight: number[] = [] // right edge (x) currently occupied per row
-    const rowHeight: number[] = [] // tallest box in each row
-    const rowOf = new Map<string, number>()
-    for (const it of arr) {
-      const w = it.width ?? NOMINAL_WIDTH
-      const h = it.height ?? estimateNodeHeight(type)
-      let row = rowRight.findIndex((right) => it.x >= right)
-      if (row === -1) {
-        row = rowRight.length
-        rowRight.push(0)
-        rowHeight.push(0)
-      }
-      rowRight[row] = it.x + w + H_GAP
-      rowHeight[row] = Math.max(rowHeight[row]!, h)
-      rowOf.set(it.id, row)
-    }
-
-    // Cumulative y for each row, starting at the lane base.
-    const rowY: number[] = []
-    let acc = base
-    for (let r = 0; r < rowHeight.length; r++) {
-      rowY[r] = acc
-      acc += rowHeight[r]! + ROW_GAP
-    }
-    for (const it of arr) yById.set(it.id, rowY[rowOf.get(it.id)!]!)
-
-    base = acc - ROW_GAP + LANE_GAP // next lane starts below this one's extent
+  // 1. Named swimlanes, ordered by each lane's earliest (leftmost) node.
+  const byName = new Map<string, LayoutItem[]>()
+  for (const it of items) {
+    if (!hasLane(it)) continue
+    const arr = byName.get(it.lane!) ?? []
+    arr.push(it)
+    byName.set(it.lane!, arr)
   }
+  const ordered = [...byName.entries()]
+    .map(([lane, arr]) => ({ lane, arr, minX: Math.min(...arr.map((i) => i.x)) }))
+    .sort((a, b) => a.minX - b.minX || a.lane.localeCompare(b.lane))
+  for (const { arr } of ordered) base = packLane(arr, base, yById)
+
+  // 2. Unlaned nodes → per-type lanes, below the swimlanes.
+  const byType = new Map<NodeType, LayoutItem[]>()
+  for (const it of items) {
+    if (hasLane(it)) continue
+    const arr = byType.get(it.type) ?? []
+    arr.push(it)
+    byType.set(it.type, arr)
+  }
+  for (const type of LANE_ORDER) {
+    const arr = byType.get(type)
+    if (arr && arr.length) base = packLane(arr, base, yById)
+  }
+
   return yById
 }

@@ -1,10 +1,11 @@
-// Canonical list of the Wikimedia Commons files the seed uses, with helpers to
-// resolve each to (a) a stable LOCAL path under public/seed/ — what the app
-// renders, so seeded timelines are offline-safe and never show broken thumbs —
-// and (b) the remote Commons source the cache script downloads from.
+// Canonical list of the Wikimedia Commons files the seed uses. The app renders
+// each one DIRECTLY from its public Commons URL (`seedImageUrl` → `wikiUrl`) — no
+// local download, so the seed has zero image assets to ship. Tradeoff: thumbnails
+// need network to load (not offline-safe).
 //
-// Keep SEED_IMAGE_FILES in sync with the files referenced in seed.ts, then run
-// `bun run cache:images` to (re)download them into public/seed/.
+// `bun run cache:images` + `seedImageSlug` remain only as an OPTIONAL way to mirror
+// these into public/seed/ for an offline setup; the default render path is remote.
+// Keep SEED_IMAGE_FILES in sync with the files referenced in seed.ts.
 
 export const SEED_IMAGE_FILES = [
   // observability
@@ -70,9 +71,11 @@ export function seedImageSlug(file: string): string {
   return `${base}${ext}`
 }
 
-// What the app renders (served from public/).
+// What the app renders: the public Wikimedia Commons image directly (no local
+// download). SVGs stay vector (scalable); raster photos are rasterized to a sane
+// card width so we don't pull multi-MB originals into a thumbnail.
 export function seedImageUrl(file: string): string {
-  return `/seed/${seedImageSlug(file)}`
+  return /\.svg$/i.test(file) ? wikiUrl(file) : wikiUrl(file, 600)
 }
 
 // Remote Commons source. Special:FilePath always resolves to the current file;
