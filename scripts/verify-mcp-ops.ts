@@ -65,7 +65,47 @@ async function main() {
   const redone = loadGraph(TL)
   assert(redone.nodes.length === beforeNodes + 2, 'redo restored the nodes')
 
-  // Clean up so the script is idempotent.
+  // --- N.4.5a: Claude-supplied images on add_node / update_node ---
+  const imgBuilder = new PatchBuilder(TL, redone)
+  applyOps(imgBuilder, [
+    {
+      op: 'add_node',
+      ref: 'img',
+      type: 'entity',
+      subtype: 'person',
+      title: 'Verify Portrait',
+      start: '2003',
+      images: [
+        { url: 'https://example.org/portrait.jpg', alt: 'a face' }, // show omitted → defaults true
+        { url: 'https://example.org/hidden.jpg', show: false },
+      ],
+    },
+  ])
+  commitPatch(TL, imgBuilder, 'verify images')
+  const withImg = loadGraph(TL).nodes.find((n) => n.title === 'Verify Portrait')
+  assert(!!withImg, 'image node added')
+  const imgs = (withImg!.metadata as { images?: { url: string; show?: boolean }[] } | null)?.images ?? []
+  assert(imgs.length === 2, 'both images stored on the node')
+  assert(imgs[0].show === true, 'omitted show defaults to true (renders on canvas)')
+  assert(imgs[1].show === false, 'explicit show:false is preserved')
+
+  // update_node with an images array REPLACES the node's images.
+  const updBuilder = new PatchBuilder(TL, loadGraph(TL))
+  applyOps(updBuilder, [
+    { op: 'update_node', id: withImg!.id, images: [{ url: 'https://example.org/new.jpg' }] },
+  ])
+  commitPatch(TL, updBuilder, 'verify images replace')
+  const replaced = (
+    loadGraph(TL).nodes.find((n) => n.id === withImg!.id)!.metadata as {
+      images?: { url: string; show?: boolean }[]
+    }
+  ).images!
+  assert(replaced.length === 1 && replaced[0].url === 'https://example.org/new.jpg', 'update_node images replace prior set')
+  assert(replaced[0].show === true, 'replacement image defaults show:true')
+
+  // Clean up so the script is idempotent (undo: replace, add-images, original batch).
+  undo(TL)
+  undo(TL)
   undo(TL)
   console.log('\nMCP op path verified ✓')
   process.exit(0)

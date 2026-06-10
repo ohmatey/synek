@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { parseDate } from '~/lib/domain/dates'
 import type { PatchBuilder, NodePatch, EdgePatch } from '~/lib/db/patches'
 import type { NodeMetadata } from '~/lib/db/schema'
-import type { Precision } from '~/lib/domain/types'
+import type { NodeImage, Precision } from '~/lib/domain/types'
 
 // Transport-agnostic graph-edit logic. Lifted out of the old AI-SDK `tools.ts`
 // so the SAME op semantics back the MCP server. A batch of ops runs through one
@@ -30,6 +30,24 @@ const laneHint =
   'Nodes sharing a lane render as one horizontal row, ordered left→right by date — ideal for comparing ' +
   'parallel tracks (rival companies, branches, factions). Omit for one-off nodes; reuse the EXACT same ' +
   'string for every node in a track.'
+const imageInput = z.object({
+  url: z
+    .string()
+    .describe(
+      'Public image URL you sourced — a real, web-accessible image (Wikimedia portrait, official logo, ' +
+        'public-domain artwork). Synek stores the URL and renders it on the node; it does NOT generate images.',
+    ),
+  alt: z.string().optional().describe('Short caption / alt text — who or what the image shows.'),
+  show: z.boolean().optional().describe('Display on the canvas card. Defaults to true.'),
+})
+const imagesHint =
+  'Images to show on this node — supply real, web-sourced image URLs you found (a Wikimedia portrait for a ' +
+  'person, a logo for an org, public-domain art for an era/event). Gives the node a face instead of a bare box. ' +
+  'On update_node, the array you pass REPLACES the node\'s images; omit to leave existing images untouched.'
+
+type ImageInput = z.infer<typeof imageInput>
+const normalizeImages = (imgs: ImageInput[]): NodeImage[] =>
+  imgs.map((im) => ({ url: im.url, ...(im.alt ? { alt: im.alt } : {}), show: im.show ?? true }))
 
 // One edit in a batch. `ref` (on add_node/add_edge) lets a single batch create a
 // node and then connect an edge to it — the alias resolves to the new id.
@@ -46,6 +64,7 @@ export const opSchema = z.discriminatedUnion('op', [
     citations: z.array(citation).optional(),
     subtype: subtypeEnum.optional().describe(subtypeHint),
     lane: z.string().optional().describe(laneHint),
+    images: z.array(imageInput).optional().describe(imagesHint),
   }),
   z.object({
     op: z.literal('update_node'),
@@ -62,6 +81,7 @@ export const opSchema = z.discriminatedUnion('op', [
     citations: z.array(citation).optional(),
     subtype: subtypeEnum.optional().describe(subtypeHint),
     lane: z.string().optional().describe(laneHint + ' Pass "" to clear the lane.'),
+    images: z.array(imageInput).optional().describe(imagesHint),
   }),
   z.object({
     op: z.literal('delete_node'),
@@ -103,12 +123,14 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
       case 'add_node': {
         const start = parseDate(op.start)
         const end = op.end ? parseDate(op.end) : null
+        const images = op.images?.length ? normalizeImages(op.images) : undefined
         const metadata: NodeMetadata | null =
-          op.citations?.length || op.subtype || op.lane
+          op.citations?.length || op.subtype || op.lane || images
             ? {
                 ...(op.citations?.length ? { citations: op.citations } : {}),
                 ...(op.subtype ? { subtype: op.subtype } : {}),
                 ...(op.lane ? { lane: op.lane } : {}),
+                ...(images ? { images } : {}),
               }
             : null
         const node = builder.addNode({
@@ -139,13 +161,15 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
         if (op.end) np.endInstant = parseDate(op.end).instant
         if (op.precision) np.precision = op.precision
         // Merge metadata so existing images/color/size aren't clobbered.
-        if (op.citations || op.subtype || op.lane !== undefined) {
+        if (op.citations || op.subtype || op.lane !== undefined || op.images) {
           const prior = (builder.getNode(id)?.metadata ?? {}) as NodeMetadata
           const merged: NodeMetadata = {
             ...prior,
             ...(op.citations ? { citations: op.citations } : {}),
             ...(op.subtype ? { subtype: op.subtype } : {}),
           }
+          // A supplied images array replaces the node's images; omitting leaves them as-is.
+          if (op.images) merged.images = normalizeImages(op.images)
           // lane === "" clears the swimlane; any other string sets it.
           if (op.lane !== undefined) {
             if (op.lane === '') delete merged.lane

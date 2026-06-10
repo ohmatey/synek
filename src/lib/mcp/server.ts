@@ -36,6 +36,7 @@ export function buildMcpServer(ownerId: string): McpServer {
         'Read with list_timelines / get_timeline. ' +
         'MUTATE the graph ONLY via apply_patch — one call = one undoable Patch holding a batch of ops. ' +
         'Within a batch, set `ref` on an add_node and reuse that alias as an edge endpoint to wire edges to nodes created in the same call. ' +
+        'Give nodes a FACE, not a bare box: when you know a real, web-accessible image for a node (a Wikimedia portrait for a person, an official logo for an org, public-domain art for an era/event), pass it in the add_node/update_node `images` field as a URL. Synek stores and renders it; it does not generate images. ' +
         'undo / redo step the per-timeline history. ' +
         'To attach a NARRATIVE to a moment (node), call write_story with that node\'s id (momentId) and an ordered list of beats — stories are separate from the graph, written directly, and are NOT part of the undo/redo Patch stack. ' +
         'You only see and edit your own timelines.',
