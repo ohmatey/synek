@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { CanvasNodeData } from '../types'
+import { StoryBadge } from './StoryBadge'
 
 // A "polaroid" card for person entities: a framed portrait on top, with a
 // name + date plate beneath. Fixed-size (anchored at the start instant), so the
@@ -31,9 +32,10 @@ export function PersonCard({ data }: NodeProps) {
         {d.date && <span className="sf-person-dates">{d.endDate ? `${d.date}–${d.endDate}` : d.date}</span>}
         {d.summary ? <span className="sf-summary">{d.summary}</span> : null}
       </div>
-      {d.citations ? (
+      {d.citations || d.hasStory ? (
         <div className="sf-person-badges">
-          <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span>
+          {d.citations ? <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span> : null}
+          <StoryBadge data={d} />
         </div>
       ) : null}
       <Handle type="source" position={Position.Right} className="sf-handle" />

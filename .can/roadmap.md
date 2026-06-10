@@ -18,10 +18,10 @@ syncedAt: 2026-06-09T00:00:00.000Z
 |---|---|
 | NOW.0 Stoicism seed | ✅ Shipped (`db:seed stoicism`, c50ad39) |
 | NOW.1 `npx synek` installer | ✅ Shipped (`bun run setup`, ef43bd9) |
-| NOW.2 Handoff + login | 🟡 OAuth front-door + login page shipped; **handoff seam** (N.2.1 viewer URL, N.2.2 instructions) building in **Batch A** → `prd/live-canvas-sse.md` |
-| NOW.3 Live canvas (SSE) | 🔨 In progress — today it's a 10s poll (`TimelineCanvas.tsx`); real SSE spec'd in `prd/live-canvas-sse.md` (**Batch B**) |
-| NOW.4 Visual warmth | 🟡 Subtypes + per-subtype cards shipped; **era tint (N.4.3)** + **`generate_image` (N.4.5)** still owed |
-| NOW.5 Stories as MCP tools | ⏳ Not started — tables dormant, no `write_story` |
+| NOW.2 Handoff + login | ✅ Shipped — N.2.1 viewer URL already returned by `create_timeline`; N.2.2 instructions now frame "spatial memory" + share-the-link **and** introduce `write_story`. OAuth + login prior. |
+| NOW.3 Live canvas (SSE) | ✅ Shipped — bus + SSE route (prior) + `useTimelineStream` client (N.3.3), arrival animation reused (N.3.4), graceful polling fallback (N.3.5: 10s baseline for stdio + 2s on SSE drop). Data-layer/build verified; live in-browser pass still owed. |
+| NOW.4 Visual warmth | 🟡 Subtypes + per-subtype cards + **era tint (N.4.3)** shipped; **`generate_image` (N.4.5)** still owed (deferred this pass). |
+| NOW.5 Stories as MCP tools | ✅ Shipped (minimal slice) — `write_story` (N.5.1), playback reader (N.5.2), depth badge (N.5.3), instructions (N.5.4). Data-layer verified (`bun run verify:story`). Known limit: undo of a moment doesn't restore its story (tracked follow-up). |
 
 ---
 
@@ -81,7 +81,7 @@ No PRD code. New. Precondition for every visual and story milestone below.
 
 Maps to: KEYS front-door work (PRD `prd/mcp-api-keys.md`) — the CLI is the on-ramp the KEYS PRD assumed but didn't specify.
 
-### NOW.2 — Link handoff + login (single-user auth) — 🟡 OAuth + login shipped; seam in Batch A
+### NOW.2 — Link handoff + login (single-user auth) — ✅ SHIPPED (seam: N.2.1 url + N.2.2 instructions)
 
 *Why:* Claude creates a timeline and needs to hand the user off to the viewer. Right now there's no clean "here's your link" moment. This is the seam between Claude's left panel and Synek's right panel.
 
@@ -94,7 +94,7 @@ Maps to: KEYS front-door work (PRD `prd/mcp-api-keys.md`) — the CLI is the on-
 
 Maps to: KEYS (PRD `prd/mcp-api-keys.md`, status: built at the data layer; UX owed).
 
-### NOW.3 — Live canvas updates (streaming patches to the viewer) — 🔨 IN PROGRESS (Batch B, `prd/live-canvas-sse.md`)
+### NOW.3 — Live canvas updates (streaming patches to the viewer) — ✅ SHIPPED (N.3.3–N.3.5; live in-browser pass owed)
 
 *Why:* This is the technical unlock that makes "watch it build" real. Without it, the user refreshes manually and the magic doesn't exist. This is the biggest architectural question on the critical path.
 
@@ -114,7 +114,7 @@ Maps to: KEYS (PRD `prd/mcp-api-keys.md`, status: built at the data layer; UX ow
 - **N.3.4** — New nodes animate in (existing fade-in animation, already shipped) so the build looks live
 - **N.3.5** — Graceful fallback: on SSE connection failure, fall back to polling `GET /api/timelines/:id/patches?after=<seq>` (1–2s) so the viewer still converges if the stream drops
 
-### NOW.4 — Visual warmth (VIS — faces not boxes) — 🟡 PARTIAL (subtypes + cards shipped; era tint + generate_image owed)
+### NOW.4 — Visual warmth (VIS — faces not boxes) — 🟡 PARTIAL (subtypes + cards + era tint N.4.3 shipped; generate_image N.4.5 owed)
 
 *Why:* The demo screenshot/recording lives or dies on the visual first impression. A cold gray box diagram of correct Stoic philosophers is not something anyone screenshots or shares. VIS is supporting work for the hero moment — it makes the canvas do emotional work before a story is tapped.
 
@@ -128,7 +128,7 @@ Maps to: VIS PRD (`prd/visual-immersion.md`, status: proposed).
 
 Non-goals from VIS PRD apply: no deep entity ontology, no stock-photo pipeline, no video/audio, no theming engine.
 
-### NOW.5 — Stories as MCP tools (S1, minimal slice) — ⏳ NOT STARTED
+### NOW.5 — Stories as MCP tools (S1, minimal slice) — ✅ SHIPPED (N.5.1–N.5.4; undo-restores-story is a tracked follow-up)
 
 *Why:* The hero experience ends with "with stories." Without the story layer, Synek is a well-organized diagram. With it, Synek is a place where ideas become narratives. This is a thin vertical slice — one story per moment, no citations yet.
 

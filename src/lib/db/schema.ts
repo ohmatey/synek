@@ -141,6 +141,13 @@ export const patches = sqliteTable('patches', {
 // "Moment" is the product word for an existing `node`; the story layer hangs
 // off `nodes.id` so the Patch/undo engine is untouched. Stories are NOT graph
 // Patches — generation is a separate, provenance-tracked flow.
+//
+// KNOWN LIMITATION (S1 thin slice): because stories are outside the Patch engine
+// and `momentId` cascades on node delete, deleting a moment (or undoing the patch
+// that created it) destroys its story irreversibly — the delete_node inverse
+// restores the node + edges but NOT the story. Recoverable by re-running
+// write_story. Capturing the story snapshot in the delete_node op (so undo is
+// faithful) is deferred until the story layer graduates from the minimal slice.
 
 // Provenance generation targets/purposes are server-only (not client-reachable).
 export const GEN_TARGETS = ['story', 'segment', 'interior', 'hook', 'voice', 'image'] as const

@@ -390,7 +390,10 @@ body {
   gap: 2px;
   min-height: 60px;
   padding: 6px 10px;
-  background: rgba(155, 140, 255, 0.12);
+  /* Era tint (N.4.3): a per-period background derived from its date range, set as
+     an inline CSS var by PeriodNode. Falls back to the uniform purple wash for
+     periods without a computed tint (e.g. optimistic pending nodes). */
+  background: var(--sf-era-tint, rgba(155, 140, 255, 0.12));
   border: 1px dashed rgba(155, 140, 255, 0.5);
   border-radius: 8px;
   color: var(--color-accent-influence);
@@ -553,6 +556,40 @@ body {
   font-size: 9px;
   font-weight: 700;
   flex: 0 0 auto;
+}
+
+/* Story depth badge on nodes (N.5.3) — a small book marker on moments that
+   carry a story. Light = outline accent; deep = filled. */
+.sf-story-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 999px;
+  color: var(--color-accent-story);
+  background: color-mix(in oklab, var(--color-accent-story) 16%, transparent);
+  flex: 0 0 auto;
+}
+
+.sf-story-badge svg {
+  width: 10px;
+  height: 10px;
+}
+
+.sf-story-badge-deep {
+  color: var(--color-on-accent);
+  background: var(--color-accent-story);
+}
+
+/* In the wide period bar the cite count sits top-right (.sf-period > .sf-cite),
+   so the story badge takes the bottom-right corner — they never collide. */
+.sf-period > .sf-story-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  margin-left: 0;
 }
 
 /* Selection ring */
@@ -1220,6 +1257,82 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Story playback (N.5.2): read-only, beat-by-beat reader in the node panel. */
+.detail-story-title {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--color-fg-primary);
+}
+
+.detail-story-hook {
+  margin: 0;
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--color-fg-muted);
+}
+
+.detail-story-beats {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-story-beat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 10px;
+  border-left: 2px solid var(--color-border-subtle);
+}
+
+.detail-story-beat.detail-story-dialogue {
+  border-left-color: var(--color-accent-dialogue);
+}
+
+.detail-story-beat.detail-story-sensory,
+.detail-story-beat.detail-story-interior {
+  border-left-color: var(--color-accent-story);
+}
+
+.detail-story-setting {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--color-fg-subtle);
+}
+
+.detail-story-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-fg-secondary);
+  white-space: pre-wrap;
+}
+
+.detail-story-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.detail-story-link {
+  font: inherit;
+  font-size: 11px;
+  color: var(--color-accent-primary);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.detail-story-link:hover {
+  text-decoration: underline;
 }
 
 /* Detail: size selector */

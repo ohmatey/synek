@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { loadGraph, getTimelineMeta, canView } from '~/lib/db/graph'
+import { storyDepthByMoment } from '~/lib/db/stories'
 import { getCurrentUser } from '~/lib/auth/session'
 import type { TimelineGraphResult } from '~/lib/domain/types'
 
@@ -17,6 +18,8 @@ export const getGraph = createServerFn({ method: 'GET' })
     if (!canView(meta, user?.id ?? null)) return { status: 'forbidden' }
 
     const { nodes, edges } = loadGraph(timelineId)
+    // Which moments carry a story (and at what depth) — one query, for the badge.
+    const depthByMoment = storyDepthByMoment(nodes.map((n) => n.id))
     return {
       status: 'ok',
       isOwner: user?.id != null && meta.ownerId === user.id,
@@ -37,6 +40,8 @@ export const getGraph = createServerFn({ method: 'GET' })
         color: n.metadata?.color ?? null,
         subtype: n.metadata?.subtype ?? null,
         lane: n.metadata?.lane ?? null,
+        hasStory: depthByMoment.has(n.id),
+        storyDepth: depthByMoment.get(n.id) ?? null,
       })),
       edges: edges.map((e) => ({
         id: e.id,

@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Lightbulb } from 'lucide-react'
 import type { CanvasNodeData } from '../types'
+import { StoryBadge } from './StoryBadge'
 
 // An idea/doctrine, not a point in time or an actor: a soft "idea" chip carrying
 // the concept's definition as its body. A lightbulb marker distinguishes it from
@@ -17,6 +18,7 @@ export function ConceptNode({ data }: NodeProps) {
           <span className="sf-label">{d.title}</span>
           {dateLabel && <span className="sf-date">{dateLabel}</span>}
           {d.citations ? <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span> : null}
+          <StoryBadge data={d} />
         </div>
         {d.summary ? <span className="sf-summary">{d.summary}</span> : null}
         <Handle type="source" position={Position.Right} className="sf-handle" />

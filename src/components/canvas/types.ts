@@ -1,4 +1,4 @@
-import type { NodeImage, NodeSize, NodeSubtype, Precision } from '~/lib/domain/types'
+import type { DepthTier, NodeImage, NodeSize, NodeSubtype, Precision } from '~/lib/domain/types'
 
 // In-progress edits from the detail panel, overlaid on the node for a live
 // preview — never persisted until Save (so closing/canceling reverts).
@@ -29,4 +29,10 @@ export type CanvasNodeData = {
   size?: NodeSize
   color?: string | null
   subtype?: NodeSubtype | null
+  // True when a story is attached to this moment — drives the canvas depth badge.
+  hasStory?: boolean
+  storyDepth?: DepthTier | null
+  // Faint, date-range-derived background tint for period nodes ("mood of the
+  // age"). Precomputed in TimelineCanvas via eraTint; applied as a CSS var.
+  tint?: string
 }

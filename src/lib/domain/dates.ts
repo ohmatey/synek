@@ -52,3 +52,17 @@ export function formatInstant(instant: number, precision: Precision): string {
   if (precision === 'month') return `${mon} ${year}`
   return `${mon} ${d.getUTCDate()}, ${year}`
 }
+
+// A faint, theme-aware background tint for a period, derived from its date range
+// so the "mood of the age" reads at a glance. Deterministic: the period's
+// midpoint century maps via the golden angle (137.5°) to a well-separated hue,
+// mixed 12% over the `--color-bg-overlay` surface token (the same recipe as the
+// concept chip) so it stays subtle and follows light/dark automatically.
+// BCE-safe — `getUTCFullYear()` on the negative-epoch midpoint, like formatInstant.
+export function eraTint(startInstant: number, endInstant: number | null): string {
+  const mid = startInstant + ((endInstant ?? startInstant) - startInstant) / 2
+  const year = new Date(mid).getUTCFullYear()
+  const century = Math.floor(year / 100)
+  const hue = (((century * 137.5) % 360) + 360) % 360
+  return `color-mix(in oklab, hsl(${hue} 55% 55%) 12%, var(--color-bg-overlay))`
+}
