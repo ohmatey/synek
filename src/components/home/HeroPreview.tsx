@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Badge } from '~/components/ui/badge'
 import { cn } from '~/lib/utils'
 import { LiveTimeline, PREVIEWS, type PreviewKey } from './LiveTimeline'
 
@@ -45,11 +44,6 @@ export function HeroPreview() {
               )
             })}
           </div>
-
-          <Badge variant="soft" className="ml-auto hidden gap-1.5 sm:inline-flex">
-            <span className="size-1.5 animate-pulse rounded-full bg-primary" />
-            building…
-          </Badge>
         </div>
         <div className="bg-gradient-to-b from-transparent to-background/40 p-4 sm:p-6">
           <LiveTimeline key={active} preview={active} />

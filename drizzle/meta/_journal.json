@@ -78,6 +78,13 @@
       "when": 1781012605444,
       "tag": "0010_striped_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1781063015494,
+      "tag": "0011_tiny_lady_vermin",
+      "breakpoints": true
     }
   ]
 }
