@@ -194,6 +194,10 @@ Maps to: S4 PRD (`prd/s4-witness-mode.md`). Depends on S2 + S3.
 
 *Why:* A timeline that stays current as the world changes (competitor moves, tech releases, ongoing events) is a fundamentally different product from a static historical map. But this is the agentic/scheduled-jobs territory the CLAUDE.md guardrail flags until the core is undeniable.
 
+**Flagship Watcher use-cases** (the demo-able instances of this mode):
+- **Competitor Watcher** — a market/landscape timeline that stays current as competitors ship, raise, pivot, or get acquired.
+- **Model-release Watcher** — a timeline of frontier LLM/AI model releases that adds each new model as it drops (Claude, GPT, Gemini, open-weights), with capability/price deltas as edges.
+
 Maps to: L roadmap items (`#local-50` through `#local-55`). Depends on S2 (artifacts are how the agent stays grounded). Stays **local-first** — no cloud cron, no hosted runner.
 
 **Gating:** does not start until S1 + S2 feel lovable and the demo recording is made.
