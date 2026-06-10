@@ -142,12 +142,13 @@ export const patches = sqliteTable('patches', {
 // off `nodes.id` so the Patch/undo engine is untouched. Stories are NOT graph
 // Patches — generation is a separate, provenance-tracked flow.
 //
-// KNOWN LIMITATION (S1 thin slice): because stories are outside the Patch engine
-// and `momentId` cascades on node delete, deleting a moment (or undoing the patch
-// that created it) destroys its story irreversibly — the delete_node inverse
-// restores the node + edges but NOT the story. Recoverable by re-running
-// write_story. Capturing the story snapshot in the delete_node op (so undo is
-// faithful) is deferred until the story layer graduates from the minimal slice.
+// Undo-faithful across the cascade: `momentId` cascades on node delete, so deleting
+// a moment (or undoing the patch that created it) drops its story rows. To keep the
+// Patch engine's undo faithful WITHOUT teaching it about stories, the delete's
+// inverse (an `add_node` op) carries a captured StorySnapshot that `applyOp`
+// re-inserts alongside the restored node — captured/restored in db/patches.ts
+// (captureStories/restoreStory). The story tables themselves stay outside the
+// Patch engine.
 
 // Provenance generation targets/purposes are server-only (not client-reachable).
 export const GEN_TARGETS = ['story', 'segment', 'interior', 'hook', 'voice', 'image'] as const
@@ -250,10 +251,17 @@ export type PersonRow = typeof people.$inferSelect
 export type StoryRow = typeof stories.$inferSelect
 export type StorySegmentRow = typeof storySegments.$inferSelect
 
+// A moment's story (+ its ordered segments) captured at delete time so an undo can
+// restore it. Stories live outside the Patch engine and cascade on node delete, so
+// without this an undo/redo would lose them (see db/patches.ts).
+export type StorySnapshot = { story: StoryRow; segments: StorySegmentRow[] }
+
 // A single reversible graph mutation. Updates carry before/after; deletes carry
 // the full row(s) so they can be restored. invertPatch = ops.map(invert).reverse().
+// `add_node.story` is set only on the op that RESTORES a deleted moment (the inverse
+// of a delete) — it re-inserts the cascaded story so undo/redo stays faithful.
 export type GraphOp =
-  | { kind: 'add_node'; node: NodeRow }
+  | { kind: 'add_node'; node: NodeRow; story?: StorySnapshot | null }
   | { kind: 'update_node'; id: string; before: Partial<NodeRow>; after: Partial<NodeRow> }
   | { kind: 'delete_node'; node: NodeRow; edges: EdgeRow[] }
   | { kind: 'add_edge'; edge: EdgeRow }

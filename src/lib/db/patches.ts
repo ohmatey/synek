@@ -4,10 +4,13 @@ import {
   nodes,
   edges,
   patches,
+  stories,
+  storySegments,
   type NodeRow,
   type EdgeRow,
   type NodeMetadata,
   type GraphOp,
+  type StorySnapshot,
 } from './schema'
 import type { NodeType, EdgeKind, Precision } from '~/lib/domain/types'
 import { emitTimelineEvent } from '~/lib/server/bus'
@@ -30,6 +33,70 @@ export type EdgePatch = Partial<Pick<EdgeRow, 'kind' | 'label'>>
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+// --- story snapshots (undo across the FK cascade) -------------------------
+
+// Stories live outside the Patch engine and cascade on node delete (see schema.ts).
+// So a delete_node would drop the moment's story irreversibly. We snapshot it just
+// BEFORE the delete and bake it into the matching restore (add_node) op, so undo
+// re-inserts it. One story per moment (writeStory replaces), latest if ever many.
+function readStorySnapshot(tx: Tx, momentId: string): StorySnapshot | null {
+  const story = tx
+    .select()
+    .from(stories)
+    .where(eq(stories.momentId, momentId))
+    .orderBy(desc(stories.createdAt))
+    .limit(1)
+    .get()
+  if (!story) return null
+  const segments = tx
+    .select()
+    .from(storySegments)
+    .where(eq(storySegments.storyId, story.id))
+    .orderBy(asc(storySegments.sequence))
+    .all()
+  return { story, segments }
+}
+
+// Snapshot the story of every moment a delete_node op will remove, keyed by node id
+// (only moments that actually have a story land in the map). MUST run before the
+// ops are applied — once a delete commits, the cascade has already dropped the rows.
+function captureStories(tx: Tx, ops: GraphOp[]): Map<string, StorySnapshot> {
+  const out = new Map<string, StorySnapshot>()
+  for (const op of ops) {
+    if (op.kind === 'delete_node') {
+      const snap = readStorySnapshot(tx, op.node.id)
+      if (snap) out.set(op.node.id, snap)
+    }
+  }
+  return out
+}
+
+// Bake captured snapshots onto the add_node ops that restore those moments, matched
+// by node id. Returns a new op list (originals untouched).
+function attachStories(ops: GraphOp[], snapshots: Map<string, StorySnapshot>): GraphOp[] {
+  if (snapshots.size === 0) return ops
+  return ops.map((op) =>
+    op.kind === 'add_node' && snapshots.has(op.node.id)
+      ? { ...op, story: snapshots.get(op.node.id)! }
+      : op,
+  )
+}
+
+// Re-insert a captured story + segments alongside a restored node. createdAt/updatedAt
+// survive the patches JSON round-trip as numbers, so coerce back to Date (timestamp_ms).
+function restoreStory(tx: Tx, snap: StorySnapshot): void {
+  tx.insert(stories)
+    .values({
+      ...snap.story,
+      createdAt: new Date(snap.story.createdAt),
+      updatedAt: new Date(snap.story.updatedAt),
+    })
+    .run()
+  for (const seg of snap.segments) {
+    tx.insert(storySegments).values({ ...seg, createdAt: new Date(seg.createdAt) }).run()
+  }
+}
+
 // --- apply / invert -------------------------------------------------------
 
 // createdAt survives a JSON round-trip in patches.ops as a string, so coerce
@@ -38,6 +105,8 @@ function applyOp(tx: Tx, op: GraphOp): void {
   switch (op.kind) {
     case 'add_node':
       tx.insert(nodes).values({ ...op.node, createdAt: new Date(op.node.createdAt) }).run()
+      // Restore the moment's story too, if this add_node is the inverse of a delete.
+      if (op.story) restoreStory(tx, op.story)
       break
     case 'update_node':
       tx.update(nodes).set(op.after).where(eq(nodes.id, op.id)).run()
@@ -192,10 +261,12 @@ export class PatchBuilder {
 export function commitPatch(timelineId: string, builder: PatchBuilder, summary: string): string | null {
   if (builder.ops.length === 0) return null
   const ops = builder.ops
-  const inverseOps = invertOps(ops)
   let patchId: string | null = null
   let committedSeq = 0
   db.transaction((tx) => {
+    // Snapshot the story of any moment this patch deletes BEFORE the cascade drops
+    // it, and bake it into the delete's inverse (an add_node) so undo restores it.
+    const inverseOps = attachStories(invertOps(ops), captureStories(tx, ops))
     for (const op of ops) applyOp(tx, op)
     // A new action truncates any redo branch.
     tx.delete(patches).where(and(eq(patches.timelineId, timelineId), eq(patches.status, 'undone'))).run()
@@ -228,8 +299,16 @@ export function undo(timelineId: string): boolean {
     .get()
   if (!p) return false
   db.transaction((tx) => {
+    // Undoing the patch that CREATED a moment deletes it (inverse of add_node is a
+    // delete_node), cascading any story written *after* the patch committed. Snapshot
+    // it first and persist it onto the forward add_node, so a later redo restores it.
+    const captured = captureStories(tx, p.inverseOps)
     for (const op of p.inverseOps) applyOp(tx, op)
-    tx.update(patches).set({ status: 'undone' }).where(eq(patches.id, p.id)).run()
+    const next =
+      captured.size > 0
+        ? { status: 'undone' as const, ops: attachStories(p.ops, captured) }
+        : { status: 'undone' as const }
+    tx.update(patches).set(next).where(eq(patches.id, p.id)).run()
   })
   emitTimelineEvent({ timelineId, kind: 'undo', seq: p.seq })
   return true
