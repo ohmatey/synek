@@ -10,6 +10,7 @@ import {
   type GraphOp,
 } from './schema'
 import type { NodeType, EdgeKind, Precision } from '~/lib/domain/types'
+import { emitTimelineEvent } from '~/lib/server/bus'
 
 // Tool-facing inputs (already normalized: dates parsed to instants upstream).
 export type NewNode = {
@@ -193,6 +194,7 @@ export function commitPatch(timelineId: string, builder: PatchBuilder, summary: 
   const ops = builder.ops
   const inverseOps = invertOps(ops)
   let patchId: string | null = null
+  let committedSeq = 0
   db.transaction((tx) => {
     for (const op of ops) applyOp(tx, op)
     // A new action truncates any redo branch.
@@ -209,7 +211,10 @@ export function commitPatch(timelineId: string, builder: PatchBuilder, summary: 
       .returning({ id: patches.id })
       .get()
     patchId = inserted?.id ?? null
+    committedSeq = seq
   })
+  // Notify live viewers AFTER the txn commits, so we never push on a rollback.
+  if (patchId) emitTimelineEvent({ timelineId, kind: 'patch', seq: committedSeq })
   return patchId
 }
 
@@ -226,6 +231,7 @@ export function undo(timelineId: string): boolean {
     for (const op of p.inverseOps) applyOp(tx, op)
     tx.update(patches).set({ status: 'undone' }).where(eq(patches.id, p.id)).run()
   })
+  emitTimelineEvent({ timelineId, kind: 'undo', seq: p.seq })
   return true
 }
 
@@ -242,6 +248,7 @@ export function redo(timelineId: string): boolean {
     for (const op of p.ops) applyOp(tx, op)
     tx.update(patches).set({ status: 'applied' }).where(eq(patches.id, p.id)).run()
   })
+  emitTimelineEvent({ timelineId, kind: 'redo', seq: p.seq })
   return true
 }
 

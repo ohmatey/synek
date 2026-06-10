@@ -9,9 +9,14 @@ import {
   getTimelineMeta,
 } from '~/lib/db/graph'
 import { PatchBuilder, commitPatch, undo, redo, historyState } from '~/lib/db/patches'
+import { BASE_URL } from '~/lib/auth'
 import { opSchema, applyOps } from './ops'
 
 const json = (data: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(data) }] })
+
+// The viewer URL a client hands back to the user so they can watch the canvas
+// build live. BASE_URL is the same origin the app + auth run on.
+const viewerUrl = (id: string) => `${BASE_URL}/timelines/${id}`
 
 // One MCP server per request/connection, scoped to the OWNER behind the API key:
 // every tool only sees and mutates that user's timelines. Reads are exposed as
@@ -22,7 +27,10 @@ export function buildMcpServer(ownerId: string): McpServer {
     { name: 'synek', version: '0.1.0' },
     {
       instructions:
-        'Synek is a timeline knowledge canvas. Read with list_timelines / get_timeline. ' +
+        'Synek is the user\'s spatial memory — where their research lives, visually, on a timeline. ' +
+        'After create_timeline, SHARE the returned `url` with the user so they can open the canvas and watch it build. ' +
+        'The canvas updates LIVE as you apply patches — never tell the user to refresh. ' +
+        'Read with list_timelines / get_timeline. ' +
         'MUTATE ONLY via apply_patch — one call = one undoable Patch holding a batch of ops. ' +
         'Within a batch, set `ref` on an add_node and reuse that alias as an edge endpoint to wire edges to nodes created in the same call. ' +
         'undo / redo step the per-timeline history. You only see and edit your own timelines.',
@@ -47,12 +55,12 @@ export function buildMcpServer(ownerId: string): McpServer {
     'create_timeline',
     {
       title: 'Create timeline',
-      description: 'Create a new empty timeline. Returns its id.',
+      description: 'Create a new empty timeline. Returns its id, title, and viewer url — share the url with the user.',
       inputSchema: { title: z.string() },
     },
     async ({ title }) => {
       const t = createTimeline(title, ownerId)
-      return json({ id: t.id, title: t.title })
+      return json({ id: t.id, title: t.title, url: viewerUrl(t.id) })
     },
   )
 
