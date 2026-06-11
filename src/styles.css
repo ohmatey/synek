@@ -10,6 +10,24 @@
   box-sizing: border-box;
 }
 
+/* Tailwind v4's Preflight resets every border to `border: 0 solid`, leaving the
+   colour at `currentColor`. shadcn primitives that use a bare `border` (dropdown,
+   popover, dialog) would otherwise paint the *foreground* colour around the panel
+   — a near-black hairline in light mode, a glaring near-white one in dark. Pin the
+   default to the subtle brand divider so floating menus match the rest of the
+   chrome (floatChip, cards) which already use `--border`. Any explicit
+   `border-*` utility or CSS rule still wins (this lives in the low-priority
+   base layer). */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
+  }
+}
+
 html,
 body {
   margin: 0;
@@ -1857,7 +1875,16 @@ body {
   height: 24px;
   pointer-events: none;
   border-top: 1px solid var(--color-border-subtle);
-  background: linear-gradient(to top, rgba(15, 17, 21, 0.92), rgba(15, 17, 21, 0));
+  /* Fade up from the base surface so ruler labels stay legible over canvas
+     content. Per-theme literals on purpose: a token wrapped in color-mix() gets
+     statically inlined to the dark value at build time (lightningcss), which
+     would leave a dark band over the light canvas. rgb values mirror
+     --color-bg-base (#08090c dark / #fafbfc light). */
+  background: linear-gradient(to top, rgba(8, 9, 12, 0.92), rgba(8, 9, 12, 0));
+}
+
+[data-theme='light'] .react-flow__panel.time-ruler {
+  background: linear-gradient(to top, rgba(250, 251, 252, 0.94), rgba(250, 251, 252, 0));
 }
 
 .time-tick {
@@ -1881,6 +1908,13 @@ body {
   color: var(--color-fg-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Light mode: muted on the pale ruler band is only ~4.6:1 at 10px — bump to
+   secondary (~9:1). Dark keeps muted (already ~6.7:1 on the near-black band). */
+[data-theme='light'] .time-tick-label,
+[data-theme='light'] .time-break {
+  color: var(--color-fg-secondary);
 }
 
 /* Lift the zoom controls above the ruler. */

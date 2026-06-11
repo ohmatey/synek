@@ -58,7 +58,7 @@ export function StoriesMenu({
                   setOpen(false)
                   onPlay(s.momentId)
                 }}
-                className="group flex flex-col gap-1.5 rounded-lg border border-border bg-card/60 p-3 text-left transition-colors hover:border-foreground/20 hover:bg-accent/50 focus-visible:border-foreground/20 focus-visible:bg-accent/50 focus-visible:outline-none"
+                className="group flex cursor-pointer flex-col gap-1.5 rounded-lg border border-border bg-card/60 p-3 text-left transition-colors hover:border-foreground/20 hover:bg-accent/50 focus-visible:border-foreground/20 focus-visible:bg-accent/50 focus-visible:outline-none"
                 title={`Play “${s.title}”`}
               >
                 <div className="flex items-start gap-2">

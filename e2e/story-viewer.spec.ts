@@ -104,3 +104,29 @@ test('a story beat links to a related moment and navigates there', async ({ page
   const newtonPanel = page.getByRole('dialog', { name: 'Node details' })
   await expect(newtonPanel.getByRole('heading', { name: 'Isaac Newton' })).toBeVisible()
 })
+
+// The other tests force reduced-motion (deterministic stepping). This group runs
+// with motion ON — the real-browser path — to guard that the viewer OPENS AND
+// STAYS open (no auto-advance flash) and that Esc still dismisses it via the
+// dialog's native 'cancel' event (the only close-event we bind to the parent, so
+// our own programmatic d.close() — incl. React StrictMode's dev double-invoke —
+// can't tear the viewer down on open).
+test.describe('with motion enabled', () => {
+  test.use({ reducedMotion: 'no-preference' })
+
+  test('Play opens the viewer and it stays open; Esc dismisses it', async ({ page }) => {
+    const panel = await openDarwinPanel(page)
+    await panel.getByRole('button', { name: 'Play story' }).click()
+
+    const viewer = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+    await expect(viewer).toBeVisible()
+    // The first beat's timer is long; it must not flash-close.
+    await page.waitForTimeout(1200)
+    await expect(viewer).toBeVisible()
+    await expect(viewer.getByText('1 / 4')).toBeVisible()
+
+    // Esc (native dialog 'cancel') closes it.
+    await page.keyboard.press('Escape')
+    await expect(viewer).toBeHidden()
+  })
+})

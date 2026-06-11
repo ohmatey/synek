@@ -64,7 +64,7 @@ export function FilterControls({
             {hiddenCount > 0 && (
               <button
                 type="button"
-                className="text-xs text-muted-foreground hover:text-foreground"
+                className="cursor-pointer text-xs text-muted-foreground hover:text-foreground"
                 onClick={onReset}
               >
                 Reset
