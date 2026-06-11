@@ -28,6 +28,22 @@
   }
 }
 
+/* Honor a user's reduced-motion request globally. Covers every animated surface in
+   one place — Radix overlays (dialog/dropdown/popover/tooltip enter/exit), the switch
+   thumb, button transitions, and any tw-animate-css `animate-in/zoom-in/fade-in` — so
+   individual components don't each have to remember to opt out. State changes still
+   apply; they just become instant rather than animated. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 html,
 body {
   margin: 0;
@@ -206,18 +222,6 @@ body {
 .lens-bar button:hover {
   border-color: var(--color-accent-story);
   color: var(--color-on-accent);
-}
-
-/* Icon transport button inside the playing-story chip (play/pause). */
-.lens-bar-ctrl {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3px;
-}
-.lens-bar-ctrl svg {
-  width: 14px;
-  height: 14px;
 }
 
 /* Canvas nodes */
@@ -1963,6 +1967,63 @@ body {
   width: 18px;
   height: 18px;
 }
+/* End panel: stepping past the last beat lands here — a wrap-up + a prompt to
+   continue the story. Shares the cover's centered layout. */
+.sv-end {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  width: min(640px, 88vw);
+  margin: 0 auto;
+  padding: 88px 16px 96px;
+  text-align: center;
+}
+.sv-end .sv-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sv-end-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-fg-muted);
+}
+.sv-end-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: min(320px, 100%);
+}
+.sv-replay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--color-fg-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border-subtle);
+}
+.sv-replay:hover {
+  color: var(--color-fg-primary);
+  background: var(--color-bg-base);
+}
+.sv-replay svg {
+  width: 15px;
+  height: 15px;
+}
 .sv-beat {
   display: flex;
   flex-direction: column;
@@ -2400,6 +2461,33 @@ body {
   font-weight: 600;
   color: var(--color-fg-secondary);
   font-size: 13px;
+}
+/* When the source has a URL the title itself is the link, with an external-link
+   glyph; the bare URL sits beneath it so the provenance is legible at a glance. */
+.detail-cite-title-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-accent-dialogue);
+  text-decoration: none;
+}
+.detail-cite-title-link:hover {
+  text-decoration: underline;
+}
+.detail-cite-title-icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.detail-cite-url {
+  display: block;
+  font-size: 11px;
+  color: var(--color-fg-muted);
+  text-decoration: none;
+  word-break: break-all;
+}
+.detail-cite-url:hover {
+  color: var(--color-accent-dialogue);
+  text-decoration: underline;
 }
 .detail-cite-quote {
   margin: 4px 0;

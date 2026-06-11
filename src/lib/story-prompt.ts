@@ -31,3 +31,30 @@ export function buildStoryPrompt(input: {
     (featured.length ? ` Give each featured entity at least one beat that focuses it.` : '')
   )
 }
+
+// The reader's end panel hands the user a prompt to EXTEND the story they just
+// finished. write_story replaces a story's beats when passed an existing storyId,
+// so the prompt embeds the beats so far verbatim and asks Claude to re-supply them
+// then append new ones — keeping the same story (not spawning a fresh one).
+export function buildContinueStoryPrompt(input: {
+  storyId: string
+  momentId: string
+  timelineId: string
+  title: string
+  beats: { bodyText: string }[]
+}): string {
+  const soFar = input.beats.map((b, i) => `  ${i + 1}. ${b.bodyText.trim()}`).join('\n')
+  return (
+    `Using the Synek MCP tools, CONTINUE this story — pick up where it left off and extend it with more beats.\n` +
+    `- timelineId: ${input.timelineId}\n` +
+    `- momentId: ${input.momentId}\n` +
+    `- storyId: ${input.storyId}\n` +
+    `- story: "${input.title}"\n\n` +
+    `Pass this storyId to write_story to UPDATE the story in place: re-supply ALL the existing beats below verbatim, ` +
+    `then APPEND your new ones after them.\n\n` +
+    `The story so far:\n${soFar}\n\n` +
+    `Add 2–4 new beats that move the narrative forward in the same voice and point of view. Ground every factual ` +
+    `beat with a real citation (title + url + a short verbatim quote). You can set a beat's focusNodeId to another ` +
+    `entity on this timeline so the canvas tours through it as the reader reaches that beat.`
+  )
+}

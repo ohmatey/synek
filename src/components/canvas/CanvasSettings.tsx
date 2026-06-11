@@ -188,7 +188,7 @@ export function CanvasSettings({
                 {hiddenCount > 0 && (
                   <button
                     type="button"
-                    className="cursor-pointer text-xs text-muted-foreground hover:text-foreground"
+                    className="cursor-pointer rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                     onClick={onResetKinds}
                   >
                     Reset

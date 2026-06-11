@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { X, ChevronLeft, ChevronRight, Play, Volume2, VolumeX } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '~/lib/utils'
 import type { GraphNode, PovType, StoryDTO } from '~/lib/domain/types'
+import { CopyButton } from '~/components/home/CopyButton'
+import { buildContinueStoryPrompt } from '~/lib/story-prompt'
 import { useSpeechSupported, useStoryNarration, warmUpSpeech } from './useStoryNarration'
 import { ResizeHandle } from './ResizeHandle'
 
@@ -49,6 +51,8 @@ function beatDurationMs(text: string): number {
 export function StoryReader({
   story,
   momentTitle,
+  momentId,
+  timelineId,
   nodeById,
   paused,
   onPausedChange,
@@ -63,6 +67,10 @@ export function StoryReader({
 }: {
   story: StoryDTO
   momentTitle: string
+  // The moment + timeline this story sits on — used to assemble the "continue this
+  // story" prompt on the end panel.
+  momentId: string
+  timelineId: string
   nodeById: Map<string, GraphNode>
   // Pause state is lifted to the canvas so the top story chip can drive it too.
   paused: boolean
@@ -92,8 +100,13 @@ export function StoryReader({
   // timed auto-advance only begin once the reader is "started" (Play pressed). On
   // the cover the canvas keeps the moment in focus (beat index -1 reported up).
   const [started, setStarted] = useState(false)
+  // Stepping past the last beat lands on an end panel (wrap-up + "continue this
+  // story" prompt) instead of closing outright. The moment stays framed there too.
+  const [ended, setEnded] = useState(false)
   const safeIndex = Math.min(index, Math.max(0, count - 1))
   const beat = beats[safeIndex]
+  // The stepped player is live only between the cover and the end panel.
+  const playing = started && !ended
 
   // Focus the panel on mount so keyboard nav + Esc work without a click first —
   // and again when playback starts: clicking the cover's Play unmounts that
@@ -114,20 +127,28 @@ export function StoryReader({
   }, [])
 
   const goNext = useCallback(() => {
-    // Past the last beat → close (Stories convention). Keep the side effect OUT
-    // of the state updater so it stays pure under StrictMode double-invoke.
-    if (safeIndex >= count - 1) onClose()
+    // Past the last beat → show the end panel (wrap-up + continue prompt) rather
+    // than closing. Keep the side effect OUT of the state updater so it stays pure
+    // under StrictMode double-invoke.
+    if (safeIndex >= count - 1) setEnded(true)
     else setIndex((i) => i + 1)
-  }, [safeIndex, count, onClose])
+  }, [safeIndex, count])
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), [])
 
+  // Restart from the cover's first beat (the end panel's "Read again").
+  const replay = useCallback(() => {
+    if (speak) warmUpSpeech()
+    setIndex(0)
+    setEnded(false)
+  }, [speak])
+
   // Report the active beat up as the reader steps so the canvas can pan + switch
-  // the entity panel to this beat's focus. While on the cover (not started) report
-  // -1 so the canvas keeps the moment framed. The canvas restores the moment
-  // overview when reading ends (this panel unmounts), so no cleanup needed here.
+  // the entity panel to this beat's focus. On the cover and the end panel (not
+  // playing) report -1 so the canvas keeps the moment framed. The canvas restores
+  // the moment overview when reading ends (this panel unmounts), so no cleanup here.
   useEffect(() => {
-    onBeatChange(started ? safeIndex : -1)
-  }, [started, safeIndex, onBeatChange])
+    onBeatChange(playing ? safeIndex : -1)
+  }, [playing, safeIndex, onBeatChange])
 
   // Press-and-hold detection: a quick press is a tap (navigate by zone); a long
   // press pauses without navigating. Shared by both tap zones.
@@ -171,6 +192,14 @@ export function StoryReader({
         }
         return
       }
+      // On the end panel, ← steps back into the last beat; forward keys do nothing.
+      if (ended) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault()
+          setEnded(false)
+        }
+        return
+      }
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Spacebar') {
         e.preventDefault()
         goNext()
@@ -179,7 +208,7 @@ export function StoryReader({
         goPrev()
       }
     },
-    [started, speak, goNext, goPrev, onClose],
+    [started, ended, speak, goNext, goPrev, onClose],
   )
 
   const navigateTo = useCallback(
@@ -200,7 +229,8 @@ export function StoryReader({
   const speechDrivesAdvance = speak && speechSupported && !reduced
   useStoryNarration({
     beat,
-    started,
+    // Stop narration once the reader reaches the end panel (cancels in-flight speech).
+    started: playing,
     speak,
     paused,
     reduced,
@@ -233,15 +263,15 @@ export function StoryReader({
                 key={i === safeIndex ? `active-${safeIndex}` : `idle-${i}`}
                 className={cn(
                   'sv-seg-fill',
-                  i < safeIndex && 'is-done',
-                  i === safeIndex && (reduced || speechDrivesAdvance ? 'is-current' : 'is-active'),
+                  (i < safeIndex || ended) && 'is-done',
+                  i === safeIndex && !ended && (reduced || speechDrivesAdvance ? 'is-current' : 'is-active'),
                 )}
                 style={
-                  i === safeIndex && !reduced && !speechDrivesAdvance
+                  i === safeIndex && playing && !reduced && !speechDrivesAdvance
                     ? { animationDuration: `${durationMs}ms`, animationPlayState: paused ? 'paused' : 'running' }
                     : undefined
                 }
-                onAnimationEnd={i === safeIndex && !reduced && !speechDrivesAdvance ? goNext : undefined}
+                onAnimationEnd={i === safeIndex && playing && !reduced && !speechDrivesAdvance ? goNext : undefined}
               />
             </div>
           ))}
@@ -278,7 +308,7 @@ export function StoryReader({
         </div>
       </header>
 
-      {started ? (
+      {playing ? (
         <>
           {/* Tap zones — pointer-only affordance (real controls live in the chrome). */}
           <div
@@ -360,6 +390,38 @@ export function StoryReader({
             </button>
           </footer>
         </>
+      ) : ended ? (
+        /* End panel: wrap up the story and invite the reader to continue it by
+           copying a ready-made prompt to paste into their connected Claude. */
+        <div className="sv-end">
+          <div className="sv-intro">
+            <span className="sv-eyebrow">The end</span>
+            <h2 className="sv-title">{story.title}</h2>
+            <p className="sv-end-note">
+              That’s the story so far. Want to know what happens next? Copy the prompt below into your connected Claude
+              and it will pick up the thread and add more beats — right here.
+            </p>
+          </div>
+          <div className="sv-end-actions">
+            <CopyButton
+              text={buildContinueStoryPrompt({
+                storyId: story.id,
+                momentId,
+                timelineId,
+                title: story.title,
+                beats: story.beats,
+              })}
+              label="Copy prompt to continue"
+              copiedLabel="Copied — paste into Claude"
+              variant="default"
+              className="w-full"
+            />
+            <button type="button" className="sv-replay" onClick={replay}>
+              <RotateCcw aria-hidden />
+              Read again
+            </button>
+          </div>
+        </div>
       ) : (
         /* Cover: title + hook + meta chips, with a Play button to begin the stepped,
            auto-advancing reader. */

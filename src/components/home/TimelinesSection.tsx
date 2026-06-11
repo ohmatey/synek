@@ -141,13 +141,22 @@ export function TimelinesSection() {
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           {/* Search */}
-          <div className={cn('flex flex-1 items-center gap-2 px-3', segmentSurface)}>
-            <Search className="size-4 shrink-0 text-muted-foreground" />
+          <div
+            className={cn(
+              'flex flex-1 items-center gap-2 px-3 focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]',
+              segmentSurface,
+            )}
+          >
+            <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
             <Input
+              type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search timelines…"
-              className="h-10 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+              aria-label="Search timelines"
+              autoComplete="off"
+              spellCheck={false}
+              className="h-10 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
             />
           </div>
 
@@ -224,7 +233,7 @@ export function TimelinesSection() {
                   <button
                     type="button"
                     onClick={() => open(t.id)}
-                    className="flex flex-1 flex-col gap-2 text-left outline-none"
+                    className="flex flex-1 flex-col gap-2 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   >
                     <span className="flex items-start justify-between gap-2">
                       <span className="line-clamp-2 font-medium">{t.title}</span>

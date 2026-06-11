@@ -105,9 +105,9 @@ export function ProfileMenu({ className }: { className?: string }) {
                   chooseTheme(t.value)
                 }}
               >
-                <t.icon />
+                <t.icon aria-hidden="true" />
                 {t.label}
-                {theme === t.value && <Check className="ml-auto size-4 text-primary" />}
+                {theme === t.value && <Check aria-hidden="true" className="ml-auto size-4 text-primary" />}
               </DropdownMenuItem>
             ))}
           </DropdownMenuSubContent>

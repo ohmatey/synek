@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Check, Search, X } from 'lucide-react'
 import {
   Dialog,
@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
+import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { CopyButton } from '~/components/home/CopyButton'
 import { buildStoryPrompt } from '~/lib/story-prompt'
@@ -63,6 +64,32 @@ export function NewStoryDialog({
   const toggle = (id: string) =>
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
 
+  // Roving-tabindex keyboard nav for the anchor radiogroup: the group is a single tab
+  // stop and arrows move (and select) between radios, per the WAI-ARIA radio pattern.
+  const radioRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
+  const onRadioKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const keys = ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End']
+    if (!keys.includes(e.key)) return
+    e.preventDefault()
+    const last = selectedIds.length - 1
+    const next =
+      e.key === 'Home'
+        ? 0
+        : e.key === 'End'
+          ? last
+          : e.key === 'ArrowDown' || e.key === 'ArrowRight'
+            ? index === last
+              ? 0
+              : index + 1
+            : index === 0
+              ? last
+              : index - 1
+    const nextId = selectedIds[next]
+    if (!nextId) return
+    setAnchorChoice(nextId)
+    radioRefs.current.get(nextId)?.focus()
+  }
+
   // Effective anchor: the explicit choice if it's still selected, else the first
   // selected entity (no effects needed — derive it each render).
   const anchorId = anchorChoice && selectedIds.includes(anchorChoice) ? anchorChoice : (selectedIds[0] ?? null)
@@ -81,7 +108,7 @@ export function NewStoryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New story</DialogTitle>
+          <DialogTitle>New Story</DialogTitle>
           <DialogDescription>
             Pick the entities this story is about, then copy a prompt to paste into your connected Claude — it writes
             the story back onto the canvas.
@@ -97,13 +124,17 @@ export function NewStoryDialog({
                 : `${selectedIds.length} selected${featured.length ? ` · ${featured.length} featured` : ''}`}
             </span>
           </div>
-          <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2">
-            <Search className="size-3.5 shrink-0 text-muted-foreground" />
+          <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2 focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]">
+            <Search aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
             <Input
+              type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search entities…"
-              className="h-9 border-0 px-0 shadow-none focus-visible:ring-0"
+              aria-label="Search entities"
+              autoComplete="off"
+              spellCheck={false}
+              className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
             />
           </div>
           <div className="flex max-h-44 flex-col gap-1 overflow-auto rounded-md border border-border p-1">
@@ -129,7 +160,7 @@ export function NewStoryDialog({
                         isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border',
                       )}
                     >
-                      {isSelected && <Check className="size-3" />}
+                      {isSelected && <Check aria-hidden="true" className="size-3" />}
                     </span>
                     <span className="flex-1 truncate">{n.title}</span>
                     <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">{n.type}</span>
@@ -142,9 +173,9 @@ export function NewStoryDialog({
           {/* Selected entities — choose the anchor (radio) the story is written onto;
               the rest are featured. */}
           {selectedIds.length > 0 && (
-            <div className="flex flex-col gap-1 rounded-md border border-border p-2">
+            <div role="radiogroup" aria-label="Anchor moment" className="flex flex-col gap-1 rounded-md border border-border p-2">
               <span className="text-xs text-muted-foreground">Anchor moment — the story is written onto this one</span>
-              {selectedIds.map((id) => {
+              {selectedIds.map((id, index) => {
                 const n = byId.get(id)
                 if (!n) return null
                 const isAnchor = id === anchorId
@@ -152,12 +183,18 @@ export function NewStoryDialog({
                   <div key={id} className="flex items-center gap-2 text-sm">
                     <button
                       type="button"
+                      ref={(el) => {
+                        if (el) radioRefs.current.set(id, el)
+                        else radioRefs.current.delete(id)
+                      }}
                       onClick={() => setAnchorChoice(id)}
+                      onKeyDown={(e) => onRadioKeyDown(e, index)}
                       role="radio"
                       aria-checked={isAnchor}
-                      title="Set as anchor moment"
+                      aria-label={`Set ${n.title} as the anchor moment`}
+                      tabIndex={isAnchor ? 0 : -1}
                       className={cn(
-                        'flex size-4 shrink-0 items-center justify-center rounded-full border',
+                        'flex size-4 shrink-0 items-center justify-center rounded-full border outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                         isAnchor ? 'border-primary' : 'border-border hover:border-primary/60',
                       )}
                     >
@@ -177,7 +214,7 @@ export function NewStoryDialog({
                       aria-label={`Remove ${n.title}`}
                       className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                     >
-                      <X className="size-3.5" />
+                      <X aria-hidden="true" className="size-3.5" />
                     </button>
                   </div>
                 )
@@ -187,13 +224,14 @@ export function NewStoryDialog({
         </section>
 
         <section className="flex flex-col gap-2">
-          <span className="text-sm font-medium">
+          <Label htmlFor="new-story-angle" className="text-sm font-medium">
             Angle <span className="font-normal text-muted-foreground">(optional)</span>
-          </span>
+          </Label>
           <Textarea
+            id="new-story-angle"
             value={angle}
             onChange={(e) => setAngle(e.target.value)}
-            placeholder="e.g. tell it from a witness's point of view, or focus on the rivalry"
+            placeholder="e.g. tell it from a witness’s point of view, or focus on the rivalry"
             rows={2}
           />
         </section>
@@ -207,7 +245,7 @@ export function NewStoryDialog({
           className="w-full"
         />
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <BookOpen className="size-3.5" />
+          <BookOpen aria-hidden="true" className="size-3.5" />
           The story appears on the canvas as soon as Claude writes it — no refresh needed.
         </p>
       </DialogContent>

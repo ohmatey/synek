@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, Loader2, Pencil, Play, Plus, Trash2, Upload, X } from 'lucide-react'
+import { useReactFlow } from '@xyflow/react'
+import { Crosshair, ExternalLink, Loader2, Pencil, Play, Plus, Trash2, Upload, X } from 'lucide-react'
+import { centerOnNodes } from './cameraFocus'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
@@ -43,6 +45,19 @@ function toInputDate(instant: number, precision: Precision): string {
 }
 
 const EMPTY_CITATION: CanvasCitation = { title: '' }
+
+// Shorten a citation URL for display: "https://en.wikipedia.org/wiki/Stoicism"
+// → "en.wikipedia.org/wiki/Stoicism" (drop scheme + trailing slash). The full
+// URL still rides along as the link href + title. Falls back to the raw string
+// for anything that doesn't parse as a URL.
+function displayUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    return `${u.host}${u.pathname}${u.search}`.replace(/\/$/, '')
+  } catch {
+    return url.replace(/^https?:\/\//, '').replace(/\/$/, '')
+  }
+}
 
 // Human labels for the story POV. Only surfaced when it's NOT the S1 default
 // ('omniscient') — showing "Omniscient" on every story is noise, but the moment a
@@ -98,6 +113,7 @@ export function NodeDetailPanel({
   onCommitResize?: () => void
 }) {
   const qc = useQueryClient()
+  const rf = useReactFlow()
   const hasSpan = node.type !== 'event'
 
   // GAP 3·B — the app holds no AI, so it can't generate a story; instead, a
@@ -320,6 +336,18 @@ export function NodeDetailPanel({
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
+          {!storyMode && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => centerOnNodes(rf, [node.id], { duration: 400 })}
+              aria-label="Focus on canvas"
+              title="Focus on canvas"
+            >
+              <Crosshair className="size-4" />
+            </Button>
+          )}
           {editMode ? (
             <>
               <Button
@@ -489,7 +517,7 @@ export function NodeDetailPanel({
               <input
                 className="detail-prop-input"
                 value={start}
-                placeholder='e.g. "2008", "Q3 2008", "2014-03", "49 BCE"'
+                placeholder='e.g. “2008”, “Q3 2008”, “2014-03”, “49 BCE”'
                 onChange={(e) => setStart(e.target.value)}
                 aria-label={hasSpan ? 'Start date' : 'Date'}
               />
@@ -756,17 +784,33 @@ export function NodeDetailPanel({
       ) : !storyMode && citations.length > 0 ? (
         <div className="detail-field detail-section">
           <span className="detail-label">Citations</span>
-          {citations.map((c, i) => (
-            <div className="detail-citation" key={i}>
-              <div className="detail-cite-title">{c.title || 'Untitled source'}</div>
-              {c.quote?.trim() && <p className="detail-cite-quote">“{c.quote}”</p>}
-              {c.url?.trim() && (
-                <a className="detail-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
-                  Open source ↗
-                </a>
-              )}
-            </div>
-          ))}
+          {citations.map((c, i) => {
+            const url = c.url?.trim()
+            return (
+              <div className="detail-citation" key={i}>
+                {url ? (
+                  <a
+                    className="detail-cite-title detail-cite-title-link"
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    title={url}
+                  >
+                    {c.title || 'Untitled source'}
+                    <ExternalLink className="detail-cite-title-icon size-3" />
+                  </a>
+                ) : (
+                  <div className="detail-cite-title">{c.title || 'Untitled source'}</div>
+                )}
+                {url && (
+                  <a className="detail-cite-url" href={url} target="_blank" rel="noreferrer noopener" title={url}>
+                    {displayUrl(url)}
+                  </a>
+                )}
+                {c.quote?.trim() && <p className="detail-cite-quote">“{c.quote}”</p>}
+              </div>
+            )
+          })}
         </div>
       ) : null}
 

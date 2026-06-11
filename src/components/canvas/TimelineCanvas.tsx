@@ -13,7 +13,6 @@ import {
   type Edge,
   type NodeChange,
 } from '@xyflow/react'
-import { Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import { useTheme } from '@synek/ui'
 import { EventNode } from './nodes/EventNode'
 import { EntityNode } from './nodes/EntityNode'
@@ -44,10 +43,10 @@ import { ShareDialog } from './ShareDialog'
 import { ProfileMenu } from '~/components/ProfileMenu'
 import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
+import { centerOnNodes } from './cameraFocus'
 import { StoryReader } from './StoryReader'
 import { TimeRuler } from './TimeRuler'
 import { CanvasSettings } from './CanvasSettings'
-import { useSpeechSupported } from './useStoryNarration'
 import { McpStatusChip } from './McpStatusChip'
 import { CanvasEmpty } from './CanvasEmpty'
 import { StoriesMenu } from './StoriesMenu'
@@ -108,56 +107,7 @@ function StoryCamera({ ids, dockW }: { ids: string[]; dockW: number }) {
     const stepped = prevKey.current !== key
     prevKey.current = key
     const duration = stepped ? 450 : 0
-    // World-space bounds of the target node(s), from their measured DOM size.
-    const targets = ids.map((id) => rf.getNode(id)).filter(Boolean) as NonNullable<ReturnType<typeof rf.getNode>>[]
-    if (!targets.length) {
-      rf.fitView({ nodes: ids.map((id) => ({ id })), padding: STORY_CAM_PAD, duration, maxZoom: STORY_CAM_MAX_ZOOM })
-      return
-    }
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity
-    for (const n of targets) {
-      const w = n.measured?.width ?? n.width ?? 0
-      const h = n.measured?.height ?? n.height ?? 0
-      minX = Math.min(minX, n.position.x)
-      minY = Math.min(minY, n.position.y)
-      maxX = Math.max(maxX, n.position.x + w)
-      maxY = Math.max(maxY, n.position.y + h)
-    }
-    const bw = Math.max(1, maxX - minX)
-    const bh = Math.max(1, maxY - minY)
-    const cx = (minX + maxX) / 2
-    const cy = (minY + maxY) / 2
-
-    const pane = document.querySelector('.react-flow') as HTMLElement | null
-    if (!pane) {
-      rf.fitView({ nodes: ids.map((id) => ({ id })), padding: STORY_CAM_PAD, duration, maxZoom: STORY_CAM_MAX_ZOOM })
-      return
-    }
-    const pr = pane.getBoundingClientRect()
-    // The docked reader is the leftmost occluder; fall back to the detail panel.
-    const dock = (document.querySelector('.story-reader') ?? document.querySelector('.detail-panel')) as HTMLElement | null
-    // When the dock sits beside the canvas (not a narrow full-width overlay), the
-    // usable width is everything left of it; otherwise use the whole pane.
-    let visibleW = pr.width
-    if (dock) {
-      const dr = dock.getBoundingClientRect()
-      if (dr.left > pr.left + 160) visibleW = dr.left - pr.left
-    }
-    const zoom = Math.max(
-      0.1,
-      Math.min(
-        STORY_CAM_MAX_ZOOM,
-        (visibleW * (1 - 2 * STORY_CAM_PAD)) / bw,
-        (pr.height * (1 - 2 * STORY_CAM_PAD)) / bh,
-      ),
-    )
-    // Center the node within the visible (left) region, not the whole pane.
-    const x = visibleW / 2 - cx * zoom
-    const y = pr.height / 2 - cy * zoom
-    rf.setViewport({ x, y, zoom }, { duration })
+    centerOnNodes(rf, ids, { duration, maxZoom: STORY_CAM_MAX_ZOOM, pad: STORY_CAM_PAD })
     // dockW re-triggers this when a panel is resized so the focus node stays
     // centered in the canvas left of the (now wider/narrower) dock.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -235,7 +185,6 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const [autoRefresh, setAutoRefresh] = useState(initialPref?.autoRefresh ?? true)
   // Read-aloud story narration (Web Speech API) — opt-in, off by default.
   const [speakStories, setSpeakStories] = useState(initialPref?.speak ?? false)
-  const speechSupported = useSpeechSupported()
 
   // Near-real-time stream (SSE). While the stream is healthy it drives freshness
   // (refetch on each frame) and pollingInterval stays false; if it drops, the hook
@@ -792,47 +741,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             <ProfileMenu />
           </div>
         </div>
-        {lensSize > 0 && (
+        {/* The lens-bar is build-stream chrome only; while a story plays the
+            docked reader carries its own transport, so no bar up top. */}
+        {lensSize > 0 && !reading && (
           <div className="lens-bar">
-            <span>
-              {reading
-                ? `Story · ${readingStory?.title ?? ''}`
-                : `Lens · ${lensSize} node${lensSize === 1 ? '' : 's'}`}
-            </span>
-            {reading ? (
-              <>
-                {/* Transport for the playing story (mirrors the docked reader). */}
-                {speechSupported && (
-                  <button
-                    type="button"
-                    className="lens-bar-ctrl"
-                    onClick={() => setSpeakStories((s) => !s)}
-                    aria-pressed={speakStories}
-                    title={speakStories ? 'Mute narration' : 'Read aloud'}
-                    aria-label={speakStories ? 'Mute narration' : 'Read story aloud'}
-                  >
-                    {speakStories ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="lens-bar-ctrl"
-                  onClick={() => setStoryPaused((p) => !p)}
-                  aria-pressed={storyPaused}
-                  title={storyPaused ? 'Resume' : 'Pause'}
-                  aria-label={storyPaused ? 'Resume story' : 'Pause story'}
-                >
-                  {storyPaused ? <Play aria-hidden /> : <Pause aria-hidden />}
-                </button>
-                <button type="button" onClick={() => setReading(false)} title="Stop story" aria-label="Stop story">
-                  Stop ✕
-                </button>
-              </>
-            ) : (
-              <button type="button" onClick={() => setFocusIds([])} title="Clear lens">
-                Clear ✕
-              </button>
-            )}
+            <span>{`Lens · ${lensSize} node${lensSize === 1 ? '' : 's'}`}</span>
+            <button type="button" onClick={() => setFocusIds([])} title="Clear lens">
+              Clear ✕
+            </button>
           </div>
         )}
         <ReactFlow
@@ -912,6 +828,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             key={readingStory.id}
             story={readingStory}
             momentTitle={selectedNode.title}
+            momentId={selectedNode.id}
+            timelineId={timelineId}
             nodeById={nodeById}
             paused={storyPaused}
             onPausedChange={setStoryPaused}

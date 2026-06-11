@@ -11,6 +11,7 @@ import {
 } from '~/components/ui/dialog'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
+import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { createTimeline } from '~/lib/server/timelines'
 import { buildTimelinePrompt } from '~/lib/timeline-prompt'
@@ -88,8 +89,9 @@ export function NewTimelineDialog({
               }}
             >
               <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium">Name</span>
+                <Label htmlFor="new-timeline-name">Name</Label>
                 <Input
+                  id="new-timeline-name"
                   autoFocus
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -98,10 +100,11 @@ export function NewTimelineDialog({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium">
+                <Label htmlFor="new-timeline-focus">
                   Focus <span className="font-normal text-muted-foreground">(optional)</span>
-                </span>
+                </Label>
                 <Textarea
+                  id="new-timeline-focus"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   placeholder="e.g. focus on the people and the rivalries, 1990–today"
