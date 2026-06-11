@@ -25,6 +25,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -237,53 +238,48 @@ export function CommandPalette({
           value={query}
           onValueChange={setQuery}
           placeholder="Search nodes, or type an action like “talk to…” or “improve”"
-        />
-        {/* Result filter — pick which categories appear in the list below. */}
-        <div className="flex items-center gap-2 border-b border-border px-2 py-1.5">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                aria-label="Filter what shows in the results"
-              >
-                <ListFilter className="size-3.5" />
-                Filter results
-                {hiddenCats.size > 0 && (
-                  <span className="tabular-nums">
-                    · {categories.length - hiddenCats.size}/{categories.length}
-                  </span>
-                )}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
-              <DropdownMenuLabel>Show in results</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {categories.map((c) => (
-                <DropdownMenuCheckboxItem
-                  key={c.key}
-                  checked={!hiddenCats.has(c.key)}
-                  onSelect={(e) => e.preventDefault()}
-                  onCheckedChange={() => toggleCat(c.key)}
+          // Result filter sits in the input row (where the close button used to
+          // be), vertically aligned with the search field.
+          trailing={
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  aria-label="Filter what shows in the results"
                 >
-                  <span className="flex flex-1 items-center justify-between gap-2">
-                    <span>{c.label}</span>
-                    <span className="tabular-nums text-xs text-muted-foreground">{c.count}</span>
-                  </span>
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {hiddenCats.size > 0 && (
-            <button
-              type="button"
-              onClick={() => setHiddenCats(new Set())}
-              className="ml-auto rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              Show all
-            </button>
-          )}
-        </div>
+                  <ListFilter className="size-4" />
+                  {hiddenCats.size > 0 && (
+                    <span className="tabular-nums">{categories.length - hiddenCats.size}</span>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Show in results</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {categories.map((c) => (
+                  <DropdownMenuCheckboxItem
+                    key={c.key}
+                    checked={!hiddenCats.has(c.key)}
+                    onSelect={(e) => e.preventDefault()}
+                    onCheckedChange={() => toggleCat(c.key)}
+                  >
+                    <span className="flex flex-1 items-center justify-between gap-2">
+                      <span>{c.label}</span>
+                      <span className="tabular-nums text-xs text-muted-foreground">{c.count}</span>
+                    </span>
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {hiddenCats.size > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setHiddenCats(new Set())}>Show all</DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          }
+        />
         <CommandList>
           <CommandEmpty>No matching nodes or actions.</CommandEmpty>
 

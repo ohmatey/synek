@@ -1,10 +1,11 @@
 import * as React from 'react'
 import { Command as CommandPrimitive } from 'cmdk'
-import { SearchIcon } from 'lucide-react'
+import { SearchIcon, XIcon } from 'lucide-react'
 
 import { cn } from '~/lib/utils'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -16,7 +17,9 @@ function Command({ className, ...props }: React.ComponentProps<typeof CommandPri
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        'bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md',
+        // rounded-xl to match the dialog corners now that the dialog no longer
+        // clips with overflow-hidden (the floating close button sits outside it).
+        'bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-xl',
         className,
       )}
       {...props}
@@ -39,10 +42,17 @@ function CommandDialog({
 }) {
   return (
     <Dialog {...props}>
-      <DialogContent
-        className={cn('overflow-hidden p-0', className)}
-        showCloseButton={showCloseButton}
-      >
+      {/* No overflow-hidden: the close button hovers OUTSIDE the dialog (top-right),
+          so the content box must not clip it. The Command clips its own corners. */}
+      <DialogContent className={cn('p-0', className)} showCloseButton={false}>
+        {showCloseButton && (
+          <DialogClose
+            aria-label="Close"
+            className="absolute -top-12 right-0 inline-flex size-9 items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <XIcon className="size-4" aria-hidden="true" />
+          </DialogClose>
+        )}
         {/* Title/description live inside Content so Radix links aria-labelledby /
             aria-describedby; sr-only keeps the palette chrome visually clean. */}
         <DialogHeader className="sr-only">
@@ -57,18 +67,23 @@ function CommandDialog({
   )
 }
 
-function CommandInput({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.Input>) {
+function CommandInput({
+  className,
+  trailing,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Input> & { trailing?: React.ReactNode }) {
   return (
-    <div data-slot="command-input-wrapper" className="flex h-9 items-center gap-2 border-b px-3">
+    <div data-slot="command-input-wrapper" className="flex items-center gap-2 border-b px-3">
       <SearchIcon className="size-4 shrink-0 opacity-50" />
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
-          'placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50',
+          'placeholder:text-muted-foreground flex h-12 w-full rounded-md bg-transparent py-3 text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50',
           className,
         )}
         {...props}
       />
+      {trailing ? <div className="flex shrink-0 items-center">{trailing}</div> : null}
     </div>
   )
 }
