@@ -199,7 +199,15 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
 // the USER explicitly adjusted the scale on this device — the pref is also
 // auto-saved ambiently on every open, and only an explicit choice should win
 // over the timeline's saved default view (setTimelineView / MCP set_timeline_view).
-export type ScalePref = { pxPerDay: number; collapseGaps: boolean; autoRefresh: boolean; chosen?: boolean }
+// `speak` drives the story reader's read-aloud narration (Web Speech API);
+// default off — narration is opt-in.
+export type ScalePref = {
+  pxPerDay: number
+  collapseGaps: boolean
+  autoRefresh: boolean
+  speak: boolean
+  chosen?: boolean
+}
 
 const scaleKey = (timelineId: string) => `synek:scale:${timelineId}`
 
@@ -210,7 +218,13 @@ export function loadScalePref(timelineId: string): ScalePref | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<ScalePref>
     const pxPerDay = typeof parsed.pxPerDay === 'number' ? clampPxPerDay(parsed.pxPerDay) : BASE_PX_PER_DAY
-    return { pxPerDay, collapseGaps: !!parsed.collapseGaps, autoRefresh: parsed.autoRefresh !== false, chosen: !!parsed.chosen }
+    return {
+      pxPerDay,
+      collapseGaps: !!parsed.collapseGaps,
+      autoRefresh: parsed.autoRefresh !== false,
+      speak: !!parsed.speak,
+      chosen: !!parsed.chosen,
+    }
   } catch {
     return null
   }

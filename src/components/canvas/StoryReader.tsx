@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { X, ChevronLeft, ChevronRight, Play } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Play, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '~/lib/utils'
 import type { GraphNode, PovType, StoryDTO } from '~/lib/domain/types'
+import { useSpeechSupported, useStoryNarration, warmUpSpeech } from './useStoryNarration'
 
 // Human labels for the story POV; only surfaced when it's not the default.
 const POV_LABEL: Record<PovType, string> = {
@@ -50,6 +51,8 @@ export function StoryReader({
   nodeById,
   paused,
   onPausedChange,
+  speak,
+  onSpeakChange,
   onClose,
   onSelectNode,
   onBeatChange,
@@ -60,6 +63,10 @@ export function StoryReader({
   // Pause state is lifted to the canvas so the top story chip can drive it too.
   paused: boolean
   onPausedChange: (paused: boolean) => void
+  // Read-aloud narration (Web Speech API). Lifted so the lens-bar transport + the
+  // view-settings popover can drive it too; persisted per-timeline.
+  speak: boolean
+  onSpeakChange: (speak: boolean) => void
   onClose: () => void
   // Navigate the canvas selection to a related node (closes the reader first).
   onSelectNode: (id: string) => void
@@ -150,6 +157,7 @@ export function StoryReader({
       if (!started) {
         if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') {
           e.preventDefault()
+          if (speak) warmUpSpeech()
           setStarted(true)
         }
         return
@@ -162,7 +170,7 @@ export function StoryReader({
         goPrev()
       }
     },
-    [started, goNext, goPrev, onClose],
+    [started, speak, goNext, goPrev, onClose],
   )
 
   const navigateTo = useCallback(
@@ -174,6 +182,22 @@ export function StoryReader({
   )
 
   const durationMs = beat ? beatDurationMs(beat.bodyText) : MIN_BEAT_MS
+
+  // Read-aloud narration. When on (and supported, and motion isn't reduced) speech
+  // BECOMES the advance timer: the reader steps when the utterance ends, so the
+  // active progress segment is rendered static (no misleading countdown) and the
+  // CSS-fill onAnimationEnd advance is disabled — one advance source at a time.
+  const speechSupported = useSpeechSupported()
+  const speechDrivesAdvance = speak && speechSupported && !reduced
+  useStoryNarration({
+    beat,
+    started,
+    speak,
+    paused,
+    reduced,
+    supported: speechSupported,
+    onAdvance: goNext,
+  })
 
   return (
     <aside
@@ -198,14 +222,14 @@ export function StoryReader({
                 className={cn(
                   'sv-seg-fill',
                   i < safeIndex && 'is-done',
-                  i === safeIndex && (reduced ? 'is-current' : 'is-active'),
+                  i === safeIndex && (reduced || speechDrivesAdvance ? 'is-current' : 'is-active'),
                 )}
                 style={
-                  i === safeIndex && !reduced
+                  i === safeIndex && !reduced && !speechDrivesAdvance
                     ? { animationDuration: `${durationMs}ms`, animationPlayState: paused ? 'paused' : 'running' }
                     : undefined
                 }
-                onAnimationEnd={i === safeIndex && !reduced ? goNext : undefined}
+                onAnimationEnd={i === safeIndex && !reduced && !speechDrivesAdvance ? goNext : undefined}
               />
             </div>
           ))}
@@ -221,6 +245,21 @@ export function StoryReader({
           </span>
         </div>
         <div className="sv-head-actions">
+          {speechSupported && (
+            <button
+              type="button"
+              className="sv-ctrl"
+              onClick={() => {
+                warmUpSpeech()
+                onSpeakChange(!speak)
+              }}
+              aria-pressed={speak}
+              title={speak ? 'Mute narration' : 'Read aloud'}
+              aria-label={speak ? 'Mute narration' : 'Read story aloud'}
+            >
+              {speak ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
+            </button>
+          )}
           <button type="button" className="sv-ctrl" onClick={onClose} aria-label="Close story">
             <X aria-hidden />
           </button>
@@ -327,7 +366,17 @@ export function StoryReader({
               {count} {count === 1 ? 'beat' : 'beats'}
             </span>
           </div>
-          <button type="button" className="sv-play" onClick={() => setStarted(true)} disabled={count === 0}>
+          <button
+            type="button"
+            className="sv-play"
+            onClick={() => {
+              // Prime the speech queue within this gesture so the first beat's
+              // utterance isn't blocked on iOS (no-op when narration is off).
+              if (speak) warmUpSpeech()
+              setStarted(true)
+            }}
+            disabled={count === 0}
+          >
             <Play aria-hidden />
             Play story
           </button>

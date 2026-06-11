@@ -13,7 +13,7 @@ import {
   type Edge,
   type NodeChange,
 } from '@xyflow/react'
-import { Pause, Play } from 'lucide-react'
+import { Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import { useTheme } from '@synek/ui'
 import { EventNode } from './nodes/EventNode'
 import { EntityNode } from './nodes/EntityNode'
@@ -47,6 +47,7 @@ import { NodeDetailPanel } from './NodeDetailPanel'
 import { StoryReader } from './StoryReader'
 import { TimeRuler } from './TimeRuler'
 import { CanvasSettings } from './CanvasSettings'
+import { useSpeechSupported } from './useStoryNarration'
 import { McpStatusChip } from './McpStatusChip'
 import { CanvasEmpty } from './CanvasEmpty'
 import { StoriesMenu } from './StoriesMenu'
@@ -209,6 +210,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   }, [])
   // Live updates from the MCP client — on by default, toggled in settings.
   const [autoRefresh, setAutoRefresh] = useState(initialPref?.autoRefresh ?? true)
+  // Read-aloud story narration (Web Speech API) — opt-in, off by default.
+  const [speakStories, setSpeakStories] = useState(initialPref?.speak ?? false)
+  const speechSupported = useSpeechSupported()
 
   // Near-real-time stream (SSE). While the stream is healthy it drives freshness
   // (refetch on each frame) and pollingInterval stays false; if it drops, the hook
@@ -255,6 +259,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     setPxPerDay(pref?.pxPerDay ?? BASE_PX_PER_DAY)
     setCollapseGaps(pref?.collapseGaps ?? false)
     setAutoRefresh(pref?.autoRefresh ?? true)
+    setSpeakStories(pref?.speak ?? false)
     scaleChosen.current = pref?.chosen ?? false
     measuredRef.current = new Map() // sizes belong to the previous timeline's nodes
     // New timeline → re-baseline the story-version watch so the first load of the
@@ -265,8 +270,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // Persist the scale per timeline (local-first; no DB). Runs on mount too, so
   // the pref's mere existence means nothing — `chosen` carries the user intent.
   useEffect(() => {
-    saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh, chosen: scaleChosen.current })
-  }, [timelineId, pxPerDay, collapseGaps, autoRefresh])
+    saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh, speak: speakStories, chosen: scaleChosen.current })
+  }, [timelineId, pxPerDay, collapseGaps, autoRefresh, speakStories])
 
   // Measured DOM size per node id — the layout's second pass. Estimates place
   // nodes on first paint; once React Flow measures the real cards, lanes re-pack
@@ -735,6 +740,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 onPxPerDay={choosePxPerDay}
                 onCollapseGaps={chooseCollapseGaps}
                 onAutoRefresh={setAutoRefresh}
+                speak={speakStories}
+                onSpeak={setSpeakStories}
               />
             )}
             {/* Sharing (public link + export) + account live at the far right of the bar. */}
@@ -757,6 +764,18 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             {reading ? (
               <>
                 {/* Transport for the playing story (mirrors the docked reader). */}
+                {speechSupported && (
+                  <button
+                    type="button"
+                    className="lens-bar-ctrl"
+                    onClick={() => setSpeakStories((s) => !s)}
+                    aria-pressed={speakStories}
+                    title={speakStories ? 'Mute narration' : 'Read aloud'}
+                    aria-label={speakStories ? 'Mute narration' : 'Read story aloud'}
+                  >
+                    {speakStories ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="lens-bar-ctrl"
@@ -855,6 +874,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             nodeById={nodeById}
             paused={storyPaused}
             onPausedChange={setStoryPaused}
+            speak={speakStories}
+            onSpeakChange={setSpeakStories}
             onClose={() => setReading(false)}
             onSelectNode={selectNode}
             onBeatChange={setActiveBeat}

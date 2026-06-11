@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useReactFlow, useStore, useViewport } from '@xyflow/react'
-import { Check, Loader2, Minus, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react'
+import { Check, Loader2, Minus, Plus, SlidersHorizontal, Volume2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '~/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
-import { Separator } from '~/components/ui/separator'
+import { Switch } from '~/components/ui/switch'
 import { cn } from '~/lib/utils'
 import { setTimelineView } from '~/lib/server/timelines'
 import {
@@ -15,6 +15,14 @@ import {
   type TimeScale,
 } from './useTimelineScale'
 import { floatChip } from './chrome'
+import {
+  NARRATION_PITCH_RANGE,
+  NARRATION_RATE_RANGE,
+  speakNarrationSample,
+  useNarrationPrefs,
+  useNarrationVoices,
+  useSpeechSupported,
+} from './useStoryNarration'
 
 // Multiplicative step so −/+ feel even across scales (compress vs. expand).
 const STEP = 1.4
@@ -73,6 +81,8 @@ export function CanvasSettings({
   onPxPerDay,
   onCollapseGaps,
   onAutoRefresh,
+  speak,
+  onSpeak,
 }: {
   timelineId: string
   isOwner: boolean
@@ -88,11 +98,19 @@ export function CanvasSettings({
   onPxPerDay: (next: number) => void
   onCollapseGaps: (next: boolean) => void
   onAutoRefresh: (next: boolean) => void
+  speak: boolean
+  onSpeak: (next: boolean) => void
 }) {
   const rf = useReactFlow()
   const width = useStore((s) => s.width)
   const { zoom } = useViewport()
   const [saving, setSaving] = useState(false)
+  const speechSupported = useSpeechSupported()
+  const [narration, setNarration] = useNarrationPrefs()
+  const voices = useNarrationVoices()
+  // Fall back to "Auto" when the saved voice isn't available on this device.
+  const selectedVoiceURI =
+    narration.voiceURI && voices.some((v) => v.voiceURI === narration.voiceURI) ? narration.voiceURI : ''
 
   const present = KIND_META.filter((k) => (counts.get(k.token) ?? 0) > 0)
   const hiddenCount = hiddenKinds.size
@@ -126,7 +144,7 @@ export function CanvasSettings({
     setSaving(true)
     try {
       await setTimelineView({ data: { id: timelineId, view: { pxPerDay, collapseGaps } } })
-      saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh, chosen: true })
+      saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh, speak, chosen: true })
       toast.success('Saved as this timeline’s default scale')
     } catch {
       toast.error('Couldn’t save the default')
@@ -211,8 +229,6 @@ export function CanvasSettings({
             </div>
           )}
 
-          {present.length > 0 && <Separator />}
-
           {/* Time scale — zoom level (years across the screen) with −/+ and presets. */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -292,39 +308,139 @@ export function CanvasSettings({
             </Button>
           </div>
 
-          <Separator />
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Live updates
-            </span>
-            <Button
-              variant={autoRefresh ? 'default' : 'outline'}
-              size="sm"
-              className="h-8 justify-center text-xs"
-              data-testid="auto-refresh-toggle"
-              onClick={() => onAutoRefresh(!autoRefresh)}
-              aria-pressed={autoRefresh}
-              title="Stream changes from your MCP client in near-real-time (no page reload)"
-            >
-              <RefreshCw className={autoRefresh ? 'animate-none' : undefined} />
-              Live updates {autoRefresh ? 'on' : 'off'}
-            </Button>
+          <div className="flex flex-col gap-1">
+            <label className="flex cursor-pointer items-center justify-between gap-3 py-1.5 text-sm">
+              <span
+                className="flex-1"
+                title="Stream changes from your MCP client in near-real-time (no page reload)"
+              >
+                Live updates
+              </span>
+              <Switch
+                checked={autoRefresh}
+                onCheckedChange={onAutoRefresh}
+                data-testid="auto-refresh-toggle"
+                aria-label="Live updates"
+              />
+            </label>
           </div>
 
-          {isOwner && (
-            <>
-              <Separator />
-              <div className="flex flex-col gap-2">
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  Save the current scale as this timeline’s default — applied whenever it’s opened on
-                  a fresh device.
-                </p>
-                <Button variant="secondary" size="sm" onClick={saveDefault} disabled={saving}>
-                  {saving ? <Loader2 className="animate-spin" /> : <Check />}
-                  Save as default
+          {/* Speech — narration on/off + the device's voice / speed / pitch and a
+              preview. Voice settings are device-global (available voices differ per
+              machine), so they persist separately from the per-timeline view. */}
+          {speechSupported && (
+            <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+              <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
+                <span
+                  className="flex-1 font-medium"
+                  title="Read stories aloud as the reader plays each beat (browser speech)"
+                >
+                  Read stories aloud
+                </span>
+                <Switch
+                  checked={speak}
+                  onCheckedChange={onSpeak}
+                  data-testid="speak-stories-toggle"
+                  aria-label="Read stories aloud"
+                />
+              </label>
+
+              <div className={cn('flex flex-col gap-3', !speak && 'pointer-events-none opacity-50')}>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Voice</span>
+                  <select
+                    className="h-8 cursor-pointer rounded-md border border-border bg-background px-2 text-sm"
+                    value={selectedVoiceURI}
+                    onChange={(e) => setNarration({ voiceURI: e.target.value || null })}
+                    disabled={!speak}
+                    data-testid="narration-voice"
+                    aria-label="Narration voice"
+                  >
+                    <option value="">Auto (recommended)</option>
+                    {voices.map((v) => (
+                      <option key={v.voiceURI} value={v.voiceURI}>
+                        {v.name} — {v.lang}
+                        {v.localService ? '' : ' (online)'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Speed</span>
+                    <span className="tabular-nums text-xs text-muted-foreground">
+                      {narration.rate.toFixed(2)}×
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={NARRATION_RATE_RANGE.min}
+                    max={NARRATION_RATE_RANGE.max}
+                    step={NARRATION_RATE_RANGE.step}
+                    value={narration.rate}
+                    onChange={(e) => setNarration({ rate: Number(e.target.value) })}
+                    disabled={!speak}
+                    className="w-full accent-primary"
+                    data-testid="narration-rate"
+                    aria-label="Narration speed"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Pitch</span>
+                    <span className="tabular-nums text-xs text-muted-foreground">
+                      {narration.pitch.toFixed(2)}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={NARRATION_PITCH_RANGE.min}
+                    max={NARRATION_PITCH_RANGE.max}
+                    step={NARRATION_PITCH_RANGE.step}
+                    value={narration.pitch}
+                    onChange={(e) => setNarration({ pitch: Number(e.target.value) })}
+                    disabled={!speak}
+                    className="w-full accent-primary"
+                    data-testid="narration-pitch"
+                    aria-label="Narration pitch"
+                  />
+                </label>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 justify-center text-xs"
+                  onClick={() => speakNarrationSample(narration)}
+                  disabled={!speak}
+                  data-testid="narration-preview"
+                  title="Hear a sample with these settings"
+                >
+                  <Volume2 />
+                  Preview voice
                 </Button>
               </div>
-            </>
+            </div>
+          )}
+
+          {isOwner && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Save the current scale as this timeline’s default — applied whenever it’s opened on a
+                fresh device.
+              </p>
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full"
+                onClick={saveDefault}
+                disabled={saving}
+              >
+                {saving && <Loader2 className="animate-spin" />}
+                Save as default
+              </Button>
+            </div>
           )}
         </div>
       </PopoverContent>
