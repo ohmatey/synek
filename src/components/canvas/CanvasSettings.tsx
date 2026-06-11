@@ -36,20 +36,6 @@ const PRESETS: { label: string; years: number }[] = [
   { label: 'Millennium', years: 1000 },
 ]
 
-// All filterable kinds, in display order. `token` matches kindToken() in
-// TimelineCanvas (entity nodes filter by subtype; type otherwise). Only kinds
-// actually present in the timeline get a row.
-const KIND_META: { token: string; label: string; color: string }[] = [
-  { token: 'period', label: 'Periods', color: 'var(--color-accent-influence)' },
-  { token: 'event', label: 'Events', color: 'var(--color-accent-primary)' },
-  { token: 'concept', label: 'Concepts', color: 'var(--color-accent-dialogue)' },
-  { token: 'person', label: 'People', color: 'var(--color-fg-secondary)' },
-  { token: 'org', label: 'Orgs', color: 'var(--color-fg-secondary)' },
-  { token: 'place', label: 'Places', color: 'var(--color-fg-secondary)' },
-  { token: 'work', label: 'Works', color: 'var(--color-fg-secondary)' },
-  { token: 'entity', label: 'Entities', color: 'var(--color-fg-secondary)' },
-]
-
 // Human label for a "zoom level" expressed as the timespan visible on screen.
 function formatSpan(years: number): string {
   if (years >= 1000) {
@@ -60,12 +46,12 @@ function formatSpan(years: number): string {
   return `${Math.max(1, Math.round(years * 12))} mo`
 }
 
-// Floating "view settings" menu → popover. One home for the canvas view: which
-// node kinds show on the timeline, the time-axis zoom (compress/expand, timespan
-// presets, gap-collapsing), live updates, and — for the owner — a "save as
-// default" that persists the current scale. Lives outside <ReactFlow> but inside
-// <ReactFlowProvider>, so useReactFlow / useStore reach the live viewport for
-// keep-center re-anchoring and the zoom readout.
+// Floating "view settings" menu → popover. One home for the canvas view: the
+// time-axis zoom (compress/expand, timespan presets, gap-collapsing), live
+// updates, narration, and — for the owner — a "save as default" that persists
+// the current scale. (Which node kinds show lives in the toolbar FilterMenu.)
+// Lives outside <ReactFlow> but inside <ReactFlowProvider>, so useReactFlow /
+// useStore reach the live viewport for keep-center re-anchoring and the readout.
 export function CanvasSettings({
   timelineId,
   isOwner,
@@ -74,10 +60,6 @@ export function CanvasSettings({
   autoRefresh,
   scale,
   buildScale,
-  counts,
-  hiddenKinds,
-  onToggleKind,
-  onResetKinds,
   onPxPerDay,
   onCollapseGaps,
   onAutoRefresh,
@@ -91,10 +73,6 @@ export function CanvasSettings({
   autoRefresh: boolean
   scale: TimeScale
   buildScale: (pxPerDay: number, collapseGaps: boolean) => TimeScale
-  counts: Map<string, number>
-  hiddenKinds: Set<string>
-  onToggleKind: (token: string) => void
-  onResetKinds: () => void
   onPxPerDay: (next: number) => void
   onCollapseGaps: (next: boolean) => void
   onAutoRefresh: (next: boolean) => void
@@ -111,9 +89,6 @@ export function CanvasSettings({
   // Fall back to "Auto" when the saved voice isn't available on this device.
   const selectedVoiceURI =
     narration.voiceURI && voices.some((v) => v.voiceURI === narration.voiceURI) ? narration.voiceURI : ''
-
-  const present = KIND_META.filter((k) => (counts.get(k.token) ?? 0) > 0)
-  const hiddenCount = hiddenKinds.size
 
   const apply = (nextPxPerDay: number, nextCollapse: boolean) => {
     const clamped = Math.min(MAX_PX_PER_DAY, Math.max(MIN_PX_PER_DAY, nextPxPerDay))
@@ -159,76 +134,16 @@ export function CanvasSettings({
         <Button
           variant="outline"
           size="icon"
-          className={cn(
-            'relative size-8',
-            floatChip,
-            hiddenCount > 0 && 'text-amber-600 dark:text-amber-400',
-          )}
+          className={cn('size-8', floatChip)}
           title="View settings"
           aria-label="View settings"
           data-testid="canvas-settings"
         >
           <SlidersHorizontal />
-          {hiddenCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
-              {hiddenCount}
-            </span>
-          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">
         <div className="flex flex-col gap-4">
-          {/* Show on timeline — per-kind visibility (merged from the old filter chip). */}
-          {present.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Show on timeline
-                </span>
-                {hiddenCount > 0 && (
-                  <button
-                    type="button"
-                    className="cursor-pointer rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-                    onClick={onResetKinds}
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-              <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-                {present.map((k) => {
-                  const visible = !hiddenKinds.has(k.token)
-                  return (
-                    <label
-                      key={k.token}
-                      className="flex cursor-pointer items-center gap-2.5 px-2.5 py-2 text-sm transition-colors hover:bg-accent/50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={visible}
-                        onChange={() => onToggleKind(k.token)}
-                        className="size-4 shrink-0 accent-primary"
-                        data-testid={`filter-kind-${k.token}`}
-                        aria-label={`Show ${k.label} on the timeline`}
-                      />
-                      <span className={cn('flex flex-1 items-center gap-2', !visible && 'opacity-50')}>
-                        <span
-                          className="size-2.5 shrink-0 rounded-full"
-                          style={{ background: k.color }}
-                          aria-hidden
-                        />
-                        <span className="flex-1">{k.label}</span>
-                        <span className="tabular-nums text-xs text-muted-foreground">
-                          {counts.get(k.token) ?? 0}
-                        </span>
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Time scale — zoom level (years across the screen) with −/+ and presets. */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">

@@ -25,6 +25,16 @@ The S-series deepens what happens *after* you tap a moment. This track makes the
 |---|---|---|---|
 | [VIS](visual-immersion.md) | Immersive timelines | Before you tap a story, the map already *feels* like a place people lived in. | proposed |
 
+### Navigation layer (find your way around the map)
+
+Once a timeline is dense, getting *to* a moment matters as much as building it.
+
+| Track | Title | The one-line promise | Status |
+|---|---|---|---|
+| [NAV](canvas-command-palette.md) | In-canvas search + ⌘K | Press ⌘K, type a name, land on it. | built (2026-06-11)* |
+
+\* **NAV built** — `cmdk` palette over the in-memory graph; selecting a result pans/centers the camera and opens the node. Client-only (no schema/RPC/Patch). Typecheck + build green; live in-browser pass owed. Forward-links to **S2.5** (artifact recall) as its next result source.
+
 ### Connection layer (the MCP front door)
 
 The inversion made the MCP server the product surface. This track makes *connecting a client* a first-class, manageable act.

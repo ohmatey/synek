@@ -45,6 +45,8 @@ import { ProfileMenu } from '~/components/ProfileMenu'
 import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
 import { centerOnNodes } from './cameraFocus'
+import { CommandPalette } from './CommandPalette'
+import { FilterMenu } from './FilterMenu'
 import { StoryReader } from './StoryReader'
 import { TimeRuler } from './TimeRuler'
 import { CanvasSettings } from './CanvasSettings'
@@ -116,6 +118,50 @@ function StoryCamera({ ids, dockW }: { ids: string[]; dockW: number }) {
   return null
 }
 
+// Flies the camera to a single node chosen from the ⌘K palette. Lives inside
+// <ReactFlow> so useReactFlow has context (a Radix-portaled palette can't reach
+// it). Selecting a node mounts the detail panel — which animates in via
+// `dock-slide-in` (translateX over 260ms) — and, if the node's kind was
+// filtered out, newly mounts the node too. Both confound an immediate measure:
+// centerOnNodes reads the dock's getBoundingClientRect (which reflects the live
+// transform) and the node's measured size. So rAF-poll until BOTH have settled
+// (node measured + dock edge stops moving), capped so it always fires. Under
+// prefers-reduced-motion the panel has no animation, so it settles on the second
+// frame and still feels instant.
+const FLY_SETTLE_FRAMES = 24
+function FlyToCamera({ targetId, onArrive }: { targetId: string | null; onArrive: () => void }) {
+  const rf = useReactFlow()
+  useEffect(() => {
+    if (!targetId) return
+    let raf = 0
+    let frames = 0
+    let prevLeft = Number.NaN
+    const tick = () => {
+      frames += 1
+      const measured = !!rf.getNode(targetId)?.measured?.width
+      // The leftmost occluder, same query centerOnNodes uses; its left edge
+      // glides while dock-slide-in runs, so stability across two frames ⇒ at rest.
+      const dock = (document.querySelector('.story-reader') ??
+        document.querySelector('.detail-panel')) as HTMLElement | null
+      const left = dock ? dock.getBoundingClientRect().left : Number.NaN
+      const dockSettled = !dock || left === prevLeft
+      prevLeft = left
+      if ((measured && dockSettled) || frames >= FLY_SETTLE_FRAMES) {
+        try {
+          centerOnNodes(rf, [targetId], { duration: 450, maxZoom: 1.2, pad: 0.28 })
+        } finally {
+          onArrive()
+        }
+        return
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [rf, targetId, onArrive])
+  return null
+}
+
 // Per-kind edge styling: color (as a CSS var so it flips light/dark via the
 // active theme), stroke width, and dash. Influence/rivalry read as softer
 // dashed lines; causal/succession as solid.
@@ -130,6 +176,9 @@ const EDGE_STYLE: Record<EdgeKind, { color: string; width: number; dash?: string
 export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const { resolvedTheme } = useTheme()
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // A node chosen from the ⌘K palette to fly the camera to (one-shot; cleared
+  // by FlyToCamera once it has framed the node).
+  const [flyToId, setFlyToId] = useState<string | null>(null)
   // A moment can hold several stories; this is the one the docked reader plays.
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null)
   // While true the docked StoryReader is open beside the panel; activeBeat tracks
@@ -406,6 +455,30 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     })
   }, [])
   const resetKinds = useCallback(() => setHiddenKinds(new Set()), [])
+
+  // ⌘K palette pick: if the node's kind is currently filtered out, reveal it
+  // first (else the camera would chase a node that isn't rendered), then select
+  // it (opens the detail panel, drops any reader) and arm the fly-to camera.
+  const flyTo = useCallback(
+    (id: string) => {
+      const n = nodeById.get(id)
+      if (n) {
+        const token = kindToken(n)
+        setHiddenKinds((prev) => {
+          if (!prev.has(token)) return prev
+          const next = new Set(prev)
+          next.delete(token)
+          return next
+        })
+      }
+      selectNode(id)
+      setFlyToId(id)
+    },
+    [nodeById, selectNode],
+  )
+  // Stable so FlyToCamera's effect (which depends on onArrive) doesn't re-run
+  // every render; clears the one-shot target once the camera has framed it.
+  const clearFlyTo = useCallback(() => setFlyToId(null), [])
 
   // Briefly glow nodes that newly arrived (e.g. from a live MCP write) so the
   // user notices what changed — without the camera moving.
@@ -709,6 +782,22 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         <div className="top-bar">
           <AppBar timelineId={timelineId} title={title} isOwner={isOwner} isPublic={isPublic} />
           <div className="canvas-toolbar">
+            {gnodes.length > 0 && (
+              <CommandPalette
+                nodes={gnodes}
+                onSelect={flyTo}
+                timelineId={timelineId}
+                timelineTitle={title}
+              />
+            )}
+            {gnodes.length > 0 && (
+              <FilterMenu
+                counts={kindCounts}
+                hiddenKinds={hiddenKinds}
+                onToggleKind={toggleKind}
+                onResetKinds={resetKinds}
+              />
+            )}
             {isOwner && <McpStatusChip />}
             {isOwner && <HistoryControls timelineId={timelineId} />}
             {(isOwner || gnodes.some((n) => n.hasStory)) && (
@@ -729,10 +818,6 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 autoRefresh={autoRefresh}
                 scale={scale}
                 buildScale={buildScale}
-                counts={kindCounts}
-                hiddenKinds={hiddenKinds}
-                onToggleKind={toggleKind}
-                onResetKinds={resetKinds}
                 onPxPerDay={choosePxPerDay}
                 onCollapseGaps={chooseCollapseGaps}
                 onAutoRefresh={setAutoRefresh}
@@ -789,6 +874,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           <Controls showInteractive={false} />
           <ViewportInit timelineId={timelineId} nodeCount={gnodes.length} />
           {cameraIds && <StoryCamera ids={cameraIds} dockW={panelW.detail + panelW.story} />}
+          <FlyToCamera targetId={flyToId} onArrive={clearFlyTo} />
           {(gnodes.length > 0 || pending.length > 0) && <TimeRuler scale={scale} />}
           {!isLoading && gnodes.length === 0 && pending.length === 0 && (
             <Panel position="top-center">
