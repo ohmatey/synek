@@ -23,6 +23,7 @@ import {
   layoutLaneY,
   estimateNodeHeight,
   personCardWidth,
+  workCardWidth,
   entityCardWidth,
   eventPillWidth,
   makeTimeScale,
@@ -489,15 +490,17 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     const realPositioned = visibleNodes.map((n) => ({
       n,
       x: scale.toX(n.startInstant),
-      // Person cards are fixed-size polaroids anchored at the start instant
-      // (the lifespan moves into the caption), not stretched across the span.
-      // Other spanless nodes need an honest width too — the packer can only
-      // prevent overlap if it knows the rendered size: entities get a fixed
-      // card width, event pills a text-driven estimate.
+      // Person and work cards are fixed-size (polaroid/cover) anchored at the
+      // start instant (the span moves into the caption), not stretched across
+      // the span. Other spanless nodes need an honest width too — the packer
+      // can only prevent overlap if it knows the rendered size: entities get a
+      // fixed card width, event pills a text-driven estimate.
       width:
         n.subtype === 'person'
           ? personCardWidth(n.size)
-          : (widthOf(n.startInstant, n.endInstant) ??
+          : n.subtype === 'work'
+            ? workCardWidth(n.size)
+            : (widthOf(n.startInstant, n.endInstant) ??
             (n.type === 'entity'
               ? entityCardWidth(n.size)
               : n.type === 'event'
@@ -520,16 +523,22 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     const laneYById = layoutLaneY([
       ...realPositioned.map((r) => {
         const shown = r.n.images.filter((i) => i.show)
-        // Person cards frame only the first shown image; other nodes tile a strip,
-        // so any portrait among them stretches it. Match that for the height estimate.
+        // Person/work cards frame only the first shown image; other nodes tile a
+        // strip, so any portrait among them stretches it. Match that for the
+        // height estimate.
         const hasPortrait =
-          r.n.subtype === 'person'
+          r.n.subtype === 'person' || r.n.subtype === 'work'
             ? shown[0]?.aspect === 'portrait'
             : shown.some((i) => i.aspect === 'portrait')
         // A fixed-width entity card clamps a long title to a second line, which
-        // estimateNodeHeight's single-line body doesn't cover.
+        // estimateNodeHeight's single-line body doesn't cover (the person/work
+        // card bodies already budget a two-line plate).
         const titleWrap =
-          r.n.type === 'entity' && r.n.subtype !== 'person' && r.n.endInstant == null && r.n.title.length > 16
+          r.n.type === 'entity' &&
+          r.n.subtype !== 'person' &&
+          r.n.subtype !== 'work' &&
+          r.n.endInstant == null &&
+          r.n.title.length > 16
             ? 16
             : 0
         const meas = m.get(r.n.id)

@@ -379,6 +379,100 @@ body {
   gap: 3px;
 }
 
+/* Work "cover" card (books, artworks, documents): framed cover on top, title +
+   date plate beneath. Same neutral-body/hover-lift language as the polaroid. */
+.sf-work {
+  position: relative;
+  width: 132px;
+  padding: 7px;
+  gap: 0;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  color: var(--color-fg-secondary);
+  box-shadow: var(--shadow-card);
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.sf-work:hover {
+  background: var(--color-bg-overlay);
+  border-color: var(--color-border-default);
+}
+
+.sf-work-frame {
+  position: relative;
+  width: 100%;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--color-bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Covers default slightly landscape (paintings, scenes); a portrait cover
+   (manuscript page, book jacket) makes the frame taller. */
+.sf-work-frame-landscape {
+  aspect-ratio: 4 / 3;
+}
+
+.sf-work-frame-portrait {
+  aspect-ratio: 3 / 4;
+}
+
+.sf-work-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.sf-work-empty {
+  width: 40%;
+  height: 40%;
+  color: var(--color-fg-muted);
+}
+
+/* Identity accent rides the frame's left edge as a spine rail (carrier accent,
+   not a perimeter) — the work reads as a bound volume. */
+.sf-work-spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+}
+
+.sf-work-plate {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 3px 1px;
+}
+
+.sf-work-title {
+  font-weight: 500;
+  font-style: italic; /* titles of works are set in italics */
+  color: var(--color-fg-primary);
+  line-height: 1.15;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.sf-work-dates {
+  font-size: 0.82em;
+  color: var(--color-fg-muted);
+}
+
+.sf-work-badges {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: flex;
+  gap: 3px;
+}
+
 /* Org logo lockup (logo inline with the label, contained not cropped) */
 .sf-entity-org .sf-entity-row {
   gap: 7px;

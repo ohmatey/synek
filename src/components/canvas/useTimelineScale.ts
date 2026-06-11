@@ -65,7 +65,19 @@ export function personCardWidth(size: NodeSize = 'medium'): number {
   return Math.round(PERSON_CARD_BASE_WIDTH * SIZE_SCALE[size])
 }
 
-// Spanless entity cards (a work/org/place with no end date) get a fixed width,
+// Work "cover" card: a framed cover image + a title/date plate. Fixed size
+// (anchored at the start instant) like the person polaroid — the span moves
+// into the caption dates. Slightly wider than the polaroid so landscape covers
+// (paintings, scenes) keep some presence. Landscape frame is 4:3, portrait 3:4.
+const WORK_CARD_BODY = 150
+const WORK_CARD_BODY_PORTRAIT = 225
+const WORK_CARD_BASE_WIDTH = 132
+
+export function workCardWidth(size: NodeSize = 'medium'): number {
+  return Math.round(WORK_CARD_BASE_WIDTH * SIZE_SCALE[size])
+}
+
+// Spanless entity cards (an org/place with no end date) get a fixed width,
 // applied both to the DOM and to the lane packer's overlap test. Left to
 // auto-size, a long title renders the card far wider than NOMINAL_WIDTH and
 // same-lane neighbors visually overlap even though the packer saw them clear.
@@ -283,6 +295,10 @@ export function estimateNodeHeight(
   const summary = hasSummary ? Math.round(SUMMARY_BODY * SIZE_SCALE[size]) : 0
   if (subtype === 'person') {
     const frame = hasPortraitImage ? PERSON_CARD_BODY_PORTRAIT : PERSON_CARD_BODY
+    return Math.round(frame * SIZE_SCALE[size]) + summary
+  }
+  if (subtype === 'work') {
+    const frame = hasPortraitImage ? WORK_CARD_BODY_PORTRAIT : WORK_CARD_BODY
     return Math.round(frame * SIZE_SCALE[size]) + summary
   }
   const strip = hasImages ? (hasPortraitImage ? IMG_STRIP_PORTRAIT[size] : IMG_STRIP[size]) : 0

@@ -1,12 +1,14 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { CanvasNodeData } from '../types'
 import { PersonCard } from './PersonCard'
+import { WorkCard } from './WorkCard'
 import { StoryBadge } from './StoryBadge'
 
 export function EntityNode(props: NodeProps) {
   const d = props.data as CanvasNodeData
-  // Person entities render as a portrait polaroid.
+  // Person entities render as a portrait polaroid; works as a cover card.
   if (d.subtype === 'person') return <PersonCard {...props} />
+  if (d.subtype === 'work') return <WorkCard {...props} />
 
   // Org entities show their logo inline (contained, not cropped) as a lockup;
   // other entities keep the label bar + image strip below.
