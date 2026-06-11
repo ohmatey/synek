@@ -1,7 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, KeyRound } from 'lucide-react'
-import { useSession } from '~/lib/auth/client'
 import { listApiKeys } from '~/lib/server/api-keys'
 import { TimelinesSection } from './TimelinesSection'
 
@@ -32,25 +31,9 @@ function ConnectCta() {
 }
 
 export function SignedIn() {
-  const { data: session } = useSession()
-  const name = session?.user?.name?.split(' ')[0] || session?.user?.email?.split('@')[0]
-
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
-      <header>
-        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-          Workspace
-        </span>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-          {name ? `Welcome back, ${name}` : 'Welcome back'}
-        </h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Create a timeline, then let your MCP client build it out.
-        </p>
-      </header>
-
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-10">
       <ConnectCta />
-
       <TimelinesSection />
     </div>
   )

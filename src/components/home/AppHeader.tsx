@@ -13,7 +13,7 @@ function HeaderAccount() {
   // has no theme switcher, just the sign-in entry point.
   if (!session?.user)
     return (
-      <Button asChild size="sm">
+      <Button asChild>
         <Link to="/login">Sign in</Link>
       </Button>
     )
@@ -31,13 +31,13 @@ function MarketingNav() {
     <nav className="hidden items-center gap-1 md:flex">
       <a
         href="#how-it-works"
-        className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="rounded-md px-3.5 py-2 text-[15px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         How it works
       </a>
       <a
         href="#features"
-        className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="rounded-md px-3.5 py-2 text-[15px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         Features
       </a>
@@ -48,12 +48,12 @@ function MarketingNav() {
 export function AppHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-border/40 bg-background/70 backdrop-blur-xl">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-6">
-        <a href="/" className="group flex items-center gap-2.5">
-          <span className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-primary to-influence shadow-sm ring-1 ring-inset ring-white/10 transition-transform group-hover:scale-105">
-            <img src="/favicon.svg" alt="" width={16} height={16} className="opacity-95" />
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-6 sm:px-8">
+        <a href="/" className="group flex items-center gap-3">
+          <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-influence shadow-sm ring-1 ring-inset ring-white/10 transition-transform group-hover:scale-105">
+            <img src="/favicon.svg" alt="" width={20} height={20} className="opacity-95" />
           </span>
-          <span className="text-sm font-semibold tracking-tight">Synek</span>
+          <span className="text-lg font-semibold tracking-tight">Synek</span>
         </a>
 
         <ClientOnly>
