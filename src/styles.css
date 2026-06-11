@@ -853,6 +853,9 @@ body {
 
 .detail-desc-input {
   width: 100%;
+  /* The panel is a scrolling flex column — without this the textarea is the only
+     shrinkable child and collapses when edit mode mounts every editor at once. */
+  flex: none;
   resize: vertical;
   background: var(--color-bg-base);
   color: var(--color-fg-primary);
@@ -880,19 +883,11 @@ body {
   min-width: 0;
 }
 
-.detail-title-dot {
-  flex: 0 0 auto;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
 /* Read-mode meta line under the title: "Company · Jun 1997 – Jul 2007 · 10 years".
-   Indented to align with the title text past the accent-dot gutter
-   (10px dot + 8px gap + 6px title padding). */
+   Indented to align with the title text (the title's 6px side padding). */
 .detail-dateline {
   margin: -6px 0 0;
-  padding-left: 24px;
+  padding-left: 6px;
   font-size: 13px;
   color: var(--color-fg-secondary);
 }

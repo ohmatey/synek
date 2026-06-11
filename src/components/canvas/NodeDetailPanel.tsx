@@ -9,7 +9,7 @@ import { editNode, deleteNode } from '~/lib/server/nodes'
 import { fileToDataUrl } from '~/lib/files'
 import { NewStoryDialog } from './NewStoryDialog'
 import { IMAGE_ASPECTS, NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
-import type { GraphNode, GraphEdge, CanvasCitation, ImageAspect, NodeImage, NodeSize, NodeSubtype, NodeType, Precision, EdgeKind, PovType, StoryListItem } from '~/lib/domain/types'
+import type { GraphNode, GraphEdge, CanvasCitation, ImageAspect, NodeImage, NodeSize, NodeSubtype, Precision, EdgeKind, PovType, StoryListItem } from '~/lib/domain/types'
 import type { NodeDraft } from './types'
 
 // Mirrors the canvas edge palette. CSS vars flip per theme automatically;
@@ -20,14 +20,6 @@ const REL_COLOR: Record<EdgeKind, string> = {
   influenced: 'var(--color-accent-influence)',
   acquired: 'var(--color-danger)',
   competed_with: 'var(--color-success)',
-}
-
-// Default accent per node type (used for the title dot when no custom color).
-const TYPE_DOT: Record<NodeType, string> = {
-  period: 'var(--color-accent-influence)',
-  entity: 'var(--color-fg-muted)',
-  event: 'var(--color-accent-primary)',
-  concept: 'var(--color-accent-dialogue)',
 }
 
 // Swatches offered in the node Color property. Kept as raw hex on purpose:
@@ -419,9 +411,8 @@ export function NodeDetailPanel({
         </div>
       )}
 
-      {/* Title — doc heading with an accent dot */}
+      {/* Title — doc heading */}
       <div className="detail-title-row">
-        <span className="detail-title-dot" style={{ background: color ?? TYPE_DOT[node.type] }} aria-hidden />
         {editMode ? (
           <input
             className="detail-title-input"
