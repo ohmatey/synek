@@ -48,6 +48,7 @@ import { FilterControls } from './FilterControls'
 import { McpStatusChip } from './McpStatusChip'
 import { CanvasEmpty } from './CanvasEmpty'
 import { ExportControls } from './ExportControls'
+import { StoriesMenu } from './StoriesMenu'
 import { useBuildStream } from './build-stream'
 import type { CanvasNodeData, NodeDraft } from './types'
 import type { EdgeKind, NodeSubtype, NodeType, StoryDTO } from '~/lib/domain/types'
@@ -132,6 +133,13 @@ const EDGE_STYLE: Record<EdgeKind, { color: string; width: number; dash?: string
 export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const { resolvedTheme } = useTheme()
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // A moment whose story should auto-open in the Reels viewer (set by the AppBar
+  // Stories menu). The detail panel consumes it once its story loads, then clears.
+  const [autoPlayStoryId, setAutoPlayStoryId] = useState<string | null>(null)
+  const playStory = useCallback((momentId: string) => {
+    setSelectedId(momentId)
+    setAutoPlayStoryId(momentId)
+  }, [])
   // Horizontal time density (px/day) + gap-collapsing — the axis scale,
   // independent of camera zoom. Seeded from the per-timeline saved preference.
   const initialPref = useRef(loadScalePref(timelineId)).current
@@ -509,6 +517,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 onReset={resetKinds}
               />
             )}
+            {gnodes.some((n) => n.hasStory) && (
+              <StoriesMenu timelineId={timelineId} storyVersion={storyVersion ?? ''} onPlay={playStory} />
+            )}
             {(gnodes.length > 0 || pending.length > 0) && <FitButton />}
             {(gnodes.length > 0 || pending.length > 0) && (
               <CanvasSettings
@@ -593,6 +604,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             onDraft={handleDraft}
             onStoryLoaded={handleStoryLoaded}
             onStoryCamera={handleStoryCamera}
+            autoPlayStory={autoPlayStoryId === selectedNode.id}
+            onAutoPlayConsumed={() => setAutoPlayStoryId(null)}
           />
         ) : null}
       </div>

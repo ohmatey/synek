@@ -2,8 +2,9 @@ import { test, expect } from '@playwright/test'
 
 // One pass per seeded timeline (scripts/seed.ts): asserts the whole graph
 // renders — exact node count, the per-type cards (period / event / org / person),
-// citation badges, edge count, and that every seed image resolves to a local
-// /seed/ src. Counts mirror the seed exactly, so a drift in either side fails.
+// citation badges, edge count, and that every seed image resolves to its Wikimedia
+// Commons URL (the seed renders remote, no local download — see seed-images.ts).
+// Counts mirror the seed exactly, so a drift in either side fails.
 type Expected = {
   id: string
   title: string
@@ -111,8 +112,9 @@ for (const tl of TIMELINES) {
     await expect(page.locator('.sf-logo')).toHaveCount(tl.orgs)
     await expect(page.locator('.sf-person-portrait')).toHaveCount(tl.persons)
 
-    // Every node carries exactly one seed image, all resolving to a local /seed/ src.
-    await expect(page.locator('img[src*="/seed/"]')).toHaveCount(tl.nodeCount)
+    // Every node carries exactly one seed image, all resolving to a Wikimedia
+    // Commons URL (the seed renders remote — see scripts/seed-images.ts).
+    await expect(page.locator('img[src*="commons.wikimedia.org"]')).toHaveCount(tl.nodeCount)
 
     // Representative nodes are visible.
     for (const title of tl.sample) {

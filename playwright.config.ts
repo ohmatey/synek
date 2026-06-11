@@ -7,7 +7,9 @@ import { defineConfig, devices } from '@playwright/test'
 // Deliberately NOT NODE_ENV=test: that forces a per-process :memory: DB, which
 // the browser's separate server process wouldn't share. A file DB is seeded by
 // global-setup and read by the server.
-const PORT = 3001
+// Port is overridable (E2E_PORT) so the suite can run on a parallel port without
+// colliding with a local `vite dev` on 3001; defaults to 3001 for CI/local.
+const PORT = Number(process.env.E2E_PORT) || 3001
 const E2E_DB = 'e2e.db'
 
 export default defineConfig({

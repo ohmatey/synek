@@ -1,8 +1,8 @@
-import { asc, desc, eq, inArray } from 'drizzle-orm'
+import { asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from './index'
 import { stories, storySegments, nodes } from './schema'
 import type { Citation } from './schema'
-import type { DepthTier, PovType, SegmentKind, StoryDTO } from '~/lib/domain/types'
+import type { DepthTier, PovType, SegmentKind, StoryDTO, StoryListItem } from '~/lib/domain/types'
 
 // The story layer hangs off `nodes.id` (a "moment"). Stories are deliberately NOT
 // graph Patches — they have their own provenance and are NOT on the undo/redo
@@ -121,6 +121,44 @@ export function getStoryForMoment(momentId: string): StoryDTO | null {
       citations: s.citations ?? [],
     })),
   }
+}
+
+// All stories on a timeline, in chronological moment order — backs the AppBar's
+// "Stories" dropdown. One row per story (S1 = one story per moment) with its moment
+// title + a beat count, so the menu reads without N+1 round-trips.
+export function listStoriesForTimeline(timelineId: string): StoryListItem[] {
+  const rows = db
+    .select({
+      momentId: stories.momentId,
+      momentTitle: nodes.title,
+      storyId: stories.id,
+      title: stories.title,
+      hook: stories.hook,
+      depthTier: stories.depthTier,
+    })
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .where(eq(nodes.timelineId, timelineId))
+    .orderBy(asc(nodes.startInstant))
+    .all()
+  if (rows.length === 0) return []
+  const counts = new Map<string, number>()
+  for (const r of db
+    .select({ storyId: storySegments.storyId, n: sql<number>`count(*)` })
+    .from(storySegments)
+    .where(inArray(storySegments.storyId, rows.map((r) => r.storyId)))
+    .groupBy(storySegments.storyId)
+    .all())
+    counts.set(r.storyId, Number(r.n))
+  return rows.map((r) => ({
+    momentId: r.momentId,
+    momentTitle: r.momentTitle,
+    storyId: r.storyId,
+    title: r.title,
+    hook: r.hook,
+    depthTier: r.depthTier,
+    beatCount: counts.get(r.storyId) ?? 0,
+  }))
 }
 
 // A cheap content signature over the stories attached to these moments. Because

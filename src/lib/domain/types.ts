@@ -138,3 +138,16 @@ export type StoryDTO = {
   estimatedMinutes: number | null
   beats: StoryBeat[]
 }
+
+// One entry in the AppBar's "Stories" dropdown — every story on a timeline, in
+// chronological moment order. Carries the moment it sits on so picking one opens
+// + plays it; `beatCount` lets the menu show length at a glance.
+export type StoryListItem = {
+  momentId: string
+  momentTitle: string
+  storyId: string
+  title: string
+  hook: string | null
+  depthTier: DepthTier
+  beatCount: number
+}

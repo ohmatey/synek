@@ -10,6 +10,7 @@ import {
   getStoryForMoment,
   storyDepthByMoment,
   storyVersionForMoments,
+  listStoriesForTimeline,
   getMomentTimelineId,
 } from '../src/lib/db/stories'
 
@@ -107,6 +108,14 @@ async function main() {
   assert(storyVersionForMoments([]) === '', 'storyVersionForMoments is empty for no moments')
   const ver1 = storyVersionForMoments([momentId])
   assert(ver1 !== '' && ver1.startsWith(momentId), 'storyVersionForMoments reflects the moment with a story')
+
+  // AppBar Stories dropdown source: the timeline lists its one story with metadata.
+  const list = listStoriesForTimeline(TL)
+  assert(list.length === 1, 'listStoriesForTimeline returns the timeline’s one story')
+  assert(list[0]!.momentId === momentId && list[0]!.title === 'The Turn', 'list item carries moment id + story title')
+  assert(list[0]!.momentTitle === 'A moment', 'list item carries the moment title')
+  assert(list[0]!.beatCount === 3 && list[0]!.depthTier === 'deep', 'list item reports beat count + depth')
+  assert(listStoriesForTimeline('no-such-timeline').length === 0, 'listStoriesForTimeline is empty for an unknown timeline')
 
   // Replace-semantics: re-writing leaves exactly one story with the new beats.
   const w2 = writeStory(momentId, { title: 'The Turn (v2)' }, [{ bodyText: 'Only beat.' }])

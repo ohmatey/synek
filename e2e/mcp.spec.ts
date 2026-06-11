@@ -4,7 +4,9 @@ import Database from 'better-sqlite3'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 
-const MCP_URL = 'http://localhost:3001/api/mcp'
+// Honor the same E2E_PORT override as playwright.config so the MCP client hits the
+// e2e server (and its e2e.db) — not a stray dev server on 3001.
+const MCP_URL = `http://localhost:${Number(process.env.E2E_PORT) || 3001}/api/mcp`
 
 // Create / revoke API keys with direct better-sqlite3 writes against the same
 // e2e.db file the server reads (WAL → writes are visible cross-process). Mirrors

@@ -8,13 +8,14 @@ test('figures timeline renders person polaroid cards with portraits', async ({ p
   await expect(page.getByText('Albert Einstein')).toBeVisible()
   await expect(page.getByText('Marie Curie')).toBeVisible()
 
-  // Person entities render as .sf-person cards, each with a portrait <img>
-  // (asserts the element + local /seed/ src — not pixels).
+  // Person entities render as .sf-person cards, each with a portrait <img>. The
+  // seed renders images directly from their Wikimedia Commons URL (see
+  // scripts/seed-images.ts — no local download), so assert that src, not pixels.
   const people = page.locator('.sf-person')
   await expect(people.first()).toBeAttached()
   const portrait = page.locator('.sf-person-portrait')
   await expect(portrait.first()).toBeAttached()
-  await expect(portrait.first()).toHaveAttribute('src', /\/seed\//)
+  await expect(portrait.first()).toHaveAttribute('src', /commons\.wikimedia\.org/)
 })
 
 test('roman-republic timeline renders BCE-dated nodes', async ({ page }) => {

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, Loader2, Plus, Trash2, Upload, X } from 'lucide-react'
+import { ExternalLink, Loader2, Pencil, Play, Plus, Trash2, Upload, X } from 'lucide-react'
 import { Button } from '~/components/ui/button'
+import { StoryViewer } from './StoryViewer'
 import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
 import { parseDate, formatInstant } from '~/lib/domain/dates'
@@ -73,6 +74,8 @@ export function NodeDetailPanel({
   onDraft,
   onStoryLoaded,
   onStoryCamera,
+  autoPlayStory = false,
+  onAutoPlayConsumed,
 }: {
   node: GraphNode
   edges: GraphEdge[]
@@ -88,6 +91,10 @@ export function NodeDetailPanel({
   // Fired as the reader steps beats: the node ids the canvas camera should frame
   // (the current beat's target, or the moment at "overview"). Must be stable.
   onStoryCamera?: (targetIds: string[]) => void
+  // When true (set by the AppBar Stories menu), auto-open the Reels viewer once
+  // this node's story loads; `onAutoPlayConsumed` clears the one-shot signal.
+  autoPlayStory?: boolean
+  onAutoPlayConsumed?: () => void
 }) {
   const qc = useQueryClient()
   const hasSpan = node.type !== 'event'
@@ -110,25 +117,28 @@ export function NodeDetailPanel({
   // selection switch unmounts it — cleanup clears, the next instance re-sets).
   useEffect(() => () => onStoryLoaded?.(null), [onStoryLoaded])
 
-  // GAP 1·B — beat-by-beat stepping. `pos` 0 = overview (camera on the moment);
-  // pos k (1..N) selects beat k. Stepping pans the canvas camera to that beat's
-  // first related node (or back to the moment), "walking you around the map".
+  // The story plays as a Reels/Stories tap-through in a full-screen overlay
+  // (StoryViewer), which owns beat-by-beat stepping and walks the canvas camera
+  // beat-to-beat (GAP 1·B). The panel shows a static teaser + a Play button; the
+  // overlay closes back to the moment overview.
   const beatCount = story?.beats.length ?? 0
-  const [pos, setPos] = useState(0)
-  useEffect(() => setPos(0), [story?.id]) // reset to overview when the story changes
-  const safePos = Math.min(pos, beatCount)
-  const activeBeatIdx = safePos > 0 ? safePos - 1 : -1
+  const [playing, setPlaying] = useState(false)
+  // A new selection / story should never leave a stale overlay open.
+  useEffect(() => setPlaying(false), [node.id, story?.id])
+  // Auto-play (AppBar Stories menu): when asked to play and the story has loaded
+  // with beats, open the viewer and immediately consume the signal (parent clears
+  // it). Consuming before the user can close means it never reopens; re-picking
+  // the same moment re-raises the signal and plays again. If the story hasn't
+  // loaded yet, the signal stays set and this re-runs once it does.
   useEffect(() => {
-    if (!story) return
-    const target = safePos > 0 ? (story.beats[safePos - 1]?.relatedNodeIds[0] ?? node.id) : node.id
-    onStoryCamera?.([target])
-  }, [story, safePos, node.id, onStoryCamera])
-  // Keep the active beat scrolled into view as the user steps.
-  const beatsRef = useRef<HTMLOListElement | null>(null)
-  useEffect(() => {
-    if (activeBeatIdx < 0) return
-    beatsRef.current?.children[activeBeatIdx]?.scrollIntoView({ block: 'nearest' })
-  }, [activeBeatIdx])
+    if (autoPlayStory && story && story.beats.length > 0) {
+      setPlaying(true)
+      onAutoPlayConsumed?.()
+    }
+  }, [autoPlayStory, story, onAutoPlayConsumed])
+  // Stable camera bridge so the viewer's per-beat effect doesn't re-fire on every
+  // panel render (onStoryCamera is already memoized upstream).
+  const cameraTargets = useCallback((ids: string[]) => onStoryCamera?.(ids), [onStoryCamera])
 
   // GAP 3·B — the app holds no AI, so it can't generate a story; instead, a
   // story-less moment offers a ready-made prompt the user pastes into their
@@ -162,8 +172,14 @@ export function NodeDetailPanel({
   const [lane, setLane] = useState<string>(node.lane ?? '')
   const imgRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
-  // Read-first: only the clicked field shows an editor at a time.
-  const [editing, setEditing] = useState<'title' | 'summary' | 'date' | 'end' | null>(null)
+  // Read-first: the panel opens as a clean view; clicking a field reveals its
+  // editor. Only one inline editor is open at a time (`editing`); the two list
+  // sections (citations, images) toggle their own editors independently.
+  const [editing, setEditing] = useState<
+    'title' | 'summary' | 'date' | 'end' | 'kind' | 'size' | 'color' | 'lane' | null
+  >(null)
+  const [editCitations, setEditCitations] = useState(false)
+  const [editImages, setEditImages] = useState(false)
 
   const parsedStart = parseDate(start)
 
@@ -214,6 +230,9 @@ export function NodeDetailPanel({
         },
       })
       await refetch()
+      setEditing(null)
+      setEditCitations(false)
+      setEditImages(false)
     } finally {
       setBusy(false)
     }
@@ -233,6 +252,13 @@ export function NodeDetailPanel({
 
   function updateCitation(i: number, field: keyof CanvasCitation, value: string) {
     setCitations((cs) => cs.map((c, j) => (j === i ? { ...c, [field]: value } : c)))
+  }
+
+  // Open the citations editor and append a blank row in one gesture (the section
+  // head's "Add" when there are none yet, plus the in-editor "Add").
+  function addCitation() {
+    setCitations((cs) => [...cs, { ...EMPTY_CITATION }])
+    setEditCitations(true)
   }
 
   async function onPickImages(e: ChangeEvent<HTMLInputElement>) {
@@ -255,6 +281,41 @@ export function NodeDetailPanel({
 
   const endParsed = end.trim() ? parseDate(end) : null
 
+  // Dirty = some field diverges from the persisted node. Drives the view-first
+  // Save/Discard affordances: a freshly opened node reads as a clean view with no
+  // Save button until an edit actually changes something.
+  const cleanCitations = citations.filter((c) => c.title.trim())
+  const dirty =
+    (title.trim() || node.title) !== node.title ||
+    (summary.trim() ? summary : null) !== (node.summary ?? null) ||
+    parsedStart.instant !== node.startInstant ||
+    parsedStart.precision !== node.precision ||
+    (hasSpan ? (endParsed ? endParsed.instant : null) : node.endInstant) !== node.endInstant ||
+    size !== node.size ||
+    color !== node.color ||
+    subtype !== node.subtype ||
+    (lane.trim() ? lane.trim() : null) !== (node.lane ?? null) ||
+    JSON.stringify(cleanCitations) !== JSON.stringify(node.citations) ||
+    JSON.stringify(images) !== JSON.stringify(node.images)
+
+  // Discard local edits, reverting every field to the persisted node + closing
+  // any open inline editor.
+  function reset() {
+    setTitle(node.title)
+    setSummary(node.summary ?? '')
+    setStart(toInputDate(node.startInstant, node.precision))
+    setEnd(node.endInstant != null ? toInputDate(node.endInstant, node.precision) : '')
+    setCitations(node.citations)
+    setImages(node.images)
+    setSize(node.size)
+    setColor(node.color)
+    setSubtype(node.subtype)
+    setLane(node.lane ?? '')
+    setEditing(null)
+    setEditCitations(false)
+    setEditImages(false)
+  }
+
   return (
     <div className="detail-panel" role="dialog" aria-label="Node details">
       <header className="detail-head">
@@ -272,11 +333,22 @@ export function NodeDetailPanel({
           </Button>
         )}
         <div className="ml-auto flex items-center gap-1.5">
-          {!readOnly && (
-            <Button size="sm" className="h-7 px-3" onClick={save} disabled={busy}>
-              {busy && <Loader2 className="size-3.5 animate-spin" />}
-              {busy ? 'Saving…' : 'Save'}
-            </Button>
+          {!readOnly && dirty && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2.5 text-xs text-muted-foreground"
+                onClick={reset}
+                disabled={busy}
+              >
+                Discard
+              </Button>
+              <Button size="sm" className="h-7 px-3" onClick={save} disabled={busy}>
+                {busy && <Loader2 className="size-3.5 animate-spin" />}
+                {busy ? 'Saving…' : 'Save'}
+              </Button>
+            </>
           )}
           <Button variant="ghost" size="icon" className="-mr-1 size-7" onClick={onClose} aria-label="Close">
             <X />
@@ -414,69 +486,116 @@ export function NodeDetailPanel({
         {!readOnly && node.type === 'entity' && (
           <div className="detail-prop">
             <span className="detail-prop-key">Kind</span>
-            <div className="flex flex-1 flex-wrap gap-1.5">
-              {NODE_SUBTYPES.map((s) => (
-                <Button
-                  key={s}
-                  size="sm"
-                  variant={subtype === s ? 'default' : 'outline'}
-                  aria-pressed={subtype === s}
-                  className="h-7 px-2.5 text-xs capitalize"
-                  onClick={() => setSubtype(s)}
-                >
-                  {s}
-                </Button>
-              ))}
-              <Button
-                size="sm"
-                variant={subtype === null ? 'default' : 'outline'}
-                aria-pressed={subtype === null}
-                className="h-7 px-2.5 text-xs"
-                onClick={() => setSubtype(null)}
-                title="No specific kind"
+            {editing === 'kind' ? (
+              <div
+                className="detail-prop-pick"
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEditing(null)
+                }}
               >
-                —
-              </Button>
-            </div>
+                {NODE_SUBTYPES.map((s) => (
+                  <Button
+                    key={s}
+                    size="sm"
+                    variant={subtype === s ? 'default' : 'outline'}
+                    aria-pressed={subtype === s}
+                    className="h-7 px-2.5 text-xs capitalize"
+                    onClick={() => setSubtype(s)}
+                  >
+                    {s}
+                  </Button>
+                ))}
+                <Button
+                  size="sm"
+                  variant={subtype === null ? 'default' : 'outline'}
+                  aria-pressed={subtype === null}
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => setSubtype(null)}
+                  title="No specific kind"
+                >
+                  —
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-testid="edit-kind"
+                className={`detail-prop-val capitalize${subtype ? '' : ' detail-prop-empty'}`}
+                onClick={() => setEditing('kind')}
+              >
+                {subtype ?? 'Unspecified'}
+              </button>
+            )}
           </div>
         )}
 
         {!readOnly && (
           <div className="detail-prop">
             <span className="detail-prop-key">Size</span>
-            <div className="flex flex-1 gap-1.5">
-              {NODE_SIZES.map((s) => (
-                <Button
-                  key={s}
-                  size="sm"
-                  variant={size === s ? 'default' : 'outline'}
-                  aria-pressed={size === s}
-                  className="h-7 flex-1 px-2 text-xs capitalize"
-                  onClick={() => setSize(s)}
-                >
-                  {s}
-                </Button>
-              ))}
-            </div>
+            {editing === 'size' ? (
+              <div
+                className="detail-prop-pick"
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEditing(null)
+                }}
+              >
+                {NODE_SIZES.map((s) => (
+                  <Button
+                    key={s}
+                    size="sm"
+                    variant={size === s ? 'default' : 'outline'}
+                    aria-pressed={size === s}
+                    className="h-7 flex-1 px-2 text-xs capitalize"
+                    onClick={() => setSize(s)}
+                  >
+                    {s}
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              <button type="button" className="detail-prop-val capitalize" onClick={() => setEditing('size')}>
+                {size}
+              </button>
+            )}
           </div>
         )}
 
         {!readOnly && (
           <div className="detail-prop">
             <span className="detail-prop-key">Lane</span>
-            <Input
-              className="h-7 flex-1 text-xs"
-              placeholder="Swimlane — e.g. a company / track (blank = by type)"
-              value={lane}
-              onChange={(e) => setLane(e.target.value)}
-              list="synek-lane-options"
-            />
-            {/* Suggest lanes already in use elsewhere on this timeline. */}
-            <datalist id="synek-lane-options">
-              {Array.from(new Set(nodes.map((n) => n.lane).filter((l): l is string => !!l))).map((l) => (
-                <option key={l} value={l} />
-              ))}
-            </datalist>
+            {editing === 'lane' ? (
+              <div className="detail-prop-edit">
+                <Input
+                  className="h-7 text-xs"
+                  autoFocus
+                  placeholder="Swimlane — e.g. a company / track (blank = by type)"
+                  value={lane}
+                  onChange={(e) => setLane(e.target.value)}
+                  onBlur={() => setEditing(null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === 'Escape') {
+                      e.preventDefault()
+                      setEditing(null)
+                    }
+                  }}
+                  list="synek-lane-options"
+                />
+                {/* Suggest lanes already in use elsewhere on this timeline. */}
+                <datalist id="synek-lane-options">
+                  {Array.from(new Set(nodes.map((n) => n.lane).filter((l): l is string => !!l))).map((l) => (
+                    <option key={l} value={l} />
+                  ))}
+                </datalist>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={`detail-prop-val${lane.trim() ? '' : ' detail-prop-empty'}`}
+                onClick={() => setEditing('lane')}
+              >
+                {lane.trim() ? lane : 'By type'}
+              </button>
+            )}
           </div>
         )}
 
@@ -490,27 +609,43 @@ export function NodeDetailPanel({
         {!readOnly && (
           <div className="detail-prop">
             <span className="detail-prop-key">Color</span>
-            <div className="detail-swatches">
-              {COLOR_PRESETS.map((c) => (
+            {editing === 'color' ? (
+              <div
+                className="detail-swatches"
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEditing(null)
+                }}
+              >
+                {COLOR_PRESETS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`detail-swatch${color === c ? ' detail-swatch-active' : ''}`}
+                    style={{ background: c }}
+                    onClick={() => setColor(c)}
+                    aria-label={`Set color ${c}`}
+                  />
+                ))}
                 <button
-                  key={c}
                   type="button"
-                  className={`detail-swatch${color === c ? ' detail-swatch-active' : ''}`}
-                  style={{ background: c }}
-                  onClick={() => setColor(c)}
-                  aria-label={`Set color ${c}`}
-                />
-              ))}
+                  className={`detail-swatch detail-swatch-none${color === null ? ' detail-swatch-active' : ''}`}
+                  onClick={() => setColor(null)}
+                  title="Default"
+                  aria-label="Default color"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
-                className={`detail-swatch detail-swatch-none${color === null ? ' detail-swatch-active' : ''}`}
-                onClick={() => setColor(null)}
-                title="Default"
-                aria-label="Default color"
+                className="detail-prop-val detail-color-val"
+                onClick={() => setEditing('color')}
               >
-                ✕
+                <span className="detail-color-dot" style={{ background: color ?? 'var(--color-fg-subtle)' }} />
+                {color ?? 'Default'}
               </button>
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -552,41 +687,20 @@ export function NodeDetailPanel({
             </span>
             {story.povType !== 'omniscient' && <span className="detail-story-pov">{POV_LABEL[story.povType]}</span>}
             {story.estimatedMinutes != null && <span className="detail-story-mins">~{story.estimatedMinutes} min</span>}
+            <span className="detail-story-beatcount">
+              {beatCount} {beatCount === 1 ? 'beat' : 'beats'}
+            </span>
           </div>
-          {beatCount > 1 && (
-            <div className="detail-story-stepper">
-              <button
-                type="button"
-                className="detail-story-step"
-                disabled={safePos === 0}
-                onClick={() => setPos((p) => Math.max(0, p - 1))}
-                aria-label="Previous beat"
-              >
-                ‹
-              </button>
-              <span className="detail-story-step-label">
-                {safePos === 0 ? 'Overview' : `Beat ${safePos} of ${beatCount}`}
-              </span>
-              <button
-                type="button"
-                className="detail-story-step"
-                disabled={safePos >= beatCount}
-                onClick={() => setPos((p) => Math.min(beatCount, p + 1))}
-                aria-label="Next beat"
-              >
-                ›
-              </button>
-            </div>
-          )}
-          <ol
-            className={`detail-story-beats${activeBeatIdx >= 0 ? ' detail-story-beats-stepping' : ''}`}
-            ref={beatsRef}
-          >
-            {story.beats.map((b, i) => (
-              <li
-                key={b.id}
-                className={`detail-story-beat detail-story-${b.kind}${i === activeBeatIdx ? ' detail-story-beat-active' : ''}`}
-              >
+          {/* Headline action: play the story as a Reels/Stories tap-through. */}
+          <Button className="detail-story-play" onClick={() => setPlaying(true)} disabled={beatCount === 0}>
+            <Play className="size-4" />
+            Play story
+          </Button>
+          {/* Static, readable beat list (in-panel reading + grounding). The
+              immersive tap-through lives in StoryViewer. */}
+          <ol className="detail-story-beats">
+            {story.beats.map((b) => (
+              <li key={b.id} className={`detail-story-beat detail-story-${b.kind}`}>
                 {b.settingNote && <span className="detail-story-setting">{b.settingNote}</span>}
                 <p className="detail-story-text">{b.bodyText}</p>
                 {b.relatedNodeIds.length > 0 && (
@@ -626,6 +740,17 @@ export function NodeDetailPanel({
               </li>
             ))}
           </ol>
+          {playing && (
+            <StoryViewer
+              story={story}
+              momentId={node.id}
+              momentTitle={node.title}
+              nodeById={nodeById}
+              onClose={() => setPlaying(false)}
+              onSelectNode={onSelectNode}
+              onCameraTargets={cameraTargets}
+            />
+          )}
         </div>
       )}
 
@@ -635,11 +760,12 @@ export function NodeDetailPanel({
           <p className="detail-empty">No story on this moment yet.</p>
           <CopyButton
             text={askPrompt}
-            label="Ask Claude to tell this story"
+            label="Generate a story with Claude"
             copiedLabel="Prompt copied — paste into Claude"
           />
           <p className="detail-hint">
-            Copies a prompt; paste it into your connected Claude to write a grounded story onto this moment.
+            Copies a prompt; paste it into your connected Claude to generate a grounded story onto this moment. It
+            appears here as a tap-through story you can play.
           </p>
         </div>
       )}
@@ -647,18 +773,29 @@ export function NodeDetailPanel({
       <div className="detail-field detail-section">
         <div className="detail-cite-head">
           <span className="detail-label">Images</span>
-          {!readOnly && (
-            <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => imgRef.current?.click()}>
-              <Upload />
-              Upload
-            </Button>
-          )}
+          {!readOnly &&
+            (editImages ? (
+              <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => setEditImages(false)}>
+                Done
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-xs"
+                data-testid="edit-images"
+                onClick={() => setEditImages(true)}
+              >
+                <Pencil />
+                Edit
+              </Button>
+            ))}
         </div>
         {!readOnly && (
           <input ref={imgRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickImages} />
         )}
         {images.length === 0 && (
-          <p className="detail-empty">{readOnly ? 'No images.' : 'No images yet — upload your own.'}</p>
+          <p className="detail-empty">{readOnly ? 'No images.' : 'No images yet — click Edit to upload.'}</p>
         )}
         {images.length > 0 && (
           <div className="detail-images">
@@ -666,7 +803,7 @@ export function NodeDetailPanel({
               <div className={`detail-image${im.show ? ' detail-image-shown' : ''}`} key={i}>
                 <img className="detail-image-thumb" src={im.url} alt={im.alt ?? 'image'} />
                 {im.alt && <span className="detail-image-cap">{im.alt}</span>}
-                {!readOnly && (
+                {editImages && !readOnly && (
                   <>
                     <label className="detail-image-show">
                       <input type="checkbox" checked={!!im.show} onChange={() => toggleImage(i)} />
@@ -681,21 +818,45 @@ export function NodeDetailPanel({
             ))}
           </div>
         )}
+        {editImages && !readOnly && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 self-start px-2.5 text-xs"
+            onClick={() => imgRef.current?.click()}
+          >
+            <Upload />
+            Upload
+          </Button>
+        )}
       </div>
 
       <div className="detail-field detail-section">
         <div className="detail-cite-head">
           <span className="detail-label">Citations</span>
-          {!readOnly && (
-            <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => setCitations((cs) => [...cs, { ...EMPTY_CITATION }])}>
-              <Plus />
-              Add
-            </Button>
-          )}
+          {!readOnly &&
+            (editCitations ? (
+              <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => setEditCitations(false)}>
+                Done
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-xs"
+                data-testid="edit-citations"
+                onClick={() => (citations.length ? setEditCitations(true) : addCitation())}
+              >
+                {citations.length ? <Pencil /> : <Plus />}
+                {citations.length ? 'Edit' : 'Add'}
+              </Button>
+            ))}
         </div>
-        {citations.length === 0 && <p className="detail-empty">No citations yet.</p>}
-        {readOnly
-          ? citations.map((c, i) => (
+        {!editCitations || readOnly ? (
+          citations.length === 0 ? (
+            <p className="detail-empty">No citations yet.</p>
+          ) : (
+            citations.map((c, i) => (
               <div className="detail-citation" key={i}>
                 <div className="detail-cite-title">{c.title || 'Untitled source'}</div>
                 {c.quote?.trim() && <p className="detail-cite-quote">“{c.quote}”</p>}
@@ -706,7 +867,10 @@ export function NodeDetailPanel({
                 )}
               </div>
             ))
-          : citations.map((c, i) => (
+          )
+        ) : (
+          <>
+            {citations.map((c, i) => (
               <div className="detail-citation" key={i}>
                 <div className="flex items-center gap-2">
                   <Input
@@ -745,6 +909,12 @@ export function NodeDetailPanel({
                 )}
               </div>
             ))}
+            <Button variant="outline" size="sm" className="h-7 self-start px-2.5 text-xs" onClick={addCitation}>
+              <Plus />
+              Add
+            </Button>
+          </>
+        )}
       </div>
 
     </div>

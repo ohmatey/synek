@@ -42,12 +42,15 @@ test('detail panel offers manual image upload and citations (no AI illustrate)',
   const panel = page.getByRole('dialog', { name: 'Node details' })
   await expect(panel).toBeVisible()
 
-  // Images are user-supplied now — a manual Upload control, no AI generation.
+  // View-first: the editors are revealed on click. Images are user-supplied —
+  // a manual Upload control, no AI generation.
   await expect(panel.getByText('Images', { exact: true })).toBeVisible()
+  await panel.getByTestId('edit-images').click()
   await expect(panel.getByRole('button', { name: 'Upload' })).toBeVisible()
 
-  // Citations remain editable.
+  // Citations remain editable behind the same view-first Edit affordance.
   await expect(panel.getByText('Citations', { exact: true })).toBeVisible()
+  await panel.getByTestId('edit-citations').click()
   await expect(panel.getByRole('button', { name: 'Add' })).toBeVisible()
 
   // The removed in-app AI affordances must not reappear.
@@ -65,6 +68,9 @@ test('the Kind control reflects and updates an entity subtype', async ({ page })
 
   const panel = page.getByRole('dialog', { name: 'Node details' })
   await expect(panel.getByText('Kind', { exact: true })).toBeVisible()
+
+  // View-first: click the Kind value to reveal the subtype picker.
+  await panel.getByTestId('edit-kind').click()
 
   // Seeded as person → that option is active; switching to org activates it.
   const person = panel.getByRole('button', { name: 'person', exact: true })

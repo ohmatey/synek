@@ -10,6 +10,7 @@ import { db } from '../src/lib/db/index'
 import { timelines, nodes, edges, user, type NodeMetadata } from '../src/lib/db/schema'
 import type { EdgeKind, NodeType, Precision } from '../src/lib/domain/types'
 import { auth } from '../src/lib/auth'
+import { writeStory, type NewStory, type NewStorySegment } from '../src/lib/db/stories'
 import { seedImageUrl } from './seed-images'
 
 // The demo account that owns the seeded (public) timelines, so the open-canvas
@@ -82,7 +83,14 @@ function builder(tl: string) {
     db.insert(edges).values({ id: randomUUID(), timelineId: tl, sourceId, targetId, kind, label: label ?? null }).run()
   }
 
-  return { node, edge }
+  // Attach a story to a moment (node). Mirrors what an MCP client does via the
+  // write_story tool — stories are separate from the graph Patch stack — so the
+  // seeded canvas has a real tap-through story to play (and tests to view).
+  function story(momentId: string, meta: NewStory, beats: NewStorySegment[]) {
+    writeStory(momentId, meta, beats)
+  }
+
+  return { node, edge, story }
 }
 
 type Seeder = {
@@ -528,7 +536,7 @@ const SEEDS: Seeder[] = [
     id: 'figures',
     title: 'Figures of science',
     description: 'Portrait-rich entities for developing visual entity cards.',
-    build: ({ node, edge }) => {
+    build: ({ node, edge, story }) => {
       const leonardo = node({
         type: 'entity',
         title: 'Leonardo da Vinci',
@@ -581,6 +589,50 @@ const SEEDS: Seeder[] = [
       edge(newton, darwin, 'influenced')
       edge(newton, einstein, 'influenced')
       edge(lovelace, curie, 'succeeded')
+
+      // A multi-beat story on Darwin so the canvas ships with a real tap-through
+      // story to play (and the e2e story-viewer spec has something to read).
+      story(
+        darwin,
+        {
+          title: 'The long wait before Origin',
+          hook: 'Two decades between the idea and the book.',
+          depthTier: 'deep',
+          estimatedMinutes: 3,
+        },
+        [
+          {
+            bodyText:
+              'Returning from the Beagle in 1836, Darwin filled notebook after notebook with a dangerous idea: that species were not fixed, but descended, with modification, from common ancestors.',
+            kind: 'narration',
+            settingNote: 'Down House, Kent — a study lined with specimens',
+          },
+          {
+            bodyText:
+              'He had read Newton’s mechanics as a student and admired how one law could govern many phenomena. Now he wanted the same for life: a single principle behind its endless forms.',
+            kind: 'interior',
+            relatedNodeIds: [newton],
+          },
+          {
+            bodyText:
+              'For twenty years he hesitated — gathering evidence, breeding pigeons, dreading the reaction. Only when Alfred Russel Wallace mailed him the same theory did he finally publish, in 1859.',
+            kind: 'narration',
+            citations: [
+              {
+                title: 'On the Origin of Species (1859)',
+                url: 'https://en.wikipedia.org/wiki/On_the_Origin_of_Species',
+                quote: 'There is grandeur in this view of life…',
+              },
+            ],
+          },
+          {
+            bodyText:
+              'The idea outlived him. Decades later, a young physicist named Einstein would reshape another fixed certainty — time itself — showing how completely the modern world had learned to question what once seemed eternal.',
+            kind: 'narration',
+            relatedNodeIds: [einstein],
+          },
+        ],
+      )
     },
   },
 ]
