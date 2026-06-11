@@ -1,21 +1,38 @@
-import { useState } from 'react'
-import { Plug } from 'lucide-react'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '~/components/ui/card'
-import { Separator } from '~/components/ui/separator'
+import { Link } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowRight, KeyRound } from 'lucide-react'
 import { useSession } from '~/lib/auth/client'
+import { listApiKeys } from '~/lib/server/api-keys'
 import { TimelinesSection } from './TimelinesSection'
-import { KeysPanel } from './KeysPanel'
-import { ConnectGuide } from './ConnectGuide'
+
+// Shown on the workspace home once the user has no keys: a compact nudge toward
+// the API keys page (where the keys + MCP connection instructions now live).
+// listApiKeys never auto-mints, so this reflects "nothing created yet".
+function ConnectCta() {
+  const { data: keys } = useQuery({ queryKey: ['api-keys'], queryFn: () => listApiKeys() })
+  if (!keys || keys.length > 0) return null
+
+  return (
+    <Link
+      to="/api-keys"
+      className="group flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 transition-colors hover:bg-primary/10"
+    >
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-background text-primary">
+        <KeyRound className="size-4" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-medium">Create an API key to connect your MCP client</span>
+        <span className="text-xs text-muted-foreground">
+          Your client (Claude Desktop, Claude Code) brings the model and builds your timelines.
+        </span>
+      </span>
+      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+    </Link>
+  )
+}
 
 export function SignedIn() {
   const { data: session } = useSession()
-  const [freshKey, setFreshKey] = useState<string | null>(null)
   const name = session?.user?.name?.split(' ')[0] || session?.user?.email?.split('@')[0]
 
   return (
@@ -32,27 +49,9 @@ export function SignedIn() {
         </p>
       </header>
 
-      <TimelinesSection />
+      <ConnectCta />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span className="grid size-7 place-items-center rounded-md border border-border bg-background text-primary">
-              <Plug className="size-4" />
-            </span>
-            Connect an MCP client
-          </CardTitle>
-          <CardDescription>
-            Point your client (Claude Desktop, Claude Code) at the endpoint with an API key, then ask
-            it to build and edit timelines. The app itself has no AI — your client brings the model.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-6">
-          <KeysPanel onFreshKey={setFreshKey} />
-          <Separator />
-          <ConnectGuide apiKey={freshKey} />
-        </CardContent>
-      </Card>
+      <TimelinesSection />
     </div>
   )
 }

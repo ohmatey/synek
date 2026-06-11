@@ -11,6 +11,10 @@ export const user = sqliteTable('user', {
   email: text('email').notNull().unique(),
   emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
   image: text('image'),
+  // App-managed UI preference (not a Better Auth field). Nullable so Better Auth's
+  // own user inserts — which don't set it — succeed; the app reads null as 'system'.
+  // One of 'light' | 'dark' | 'system'. Per-user so the choice follows the account.
+  theme: text('theme'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })

@@ -30,7 +30,7 @@ test('creating a timeline opens it (after login)', async ({ page }) => {
   await expect(page).toHaveURL(/\/timelines\/[^/]+$/)
 })
 
-test('after sign-up, the Connect panel exposes the endpoint and creates an API key', async ({ page }) => {
+test('after sign-up, the API keys page exposes the endpoint and creates an API key', async ({ page }) => {
   // Logged out, key management is gated, so sign up first (open multi-user
   // registration) via the dedicated /signup route.
   await page.goto('/signup')
@@ -38,8 +38,13 @@ test('after sign-up, the Connect panel exposes the endpoint and creates an API k
   await page.getByLabel('Password').fill('password1234')
   await page.getByRole('button', { name: 'Create account', exact: true }).click()
 
-  // Signed in → the Connect panel shows the MCP endpoint. (The "Connect an MCP
+  // A brand-new account has no keys yet, so the workspace home nudges toward the
+  // API keys page (the keys + connect instructions now live there, not on home).
+  await expect(page.getByText('Create an API key to connect your MCP client')).toBeVisible()
+
+  // Open the API keys page; it shows the MCP endpoint. (The "Connect an MCP
   // client" title is a shadcn CardTitle <div>, not a heading role.)
+  await page.goto('/api-keys')
   await expect(page.getByText('Connect an MCP client')).toBeVisible()
   await expect(page.getByTestId('mcp-endpoint')).toHaveText(/\/api\/mcp$/)
 
@@ -49,4 +54,26 @@ test('after sign-up, the Connect panel exposes the endpoint and creates an API k
 
   await expect(page.getByTestId('fresh-key')).toHaveText(/^synek_/)
   await expect(page.getByTestId('keys-table').getByText('Playwright key')).toBeVisible()
+})
+
+test('theme is set from the profile menu and persists per user', async ({ page }) => {
+  // Fresh account so the theme starts unset (resolves to system).
+  await page.goto('/signup')
+  await page.getByLabel('Email').fill(`pw-theme-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`)
+  await page.getByLabel('Password').fill('password1234')
+  await page.getByRole('button', { name: 'Create account', exact: true }).click()
+
+  // Choose Light via the profile menu's Theme submenu (the only theme switcher now).
+  await page.getByRole('button', { name: 'Account menu' }).click()
+  await page.getByRole('menuitem', { name: 'Theme' }).click()
+  await page.getByRole('menuitem', { name: 'Light' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+
+  // Force a stale/other-device cookie to dark, then reload: the per-user value
+  // (saved on the account, applied by ThemeSync) must win over the cookie.
+  await page.evaluate(() => {
+    document.cookie = 'synek-theme=dark; Path=/; Max-Age=31536000; SameSite=Lax'
+  })
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
 })

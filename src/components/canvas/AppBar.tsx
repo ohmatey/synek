@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronDown, Link2, Loader2, Lock } from 'lucide-react'
-import { ThemeToggle } from '@synek/ui'
+import { Check, ChevronDown } from 'lucide-react'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -12,15 +11,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
-import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { cn } from '~/lib/utils'
-import { CopyButton } from '~/components/home/CopyButton'
-import { listTimelines, renameTimeline, setTimelineVisibility } from '~/lib/server/timelines'
+import { listTimelines, renameTimeline } from '~/lib/server/timelines'
 import { floatChip } from './chrome'
 
-// Top-left identity: a row of independently floating chips — logo, the timeline
-// name (editable inline by the owner) + switcher, Share, and the theme toggle.
-// No grouping background; each piece floats over the canvas on its own.
+// Top-left identity: a row of independently floating chips — logo and the
+// timeline name (editable inline by the owner) + switcher. Sharing and the
+// account menu float at the FAR RIGHT of the bar (see TimelineCanvas's toolbar);
+// only the identity lives here on the left.
 export function AppBar({
   timelineId,
   title,
@@ -148,79 +146,13 @@ export function AppBar({
         </div>
       )}
 
-      {/* Share chip (owner) / read-only badge (public viewer) */}
-      {isOwner && <ShareControl timelineId={timelineId} isPublic={isPublic} />}
+      {/* Read-only badge for a public viewer (the owner gets the Share control on
+          the right instead). */}
       {!isOwner && isPublic && (
         <Badge variant="soft" className={cn(floatChip, 'h-8 rounded-lg px-3')}>
           Public · read-only
         </Badge>
       )}
-
-      {/* Theme toggle chip */}
-      <ThemeToggle className="size-8" />
     </div>
-  )
-}
-
-// Owner-only sharing: toggle public/private and, when public, copy the share URL.
-function ShareControl({ timelineId, isPublic }: { timelineId: string; isPublic: boolean }) {
-  const qc = useQueryClient()
-  const [pub, setPub] = useState(isPublic)
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => setPub(isPublic), [isPublic])
-
-  const shareUrl =
-    typeof window !== 'undefined' ? `${window.location.origin}/timelines/${timelineId}` : ''
-
-  async function toggle() {
-    if (busy) return
-    setBusy(true)
-    try {
-      const next = !pub
-      await setTimelineVisibility({ data: { id: timelineId, isPublic: next } })
-      setPub(next)
-      void qc.invalidateQueries({ queryKey: ['graph', timelineId] })
-      void qc.invalidateQueries({ queryKey: ['timelines'] })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button size="sm" variant={pub ? 'default' : 'outline'} className={cn('h-8', !pub && floatChip)}>
-          {pub ? <Link2 /> : <Lock />}
-          {pub ? 'Public' : 'Private'}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80">
-        <label className="flex cursor-pointer items-start gap-2.5 text-sm">
-          <input
-            type="checkbox"
-            checked={pub}
-            disabled={busy}
-            onChange={() => void toggle()}
-            className="mt-0.5 size-4 accent-primary"
-          />
-          <span className="flex flex-col gap-0.5">
-            <span className="font-medium">Anyone with the link can view</span>
-            <span className="text-xs text-muted-foreground">
-              Read-only — viewers can’t edit your timeline.
-            </span>
-          </span>
-          {busy && <Loader2 className="ml-auto size-4 animate-spin text-muted-foreground" />}
-        </label>
-        {pub && (
-          <div className="mt-3 flex items-center gap-2">
-            <code className="flex-1 truncate rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs text-muted-foreground">
-              {shareUrl}
-            </code>
-            <CopyButton text={shareUrl} variant="outline" />
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
   )
 }

@@ -12,16 +12,11 @@ import {
   type Node,
   type Edge,
 } from '@xyflow/react'
-import { Maximize2 } from 'lucide-react'
 import { useTheme } from '@synek/ui'
-import { Button } from '~/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
-import { cn } from '~/lib/utils'
 import { EventNode } from './nodes/EventNode'
 import { EntityNode } from './nodes/EntityNode'
 import { PeriodNode } from './nodes/PeriodNode'
 import { ConceptNode } from './nodes/ConceptNode'
-import { floatChip } from './chrome'
 import {
   laneY,
   layoutLaneY,
@@ -40,11 +35,12 @@ import { formatInstant, eraTint } from '~/lib/domain/dates'
 import { getGraph } from '~/lib/server/graph'
 import { useTimelineStream } from './useTimelineStream'
 import { AppBar } from './AppBar'
+import { ShareControl } from './ShareControl'
+import { ProfileMenu } from '~/components/ProfileMenu'
 import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
 import { TimeRuler } from './TimeRuler'
 import { CanvasSettings } from './CanvasSettings'
-import { FilterControls } from './FilterControls'
 import { McpStatusChip } from './McpStatusChip'
 import { CanvasEmpty } from './CanvasEmpty'
 import { ExportControls } from './ExportControls'
@@ -93,30 +89,6 @@ function StoryCamera({ ids }: { ids: string[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rf, key])
   return null
-}
-
-// Manual "Fit view" — re-frames the whole graph on demand (replaces the old
-// auto-refit-on-every-change behavior).
-function FitButton() {
-  const rf = useReactFlow()
-  return (
-    <div className={cn(floatChip, 'inline-flex items-center p-1')}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            aria-label="Fit view"
-            onClick={() => rf.fitView({ padding: 0.2, duration: 450 })}
-          >
-            <Maximize2 />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Fit view</TooltipContent>
-      </Tooltip>
-    </div>
-  )
 }
 
 // Per-kind edge styling: color (as a CSS var so it flips light/dark via the
@@ -509,18 +481,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           <div className="canvas-toolbar">
             {isOwner && <McpStatusChip />}
             {isOwner && <HistoryControls timelineId={timelineId} />}
-            {gnodes.length > 0 && (
-              <FilterControls
-                counts={kindCounts}
-                hiddenKinds={hiddenKinds}
-                onToggle={toggleKind}
-                onReset={resetKinds}
-              />
-            )}
             {gnodes.some((n) => n.hasStory) && (
               <StoriesMenu timelineId={timelineId} storyVersion={storyVersion ?? ''} onPlay={playStory} />
             )}
-            {(gnodes.length > 0 || pending.length > 0) && <FitButton />}
             {(gnodes.length > 0 || pending.length > 0) && (
               <CanvasSettings
                 timelineId={timelineId}
@@ -530,12 +493,19 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 autoRefresh={autoRefresh}
                 scale={scale}
                 buildScale={buildScale}
+                counts={kindCounts}
+                hiddenKinds={hiddenKinds}
+                onToggleKind={toggleKind}
+                onResetKinds={resetKinds}
                 onPxPerDay={setPxPerDay}
                 onCollapseGaps={setCollapseGaps}
                 onAutoRefresh={setAutoRefresh}
               />
             )}
             <ExportControls graph={{ title, nodes: gnodes, edges: gedges }} />
+            {/* Sharing + account live at the far right of the bar. */}
+            {isOwner && <ShareControl timelineId={timelineId} isPublic={isPublic} />}
+            <ProfileMenu />
           </div>
         </div>
         {lensSize > 0 && (

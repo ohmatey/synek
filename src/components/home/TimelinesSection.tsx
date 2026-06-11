@@ -70,14 +70,7 @@ export function TimelinesSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          Your timelines
-          {timelines.length > 0 && (
-            <Badge variant="secondary" className="rounded-full">
-              {timelines.length}
-            </Badge>
-          )}
-        </CardTitle>
+        <CardTitle className="text-base">Your timelines</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <form

@@ -107,3 +107,63 @@ test('collapse gaps compresses empty spans and persists per timeline', async ({ 
   await page.getByTestId('canvas-settings').click()
   await expect(page.getByTestId('time-scale-collapse-gaps')).toHaveAttribute('aria-pressed', 'true')
 })
+
+// Owner chrome regression: the account menu floats at the FAR RIGHT of the top
+// bar, the share control sits just left of it, the MCP status is a bare dot (no
+// "MCP ready" label), and the old "Fit view" button is gone. Requires a session
+// (these controls are owner-gated), so log in as the demo owner first.
+test('owner canvas chrome: account far right, share to its left, mcp dot, no fit button', async ({ page }) => {
+  await page.goto('/login')
+  await page.getByLabel('Email').fill('demo@synek.app')
+  await page.getByLabel('Password').fill('demo-password-123')
+  await page.getByRole('button', { name: 'Log in' }).click()
+  await expect(page.getByText('Figures of science')).toBeVisible()
+
+  await page.goto('/timelines/figures')
+
+  // MCP status is now a labelless dot; the server is up → ready.
+  const status = page.getByTestId('mcp-status')
+  await expect(status).toBeVisible()
+  await expect(status).toHaveAttribute('data-status', 'ready')
+  await expect(page.getByText('MCP ready')).toHaveCount(0)
+
+  // The custom top-bar "Fit view" button was removed (React Flow's own zoom
+  // controls — bottom-left — keep their fit-view button; scope to the top bar).
+  await expect(page.locator('.top-bar').getByRole('button', { name: 'Fit view' })).toHaveCount(0)
+
+  // Share (owner) + account menu live on the right, with account rightmost.
+  const share = page.getByRole('button', { name: /^(Public|Private)$/ })
+  const account = page.getByRole('button', { name: 'Account menu' })
+  await expect(share).toBeVisible()
+  await expect(account).toBeVisible()
+  const shareBox = await share.boundingBox()
+  const accountBox = await account.boundingBox()
+  expect(accountBox!.x).toBeGreaterThan(shareBox!.x)
+})
+
+// The kind filters ("Show on timeline") are merged into the view-settings menu,
+// which now also surfaces the current zoom level (timespan on screen) and lets
+// −/+ change it. Public view is fine — these controls aren't owner-gated.
+test('view settings menu merges kind filters and shows a live zoom level', async ({ page }) => {
+  await page.goto('/timelines/figures')
+  await expect(page.getByText('Albert Einstein')).toBeVisible()
+
+  await page.getByTestId('canvas-settings').click()
+
+  // Kind filters were merged in under "Show on timeline" — now real checkboxes.
+  await expect(page.getByText('Show on timeline')).toBeVisible()
+  const peopleToggle = page.getByTestId('filter-kind-person')
+  await expect(peopleToggle).toBeChecked()
+
+  // The current zoom level (years across the screen) is shown and changes on +.
+  const level = page.getByTestId('time-scale-level')
+  await expect(level).toContainText('on screen')
+  const before = (await level.textContent()) ?? ''
+  await page.getByTestId('time-scale-expand').click()
+  await expect(level).not.toHaveText(before)
+
+  // Unchecking a kind drops its nodes from the canvas.
+  await peopleToggle.uncheck()
+  await expect(peopleToggle).not.toBeChecked()
+  await expect(page.getByText('Albert Einstein')).toHaveCount(0)
+})

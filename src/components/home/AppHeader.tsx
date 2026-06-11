@@ -1,100 +1,24 @@
 import { Link } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
-import { Check, LogOut, Monitor, Moon, Sun } from 'lucide-react'
-import { ClientOnly, ThemeToggle, useThemeContext, type Theme } from '@synek/ui'
+import { ClientOnly } from '@synek/ui'
 import { Button } from '~/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '~/components/ui/dropdown-menu'
-import { signOut, useSession } from '~/lib/auth/client'
-
-const THEMES: { value: Theme; label: string; icon: typeof Monitor }[] = [
-  { value: 'system', label: 'System', icon: Monitor },
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-]
-
-function ProfileMenu({ name, email }: { name: string | null; email: string }) {
-  const qc = useQueryClient()
-  const { theme, setTheme } = useThemeContext()
-  const initial = (name || email || '?').trim().charAt(0).toUpperCase()
-
-  async function logout() {
-    await signOut()
-    await qc.invalidateQueries()
-  }
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label="Account menu"
-          className="grid size-8 cursor-pointer place-items-center rounded-full bg-gradient-to-br from-primary to-influence text-xs font-semibold text-white shadow-sm ring-1 ring-inset ring-white/15 outline-none transition-[box-shadow,transform] hover:ring-white/30 focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
-        >
-          {initial}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={8} className="w-60">
-        <div className="flex items-center gap-2.5 px-2 py-1.5">
-          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-influence text-xs font-semibold text-white ring-1 ring-inset ring-white/15">
-            {initial}
-          </span>
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-medium">{name || 'Your account'}</span>
-            <span className="truncate text-xs text-muted-foreground">{email}</span>
-          </span>
-        </div>
-
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-          Theme
-        </DropdownMenuLabel>
-        {THEMES.map((t) => (
-          <DropdownMenuItem
-            key={t.value}
-            onSelect={(e) => {
-              e.preventDefault() // keep the menu open so themes can be previewed
-              setTheme(t.value)
-            }}
-          >
-            <t.icon />
-            {t.label}
-            {theme === t.value && <Check className="ml-auto size-4 text-primary" />}
-          </DropdownMenuItem>
-        ))}
-
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={() => void logout()}>
-          <LogOut />
-          Log out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
+import { ProfileMenu } from '~/components/ProfileMenu'
+import { useSession } from '~/lib/auth/client'
 
 function HeaderAccount() {
   const { data: session, isPending } = useSession()
 
   if (isPending) return <span className="size-8 animate-pulse rounded-full bg-muted" />
 
+  // Theme lives in the profile menu, which is per-user — so a signed-out visitor
+  // has no theme switcher, just the sign-in entry point.
   if (!session?.user)
     return (
-      <div className="flex items-center gap-2">
-        <ThemeToggle />
-        <Button asChild size="sm">
-          <Link to="/login">Sign in</Link>
-        </Button>
-      </div>
+      <Button asChild size="sm">
+        <Link to="/login">Sign in</Link>
+      </Button>
     )
 
-  return <ProfileMenu name={session.user.name ?? null} email={session.user.email} />
+  return <ProfileMenu />
 }
 
 // Marketing anchors live only on the landing page, so they're dead links once

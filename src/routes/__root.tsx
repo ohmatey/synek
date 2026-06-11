@@ -2,8 +2,9 @@
 import type { ReactNode } from 'react'
 import { Outlet, createRootRoute, HeadContent, Scripts } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ThemeProvider, themeInitScript } from '@synek/ui'
+import { ClientOnly, ThemeProvider, themeInitScript } from '@synek/ui'
 import { Toaster } from '~/components/ui/sonner'
+import { ThemeSync } from '~/components/ThemeSync'
 import '@xyflow/react/dist/style.css'
 import '../styles.css'
 
@@ -26,6 +27,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
+        {/* Bridges the per-user saved theme onto the local provider once signed in. */}
+        <ClientOnly>
+          <ThemeSync />
+        </ClientOnly>
         <RootDocument>
           <Outlet />
         </RootDocument>
