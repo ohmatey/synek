@@ -1,9 +1,9 @@
 ---
 phase: S2
 title: "Artifact grounding (the moat)"
-status: "slice-1 shipped (S2.0 inline citations, 2026-06-10); S2.1–S2.4 deferred"
+status: "slice-1 shipped (S2.0 inline citations, 2026-06-10); S2.1–S2.5 promoted to active NEXT (2026-06-11)"
 era: "Story Layer (the pivot)"
-updated: 2026-06-10
+updated: 2026-06-11
 ---
 
 # S2 — Artifact grounding (the moat)
@@ -62,6 +62,18 @@ The sections below specify the deferred end-state:
 - **S2.2** — `story_artifacts` + `segment_citations` joins (artifact reuse, browse-back).
 - **S2.3** — `write_story` v2 referencing registered artifacts by id (+ a `register_artifact` MCP tool, or artifact creation folded into `apply_patch`).
 - **S2.4** — Artifact-card UX (tap a beat sentence → transcript/image/reliability card), browse artifacts to their anchored stories.
+- **S2.5** — Artifact **recall for future reference** (`search_artifacts` MCP tool). The reason artifacts become first-class: a registered source stays referenceable across sessions, so Claude can pull it back into a *new* build to re-ground new work. See **Retrieval — FTS first, vector deferred** below.
+
+### Retrieval — FTS first, vector deferred (S2.5)
+
+> Promoted alongside S2.1–S2.4 on 2026-06-11. The trigger for the whole normalized model is "artifacts that can be referenced in the future" — which means retrieval is part of S2, not a later bolt-on.
+
+- **Default: SQLite FTS5** over `artifacts.title` + `transcript` (+ `translation`). A new `search_artifacts` MCP tool returns compact matching rows so the MCP client (Claude) can recall a prior artifact and cite it again. Zero new dependencies; no embedding model; **does not break the "no AI in-app" inversion** — Claude supplies the semantic judgment, Synek supplies lexical retrieval over the corpus.
+- **Vector search is explicitly NOT the default.** Rationale, recorded so it isn't re-litigated:
+  - **Embeddings need a model the app doesn't have.** Claude-over-MCP emits no embeddings; adding vectors forces a BYO `SYNEK_EMBED_*` provider key (the exact deferred shape of N.4.5b generated images) or bundling a local embed model (breaks the inversion). That is an architectural commitment, not a feature flag.
+  - **At Core scale you need stored embeddings, not an index.** A single-user timeline holds dozens–hundreds of artifacts; store an embedding `BLOB`/JSON column and brute-force cosine (linear scan, sub-ms). An HNSW/IVF **index** only earns its complexity at ~10k+ vectors → that's a hosted/large-corpus concern, parked next to **D.1**.
+  - **Hosted upgrade path stays clean:** the schema is already Postgres-portable; semantic search there is `pgvector`. No local plumbing to tear out.
+- **Decision: build FTS5 + `search_artifacts` now; add a stored-embedding + linear-scan path (behind a BYO key) only when keyword recall provably misses.** Keep the MCP tool contract identical either way (query in, ranked artifact rows out) so the retrieval backend can swap without breaking the client.
 
 **Migration path:** Slice-1's inline `story_segments.citations` is forward-compatible. When artifacts become first-class, a backfill reads each beat's inline citations, upserts `artifacts` rows (dedupe by url/title), and writes `segment_citations` joins; the inline column can then be dropped or kept as a denormalized cache. No data is lost and no MCP contract breaks (the inline field stays accepted, just additionally normalized).
 

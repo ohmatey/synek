@@ -22,11 +22,26 @@ const H_GAP = 16
 const CRAMPED_AVG_GAP_PX = 110
 
 const MAX_IMAGE_CHECKS = 12
+const MAX_CITATION_CHECKS = 8
 const MAX_WARNINGS = 12
 
-// --- image URLs (checked for THIS batch's ops only) ------------------------
+// --- URL verification (images + citation links) ----------------------------
+//
+// Three-way verdicts, not pass/fail: a 429 from Wikimedia (rate limit) or a 403
+// from a publisher (bot blocking) says nothing about whether the URL renders in
+// the user's browser — only 404/410 (and, for images, a non-image content-type)
+// are conclusive. Treating transient statuses as "broken" produced a wall of
+// false positives in practice (parallel HEADs to one host triggered the very
+// rate limit being reported), so checks to the same host are paced ~300ms apart
+// and conclusive verdicts are cached across patches.
 
-async function checkImageUrl(url: string): Promise<string | null> {
+type UrlVerdict = { status: 'ok' | 'broken' | 'unverified'; detail?: string }
+
+const VERDICT_TTL_MS = 10 * 60_000
+const SAME_HOST_GAP_MS = 300
+const verdictCache = new Map<string, { verdict: UrlVerdict; at: number }>()
+
+async function fetchVerdict(url: string, expectImage: boolean): Promise<UrlVerdict> {
   try {
     let res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(4000) })
     // Some hosts reject HEAD; retry as GET and discard the body.
@@ -34,30 +49,128 @@ async function checkImageUrl(url: string): Promise<string | null> {
       res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(4000) })
       void res.body?.cancel()
     }
-    if (!res.ok) return `image URL ${url} returned HTTP ${res.status} — it will render broken; replace or drop it`
-    const ct = res.headers.get('content-type') ?? ''
-    if (ct && !ct.startsWith('image/')) {
-      return `image URL ${url} serves "${ct}", not an image — it will render broken; replace or drop it`
+    if (res.status === 404 || res.status === 410) {
+      return { status: 'broken', detail: `returned HTTP ${res.status}` }
     }
-    return null
+    if (res.status === 429) {
+      return { status: 'unverified', detail: 'the host rate-limited the check (HTTP 429) — likely fine; re-checked on a later patch' }
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { status: 'unverified', detail: `the host blocked the check (HTTP ${res.status}) — may still load in a browser` }
+    }
+    if (!res.ok) {
+      return { status: 'unverified', detail: `returned HTTP ${res.status} — could not verify` }
+    }
+    if (expectImage) {
+      const ct = res.headers.get('content-type') ?? ''
+      if (ct && !ct.startsWith('image/')) {
+        return { status: 'broken', detail: `serves "${ct}", not an image` }
+      }
+    }
+    return { status: 'ok' }
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'fetch failed'
-    return `could not verify image URL ${url} (${msg}) — make sure it loads publicly`
+    return { status: 'unverified', detail: `could not be checked (${msg})` }
   }
 }
 
+// Verify a set of URLs: conclusive verdicts come from cache when fresh; live
+// checks run host-by-host in parallel but sequentially (with a small gap)
+// WITHIN a host, so the validator doesn't trigger the rate limit it reports.
+async function verifyUrls(urls: string[], expectImage: boolean): Promise<Map<string, UrlVerdict>> {
+  const out = new Map<string, UrlVerdict>()
+  const toFetch: string[] = []
+  const now = Date.now()
+  for (const url of urls) {
+    const hit = verdictCache.get(url)
+    if (hit && hit.verdict.status !== 'unverified' && now - hit.at < VERDICT_TTL_MS) out.set(url, hit.verdict)
+    else toFetch.push(url)
+  }
+  const byHost = new Map<string, string[]>()
+  for (const url of toFetch) {
+    let host = ''
+    try {
+      host = new URL(url).host
+    } catch {
+      out.set(url, { status: 'broken', detail: 'is not a valid URL' })
+      continue
+    }
+    byHost.set(host, [...(byHost.get(host) ?? []), url])
+  }
+  await Promise.all(
+    [...byHost.values()].map(async (hostUrls) => {
+      for (let i = 0; i < hostUrls.length; i++) {
+        if (i > 0) await new Promise((r) => setTimeout(r, SAME_HOST_GAP_MS))
+        const url = hostUrls[i]!
+        const verdict = await fetchVerdict(url, expectImage)
+        verdictCache.set(url, { verdict, at: Date.now() })
+        out.set(url, verdict)
+      }
+    }),
+  )
+  return out
+}
+
+// Image URLs that are conclusively broken → hard warnings; unverifiable ones get
+// a soft note. Exported for write_story (story covers + beat images go through
+// the same gate).
+export async function imageUrlWarnings(urls: string[], label = 'image URL'): Promise<string[]> {
+  const unique = [...new Set(urls)]
+  const toCheck = unique.slice(0, MAX_IMAGE_CHECKS)
+  const verdicts = await verifyUrls(toCheck, true)
+  const warnings: string[] = []
+  for (const [url, v] of verdicts) {
+    if (v.status === 'broken') warnings.push(`${label} ${url} ${v.detail} — it will render broken; replace or drop it`)
+    else if (v.status === 'unverified') warnings.push(`${label} ${url} ${v.detail}`)
+  }
+  if (unique.length > MAX_IMAGE_CHECKS) {
+    warnings.push(`only the first ${MAX_IMAGE_CHECKS} of ${unique.length} image URLs were verified`)
+  }
+  return warnings
+}
+
 async function imageWarnings(ops: Op[]): Promise<string[]> {
-  const urls = new Set<string>()
+  const urls: string[] = []
   for (const op of ops) {
     if ((op.op === 'add_node' || op.op === 'update_node') && op.images) {
-      for (const im of op.images) urls.add(im.url)
+      for (const im of op.images) urls.push(im.url)
     }
   }
-  const toCheck = [...urls].slice(0, MAX_IMAGE_CHECKS)
-  const results = await Promise.all(toCheck.map(checkImageUrl))
-  const warnings = results.filter((w): w is string => w != null)
-  if (urls.size > MAX_IMAGE_CHECKS) {
-    warnings.push(`only the first ${MAX_IMAGE_CHECKS} of ${urls.size} image URLs were verified`)
+  return imageUrlWarnings(urls)
+}
+
+// --- citations (checked for THIS batch's ops only) --------------------------
+//
+// Two complementary checks: links that ARE provided must resolve (a fabricated
+// citation URL is worse than none), and a batch whose citations are mostly
+// link-less gets a nudge — title-only is right for print sources, but stable
+// links exist for most web-era material.
+
+async function citationWarnings(ops: Op[]): Promise<string[]> {
+  const withUrl: string[] = []
+  let linkless = 0
+  let total = 0
+  for (const op of ops) {
+    if ((op.op === 'add_node' || op.op === 'update_node') && op.citations) {
+      for (const c of op.citations) {
+        total++
+        if (c.url) withUrl.push(c.url)
+        else linkless++
+      }
+    }
+  }
+  const warnings: string[] = []
+  const verdicts = await verifyUrls([...new Set(withUrl)].slice(0, MAX_CITATION_CHECKS), false)
+  for (const [url, v] of verdicts) {
+    if (v.status === 'broken') {
+      warnings.push(`citation URL ${url} ${v.detail} — readers will hit a dead link; fix it or cite title-only`)
+    }
+  }
+  if (total >= 4 && linkless / total > 0.5) {
+    warnings.push(
+      `${linkless} of ${total} citations in this patch have no URL — add stable links (Wikipedia, archive.org, ` +
+        'publisher pages) where they exist; title-only is fine for print sources',
+    )
   }
   return warnings
 }
@@ -138,6 +251,7 @@ export async function collectPatchWarnings(
   const pxPerDay = view?.pxPerDay ?? BASE_PX_PER_DAY
   const warnings = [
     ...(await imageWarnings(ops)),
+    ...(await citationWarnings(ops)),
     ...laneDensityWarnings(graph.nodes, pxPerDay),
     ...outlierWarnings(graph.nodes),
   ]

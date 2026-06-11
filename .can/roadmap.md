@@ -156,21 +156,26 @@ Ship after the demo recording is made. These deepen the experience for users who
 Maps to: S2 PRD (`prd/s2-artifact-grounding.md`). Depends on N.5 (stories exist).
 
 - **S2.0 — ✅ SHIPPED (slice 1, inline grounding)** — `write_story` beats take an optional `citations: { title, url?, quote? }[]` (same shape as node citations), persisted as a JSON column on `story_segments` (no join table — deferred until artifact reuse is real) and rendered inline under each beat in `NodeDetailPanel`. Postgres-portable; undo/redo-faithful (the moment-delete snapshot spreads the full segment row). Migration `0012`. Data-layer verified (`bun run verify:story` — incl. title+url+quote round-trip, title-only, empty, rewrite clears). Full normalized model (S2.1–S2.4 below) still deferred; backfill path documented in the PRD.
-- S2.1 — `sources` + `artifacts` tables (BCE-safe `dateInstant`)
-- S2.2 — `story_artifacts` + `segment_citations` joins
-- S2.3 — Grounded generation: `write_story` v2 accepts artifact references; beats name their source
-- S2.4 — Inline citation UX: tap a beat sentence → artifact card (transcript/image/reliability)
+**Trigger (founder, 2026-06-11):** the normalized model is no longer "someday." The product wants **reusable artifacts that ground a timeline and stay referenceable across future builds** — register a source once, cite it from many beats/stories, and let Claude pull it back in on the next session. That is exactly the artifact-reuse condition S2.0's PRD set as the gate. S2.1–S2.4 move from deferred to **active NEXT**, ordered after ⌘K (NEXT.2 ships first as the standalone win).
 
-Done when: a story shows inline citations; tap reveals grounding; you can browse artifacts to their anchored stories.
+- S2.1 — `sources` + `artifacts` tables (BCE-safe `dateInstant`, reliability note). One-shot backfill from `story_segments.citations` so slice-1 inline citations aren't lost.
+- S2.2 — `story_artifacts` + `segment_citations` joins (composite PKs) — the reuse layer: one artifact, many beats; browse an artifact back to everything it anchors.
+- S2.3 — Grounded generation: `write_story` v2 references **pre-registered artifacts by id**; a `register_artifact` MCP tool (or artifact-creation folded into `apply_patch`) writes the reusable rows. Beats name their source.
+- S2.4 — Artifact UX: tap a beat sentence → artifact card (transcript/translation/image/reliability); artifact-first browse (library → the stories each anchors), optionally a canvas lens for artifacts with a `dateInstant`.
+- **S2.5 — Artifact recall for future reference (`search_artifacts` MCP tool).** So Claude can pull a prior artifact back into a new build, expose retrieval over the artifact corpus. **Start lexical: SQLite FTS5** over `title`/`transcript` — zero new deps, no embedding model, no break to the "no AI in-app" inversion (Claude does the semantic reasoning, Synek returns matches). **Vector search is deferred and hosting-aware, NOT the default:** embeddings need a model call, which the app deliberately doesn't have → it would force a BYO `SYNEK_EMBED_*` key (same shape as the deferred N.4.5b image key). At single-user Core scale (dozens–hundreds of artifacts) you store an embedding column + brute-force cosine — **no index needed**; an HNSW/IVF *index* only earns its keep at ~10k+ vectors and belongs next to D.1 (hosted/large-corpus). Hosted upgrade path = `pgvector`. **Build FTS first; reach for embeddings only when keyword recall provably misses.**
 
-### NEXT.2 — In-canvas search + keyboard navigation
+Done when: a story shows inline citations; tap reveals grounding; you can browse artifacts to their anchored stories; and Claude can recall a registered artifact (via `search_artifacts`) in a later session to re-ground new work.
 
-*Why:* Once a timeline has 30+ nodes, "where is Marcus Aurelius" becomes a real question. Absence of search is the single biggest friction for a returning user.
+### NEXT.2 — In-canvas search + keyboard navigation — 🟢 BUILDING (2026-06-11)
+
+*Why:* Once a timeline has 30+ nodes, "where is Marcus Aurelius" becomes a real question. Absence of search is the single biggest friction for a returning user. Note: the **home** screen got search in the list redesign (`a302e99`), but the **canvas itself has none** — this item is the canvas-side palette.
 
 Maps to: 2.4 from the old substrate roadmap (`#local-17`, planned).
 
-- Full-text search over node titles/summaries; results highlight and pan to the node
-- Keyboard-first navigation: `⌘K` command palette, arrow keys to step through a filtered set
+- `⌘K` command palette over the **already-loaded** graph (no new fetch): fuzzy match on node title + summary + type, grouped/typed results.
+- Selecting a result **pans + centers** the React Flow viewport onto the node (reuse the existing camera-move API) and opens/selects it.
+- Esc / click-out closes; arrow keys + Enter navigate the filtered set. Mirrors the `⌘Z`/`⌘⇧Z` keydown idiom in `HistoryControls`.
+- Scoped down from a separate FTS pass: the viewer already holds every node's text in memory, so search is client-side and instant.
 
 ### NEXT.3 — Multi-POV stories (S3 — same moment, different eyes)
 
@@ -181,6 +186,7 @@ Maps to: S3 PRD (`prd/s3-multi-pov.md`). Depends on S2 (grounding makes multiple
 - S3.1 — `story_people` cast join; person role per story
 - S3.2 — POV-constrained generation (epistemic vantage; prior POVs passed to avoid paraphrase)
 - S3.3 — POV switcher on the canvas; "Add a perspective" affordance
+- **S3.4 — "Talk to [entity]" button (the entry affordance, founder 2026-06-11).** On an entity/person node, a button opens a dialog with a **pre-filled, copyable prompt** — "Speaking as <person>, present at <moment>, narrate this in first person, constrained to what they could plausibly have known…". Stays true to the inversion: Synek hands the prompt, Claude does the talking, the POV lands via `write_story` (`povType`/`primaryPersonId`) and wires the `story_people` cast. Same copy-prompt idiom already shipped in `buildContinueStoryPrompt` + the New Story / New Timeline dialogs — low cost, consistent, honest. This is the *front door* to S3.
 
 ### NEXT.4 — Postgres + self-host path (2.5)
 

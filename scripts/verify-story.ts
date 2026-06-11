@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../src/lib/db'
-import { user } from '../src/lib/db/schema'
+import { user, nodes } from '../src/lib/db/schema'
 import { auth } from '../src/lib/auth'
 import { ensureTimeline, loadGraph } from '../src/lib/db/graph'
 import { PatchBuilder, commitPatch } from '../src/lib/db/patches'
@@ -41,6 +41,10 @@ async function ensureVerifyUser(): Promise<string> {
 async function main() {
   const ownerId = await ensureVerifyUser()
   ensureTimeline(TL, ownerId, 'Story verify')
+  // Fresh slate: the timeline id is fixed, so prior runs leave moments + stories
+  // behind and the per-timeline count assertions below would drift. Node deletes
+  // cascade to edges and stories.
+  db.delete(nodes).where(eq(nodes.timelineId, TL)).run()
 
   // Add a fresh moment node to attach the story to, plus a second node a beat can
   // FOCUS on (the per-beat spotlight that drives the canvas + dialog).
@@ -59,13 +63,29 @@ async function main() {
   assert(getMomentTimelineId(momentId) === TL, 'getMomentTimelineId resolves the moment to its timeline')
   assert(getMomentTimelineId('does-not-exist') === null, 'getMomentTimelineId returns null for a missing node')
 
-  // Write a 3-beat story.
+  // Write a 3-beat story (with cover art, a cast, and one beat image — the
+  // story-texture fields added alongside the MCP write_story upgrade).
   const w = writeStory(
     momentId,
-    { title: 'The Turn', hook: 'How it began', depthTier: 'deep' },
+    {
+      title: 'The Turn',
+      hook: 'How it began',
+      depthTier: 'deep',
+      coverImage: { url: 'https://example.com/cover.jpg', alt: 'Cover art', aspect: 'landscape' },
+      cast: [
+        { nodeId: focusId, role: 'the witness' },
+        { name: 'Unmade Character', role: 'mentioned only' },
+      ],
+    },
     [
       { bodyText: 'Beat one.', kind: 'narration' },
-      { bodyText: 'Beat two.', kind: 'dialogue', settingNote: 'rain on glass', focusNodeId: focusId },
+      {
+        bodyText: 'Beat two.',
+        kind: 'dialogue',
+        settingNote: 'rain on glass',
+        focusNodeId: focusId,
+        image: { url: 'https://example.com/beat.jpg', aspect: 'portrait', layout: 'inset-left' },
+      },
       {
         bodyText: 'Beat three.',
         kind: 'sensory',
@@ -94,6 +114,18 @@ async function main() {
   // Per-beat focus (the entity the canvas + dialog spotlight on that beat) round-trips.
   assert(story!.beats[1]!.focusNodeId === focusId, 'beat focusNodeId round-trips')
   assert(story!.beats[0]!.focusNodeId === null, 'a beat without a focus reads back as null')
+
+  // Story texture: cover art, cast, and beat images round-trip.
+  assert(story!.coverImage?.url === 'https://example.com/cover.jpg', 'coverImage round-trips')
+  assert(
+    story!.cast.length === 2 && story!.cast[0]!.nodeId === focusId && story!.cast[1]!.name === 'Unmade Character',
+    'cast (node-backed + name-only) round-trips',
+  )
+  assert(
+    story!.beats[1]!.image?.url === 'https://example.com/beat.jpg' && story!.beats[1]!.image?.layout === 'inset-left',
+    'beat image + layout round-trip',
+  )
+  assert(story!.beats[0]!.image === null, 'a beat without an image reads back as null')
 
   // S2 slice 1 — per-beat citations (real source grounding) round-trip.
   assert(story!.beats[0]!.citations.length === 0, 'a beat without citations reads back as []')
@@ -125,19 +157,20 @@ async function main() {
   assert(list[0]!.beatCount === 3 && list[0]!.depthTier === 'deep', 'list item reports beat count + depth')
   assert(listStoriesForTimeline('no-such-timeline').length === 0, 'listStoriesForTimeline is empty for an unknown timeline')
 
-  // Replace-semantics: re-writing leaves exactly one story with the new beats.
+  // Multi-story semantics: a no-storyId write CREATES A SECOND story on the
+  // moment (update-in-place requires the storyId — covered by verify:multi-story).
   const w2 = writeStory(momentId, { title: 'The Turn (v2)' }, [{ bodyText: 'Only beat.' }])
-  assert(w2.segmentCount === 1, 'rewrite reports 1 segment')
+  assert(w2.segmentCount === 1, 'second write reports 1 segment')
+  assert(w2.storyId !== w.storyId, 'a no-storyId write mints a NEW story')
   const story2 = getStoryForMoment(momentId)
-  assert(story2!.title === 'The Turn (v2)' && story2!.beats.length === 1, 'rewrite REPLACED the prior story')
-  assert(story2!.beats[0]!.citations.length === 0, 'rewrite dropped the prior beat citations')
-  assert(storyDepthByMoment([momentId]).get(momentId) === 'light', 'rewrite reset depth to default (light)')
+  assert(story2!.title === 'The Turn (v2)' && story2!.beats.length === 1, 'getStoryForMoment returns the newest story')
+  assert(listStoriesForTimeline(TL).length === 2, 'the moment now holds BOTH stories')
+  assert(storyDepthByMoment([momentId]).get(momentId) === 'deep', 'depth badge reports the DEEPEST story across the set')
 
-  // A rewrite mints a new story id, so the signature SHIFTS even though the depth
-  // badge is unchanged across a same-presence rewrite — this is exactly what lets
-  // the canvas refresh an open reader on a same-depth stdio rewrite.
+  // A new story shifts the signature even though the depth badge is unchanged —
+  // this is exactly what lets the canvas refresh an open reader on a stdio write.
   const ver2 = storyVersionForMoments([momentId])
-  assert(ver2 !== ver1, 'storyVersionForMoments shifts after a rewrite (open reader will refresh)')
+  assert(ver2 !== ver1, 'storyVersionForMoments shifts after a write (open reader will refresh)')
 
   console.log('\nwrite_story path verified ✓')
   process.exit(0)

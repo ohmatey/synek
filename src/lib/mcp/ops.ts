@@ -10,13 +10,30 @@ import type { NodeImage, Precision } from '~/lib/domain/types'
 
 const citation = z.object({
   title: z.string(),
-  url: z.string().optional(),
-  quote: z.string().optional(),
+  url: z
+    .string()
+    .optional()
+    .describe(
+      'Stable public link to the source (Wikipedia, archive.org, a publisher page) — add one wherever it exists; ' +
+        'keep title-only for print sources. Never invent a URL you have not seen.',
+    ),
+  quote: z.string().optional().describe('Short verbatim quote from the source backing the claim.'),
+  sourceType: z
+    .enum(['primary', 'scholarship', 'data', 'press'])
+    .optional()
+    .describe(
+      'What kind of source: "primary" (a document/witness from the period), "scholarship" (academic or trade ' +
+        'analysis), "data" (datasets, statistics), "press" (journalism). Lets readers weigh sources at a glance.',
+    ),
 })
 
 const dateHint = 'A date, possibly fuzzy: "1995", "Q3 2008", "2014-03", or "49 BCE".'
 const precisionEnum = z.enum(['year', 'quarter', 'month', 'day'])
 const kindEnum = z.enum(['caused', 'succeeded', 'influenced', 'acquired', 'competed_with'])
+const kindHint =
+  'Direction matters — the arrow reads "<source> <kind> <target>": A caused B (A is the origin), ' +
+  'A influenced B (influence flows A→B), A succeeded B (A came AFTER and replaced B), A acquired B, ' +
+  'A competed_with B (rivalry; pick the instigator as source or either if symmetric).'
 const subtypeEnum = z.enum(['person', 'org', 'place', 'work'])
 const subtypeHint =
   'For entity nodes, the kind: person, org (company/institution), place, or work (a creation/publication).'
@@ -30,6 +47,9 @@ const laneHint =
   'Nodes sharing a lane render as one horizontal row, ordered left→right by date — ideal for comparing ' +
   'parallel tracks (rival companies, branches, factions). Omit for one-off nodes; reuse the EXACT same ' +
   'string for every node in a track.'
+const locationHint =
+  'Where this happened, as a plain display string ("Golgotha, Jerusalem", "Down House, Kent"). ' +
+  'Shown in the node\'s detail panel — adds place texture; no geocoding.'
 const imageInput = z.object({
   url: z
     .string()
@@ -78,6 +98,7 @@ export const opSchema = z.discriminatedUnion('op', [
     citations: z.array(citation).optional(),
     subtype: subtypeEnum.optional().describe(subtypeHint),
     lane: z.string().optional().describe(laneHint),
+    location: z.string().optional().describe(locationHint),
     images: z.array(imageInput).optional().describe(imagesHint),
   }),
   z.object({
@@ -95,6 +116,7 @@ export const opSchema = z.discriminatedUnion('op', [
     citations: z.array(citation).optional(),
     subtype: subtypeEnum.optional().describe(subtypeHint),
     lane: z.string().optional().describe(laneHint + ' Pass "" to clear the lane.'),
+    location: z.string().optional().describe(locationHint + ' Pass "" to clear it.'),
     images: z.array(imageInput).optional().describe(imagesHint),
   }),
   z.object({
@@ -106,13 +128,13 @@ export const opSchema = z.discriminatedUnion('op', [
     ref: z.string().optional().describe(refHint),
     sourceId: z.string().describe('Source node id (or a ref from this batch).'),
     targetId: z.string().describe('Target node id (or a ref from this batch).'),
-    kind: kindEnum,
+    kind: kindEnum.describe(kindHint),
     label: z.string().optional(),
   }),
   z.object({
     op: z.literal('update_edge'),
     id: z.string(),
-    kind: kindEnum.optional(),
+    kind: kindEnum.optional().describe(kindHint),
     label: z.string().optional(),
   }),
   z.object({
@@ -139,11 +161,12 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
         const end = op.end ? parseDate(op.end) : null
         const images = op.images?.length ? normalizeImages(op.images) : undefined
         const metadata: NodeMetadata | null =
-          op.citations?.length || op.subtype || op.lane || images
+          op.citations?.length || op.subtype || op.lane || op.location || images
             ? {
                 ...(op.citations?.length ? { citations: op.citations } : {}),
                 ...(op.subtype ? { subtype: op.subtype } : {}),
                 ...(op.lane ? { lane: op.lane } : {}),
+                ...(op.location ? { location: op.location } : {}),
                 ...(images ? { images } : {}),
               }
             : null
@@ -175,7 +198,7 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
         if (op.end) np.endInstant = parseDate(op.end).instant
         if (op.precision) np.precision = op.precision
         // Merge metadata so existing images/color/size aren't clobbered.
-        if (op.citations || op.subtype || op.lane !== undefined || op.images) {
+        if (op.citations || op.subtype || op.lane !== undefined || op.location !== undefined || op.images) {
           const prior = (builder.getNode(id)?.metadata ?? {}) as NodeMetadata
           const merged: NodeMetadata = {
             ...prior,
@@ -188,6 +211,11 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
           if (op.lane !== undefined) {
             if (op.lane === '') delete merged.lane
             else merged.lane = op.lane
+          }
+          // location === "" clears it; any other string sets it.
+          if (op.location !== undefined) {
+            if (op.location === '') delete merged.location
+            else merged.location = op.location
           }
           np.metadata = merged
         }

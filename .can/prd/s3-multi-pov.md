@@ -3,7 +3,7 @@ phase: S3
 title: "Multi-POV"
 status: planned
 era: "Story Layer (the pivot)"
-updated: 2026-05-25
+updated: 2026-06-11
 ---
 
 # S3 — Multi-POV
@@ -62,8 +62,9 @@ Unchanged from S1/S2 — POV generation is a story-create flow, not a graph Patc
 
 ## UX surfaces
 
+- **"Talk to [entity]" button (the entry affordance — founder, 2026-06-11).** On an entity/person node (and in the detail panel), a button opens a dialog containing a **pre-filled, copyable prompt** — e.g. *"Speaking as <person>, who was present at <moment / timeline context>, narrate this in first person, constrained to only what they could plausibly have known or perceived. Then call `write_story` to record it as their perspective."* The user copies it into their MCP client; Claude generates the POV and lands it via `write_story` (`povType` + `primaryPersonId`), wiring the `story_people` cast (S3.1). This keeps the inversion intact — Synek hands the prompt, Claude does the talking — and reuses the exact copy-prompt idiom already shipped in `buildContinueStoryPrompt` and the New Story / New Timeline dialogs. **This is the front door to multi-POV: the first, cheapest way to populate a second perspective before the full switcher/generation loop lands.**
 - **POV switcher** in the reader header: people-with-stories as chips (portrait, name, role). Selecting one swaps the rendered story.
-- **"Add a perspective":** person picker (existing people) or quick-sketch a new one (name, role, historical/composite) → generate.
+- **"Add a perspective":** person picker (existing people) or quick-sketch a new one (name, role, historical/composite) → generate. The "Talk to [entity]" button is the lightweight, copy-prompt form of this.
 - **Person thread:** a person view listing their stories across moments — the spine of "follow one life through events." (Light in S3; deepens if a generation-game era ever lands.)
 - **Composite people** (`is_historical = false`) are clearly labeled as representative, not real individuals.
 

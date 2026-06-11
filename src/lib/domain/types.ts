@@ -28,6 +28,28 @@ export type ImageAspect = (typeof IMAGE_ASPECTS)[number]
 // `aspect` chooses its framing (landscape/portrait — defaults to landscape).
 export type NodeImage = { url: string; alt?: string; show?: boolean; aspect?: ImageAspect }
 
+// What kind of source a citation is — lets the reader distinguish Tacitus
+// (primary) from a 2014 trade book (scholarship) at a glance. Optional;
+// untyped citations render unchanged.
+export const CITATION_SOURCE_TYPES = ['primary', 'scholarship', 'data', 'press'] as const
+export type CitationSourceType = (typeof CITATION_SOURCE_TYPES)[number]
+
+// How a beat's image sits in the story reader: `full` (block above the text),
+// `inset-left`/`inset-right` (floated beside it), `bleed` (full-panel backdrop
+// behind the beat with a scrim). Defaults to `full`.
+export const STORY_IMAGE_LAYOUTS = ['full', 'inset-left', 'inset-right', 'bleed'] as const
+export type StoryImageLayout = (typeof STORY_IMAGE_LAYOUTS)[number]
+
+// An image attached to a story beat (or a story's cover, where `layout` is
+// ignored). Same sourcing rules as node images: a real, web-accessible URL.
+export type StoryImage = { url: string; alt?: string; aspect?: ImageAspect; layout?: StoryImageLayout }
+
+// A story's cast: entries either point at a node on the same timeline
+// (clickable, tourable) or carry just a name — a character the writer used in
+// prose that has no node yet (write_story warns about these so the client can
+// materialize them with apply_patch).
+export type StoryCastMember = { nodeId?: string; name?: string; role?: string }
+
 // Note: GraphOp lives in `~/lib/db/schema` (alongside the rows it references).
 // It is intentionally NOT re-exported here — this module is reachable from
 // client code, and pulling the schema (drizzle/bun:sqlite) across the
@@ -37,7 +59,7 @@ export type NodeImage = { url: string; alt?: string; show?: boolean; aspect?: Im
 // (plain primitives only — no Date/unknown that the RPC serializer rejects).
 // Mirrors `Citation` in ~/lib/db/schema, re-declared here so this client-reachable
 // module never imports the schema (drizzle/server-only).
-export type CanvasCitation = { title: string; url?: string; quote?: string }
+export type CanvasCitation = { title: string; url?: string; quote?: string; sourceType?: CitationSourceType }
 
 export type GraphNode = {
   id: string
@@ -56,6 +78,9 @@ export type GraphNode = {
   // row-group (e.g. all of a company's model launches), ordered left→right by
   // date. Null/absent → the node falls back to its type lane. See layoutLaneY.
   lane: string | null
+  // Where this happened — a plain display string ("Golgotha, Jerusalem"); no
+  // geocoding. Shown in the detail panel's dateline.
+  location: string | null
   // True when a story has been written onto this moment (drives the depth badge);
   // `storyDepth` carries its tier when present. Written via the MCP write_story
   // tool, separate from the graph Patch stack.
@@ -148,6 +173,9 @@ export type StoryBeat = {
   // S2 slice 1 — real sources backing this beat. Same shape as a node's
   // citations (CanvasCitation), so the reader renders them identically.
   citations: CanvasCitation[]
+  // Optional art for this beat; `layout` picks its reader treatment
+  // (full/inset-left/inset-right/bleed). Null → text-only beat.
+  image: StoryImage | null
 }
 
 export type StoryDTO = {
@@ -157,6 +185,11 @@ export type StoryDTO = {
   povType: PovType
   depthTier: DepthTier
   estimatedMinutes: number | null
+  // Optional cover art shown on the reader's cover panel (layout ignored).
+  coverImage: StoryImage | null
+  // The story's cast — node-backed members are clickable; name-only members
+  // exist in prose but have no node yet.
+  cast: StoryCastMember[]
   beats: StoryBeat[]
 }
 

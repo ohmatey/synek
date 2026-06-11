@@ -20,6 +20,8 @@ verify-story.db
 verify-story.db-*
 verify-story-undo.db
 verify-story-undo.db-*
+verify-multi-story.db
+verify-multi-story.db-*
 
 # Env
 .env

@@ -2,7 +2,15 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from './index'
 import { stories, storySegments, nodes } from './schema'
 import type { Citation } from './schema'
-import type { DepthTier, PovType, SegmentKind, StoryDTO, StoryListItem } from '~/lib/domain/types'
+import type {
+  DepthTier,
+  PovType,
+  SegmentKind,
+  StoryCastMember,
+  StoryDTO,
+  StoryImage,
+  StoryListItem,
+} from '~/lib/domain/types'
 
 // The story layer hangs off `nodes.id` (a "moment"). Stories are deliberately NOT
 // graph Patches — they have their own provenance and are NOT on the undo/redo
@@ -17,6 +25,7 @@ export type NewStorySegment = {
   relatedNodeIds?: string[]
   focusNodeId?: string | null
   citations?: Citation[]
+  image?: StoryImage | null
 }
 
 export type NewStory = {
@@ -25,6 +34,8 @@ export type NewStory = {
   povType?: PovType
   depthTier?: DepthTier
   estimatedMinutes?: number | null
+  coverImage?: StoryImage | null
+  cast?: StoryCastMember[]
 }
 
 // The timeline a moment (node) belongs to, or null if the node doesn't exist.
@@ -69,6 +80,8 @@ export function writeStory(
           povType: meta.povType ?? 'omniscient',
           depthTier: meta.depthTier ?? 'light',
           estimatedMinutes: meta.estimatedMinutes ?? null,
+          coverImage: meta.coverImage ?? null,
+          cast: meta.cast ?? null,
           updatedAt: new Date(),
         })
         .where(eq(stories.id, storyId))
@@ -86,6 +99,8 @@ export function writeStory(
           povType: meta.povType ?? 'omniscient',
           depthTier: meta.depthTier ?? 'light',
           estimatedMinutes: meta.estimatedMinutes ?? null,
+          coverImage: meta.coverImage ?? null,
+          cast: meta.cast ?? null,
           status: 'published',
         })
         .returning({ id: stories.id })
@@ -103,6 +118,7 @@ export function writeStory(
           relatedNodeIds: s.relatedNodeIds ?? null,
           focusNodeId: s.focusNodeId ?? null,
           citations: s.citations ?? null,
+          image: s.image ?? null,
         })
         .run()
     })
@@ -126,6 +142,8 @@ function hydrateStory(story: typeof stories.$inferSelect): StoryDTO {
     povType: story.povType,
     depthTier: story.depthTier,
     estimatedMinutes: story.estimatedMinutes,
+    coverImage: story.coverImage ?? null,
+    cast: story.cast ?? [],
     beats: segs.map((s) => ({
       id: s.id,
       sequence: s.sequence,
@@ -135,6 +153,7 @@ function hydrateStory(story: typeof stories.$inferSelect): StoryDTO {
       relatedNodeIds: s.relatedNodeIds ?? [],
       focusNodeId: s.focusNodeId ?? null,
       citations: s.citations ?? [],
+      image: s.image ?? null,
     })),
   }
 }
@@ -210,6 +229,19 @@ export function getStoriesForMoment(momentId: string): StoryListItem[] {
     .orderBy(desc(stories.createdAt))
     .all()
   return withBeatCounts(rows)
+}
+
+// Every beat citation across a timeline's stories — feeds the layout report's
+// source registry so story sourcing counts alongside node citations.
+export function listSegmentCitationsForTimeline(timelineId: string): Citation[] {
+  const rows = db
+    .select({ citations: storySegments.citations })
+    .from(storySegments)
+    .innerJoin(stories, eq(storySegments.storyId, stories.id))
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .where(eq(nodes.timelineId, timelineId))
+    .all()
+  return rows.flatMap((r) => r.citations ?? [])
 }
 
 // A cheap content signature over the stories attached to these moments. Each story

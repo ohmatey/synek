@@ -21,13 +21,16 @@ import {
   DEPTH_TIERS,
   STORY_STATUS,
   SEGMENT_KINDS,
+  type CitationSourceType,
   type NodeImage,
   type NodeSize,
   type NodeSubtype,
+  type StoryCastMember,
+  type StoryImage,
   type TimelineViewSettings,
 } from '~/lib/domain/types'
 
-export type Citation = { title: string; url?: string; quote?: string }
+export type Citation = { title: string; url?: string; quote?: string; sourceType?: CitationSourceType }
 export type NodeMetadata = {
   citations?: Citation[]
   color?: string
@@ -37,6 +40,9 @@ export type NodeMetadata = {
   // Swimlane grouping key (e.g. "OpenAI"). Nodes sharing a lane render in one
   // horizontal row-group on the canvas; absent → laid out by node type.
   lane?: string
+  // Where this happened — a plain display string ("Golgotha, Jerusalem").
+  // Display-only; no geocoding (a map lens can interpret it later).
+  location?: string
 }
 export type EdgeMetadata = Record<string, unknown>
 
@@ -219,6 +225,12 @@ export const stories = sqliteTable('stories', {
   depthTier: text('depth_tier', { enum: DEPTH_TIERS }).notNull().default('light'),
   estimatedMinutes: integer('estimated_minutes'),
   primaryPersonId: text('primary_person_id').references(() => people.id), // null in S1
+  // Optional cover art for the reader's cover panel (layout field ignored here).
+  coverImage: text('cover_image', { mode: 'json' }).$type<StoryImage>(),
+  // The story's cast: node-backed members ({ nodeId }) are clickable/tourable;
+  // name-only members ({ name }) exist in prose but have no node yet — the MCP
+  // write_story tool warns about those so the client can materialize them.
+  cast: text('cast', { mode: 'json' }).$type<StoryCastMember[]>(),
   status: text('status', { enum: STORY_STATUS }).notNull().default('draft'),
   language: text('language').notNull().default('en'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
@@ -245,6 +257,10 @@ export const storySegments = sqliteTable('story_segments', {
   // `metadata.citations` (Citation), stored inline as JSON (no join table yet —
   // see .can/prd/s2-artifact-grounding.md for the deferred normalized model).
   citations: text('citations', { mode: 'json' }).$type<Citation[]>(),
+  // Optional art for this beat; `layout` picks the reader treatment
+  // (full / inset-left / inset-right / bleed). Sourced like node images: a
+  // real, web-accessible URL — never generated.
+  image: text('image', { mode: 'json' }).$type<StoryImage>(),
   speakerPersonId: text('speaker_person_id').references(() => people.id), // null in S1 (S4)
   generationId: text('generation_id').references(() => generations.id),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),

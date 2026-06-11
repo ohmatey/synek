@@ -143,6 +143,7 @@ export function NodeDetailPanel({
   const [color, setColor] = useState<string | null>(node.color)
   const [subtype, setSubtype] = useState<NodeSubtype | null>(node.subtype)
   const [lane, setLane] = useState<string>(node.lane ?? '')
+  const [location, setLocation] = useState<string>(node.location ?? '')
   const imgRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   // The panel is 100% read mode until the explicit Edit button flips it; edit
@@ -216,6 +217,7 @@ export function NodeDetailPanel({
             color,
             subtype,
             lane: lane.trim() ? lane.trim() : null,
+            location: location.trim() ? location.trim() : null,
           },
         },
       })
@@ -283,6 +285,7 @@ export function NodeDetailPanel({
     color !== node.color ||
     subtype !== node.subtype ||
     (lane.trim() ? lane.trim() : null) !== (node.lane ?? null) ||
+    (location.trim() ? location.trim() : null) !== (node.location ?? null) ||
     JSON.stringify(cleanCitations) !== JSON.stringify(node.citations) ||
     JSON.stringify(images) !== JSON.stringify(node.images)
 
@@ -299,6 +302,7 @@ export function NodeDetailPanel({
     setColor(node.color)
     setSubtype(node.subtype)
     setLane(node.lane ?? '')
+    setLocation(node.location ?? '')
   }
 
   function cancel() {
@@ -477,6 +481,12 @@ export function NodeDetailPanel({
             </>
           )}
           {dateline}
+          {node.location && (
+            <>
+              <span className="detail-dateline-sep"> · </span>
+              <span>{node.location}</span>
+            </>
+          )}
         </p>
       )}
 
@@ -606,6 +616,19 @@ export function NodeDetailPanel({
                   <option key={l} value={l} />
                 ))}
               </datalist>
+            </div>
+          </div>
+
+          <div className="detail-prop">
+            <span className="detail-prop-key">Location</span>
+            <div className="detail-prop-edit">
+              <Input
+                className="h-7 text-xs"
+                placeholder="Where this happened — e.g. Golgotha, Jerusalem"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                aria-label="Location"
+              />
             </div>
           </div>
 

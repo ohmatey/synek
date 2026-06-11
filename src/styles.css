@@ -2058,6 +2058,117 @@ body {
   font-style: italic;
   color: color-mix(in oklab, var(--color-fg-primary) 92%, var(--color-accent-dialogue));
 }
+/* Beat art — layout templates set via write_story: full (block above the text),
+   inset-left/right (floated beside it), bleed (stage backdrop, below). */
+.sv-img {
+  margin: 0;
+  pointer-events: none;
+}
+.sv-img img {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+  object-fit: cover;
+  aspect-ratio: 16 / 10;
+  border: 1px solid var(--color-border-subtle);
+}
+.sv-img.is-portrait img {
+  aspect-ratio: 3 / 4;
+}
+.sv-img figcaption {
+  margin-top: 6px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--color-fg-subtle);
+}
+/* Inset variants float beside the prose; the beat switches to block flow so the
+   text wraps around the figure (flex children ignore floats). */
+.sv-beat.has-inset {
+  display: block;
+}
+.sv-beat.has-inset > * {
+  margin-bottom: 12px;
+}
+.sv-img-inset-left,
+.sv-img-inset-right {
+  width: 44%;
+}
+.sv-img-inset-left {
+  float: left;
+  margin: 4px 14px 6px 0;
+}
+.sv-img-inset-right {
+  float: right;
+  margin: 4px 0 6px 14px;
+}
+/* Bleed: the image backs the whole stage behind a readability scrim; the beat
+   column stacks above it. */
+.sv-bleed {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sv-bleed img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sv-bleed::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklab, var(--color-bg-base) 80%, transparent);
+}
+.sv-stage .sv-beat {
+  position: relative;
+  z-index: 1;
+}
+/* Cover art above the title, and the story's cast as chips below the hook. */
+.sv-cover-art {
+  margin: 0;
+  width: min(300px, 70%);
+  pointer-events: none;
+}
+.sv-cover-art img {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+  aspect-ratio: 16 / 10;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-overlay);
+}
+.sv-cover-art.is-portrait img {
+  aspect-ratio: 3 / 4;
+}
+.sv-cast {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.sv-cast-chip {
+  font: inherit;
+  font-size: 11.5px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+  color: var(--color-fg-secondary);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-subtle);
+}
+.sv-cast-chip:hover {
+  color: var(--color-fg-primary);
+  border-color: var(--color-border-default);
+}
+/* Name-only cast (no node yet) — present in prose, not clickable. */
+.sv-cast-chip.is-ghost {
+  cursor: default;
+  border-style: dashed;
+  color: var(--color-fg-subtle);
+}
 .sv-links {
   display: flex;
   flex-wrap: wrap;

@@ -335,8 +335,34 @@ export function StoryReader({
             aria-roledescription="story beat"
             aria-label={`Beat ${safeIndex + 1} of ${count}`}
           >
+            {/* A bleed image backs the whole stage behind a scrim; other layouts
+                render inside the beat itself. */}
+            {beat?.image && beat.image.layout === 'bleed' && (
+              <div className="sv-bleed" aria-hidden="true" key={`bleed-${beat.id}`}>
+                <img src={beat.image.url} alt="" />
+              </div>
+            )}
             {beat && (
-              <article className={cn('sv-beat', `sv-beat-${beat.kind}`)} key={beat.id}>
+              <article
+                className={cn(
+                  'sv-beat',
+                  `sv-beat-${beat.kind}`,
+                  beat.image?.layout?.startsWith('inset') && 'has-inset',
+                )}
+                key={beat.id}
+              >
+                {beat.image && beat.image.layout !== 'bleed' && (
+                  <figure
+                    className={cn(
+                      'sv-img',
+                      `sv-img-${beat.image.layout ?? 'full'}`,
+                      beat.image.aspect === 'portrait' && 'is-portrait',
+                    )}
+                  >
+                    <img src={beat.image.url} alt={beat.image.alt ?? ''} loading="lazy" />
+                    {beat.image.alt?.trim() && <figcaption>{beat.image.alt}</figcaption>}
+                  </figure>
+                )}
                 {beat.settingNote && <p className="sv-setting">{beat.settingNote}</p>}
                 <p className="sv-text">{beat.bodyText}</p>
                 {beat.relatedNodeIds.length > 0 && (
@@ -423,13 +449,44 @@ export function StoryReader({
           </div>
         </div>
       ) : (
-        /* Cover: title + hook + meta chips, with a Play button to begin the stepped,
-           auto-advancing reader. */
+        /* Cover: art + title + hook + meta chips + cast, with a Play button to begin
+           the stepped, auto-advancing reader. */
         <div className="sv-cover">
+          {story.coverImage && (
+            <figure className={cn('sv-cover-art', story.coverImage.aspect === 'portrait' && 'is-portrait')}>
+              <img src={story.coverImage.url} alt={story.coverImage.alt ?? ''} loading="lazy" />
+            </figure>
+          )}
           <div className="sv-intro">
             <h2 className="sv-title">{story.title}</h2>
             {story.hook && <p className="sv-hook">{story.hook}</p>}
           </div>
+          {story.cast.length > 0 && (
+            <div className="sv-cast" aria-label="Cast">
+              {story.cast.map((m, i) => {
+                const node = m.nodeId ? nodeById.get(m.nodeId) : undefined
+                const label = node?.title ?? m.name
+                if (!label) return null
+                // Node-backed cast members jump to their node; name-only ones are
+                // inert (they exist in prose but have no node yet).
+                return node ? (
+                  <button
+                    key={i}
+                    type="button"
+                    className="sv-cast-chip"
+                    onClick={() => navigateTo(node.id)}
+                    title={m.role ?? undefined}
+                  >
+                    {label}
+                  </button>
+                ) : (
+                  <span key={i} className="sv-cast-chip is-ghost" title={m.role ?? undefined}>
+                    {label}
+                  </span>
+                )
+              })}
+            </div>
+          )}
           <div className="sv-cover-meta">
             <span className={cn('sv-chip', story.depthTier === 'deep' && 'sv-chip-deep')}>
               {story.depthTier === 'deep' ? 'Deep' : 'Light'}

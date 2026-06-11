@@ -45,6 +45,7 @@ export const getGraph = createServerFn({ method: 'GET' })
         color: n.metadata?.color ?? null,
         subtype: n.metadata?.subtype ?? null,
         lane: n.metadata?.lane ?? null,
+        location: n.metadata?.location ?? null,
         hasStory: depthByMoment.has(n.id),
         storyDepth: depthByMoment.get(n.id) ?? null,
       })),

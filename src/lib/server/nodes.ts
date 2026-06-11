@@ -46,6 +46,8 @@ const editInput = z.object({
     subtype: z.enum(['person', 'org', 'place', 'work']).nullable().optional(),
     // Swimlane key. "" / null clears it (back to type-lane layout).
     lane: z.string().nullable().optional(),
+    // Where this happened, as a display string. "" / null clears it.
+    location: z.string().nullable().optional(),
   }),
 })
 
@@ -71,7 +73,8 @@ export const editNode = createServerFn({ method: 'POST' })
       patch.size !== undefined ||
       patch.color !== undefined ||
       patch.subtype !== undefined ||
-      patch.lane !== undefined
+      patch.lane !== undefined ||
+      patch.location !== undefined
     ) {
       const metadata: NodeMetadata = { ...(cur.metadata ?? {}) }
       if (patch.citations !== undefined) metadata.citations = patch.citations
@@ -83,6 +86,11 @@ export const editNode = createServerFn({ method: 'POST' })
       if (patch.lane !== undefined) {
         if (patch.lane) metadata.lane = patch.lane
         else delete metadata.lane
+      }
+      // Empty string or null clears the location.
+      if (patch.location !== undefined) {
+        if (patch.location) metadata.location = patch.location
+        else delete metadata.location
       }
       np.metadata = metadata
     }
