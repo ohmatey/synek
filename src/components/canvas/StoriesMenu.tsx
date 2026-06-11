@@ -37,7 +37,6 @@ export function StoriesMenu({
         <Button variant="outline" size="sm" className={cn(floatChip, 'h-8')} title="Stories on this timeline">
           <BookOpen />
           Stories
-          {count > 0 && <span className="rounded-full bg-muted px-1.5 text-xs text-muted-foreground">{count}</span>}
           <ChevronDown className="text-muted-foreground" />
         </Button>
       </PopoverTrigger>
@@ -75,14 +74,9 @@ export function StoriesMenu({
                 {s.hook && (
                   <p className="line-clamp-2 text-xs italic leading-relaxed text-muted-foreground">{s.hook}</p>
                 )}
-                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="min-w-0 flex-1 truncate">{s.momentTitle}</span>
-                  <span aria-hidden>·</span>
-                  <span className="shrink-0">
-                    {s.beatCount} {s.beatCount === 1 ? 'beat' : 'beats'}
-                  </span>
+                <div className="mt-0.5 flex items-center justify-end text-xs text-muted-foreground">
                   <span
-                    className="ml-1 inline-flex shrink-0 items-center gap-1 font-medium opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                    className="inline-flex shrink-0 items-center gap-1 font-medium"
                     style={{ color: 'var(--color-accent-story)' }}
                   >
                     <Play className="size-3.5" />
