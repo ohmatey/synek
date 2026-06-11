@@ -37,7 +37,7 @@ import { getGraph } from '~/lib/server/graph'
 import { getStory } from '~/lib/server/stories'
 import { useTimelineStream } from './useTimelineStream'
 import { AppBar } from './AppBar'
-import { ShareControl } from './ShareControl'
+import { ShareDialog } from './ShareDialog'
 import { ProfileMenu } from '~/components/ProfileMenu'
 import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
@@ -46,7 +46,6 @@ import { TimeRuler } from './TimeRuler'
 import { CanvasSettings } from './CanvasSettings'
 import { McpStatusChip } from './McpStatusChip'
 import { CanvasEmpty } from './CanvasEmpty'
-import { ExportControls } from './ExportControls'
 import { StoriesMenu } from './StoriesMenu'
 import { useBuildStream } from './build-stream'
 import type { CanvasNodeData, NodeDraft } from './types'
@@ -623,9 +622,13 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 onAutoRefresh={setAutoRefresh}
               />
             )}
-            <ExportControls graph={{ title, nodes: gnodes, edges: gedges }} />
-            {/* Sharing + account live at the far right of the bar. */}
-            {isOwner && <ShareControl timelineId={timelineId} isPublic={isPublic} />}
+            {/* Sharing (public link + export) + account live at the far right of the bar. */}
+            <ShareDialog
+              timelineId={timelineId}
+              graph={{ title, nodes: gnodes, edges: gedges }}
+              isOwner={isOwner}
+              isPublic={isPublic}
+            />
             <ProfileMenu />
           </div>
         </div>

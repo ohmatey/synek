@@ -132,7 +132,7 @@ test('owner canvas chrome: account far right, share to its left, mcp dot, no fit
   await expect(page.locator('.top-bar').getByRole('button', { name: 'Fit view' })).toHaveCount(0)
 
   // Share (owner) + account menu live on the right, with account rightmost.
-  const share = page.getByRole('button', { name: /^(Public|Private)$/ })
+  const share = page.getByRole('button', { name: 'Share' })
   const account = page.getByRole('button', { name: 'Account menu' })
   await expect(share).toBeVisible()
   await expect(account).toBeVisible()
