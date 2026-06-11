@@ -36,6 +36,7 @@
   --color-accent-story: #e0a458;
   --color-accent-influence: #9b8cff;
   --color-accent-dialogue: #6aa9ff;
+  --color-accent-era: #45b8ac;
 
   /* ─── Tinted surfaces (accent-soft fills) ──────────────────── */
   --color-story-soft: #2a2113;
@@ -95,6 +96,7 @@
   --color-accent-story: #b87716;
   --color-accent-influence: #6c5ce7;
   --color-accent-dialogue: #2f7adf;
+  --color-accent-era: #2f9389;
 
   --color-story-soft: #fcefd6;
   --color-influence-soft: #ece7ff;

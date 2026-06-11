@@ -647,10 +647,17 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         id: e.id,
         source: e.sourceId,
         target: e.targetId,
-        label: e.label ?? e.kind,
+        // Humanize the relation kind: snake_case → spaced words ("competed_with"
+        // → "competed with"). Explicit labels are already human, shown as-is.
+        label: e.label ?? e.kind.replace(/_/g, ' '),
         hidden,
         style: { stroke: s.color, strokeWidth: s.width, strokeDasharray: s.dash, opacity: dim ? 0.12 : undefined },
-        labelStyle: { fill: s.color, fontSize: 11, opacity: dim ? 0.12 : undefined },
+        labelStyle: { fill: s.color, fontSize: 11, fontWeight: 500, opacity: dim ? 0.12 : undefined },
+        // A canvas-bg pill plate behind the label so it doesn't collide with the
+        // nodes it routes between.
+        labelBgStyle: { fill: 'var(--color-bg-base)', fillOpacity: dim ? 0.12 : 0.88 },
+        labelBgPadding: [6, 3] as [number, number],
+        labelBgBorderRadius: 999,
         markerEnd: { type: MarkerType.ArrowClosed, color: s.color },
       }
     })

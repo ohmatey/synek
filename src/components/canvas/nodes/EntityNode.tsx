@@ -17,7 +17,7 @@ export function EntityNode(props: NodeProps) {
     <div className={`sf-node sf-size-${d.size ?? 'medium'}`}>
       <div
         className={`sf-entity${isOrg ? ' sf-entity-org' : ''}`}
-        style={{ width: d.width, borderColor: d.color ?? undefined }}
+        style={{ width: d.width }}
       >
         <Handle type="target" position={Position.Left} className="sf-handle" />
         <div className="sf-entity-row">

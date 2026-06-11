@@ -8,13 +8,24 @@ export function EventNode({ data }: NodeProps) {
     <div className={`sf-node sf-size-${d.size ?? 'medium'}`}>
       <div
         className={`sf-event${d.hasSummary ? ' sf-event-rich' : ''}`}
-        style={d.color ? { borderColor: d.color } : undefined}
         title={d.hasSummary ? 'Has a description — click to read' : undefined}
       >
         <Handle type="target" position={Position.Left} className="sf-handle" />
         <span className="sf-dot" style={d.color ? { background: d.color } : undefined} aria-hidden />
         <span className="sf-label">{d.title}</span>
         {d.date && <span className="sf-date">{d.date}</span>}
+        {d.hasSummary ? (
+          <svg className="sf-event-note" viewBox="0 0 24 24" aria-hidden>
+            <path
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zm0 0v5h5M8 13h8M8 17h6"
+            />
+          </svg>
+        ) : null}
         {d.citations ? <span className="sf-cite" title={`${d.citations} citation(s)`}>{d.citations}</span> : null}
         <StoryBadge data={d} />
         <Handle type="source" position={Position.Right} className="sf-handle" />

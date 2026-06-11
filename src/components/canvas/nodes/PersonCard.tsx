@@ -12,7 +12,7 @@ export function PersonCard({ data }: NodeProps) {
   return (
     <div
       className={`sf-node sf-person sf-size-${d.size ?? 'medium'}`}
-      style={{ width: d.width, borderColor: d.color ?? undefined }}
+      style={{ width: d.width }}
     >
       <Handle type="target" position={Position.Left} className="sf-handle" />
       <div className={`sf-person-frame sf-person-frame-${portrait?.aspect ?? 'landscape'}`}>
@@ -26,8 +26,9 @@ export function PersonCard({ data }: NodeProps) {
             />
           </svg>
         )}
+        {d.color ? <span className="sf-person-accent" style={{ background: d.color }} aria-hidden /> : null}
       </div>
-      <div className="sf-person-plate" style={d.color ? { borderTopColor: d.color } : undefined}>
+      <div className="sf-person-plate">
         <span className="sf-person-name">{d.title}</span>
         {d.date && <span className="sf-person-dates">{d.endDate ? `${d.date}–${d.endDate}` : d.date}</span>}
         {d.summary ? <span className="sf-summary">{d.summary}</span> : null}
