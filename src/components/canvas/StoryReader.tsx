@@ -79,10 +79,13 @@ export function StoryReader({
   const safeIndex = Math.min(index, Math.max(0, count - 1))
   const beat = beats[safeIndex]
 
-  // Focus the panel on mount so keyboard nav + Esc work without a click first.
+  // Focus the panel on mount so keyboard nav + Esc work without a click first —
+  // and again when playback starts: clicking the cover's Play unmounts that
+  // button with the cover, dropping focus to <body>, which would orphan the
+  // aside's keydown handling (Esc/arrows).
   useEffect(() => {
     asideRef.current?.focus()
-  }, [])
+  }, [started])
 
   // Honor reduced-motion: turn the timed auto-advance + animated fill off.
   useEffect(() => {

@@ -41,8 +41,12 @@ test('Play opens the docked reader beside the panel and tapping through advances
   // It sits beside the entity panel, which stays on the canvas.
   await expect(page.getByRole('dialog', { name: 'Node details' })).toBeVisible()
 
-  // Beat 1 of 4: the intro title + the opening beat text.
+  // The reader opens on a cover — story title + hook — and Play starts the beats.
   await expect(reader.getByRole('heading', { name: 'The long wait before Origin' })).toBeVisible()
+  await expect(reader.getByText('Two decades between the idea and the book.')).toBeVisible()
+  await reader.getByRole('button', { name: 'Play story' }).click()
+
+  // Beat 1 of 4: the opening beat text.
   await expect(reader.getByText(/filled notebook after notebook/)).toBeVisible()
   await expect(reader.getByText('1 / 4')).toBeVisible()
 
@@ -97,6 +101,8 @@ test('a focus beat switches the entity panel to the focused entity (dialog follo
   await panel.getByRole('button', { name: 'Play story' }).click()
   const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
   await expect(reader).toBeVisible()
+  // Start the beats from the cover.
+  await reader.getByRole('button', { name: 'Play story' }).click()
 
   const detail = page.getByRole('dialog', { name: 'Node details' })
   // Beat 1 has no focus → the panel previews the moment (Darwin).
@@ -133,16 +139,18 @@ test('the AppBar Stories list shows preview cards and plays one', async ({ page 
   await expect(trigger).toBeVisible()
   await trigger.click()
 
-  // The popover lists the story as a preview card — title + its moment + beat count.
+  // The popover lists the story as a slim preview card — title + hook + Play
+  // (entity/beat-count chrome was deliberately dropped from this list).
   const card = page.getByRole('button', { name: /The long wait before Origin/ })
   await expect(card).toBeVisible()
-  await expect(card).toContainText('Charles Darwin')
-  await expect(card).toContainText('4 beats')
+  await expect(card).toContainText('Two decades between the idea and the book.')
+  await expect(card).toContainText('Play')
 
-  // Picking it opens the moment and plays the story in the docked reader.
+  // Picking it opens the moment and the docked reader on the story's cover.
   await card.click()
   const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
   await expect(reader).toBeVisible()
+  await reader.getByRole('button', { name: 'Play story' }).click()
   await expect(reader.getByText(/filled notebook after notebook/)).toBeVisible()
   await expect(reader.getByText('1 / 4')).toBeVisible()
 })
@@ -152,6 +160,8 @@ test('a story beat links to a related moment and navigates there', async ({ page
   await panel.getByRole('button', { name: 'Play story' }).click()
   const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
   await expect(reader).toBeVisible()
+  // Start the beats from the cover.
+  await reader.getByRole('button', { name: 'Play story' }).click()
 
   // Beat 2 references Isaac Newton — stepping to it surfaces the link.
   await reader.getByRole('button', { name: 'Next beat' }).click()
@@ -179,7 +189,9 @@ test.describe('with motion enabled', () => {
 
     const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
     await expect(reader).toBeVisible()
-    // The first beat's timer is long; it must not flash-close.
+    // Start the beats from the cover. The first beat's timer is long; it must
+    // not flash-close.
+    await reader.getByRole('button', { name: 'Play story' }).click()
     await page.waitForTimeout(1200)
     await expect(reader).toBeVisible()
     await expect(reader.getByText('1 / 4')).toBeVisible()

@@ -173,9 +173,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const [activeBeat, setActiveBeat] = useState(-1)
   const [storyPaused, setStoryPaused] = useState(false)
   // A story that should auto-open in the reader (set by the AppBar Stories menu).
-  // Consumed once it loads with beats, then cleared.
+  // Consumed once it loads with beats, then cleared. Mirrored in a ref so the
+  // selection-change effect below can see a pending autoplay without taking it
+  // as a dependency — picking a story also CHANGES the selection, and that
+  // effect must not clobber the story id it was set together with.
   const [autoPlay, setAutoPlay] = useState<{ momentId: string; storyId: string } | null>(null)
+  const autoPlayRef = useRef<{ momentId: string; storyId: string } | null>(null)
   const playStory = useCallback((momentId: string, storyId: string) => {
+    autoPlayRef.current = { momentId, storyId }
     setSelectedId(momentId)
     setSelectedStoryId(storyId)
     setAutoPlay({ momentId, storyId })
@@ -315,10 +320,15 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   })
   const readingStory = readingStoryData ?? null // undefined while loading → treat as none
 
-  // A new selection drops any open reader + its chosen story.
+  // A new selection drops any open reader + its chosen story — unless that story
+  // was picked together with the selection (AppBar autoplay): nulling it here
+  // would disable the story query and the autoplay below could never fire.
   useEffect(() => {
     setReading(false)
-    setSelectedStoryId(null)
+    if (autoPlayRef.current?.momentId !== selectedId) {
+      autoPlayRef.current = null
+      setSelectedStoryId(null)
+    }
     setActiveBeat(-1)
     setStoryPaused(false)
   }, [selectedId])
@@ -335,6 +345,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       setActiveBeat(-1)
       setStoryPaused(false)
       setReading(true)
+      autoPlayRef.current = null
       setAutoPlay(null)
     }
   }, [autoPlay, selectedId, selectedStoryId, readingStory])

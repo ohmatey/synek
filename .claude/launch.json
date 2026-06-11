@@ -6,6 +6,15 @@
       "runtimeExecutable": "bunx",
       "runtimeArgs": ["vite", "dev", "--port", "3456"],
       "port": 3456
+    },
+    {
+      "name": "e2e-build",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "export PATH=$HOME/.nvm/versions/node/v22.13.1/bin:$PATH; PORT=3005 DATABASE_URL=e2e.db npx tsx scripts/serve-build.ts"
+      ],
+      "port": 3005
     }
   ]
 }
