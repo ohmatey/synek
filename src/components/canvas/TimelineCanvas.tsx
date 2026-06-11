@@ -52,6 +52,13 @@ import { McpStatusChip } from './McpStatusChip'
 import { CanvasEmpty } from './CanvasEmpty'
 import { StoriesMenu } from './StoriesMenu'
 import { useBuildStream } from './build-stream'
+import {
+  loadPanelWidths,
+  savePanelWidths,
+  clampDetail,
+  clampStory,
+  type PanelWidths,
+} from './usePanelSize'
 import type { CanvasNodeData, NodeDraft } from './types'
 import type { EdgeKind, NodeSubtype, NodeType } from '~/lib/domain/types'
 
@@ -90,15 +97,21 @@ function ViewportInit({ timelineId, nodeCount }: { timelineId: string; nodeCount
 // data-driven, so it doesn't fight ViewportInit's saved-camera restore.
 const STORY_CAM_MAX_ZOOM = 1.2
 const STORY_CAM_PAD = 0.28
-function StoryCamera({ ids }: { ids: string[] }) {
+function StoryCamera({ ids, dockW }: { ids: string[]; dockW: number }) {
   const rf = useReactFlow()
   const key = ids.join(',')
+  // Step pans glide (450ms); re-centering because the user dragged a panel edge
+  // should track the cursor instantly, so those re-runs use duration 0.
+  const prevKey = useRef<string | null>(null)
   useEffect(() => {
     if (!ids.length) return
+    const stepped = prevKey.current !== key
+    prevKey.current = key
+    const duration = stepped ? 450 : 0
     // World-space bounds of the target node(s), from their measured DOM size.
     const targets = ids.map((id) => rf.getNode(id)).filter(Boolean) as NonNullable<ReturnType<typeof rf.getNode>>[]
     if (!targets.length) {
-      rf.fitView({ nodes: ids.map((id) => ({ id })), padding: STORY_CAM_PAD, duration: 450, maxZoom: STORY_CAM_MAX_ZOOM })
+      rf.fitView({ nodes: ids.map((id) => ({ id })), padding: STORY_CAM_PAD, duration, maxZoom: STORY_CAM_MAX_ZOOM })
       return
     }
     let minX = Infinity,
@@ -120,7 +133,7 @@ function StoryCamera({ ids }: { ids: string[] }) {
 
     const pane = document.querySelector('.react-flow') as HTMLElement | null
     if (!pane) {
-      rf.fitView({ nodes: ids.map((id) => ({ id })), padding: STORY_CAM_PAD, duration: 450, maxZoom: STORY_CAM_MAX_ZOOM })
+      rf.fitView({ nodes: ids.map((id) => ({ id })), padding: STORY_CAM_PAD, duration, maxZoom: STORY_CAM_MAX_ZOOM })
       return
     }
     const pr = pane.getBoundingClientRect()
@@ -144,9 +157,11 @@ function StoryCamera({ ids }: { ids: string[] }) {
     // Center the node within the visible (left) region, not the whole pane.
     const x = visibleW / 2 - cx * zoom
     const y = pr.height / 2 - cy * zoom
-    rf.setViewport({ x, y, zoom }, { duration: 450 })
+    rf.setViewport({ x, y, zoom }, { duration })
+    // dockW re-triggers this when a panel is resized so the focus node stays
+    // centered in the canvas left of the (now wider/narrower) dock.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rf, key])
+  }, [rf, key, dockW])
   return null
 }
 
@@ -173,6 +188,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const [reading, setReading] = useState(false)
   const [activeBeat, setActiveBeat] = useState(-1)
   const [storyPaused, setStoryPaused] = useState(false)
+  // User-resizable widths for the right-docked panels (detail + story reader).
+  // Applied as CSS vars on .canvas-root; persisted to localStorage on release.
+  const [panelW, setPanelW] = useState<PanelWidths>(() => loadPanelWidths())
+  const panelWRef = useRef(panelW)
+  panelWRef.current = panelW
+  const resizeDetail = useCallback((next: number) => setPanelW((w) => ({ ...w, detail: clampDetail(next) })), [])
+  const resizeStory = useCallback((next: number) => setPanelW((w) => ({ ...w, story: clampStory(next) })), [])
+  const commitPanelW = useCallback(() => savePanelWidths(panelWRef.current), [])
   // A story that should auto-open in the reader (set by the AppBar Stories menu).
   // Consumed once it loads with beats, then cleared. Mirrored in a ref so the
   // selection-change effect below can see a pending autoplay without taking it
@@ -716,7 +739,15 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
 
   return (
     <ReactFlowProvider>
-      <div className="canvas-root">
+      <div
+        className="canvas-root"
+        style={
+          {
+            '--detail-panel-w': `${panelW.detail}px`,
+            '--story-reader-w': `${panelW.story}px`,
+          } as React.CSSProperties
+        }
+      >
         <div className="top-bar">
           <AppBar timelineId={timelineId} title={title} isOwner={isOwner} isPublic={isPublic} />
           <div className="canvas-toolbar">
@@ -832,7 +863,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           <Background gap={48} />
           <Controls showInteractive={false} />
           <ViewportInit timelineId={timelineId} nodeCount={gnodes.length} />
-          {cameraIds && <StoryCamera ids={cameraIds} />}
+          {cameraIds && <StoryCamera ids={cameraIds} dockW={panelW.detail + panelW.story} />}
           {(gnodes.length > 0 || pending.length > 0) && <TimeRuler scale={scale} />}
           {!isLoading && gnodes.length === 0 && pending.length === 0 && (
             <Panel position="top-center">
@@ -870,6 +901,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             // the selected moment); the onDraft-change cleanup clears any stale one.
             onDraft={reading ? noopDraft : handleDraft}
             onPlayStory={startReading}
+            width={panelW.detail}
+            onResize={resizeDetail}
+            onCommitResize={commitPanelW}
           />
         ) : null}
         {reading && readingStory && selectedNode ? (
@@ -886,6 +920,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             onClose={() => setReading(false)}
             onSelectNode={selectNode}
             onBeatChange={setActiveBeat}
+            width={panelW.story}
+            onResize={resizeStory}
+            onCommitResize={commitPanelW}
           />
         ) : null}
       </div>

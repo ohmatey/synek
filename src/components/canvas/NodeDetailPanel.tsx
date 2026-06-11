@@ -8,6 +8,7 @@ import { parseDate, formatInstant, formatInstantRange } from '~/lib/domain/dates
 import { editNode, deleteNode } from '~/lib/server/nodes'
 import { fileToDataUrl } from '~/lib/files'
 import { NewStoryDialog } from './NewStoryDialog'
+import { ResizeHandle } from './ResizeHandle'
 import { IMAGE_ASPECTS, NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
 import type { GraphNode, GraphEdge, CanvasCitation, ImageAspect, NodeImage, NodeSize, NodeSubtype, Precision, EdgeKind, PovType, StoryListItem } from '~/lib/domain/types'
 import type { NodeDraft } from './types'
@@ -66,6 +67,9 @@ export function NodeDetailPanel({
   onSelectNode,
   onDraft,
   onPlayStory,
+  width,
+  onResize,
+  onCommitResize,
 }: {
   node: GraphNode
   edges: GraphEdge[]
@@ -87,6 +91,11 @@ export function NodeDetailPanel({
   // Open the docked story reader beside this panel on a specific story (only
   // meaningful on the moment).
   onPlayStory?: (storyId: string) => void
+  // Resizable width (px), owned by the canvas so the story reader can dock to
+  // its left edge. Omit to leave the CSS default and hide the drag handle.
+  width?: number
+  onResize?: (next: number) => void
+  onCommitResize?: () => void
 }) {
   const qc = useQueryClient()
   const hasSpan = node.type !== 'event'
@@ -288,6 +297,9 @@ export function NodeDetailPanel({
 
   return (
     <div className="detail-panel" role="dialog" aria-label="Node details">
+      {width != null && onResize && (
+        <ResizeHandle width={width} onResize={onResize} onCommit={onCommitResize} label="Resize details panel" />
+      )}
       <header className="detail-head">
         {canEdit && (
           <Button

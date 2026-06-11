@@ -3,6 +3,7 @@ import { X, ChevronLeft, ChevronRight, Play, Volume2, VolumeX } from 'lucide-rea
 import { cn } from '~/lib/utils'
 import type { GraphNode, PovType, StoryDTO } from '~/lib/domain/types'
 import { useSpeechSupported, useStoryNarration, warmUpSpeech } from './useStoryNarration'
+import { ResizeHandle } from './ResizeHandle'
 
 // Human labels for the story POV; only surfaced when it's not the default.
 const POV_LABEL: Record<PovType, string> = {
@@ -56,6 +57,9 @@ export function StoryReader({
   onClose,
   onSelectNode,
   onBeatChange,
+  width,
+  onResize,
+  onCommitResize,
 }: {
   story: StoryDTO
   momentTitle: string
@@ -73,6 +77,11 @@ export function StoryReader({
   // Report the active beat index as the reader steps; the canvas maps it to a
   // camera pan + the entity the detail panel shows (per-beat focusNodeId). Stable.
   onBeatChange: (index: number) => void
+  // Resizable width (px), owned by the canvas. Omit to use the CSS default and
+  // hide the drag handle.
+  width?: number
+  onResize?: (next: number) => void
+  onCommitResize?: () => void
 }) {
   const asideRef = useRef<HTMLElement>(null)
   const beats = story.beats
@@ -208,6 +217,9 @@ export function StoryReader({
       tabIndex={-1}
       onKeyDown={onKeyDown}
     >
+      {width != null && onResize && (
+        <ResizeHandle width={width} onResize={onResize} onCommit={onCommitResize} label="Resize story reader" />
+      )}
       {/* Segmented progress — one segment per beat; the active one animates fill
           over the beat's reading time and steps onAnimationEnd (the fill is the
           timer, so a hold-pause naturally delays the advance). Hidden on the cover. */}
