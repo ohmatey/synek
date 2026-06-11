@@ -830,11 +830,11 @@ body {
   position: absolute;
   top: var(--dock-top);
   /* Docks as a column at the right edge of the canvas. */
-  right: 12px;
+  right: 16px;
   bottom: var(--dock-bottom);
   z-index: 6;
   width: var(--detail-panel-w, 340px);
-  max-width: calc(100vw - 24px);
+  max-width: calc(100vw - 32px);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1769,10 +1769,10 @@ body {
   position: absolute;
   top: var(--dock-top);
   bottom: var(--dock-bottom);
-  /* Left of the .detail-panel (its width + right:12 + a 12px gap). */
-  right: calc(var(--detail-panel-w, 340px) + 24px);
+  /* Left of the .detail-panel (its width + right:16 + a 16px gap). */
+  right: calc(var(--detail-panel-w, 340px) + 32px);
   width: var(--story-reader-w, 380px);
-  max-width: calc(100vw - 24px);
+  max-width: calc(100vw - 32px);
   z-index: 6;
   overflow: hidden;
   color: var(--color-fg-primary);
@@ -1818,8 +1818,8 @@ body {
    pans + rings it behind). */
 @media (max-width: 860px) {
   .story-reader {
-    left: 12px;
-    right: 12px;
+    left: 16px;
+    right: 16px;
     width: auto;
     z-index: 7;
   }
