@@ -887,6 +887,20 @@ body {
   border-radius: 50%;
 }
 
+/* Read-mode meta line under the title: "Company · Jun 1997 – Jul 2007 · 10 years".
+   Indented to align with the title text past the accent-dot gutter
+   (10px dot + 8px gap + 6px title padding). */
+.detail-dateline {
+  margin: -6px 0 0;
+  padding-left: 24px;
+  font-size: 13px;
+  color: var(--color-fg-secondary);
+}
+
+.detail-dateline-sep {
+  color: var(--color-fg-subtle);
+}
+
 /* Major sections get a light divider for consistent rhythm. */
 .detail-section {
   border-top: 1px solid var(--color-border-faint);

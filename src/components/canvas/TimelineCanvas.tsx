@@ -816,10 +816,11 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             edges={gedges}
             nodes={gnodes}
             timelineId={timelineId}
-            // While reading, the panel is a read-only preview of the beat's focus.
-            readOnly={!isOwner || reading}
-            preview={reading}
-            previewLabel={selectedNode?.title}
+            // While reading, the panel is the story-mode portrait of the beat's
+            // focus (no relations/stories/citations, no editing).
+            readOnly={!isOwner}
+            mode={reading ? 'story' : 'default'}
+            storyLabel={selectedNode?.title}
             // The story list only shows on the moment when not reading (the docked
             // reader is the story surface while reading).
             stories={reading ? undefined : stories}

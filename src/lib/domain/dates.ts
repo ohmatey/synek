@@ -53,6 +53,45 @@ export function formatInstant(instant: number, precision: Precision): string {
   return `${mon} ${d.getUTCDate()}, ${year}`
 }
 
+function durationUnit(n: number, unit: string): string {
+  return `${n} ${unit}${n === 1 ? '' : 's'}`
+}
+
+// Human duration between two instants, in the largest unit that reads naturally.
+// BCE-safe — getUTCFullYear() works on negative-epoch instants, same as
+// formatInstant. Year-precision spans always read in years (the months/days a
+// year-precision instant implies are noise). Returns null when there is nothing
+// meaningful to say (same instant, or end before start).
+function formatDurationBetween(start: number, end: number, precision: Precision): string | null {
+  if (end <= start) return null
+  const s = new Date(start)
+  const e = new Date(end)
+  const years = e.getUTCFullYear() - s.getUTCFullYear()
+  if (precision === 'year') return years > 0 ? durationUnit(years, 'year') : null
+  const months = years * 12 + (e.getUTCMonth() - s.getUTCMonth())
+  if (months >= 24) return durationUnit(Math.round(months / 12), 'year')
+  if (months >= 2) return durationUnit(months, 'month')
+  const days = Math.round((end - start) / 86_400_000)
+  return days > 0 ? durationUnit(days, 'day') : null
+}
+
+// One readable line for a node's time: "Sep 15, 2008" for an event,
+// "Jun 1997 – Jul 2007 · 10 years" for a closed span, "Jun 1997 – ongoing" for
+// an open one. BCE works throughout ("49 BCE – 31 BCE · 18 years").
+export function formatInstantRange(
+  start: number,
+  end: number | null,
+  precision: Precision,
+  hasSpan: boolean,
+): string {
+  const from = formatInstant(start, precision)
+  if (!hasSpan) return from
+  if (end == null) return `${from} – ongoing`
+  const to = formatInstant(end, precision)
+  const duration = formatDurationBetween(start, end, precision)
+  return duration ? `${from} – ${to} · ${duration}` : `${from} – ${to}`
+}
+
 // A faint, theme-aware background tint for a period, derived from its date range
 // so the "mood of the age" reads at a glance. Deterministic: the period's
 // midpoint century maps via the golden angle (137.5°) to a well-separated hue,

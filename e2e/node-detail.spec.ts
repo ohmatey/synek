@@ -12,10 +12,7 @@ async function loginAsDemo(page: Page) {
   await expect(page.getByPlaceholder(/Name a timeline/)).toBeVisible()
 }
 
-test('clicking a node opens its detail panel', async ({ page }) => {
-  await loginAsDemo(page)
-  await page.goto('/timelines/figures')
-
+async function openDarwinPanel(page: Page) {
   // The timeline spans centuries, so edge nodes can sit outside the viewport.
   // Dispatch the click on the node element directly (geometry-independent) —
   // it bubbles to React Flow's node click handler just like a real click.
@@ -25,52 +22,59 @@ test('clicking a node opens its detail panel', async ({ page }) => {
 
   const panel = page.getByRole('dialog', { name: 'Node details' })
   await expect(panel).toBeVisible()
+  return panel
+}
+
+test('clicking a node opens its detail panel', async ({ page }) => {
+  await loginAsDemo(page)
+  await page.goto('/timelines/figures')
+
+  const panel = await openDarwinPanel(page)
   await expect(panel.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
 
   await panel.getByRole('button', { name: 'Close' }).click()
   await expect(panel).toBeHidden()
 })
 
-test('detail panel offers manual image upload and citations (no AI illustrate)', async ({ page }) => {
+test('the panel opens in read mode; Edit reveals upload and citations (no AI illustrate)', async ({ page }) => {
   await loginAsDemo(page)
   await page.goto('/timelines/figures')
 
-  const node = page.locator('.react-flow__node', { hasText: 'Charles Darwin' })
-  await expect(node).toBeAttached()
-  await node.dispatchEvent('click')
+  const panel = await openDarwinPanel(page)
 
-  const panel = page.getByRole('dialog', { name: 'Node details' })
-  await expect(panel).toBeVisible()
+  // 100% read mode on open: no editors, no presentation knobs.
+  await expect(panel.getByRole('button', { name: 'Upload' })).toHaveCount(0)
+  await expect(panel.getByText('Size', { exact: true })).toBeHidden()
+  await expect(panel.getByText('Lane', { exact: true })).toBeHidden()
 
-  // View-first: the editors are revealed on click. Images lead the panel as a
-  // hero strip; the management controls (manual Upload, no AI generation) fold in
-  // behind the Edit affordance.
-  await panel.getByTestId('edit-images').click()
+  // The explicit Edit button flips the whole panel into edit mode: image
+  // management (manual Upload, no AI generation) and the citations editor mount.
+  await panel.getByTestId('edit-node').click()
   await expect(panel.getByRole('button', { name: 'Upload' })).toBeVisible()
-
-  // Citations remain editable behind the same view-first Edit affordance.
   await expect(panel.getByText('Citations', { exact: true })).toBeVisible()
-  await panel.getByTestId('edit-citations').click()
-  await expect(panel.getByRole('button', { name: 'Add' })).toBeVisible()
+  await expect(panel.getByTestId('add-citation')).toBeVisible()
 
   // The removed in-app AI affordances must not reappear.
   await expect(panel.getByRole('button', { name: /illustrate/i })).toHaveCount(0)
+
+  // Cancel returns to read mode.
+  await panel.getByRole('button', { name: 'Cancel' }).click()
+  await expect(panel.getByRole('button', { name: 'Upload' })).toHaveCount(0)
 })
 
 test('the Kind control reflects and updates an entity subtype', async ({ page }) => {
   await loginAsDemo(page)
   await page.goto('/timelines/figures')
 
-  // Charles Darwin is seeded as subtype 'person'.
-  const node = page.locator('.react-flow__node', { hasText: 'Charles Darwin' })
-  await expect(node).toBeAttached()
-  await node.dispatchEvent('click')
+  const panel = await openDarwinPanel(page)
 
-  const panel = page.getByRole('dialog', { name: 'Node details' })
+  // Charles Darwin is seeded as subtype 'person' — read mode folds it into the
+  // meta line under the title instead of a property row.
+  await expect(panel.locator('.detail-dateline')).toContainText(/person/i)
+
+  // Edit mode mounts the subtype picker directly (no click-to-reveal).
+  await panel.getByTestId('edit-node').click()
   await expect(panel.getByText('Kind', { exact: true })).toBeVisible()
-
-  // View-first: click the Kind value to reveal the subtype picker.
-  await panel.getByTestId('edit-kind').click()
 
   // Seeded as person → that option is active; switching to org activates it.
   const person = panel.getByRole('button', { name: 'person', exact: true })
