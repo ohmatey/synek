@@ -236,6 +236,11 @@ export const storySegments = sqliteTable('story_segments', {
   audioUrl: text('audio_url'), // optional pre-gen TTS; unused in S1
   settingNote: text('setting_note'), // "rain on cobblestones, smell of woodsmoke"
   relatedNodeIds: text('related_node_ids', { mode: 'json' }).$type<string[]>(), // beat → tappable map links
+  // The single entity this beat spotlights: as the reader steps here, the canvas
+  // pans + rings it and the entity panel beside the story switches to show it.
+  // Soft ref (a node id on the same timeline), no FK — like relatedNodeIds; the UI
+  // falls back to the moment when it's null or dangling.
+  focusNodeId: text('focus_node_id'),
   // S2 slice 1 — per-beat source grounding. Same shape as a node's
   // `metadata.citations` (Citation), stored inline as JSON (no join table yet —
   // see .can/prd/s2-artifact-grounding.md for the deferred normalized model).

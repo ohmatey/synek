@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Loader2, Pencil, Play, Plus, Trash2, Upload, X } from 'lucide-react'
 import { Button } from '~/components/ui/button'
-import { StoryViewer } from './StoryViewer'
 import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
 import { parseDate, formatInstant } from '~/lib/domain/dates'
 import { editNode, deleteNode } from '~/lib/server/nodes'
-import { getStory } from '~/lib/server/stories'
 import { fileToDataUrl } from '~/lib/files'
 import { CopyButton } from '~/components/home/CopyButton'
-import { NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
-import type { GraphNode, GraphEdge, CanvasCitation, NodeImage, NodeSize, NodeSubtype, NodeType, Precision, EdgeKind, PovType, StoryDTO } from '~/lib/domain/types'
+import { IMAGE_ASPECTS, NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
+import type { GraphNode, GraphEdge, CanvasCitation, ImageAspect, NodeImage, NodeSize, NodeSubtype, NodeType, Precision, EdgeKind, PovType, StoryDTO } from '~/lib/domain/types'
 import type { NodeDraft } from './types'
 
 // Mirrors the canvas edge palette. CSS vars flip per theme automatically;
@@ -69,76 +67,36 @@ export function NodeDetailPanel({
   nodes,
   timelineId,
   readOnly = false,
+  preview = false,
+  previewLabel,
+  story,
   onClose,
   onSelectNode,
   onDraft,
-  onStoryLoaded,
-  onStoryCamera,
-  autoPlayStory = false,
-  onAutoPlayConsumed,
+  onPlayStory,
 }: {
   node: GraphNode
   edges: GraphEdge[]
   nodes: GraphNode[]
   timelineId: string
   readOnly?: boolean
+  // When true, this panel is a read-only preview of the entity a story beat focuses
+  // on (the docked reader is the story surface): no story section, ask block, or
+  // edit affordances — just the entity, with a "Story · {previewLabel}" eyebrow.
+  preview?: boolean
+  previewLabel?: string
+  // The story attached to this moment (passed from the canvas, which owns the
+  // query). undefined while loading, null when there's none. Ignored in preview.
+  story?: StoryDTO | null
   onClose: () => void
   onSelectNode: (id: string) => void
   onDraft: (draft: NodeDraft | null) => void
-  // Fired when this node's story resolves (or null if it has none) so the canvas
-  // can lens the moment + its related nodes. Must be stable (the effect depends on it).
-  onStoryLoaded?: (story: StoryDTO | null) => void
-  // Fired as the reader steps beats: the node ids the canvas camera should frame
-  // (the current beat's target, or the moment at "overview"). Must be stable.
-  onStoryCamera?: (targetIds: string[]) => void
-  // When true (set by the AppBar Stories menu), auto-open the Reels viewer once
-  // this node's story loads; `onAutoPlayConsumed` clears the one-shot signal.
-  autoPlayStory?: boolean
-  onAutoPlayConsumed?: () => void
+  // Open the docked story reader beside this panel (only meaningful on the moment).
+  onPlayStory?: () => void
 }) {
   const qc = useQueryClient()
   const hasSpan = node.type !== 'event'
-
-  // The story written onto this moment (by an MCP client via write_story), if any.
-  // Read-only playback; null until/unless one exists. The panel is keyed by node
-  // id, so this refetches when the selection changes.
-  const { data: story } = useQuery({
-    queryKey: ['story', node.id],
-    queryFn: () => getStory({ data: node.id }),
-  })
-
-  // Report the loaded story up to the canvas (frames + lenses the moment). `story`
-  // is undefined while loading, then StoryDTO | null; fire only once resolved, and
-  // re-fire when it changes (e.g. a live write_story refetch updates the lens).
-  useEffect(() => {
-    if (story !== undefined) onStoryLoaded?.(story ?? null)
-  }, [story, onStoryLoaded])
-  // Clear the lens when the reader closes (this panel is keyed by node id, so a
-  // selection switch unmounts it — cleanup clears, the next instance re-sets).
-  useEffect(() => () => onStoryLoaded?.(null), [onStoryLoaded])
-
-  // The story plays as a Reels/Stories tap-through in a full-screen overlay
-  // (StoryViewer), which owns beat-by-beat stepping and walks the canvas camera
-  // beat-to-beat (GAP 1·B). The panel shows a static teaser + a Play button; the
-  // overlay closes back to the moment overview.
   const beatCount = story?.beats.length ?? 0
-  const [playing, setPlaying] = useState(false)
-  // A new selection / story should never leave a stale overlay open.
-  useEffect(() => setPlaying(false), [node.id, story?.id])
-  // Auto-play (AppBar Stories menu): when asked to play and the story has loaded
-  // with beats, open the viewer and immediately consume the signal (parent clears
-  // it). Consuming before the user can close means it never reopens; re-picking
-  // the same moment re-raises the signal and plays again. If the story hasn't
-  // loaded yet, the signal stays set and this re-runs once it does.
-  useEffect(() => {
-    if (autoPlayStory && story && story.beats.length > 0) {
-      setPlaying(true)
-      onAutoPlayConsumed?.()
-    }
-  }, [autoPlayStory, story, onAutoPlayConsumed])
-  // Stable camera bridge so the viewer's per-beat effect doesn't re-fire on every
-  // panel render (onStoryCamera is already memoized upstream).
-  const cameraTargets = useCallback((ids: string[]) => onStoryCamera?.(ids), [onStoryCamera])
 
   // GAP 3·B — the app holds no AI, so it can't generate a story; instead, a
   // story-less moment offers a ready-made prompt the user pastes into their
@@ -180,6 +138,13 @@ export function NodeDetailPanel({
   >(null)
   const [editCitations, setEditCitations] = useState(false)
   const [editImages, setEditImages] = useState(false)
+  // Long descriptions clamp to a few lines (read-first); "Show more" expands.
+  // `descOverflows` gates the toggle — only shown when the text is actually
+  // taller than the clamp. The panel is keyed by node id, so these reset on
+  // selection change.
+  const descRef = useRef<HTMLDivElement | null>(null)
+  const [descExpanded, setDescExpanded] = useState(false)
+  const [descOverflows, setDescOverflows] = useState(false)
 
   const parsedStart = parseDate(start)
 
@@ -199,6 +164,16 @@ export function NodeDetailPanel({
   }, [title, start, end, size, color, images, subtype, hasSpan, node.title, parsedStart.instant, parsedStart.precision, onDraft])
 
   useEffect(() => () => onDraft(null), [onDraft])
+
+  // Measure whether the clamped description overflows so the toggle only appears
+  // when there's more to show. Skip while expanded (clientHeight==scrollHeight
+  // would falsely clear it) or while editing (the textarea is mounted instead),
+  // so descOverflows sticks true through an expand.
+  useEffect(() => {
+    if (descExpanded || editing === 'summary') return
+    const el = descRef.current
+    setDescOverflows(!!el && el.scrollHeight - el.clientHeight > 1)
+  }, [summary, descExpanded, editing])
 
   async function refetch() {
     await qc.invalidateQueries({ queryKey: ['graph', timelineId] })
@@ -275,6 +250,10 @@ export function NodeDetailPanel({
     setImages((xs) => xs.map((im, j) => (j === i ? { ...im, show: !im.show } : im)))
   }
 
+  function setImageAspect(i: number, aspect: ImageAspect) {
+    setImages((xs) => xs.map((im, j) => (j === i ? { ...im, aspect } : im)))
+  }
+
   function removeImage(i: number) {
     setImages((xs) => xs.filter((_, j) => j !== i))
   }
@@ -332,6 +311,11 @@ export function NodeDetailPanel({
             <Trash2 className="size-4" />
           </Button>
         )}
+        {preview && previewLabel && (
+          <span className="detail-preview-eyebrow" title={`Reading: ${previewLabel}`}>
+            Story · {previewLabel}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-1.5">
           {!readOnly && dirty && (
             <>
@@ -355,6 +339,89 @@ export function NodeDetailPanel({
           </Button>
         </div>
       </header>
+
+      {/* Images — hero strip at the top (Notion-style cover). Multiple images
+          scroll horizontally like a place card, putting the face of the moment
+          first. Editing controls fold in behind the Edit affordance. */}
+      {(images.length > 0 || !readOnly) && (
+        <div className="detail-hero">
+          {!readOnly && (
+            <input ref={imgRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickImages} />
+          )}
+          {images.length > 0 && (
+            <div className={`detail-image-strip${editImages ? ' detail-image-strip-editing' : ''}`} role="list">
+              {images.map((im, i) => (
+                <figure
+                  className={`detail-image-card${im.aspect === 'portrait' ? ' detail-image-portrait' : ''}${im.show ? ' detail-image-shown' : ''}`}
+                  key={i}
+                  role="listitem"
+                >
+                  <img className="detail-image-photo" src={im.url} alt={im.alt ?? 'image'} />
+                  {im.alt && <figcaption className="detail-image-cap">{im.alt}</figcaption>}
+                  {editImages && !readOnly && (
+                    <>
+                      <div className="detail-image-aspect" role="group" aria-label="Image orientation">
+                        {IMAGE_ASPECTS.map((a) => (
+                          <button
+                            key={a}
+                            type="button"
+                            className={`detail-image-aspect-btn${(im.aspect ?? 'landscape') === a ? ' detail-image-aspect-active' : ''}`}
+                            aria-pressed={(im.aspect ?? 'landscape') === a}
+                            onClick={() => setImageAspect(i, a)}
+                          >
+                            {a === 'portrait' ? 'Portrait' : 'Landscape'}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="detail-image-controls">
+                        <label className="detail-image-show">
+                          <input type="checkbox" checked={!!im.show} onChange={() => toggleImage(i)} />
+                          Show on canvas
+                        </label>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => removeImage(i)}
+                          title="Remove"
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </figure>
+              ))}
+            </div>
+          )}
+          {!readOnly && (
+            <div className="detail-hero-actions">
+              {editImages ? (
+                <>
+                  <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => imgRef.current?.click()}>
+                    <Upload />
+                    Upload
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs text-muted-foreground" onClick={() => setEditImages(false)}>
+                    Done
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs text-muted-foreground"
+                  data-testid="edit-images"
+                  onClick={() => setEditImages(true)}
+                >
+                  {images.length === 0 ? <Upload /> : <Pencil />}
+                  {images.length === 0 ? 'Add images' : 'Edit images'}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Title — doc heading with an accent dot, click to edit */}
       <div className="detail-title-row">
@@ -389,7 +456,7 @@ export function NodeDetailPanel({
         )}
       </div>
 
-      {/* Description — big body field, click to edit */}
+      {/* Description — body field, clamped to a few lines with Show more; click to edit */}
       {editing === 'summary' ? (
         <textarea
           className="detail-desc-input"
@@ -403,25 +470,42 @@ export function NodeDetailPanel({
             if (e.key === 'Escape') setEditing(null)
           }}
         />
-      ) : readOnly ? (
-        <div className={`detail-desc detail-desc-static${summary.trim() ? '' : ' detail-desc-empty'}`}>
-          {summary.trim() || 'No description.'}
-        </div>
       ) : (
-        <div
-          className={`detail-desc${summary.trim() ? '' : ' detail-desc-empty'}`}
-          role="button"
-          tabIndex={0}
-          onClick={() => setEditing('summary')}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              setEditing('summary')
-            }
-          }}
-          title="Click to edit"
-        >
-          {summary.trim() || 'Add a description…'}
+        <div className="detail-desc-block">
+          {readOnly ? (
+            <div
+              ref={descRef}
+              className={`detail-desc detail-desc-static${summary.trim() ? '' : ' detail-desc-empty'}${descExpanded ? '' : ' detail-desc-clamp'}`}
+            >
+              {summary.trim() || 'No description.'}
+            </div>
+          ) : (
+            <div
+              ref={descRef}
+              className={`detail-desc${summary.trim() ? '' : ' detail-desc-empty'}${descExpanded ? '' : ' detail-desc-clamp'}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setEditing('summary')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setEditing('summary')
+                }
+              }}
+              title="Click to edit"
+            >
+              {summary.trim() || 'Add a description…'}
+            </div>
+          )}
+          {(descOverflows || descExpanded) && (
+            <button
+              type="button"
+              className="detail-desc-toggle"
+              onClick={() => setDescExpanded((v) => !v)}
+            >
+              {descExpanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
         </div>
       )}
 
@@ -676,7 +760,7 @@ export function NodeDetailPanel({
         )}
       </div>
 
-      {story && (
+      {!preview && story && (
         <div className={`detail-field detail-section detail-story${story.depthTier === 'deep' ? ' detail-story-deep' : ''}`}>
           <span className="detail-label">Story</span>
           <h3 className="detail-story-title">{story.title}</h3>
@@ -691,13 +775,13 @@ export function NodeDetailPanel({
               {beatCount} {beatCount === 1 ? 'beat' : 'beats'}
             </span>
           </div>
-          {/* Headline action: play the story as a Reels/Stories tap-through. */}
-          <Button className="detail-story-play" onClick={() => setPlaying(true)} disabled={beatCount === 0}>
+          {/* Headline action: open the docked, stepped story reader beside this panel. */}
+          <Button className="detail-story-play" onClick={() => onPlayStory?.()} disabled={beatCount === 0}>
             <Play className="size-4" />
             Play story
           </Button>
           {/* Static, readable beat list (in-panel reading + grounding). The
-              immersive tap-through lives in StoryViewer. */}
+              immersive, stepped tap-through lives in StoryReader (docked alongside). */}
           <ol className="detail-story-beats">
             {story.beats.map((b) => (
               <li key={b.id} className={`detail-story-beat detail-story-${b.kind}`}>
@@ -740,21 +824,10 @@ export function NodeDetailPanel({
               </li>
             ))}
           </ol>
-          {playing && (
-            <StoryViewer
-              story={story}
-              momentId={node.id}
-              momentTitle={node.title}
-              nodeById={nodeById}
-              onClose={() => setPlaying(false)}
-              onSelectNode={onSelectNode}
-              onCameraTargets={cameraTargets}
-            />
-          )}
         </div>
       )}
 
-      {story === null && !readOnly && (
+      {!preview && story === null && !readOnly && (
         <div className="detail-field detail-section detail-story-ask">
           <span className="detail-label">Story</span>
           <p className="detail-empty">No story on this moment yet.</p>
@@ -769,67 +842,6 @@ export function NodeDetailPanel({
           </p>
         </div>
       )}
-
-      <div className="detail-field detail-section">
-        <div className="detail-cite-head">
-          <span className="detail-label">Images</span>
-          {!readOnly &&
-            (editImages ? (
-              <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => setEditImages(false)}>
-                Done
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2.5 text-xs"
-                data-testid="edit-images"
-                onClick={() => setEditImages(true)}
-              >
-                <Pencil />
-                Edit
-              </Button>
-            ))}
-        </div>
-        {!readOnly && (
-          <input ref={imgRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickImages} />
-        )}
-        {images.length === 0 && (
-          <p className="detail-empty">{readOnly ? 'No images.' : 'No images yet — click Edit to upload.'}</p>
-        )}
-        {images.length > 0 && (
-          <div className="detail-images">
-            {images.map((im, i) => (
-              <div className={`detail-image${im.show ? ' detail-image-shown' : ''}`} key={i}>
-                <img className="detail-image-thumb" src={im.url} alt={im.alt ?? 'image'} />
-                {im.alt && <span className="detail-image-cap">{im.alt}</span>}
-                {editImages && !readOnly && (
-                  <>
-                    <label className="detail-image-show">
-                      <input type="checkbox" checked={!!im.show} onChange={() => toggleImage(i)} />
-                      Show
-                    </label>
-                    <Button variant="ghost" size="icon" className="size-6 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => removeImage(i)} title="Remove">
-                      <X className="size-3.5" />
-                    </Button>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-        {editImages && !readOnly && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 self-start px-2.5 text-xs"
-            onClick={() => imgRef.current?.click()}
-          >
-            <Upload />
-            Upload
-          </Button>
-        )}
-      </div>
 
       <div className="detail-field detail-section">
         <div className="detail-cite-head">

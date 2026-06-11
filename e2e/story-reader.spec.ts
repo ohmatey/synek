@@ -1,0 +1,180 @@
+import { test, expect, type Page } from '@playwright/test'
+
+// The seeded `figures` timeline is public, and Charles Darwin carries a 4-beat
+// story (see scripts/seed.ts). Viewing a story needs no login (public read), so
+// these run anonymously. Reduced-motion is forced so the docked Reels/Stories
+// reader does NOT auto-advance on a timer — the tap-through stays deterministic and
+// the assertions exercise the manual controls (chevrons + tap zones).
+test.use({ reducedMotion: 'reduce' })
+
+// Open Charles Darwin's detail panel on the figures canvas. The timeline spans
+// centuries, so the node can sit outside the viewport — dispatch the click on the
+// element directly (geometry-independent), matching node-detail.spec.
+async function openDarwinPanel(page: Page) {
+  await page.goto('/timelines/figures')
+  const node = page.locator('.react-flow__node', { hasText: 'Charles Darwin' })
+  await expect(node).toBeAttached()
+  await node.dispatchEvent('click')
+  const panel = page.getByRole('dialog', { name: 'Node details' })
+  await expect(panel).toBeVisible()
+  return panel
+}
+
+test('a moment with a story shows a teaser and a Play action', async ({ page }) => {
+  const panel = await openDarwinPanel(page)
+
+  await expect(panel.getByText('Story', { exact: true })).toBeVisible()
+  await expect(panel.getByRole('heading', { name: 'The long wait before Origin' })).toBeVisible()
+  // Depth + beat-count chips in the meta row.
+  await expect(panel.getByText('Deep', { exact: true })).toBeVisible()
+  await expect(panel.getByText('4 beats', { exact: true })).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Play story' })).toBeVisible()
+})
+
+test('Play opens the docked reader beside the panel and tapping through advances the beats', async ({ page }) => {
+  const panel = await openDarwinPanel(page)
+  await panel.getByRole('button', { name: 'Play story' }).click()
+
+  // The reader is its own dock (role=dialog), named after the story — NOT full-screen.
+  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+  await expect(reader).toBeVisible()
+  // It sits beside the entity panel, which stays on the canvas.
+  await expect(page.getByRole('dialog', { name: 'Node details' })).toBeVisible()
+
+  // Beat 1 of 4: the intro title + the opening beat text.
+  await expect(reader.getByRole('heading', { name: 'The long wait before Origin' })).toBeVisible()
+  await expect(reader.getByText(/filled notebook after notebook/)).toBeVisible()
+  await expect(reader.getByText('1 / 4')).toBeVisible()
+
+  // Advance with the explicit Next control → beat 2.
+  await reader.getByRole('button', { name: 'Next beat' }).click()
+  await expect(reader.getByText('2 / 4')).toBeVisible()
+  await expect(reader.getByText(/single principle behind its endless forms/)).toBeVisible()
+
+  // Tapping the right zone advances like Instagram Stories → beat 3.
+  await reader.locator('.sv-zone-next').click()
+  await expect(reader.getByText('3 / 4')).toBeVisible()
+  await expect(reader.getByText(/dreading the reaction/)).toBeVisible()
+  // A grounded beat surfaces its source.
+  await expect(reader.getByRole('link', { name: 'Open source ↗' })).toBeVisible()
+
+  // Go back with the Previous control → beat 2 again.
+  await reader.getByRole('button', { name: 'Previous beat' }).click()
+  await expect(reader.getByText('2 / 4')).toBeVisible()
+
+  // Close returns to the canvas; the reader is gone (the moment panel stays).
+  await reader.getByRole('button', { name: 'Close story' }).click()
+  await expect(reader).toBeHidden()
+  await expect(page.getByRole('dialog', { name: 'Node details' })).toBeVisible()
+})
+
+test('the top story chip appears only while playing and carries play controls', async ({ page }) => {
+  const panel = await openDarwinPanel(page)
+
+  // Selecting a moment must NOT start the story: no top "Story · …" chip yet.
+  const chip = page.getByText(/^Story · The long wait before Origin/)
+  await expect(chip).toBeHidden()
+
+  // Pressing Play surfaces the chip with transport controls.
+  await panel.getByRole('button', { name: 'Play story' }).click()
+  await expect(chip).toBeVisible()
+  const pause = page.getByRole('button', { name: 'Pause story' })
+  await expect(pause).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Stop story' })).toBeVisible()
+
+  // The pause control toggles to resume.
+  await pause.click()
+  await expect(page.getByRole('button', { name: 'Resume story' })).toBeVisible()
+
+  // Stop tears the reader + chip down.
+  await page.getByRole('button', { name: 'Stop story' }).click()
+  await expect(page.getByRole('dialog', { name: 'Story: The long wait before Origin' })).toBeHidden()
+  await expect(chip).toBeHidden()
+})
+
+test('a focus beat switches the entity panel to the focused entity (dialog follows the beat)', async ({ page }) => {
+  const panel = await openDarwinPanel(page)
+  await panel.getByRole('button', { name: 'Play story' }).click()
+  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+  await expect(reader).toBeVisible()
+
+  const detail = page.getByRole('dialog', { name: 'Node details' })
+  // Beat 1 has no focus → the panel previews the moment (Darwin).
+  await expect(detail.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
+
+  // Beat 2 focuses Newton → the panel switches to him and the canvas rings him.
+  await reader.getByRole('button', { name: 'Next beat' }).click()
+  await expect(reader.getByText('2 / 4')).toBeVisible()
+  await expect(detail.getByRole('heading', { name: 'Isaac Newton' })).toBeVisible()
+  await expect(page.locator('.react-flow__node.rf-focused', { hasText: 'Isaac Newton' })).toBeVisible()
+
+  // Stepping back to beat 1 returns the panel to the moment.
+  await reader.getByRole('button', { name: 'Previous beat' }).click()
+  await expect(reader.getByText('1 / 4')).toBeVisible()
+  await expect(detail.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
+})
+
+test('the AppBar Stories list shows preview cards and plays one', async ({ page }) => {
+  await page.goto('/timelines/figures')
+
+  // The toolbar surfaces a Stories control (figures has exactly one story).
+  const trigger = page.getByRole('button', { name: /Stories/ })
+  await expect(trigger).toBeVisible()
+  await trigger.click()
+
+  // The popover lists the story as a preview card — title + its moment + beat count.
+  const card = page.getByRole('button', { name: /The long wait before Origin/ })
+  await expect(card).toBeVisible()
+  await expect(card).toContainText('Charles Darwin')
+  await expect(card).toContainText('4 beats')
+
+  // Picking it opens the moment and plays the story in the docked reader.
+  await card.click()
+  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+  await expect(reader).toBeVisible()
+  await expect(reader.getByText(/filled notebook after notebook/)).toBeVisible()
+  await expect(reader.getByText('1 / 4')).toBeVisible()
+})
+
+test('a story beat links to a related moment and navigates there', async ({ page }) => {
+  const panel = await openDarwinPanel(page)
+  await panel.getByRole('button', { name: 'Play story' }).click()
+  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+  await expect(reader).toBeVisible()
+
+  // Beat 2 references Isaac Newton — stepping to it surfaces the link.
+  await reader.getByRole('button', { name: 'Next beat' }).click()
+  const link = reader.getByRole('button', { name: '→ Isaac Newton' })
+  await expect(link).toBeVisible()
+
+  // Tapping it closes the reader and selects Newton (his panel opens).
+  await link.click()
+  await expect(reader).toBeHidden()
+  const newtonPanel = page.getByRole('dialog', { name: 'Node details' })
+  await expect(newtonPanel.getByRole('heading', { name: 'Isaac Newton' })).toBeVisible()
+})
+
+// The other tests force reduced-motion (deterministic stepping). This group runs
+// with motion ON — the real-browser path — to guard that the reader OPENS AND
+// STAYS open (no auto-advance flash) and that Esc still dismisses it. The docked
+// reader is a plain <aside> (not a native <dialog>), so the StrictMode showModal()
+// self-close gotcha can't apply; Esc is handled by the panel's keydown handler.
+test.describe('with motion enabled', () => {
+  test.use({ reducedMotion: 'no-preference' })
+
+  test('Play opens the reader and it stays open; Esc dismisses it', async ({ page }) => {
+    const panel = await openDarwinPanel(page)
+    await panel.getByRole('button', { name: 'Play story' }).click()
+
+    const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+    await expect(reader).toBeVisible()
+    // The first beat's timer is long; it must not flash-close.
+    await page.waitForTimeout(1200)
+    await expect(reader).toBeVisible()
+    await expect(reader.getByText('1 / 4')).toBeVisible()
+
+    // Esc closes it (handled by the reader's keydown).
+    await page.keyboard.press('Escape')
+    await expect(reader).toBeHidden()
+  })
+})

@@ -15,6 +15,7 @@ export type NewStorySegment = {
   kind?: SegmentKind
   settingNote?: string | null
   relatedNodeIds?: string[]
+  focusNodeId?: string | null
   citations?: Citation[]
 }
 
@@ -79,6 +80,7 @@ export function writeStory(
           bodyText: s.bodyText,
           settingNote: s.settingNote ?? null,
           relatedNodeIds: s.relatedNodeIds ?? null,
+          focusNodeId: s.focusNodeId ?? null,
           citations: s.citations ?? null,
         })
         .run()
@@ -118,6 +120,7 @@ export function getStoryForMoment(momentId: string): StoryDTO | null {
       bodyText: s.bodyText,
       settingNote: s.settingNote,
       relatedNodeIds: s.relatedNodeIds ?? [],
+      focusNodeId: s.focusNodeId ?? null,
       citations: s.citations ?? [],
     })),
   }

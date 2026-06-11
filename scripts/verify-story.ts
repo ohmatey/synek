@@ -42,14 +42,18 @@ async function main() {
   const ownerId = await ensureVerifyUser()
   ensureTimeline(TL, ownerId, 'Story verify')
 
-  // Add a fresh moment node to attach the story to.
+  // Add a fresh moment node to attach the story to, plus a second node a beat can
+  // FOCUS on (the per-beat spotlight that drives the canvas + dialog).
   const builder = new PatchBuilder(TL, loadGraph(TL))
   const { results } = applyOps(builder, [
     { op: 'add_node', ref: 'm', type: 'event', title: 'A moment', start: '2008' },
+    { op: 'add_node', ref: 'f', type: 'entity', title: 'A focused entity', start: '2008' },
   ])
   commitPatch(TL, builder, 'verify story moment')
   const momentId = (results[0] as { id: string }).id
+  const focusId = (results[1] as { id: string }).id
   assert(!!momentId, 'created a moment node')
+  assert(!!focusId, 'created a focus-target node')
 
   // moment → timeline resolution (the owner-check seam for write_story).
   assert(getMomentTimelineId(momentId) === TL, 'getMomentTimelineId resolves the moment to its timeline')
@@ -61,7 +65,7 @@ async function main() {
     { title: 'The Turn', hook: 'How it began', depthTier: 'deep' },
     [
       { bodyText: 'Beat one.', kind: 'narration' },
-      { bodyText: 'Beat two.', kind: 'dialogue', settingNote: 'rain on glass' },
+      { bodyText: 'Beat two.', kind: 'dialogue', settingNote: 'rain on glass', focusNodeId: focusId },
       {
         bodyText: 'Beat three.',
         kind: 'sensory',
@@ -86,6 +90,10 @@ async function main() {
     'beats are ordered by sequence',
   )
   assert(story!.beats[2]!.relatedNodeIds.length === 1, 'beat relatedNodeIds round-trip')
+
+  // Per-beat focus (the entity the canvas + dialog spotlight on that beat) round-trips.
+  assert(story!.beats[1]!.focusNodeId === focusId, 'beat focusNodeId round-trips')
+  assert(story!.beats[0]!.focusNodeId === null, 'a beat without a focus reads back as null')
 
   // S2 slice 1 — per-beat citations (real source grounding) round-trip.
   assert(story!.beats[0]!.citations.length === 0, 'a beat without citations reads back as []')

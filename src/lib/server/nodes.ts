@@ -27,6 +27,7 @@ const image = z.object({
   url: z.string(),
   alt: z.string().optional(),
   show: z.boolean().optional(),
+  aspect: z.enum(['landscape', 'portrait']).optional(),
 })
 
 const editInput = z.object({

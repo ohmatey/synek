@@ -36,9 +36,9 @@ export function buildMcpServer(ownerId: string): McpServer {
         'Read with list_timelines / get_timeline. ' +
         'MUTATE the graph ONLY via apply_patch — one call = one undoable Patch holding a batch of ops. ' +
         'Within a batch, set `ref` on an add_node and reuse that alias as an edge endpoint to wire edges to nodes created in the same call. ' +
-        'Give nodes a FACE, not a bare box: when you know a real, web-accessible image for a node (a Wikimedia portrait for a person, an official logo for an org, public-domain art for an era/event), pass it in the add_node/update_node `images` field as a URL. Synek stores and renders it; it does not generate images. ' +
+        'Give nodes a FACE, not a bare box: when you know a real, web-accessible image for a node (a Wikimedia portrait for a person, an official logo for an org, public-domain art for an era/event), pass it in the add_node/update_node `images` field as a URL. Set each image\'s `aspect` to "portrait" for tall subjects (a standing person, a headshot) or "landscape" for wide ones (scenes, logos) so it is framed correctly. Synek stores and renders it; it does not generate images. ' +
         'undo / redo step the per-timeline history. ' +
-        'To attach a NARRATIVE to a moment (node), call write_story with that node\'s id (momentId) and an ordered list of beats — stories are separate from the graph, written directly, and are NOT part of the undo/redo Patch stack. ' +
+        'To attach a NARRATIVE to a moment (node), call write_story with that node\'s id (momentId) and an ordered list of beats — stories are separate from the graph, written directly, and are NOT part of the undo/redo Patch stack. Set a beat\'s `focusNodeId` to another node id to make the canvas pan to that entity and the panel beside the story switch to it as the reader reaches that beat (a guided tour); omit it to stay on the moment. ' +
         'You only see and edit your own timelines.',
     },
   )
@@ -108,7 +108,7 @@ export function buildMcpServer(ownerId: string): McpServer {
     {
       title: 'Write a story onto a moment',
       description:
-        'Attach a narrative to a moment (a node) as an ordered list of beats (segments). Stories are SEPARATE from the graph — written directly, with their own provenance, and NOT part of the undo/redo Patch stack. Re-calling REPLACES the moment\'s existing story. Pass the node id as `momentId`. The canvas shows a badge on moments with a story and plays the beats back when the user opens the node. Ground each beat in real sources: pass `citations` (title + optional url + verbatim quote) on every beat that makes a factual claim — stories without sources are just plausible fiction.',
+        'Attach a narrative to a moment (a node) as an ordered list of beats (segments). Stories are SEPARATE from the graph — written directly, with their own provenance, and NOT part of the undo/redo Patch stack. Re-calling REPLACES the moment\'s existing story. Pass the node id as `momentId`. The canvas shows a badge on moments with a story and plays the beats back beside the moment when the user opens the node. To turn a beat into a guided tour, set `focusNodeId` to another node id on the same timeline: as the reader reaches that beat the canvas pans + rings that entity and the detail panel beside the story switches to show it (omit it to stay on the moment). Ground each beat in real sources: pass `citations` (title + optional url + verbatim quote) on every beat that makes a factual claim — stories without sources are just plausible fiction.',
       inputSchema: {
         momentId: z.string(),
         title: z.string(),
@@ -123,6 +123,10 @@ export function buildMcpServer(ownerId: string): McpServer {
               kind: z.enum(SEGMENT_KINDS).optional(),
               settingNote: z.string().optional(),
               relatedNodeIds: z.array(z.string()).optional(),
+              // Spotlight one entity for this beat: the canvas pans + rings it and the
+              // entity panel beside the story switches to show it. A node id on the
+              // same timeline; omit to stay on the moment.
+              focusNodeId: z.string().optional(),
               // Real sources grounding this beat (cite freely). Same shape as a
               // node's citations: a title plus an optional url and a verbatim quote.
               citations: z

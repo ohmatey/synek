@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { db } from '../src/lib/db/index'
 import { timelines, nodes, edges, user, type NodeMetadata } from '../src/lib/db/schema'
-import type { EdgeKind, NodeType, Precision } from '../src/lib/domain/types'
+import type { EdgeKind, ImageAspect, NodeType, Precision } from '../src/lib/domain/types'
 import { auth } from '../src/lib/auth'
 import { writeStory, type NewStory, type NewStorySegment } from '../src/lib/db/stories'
 import { seedImageUrl } from './seed-images'
@@ -44,10 +44,18 @@ const Y = (y: number, m = 0, d = 1) => {
 // `file` is the Commons source name; `seedImageUrl` resolves it to a remote URL
 // (the canonical list lives in ./seed-images.ts; `bun run cache:images` can still
 // mirror them locally for an offline setup).
-const img = (file: string, alt: string): NonNullable<NodeMetadata['images']>[number] => ({
+// `aspect` frames the image on the card: 'portrait' for tall subjects (busts,
+// headshots, standing statues, book title pages) and 'landscape' for wide ones
+// (scenes, logos, diagrams, maps). Omit → landscape (the default).
+const img = (
+  file: string,
+  alt: string,
+  aspect?: ImageAspect,
+): NonNullable<NodeMetadata['images']>[number] => ({
   url: seedImageUrl(file),
   alt,
   show: true,
+  ...(aspect ? { aspect } : {}),
 })
 
 // Per-timeline builder: every node/edge is scoped to `tl`, so the same helper
@@ -153,7 +161,7 @@ const SEEDS: Seeder[] = [
         summary: 'The Cynic philosopher whose teaching shaped the young Zeno.',
         start: Y(-365),
         end: Y(-285),
-        metadata: { subtype: 'person', images: [img('Crates of Thebes Villa Farnesina.jpg', 'Crates of Thebes')] },
+        metadata: { subtype: 'person', images: [img('Crates of Thebes Villa Farnesina.jpg', 'Crates of Thebes', 'portrait')] },
       })
       const zeno = node({
         type: 'entity',
@@ -161,7 +169,7 @@ const SEEDS: Seeder[] = [
         summary: 'Founder of Stoicism.',
         start: Y(-334),
         end: Y(-262),
-        metadata: { subtype: 'person', images: [img('Paolo Monti - Servizio fotografico (Napoli, 1969) - BEIC 6353768.jpg', 'Bust of Zeno of Citium, Naples')] },
+        metadata: { subtype: 'person', images: [img('Paolo Monti - Servizio fotografico (Napoli, 1969) - BEIC 6353768.jpg', 'Bust of Zeno of Citium, Naples', 'portrait')] },
       })
       const cleanthes = node({
         type: 'entity',
@@ -169,7 +177,7 @@ const SEEDS: Seeder[] = [
         summary: 'Second head of the Stoa; author of the Hymn to Zeus.',
         start: Y(-330),
         end: Y(-230),
-        metadata: { subtype: 'person', images: [img('Cleanthes from L. Annaei Senecae philosophi Opera, 1605, title page detail.png', 'Engraved portrait of Cleanthes')] },
+        metadata: { subtype: 'person', images: [img('Cleanthes from L. Annaei Senecae philosophi Opera, 1605, title page detail.png', 'Engraved portrait of Cleanthes', 'portrait')] },
       })
       const chrysippus = node({
         type: 'entity',
@@ -180,7 +188,7 @@ const SEEDS: Seeder[] = [
         metadata: {
           subtype: 'person',
           citations: [{ title: 'Diogenes Laërtius, Lives 7.183', url: 'https://en.wikipedia.org/wiki/Chrysippus', quote: 'If Chrysippus had not existed, neither would the Stoa.' }],
-          images: [img('Chrysippos BM 1846.jpg', 'Bust of Chrysippus, British Museum')],
+          images: [img('Chrysippos BM 1846.jpg', 'Bust of Chrysippus, British Museum', 'portrait')],
         },
       })
       const panaetius = node({
@@ -189,7 +197,7 @@ const SEEDS: Seeder[] = [
         summary: 'Head of the Stoa who carried it into the Roman world.',
         start: Y(-185),
         end: Y(-110),
-        metadata: { subtype: 'person', images: [img('Panaetius Nuremberg Chronicle.jpg', 'Woodcut of Panaetius')] },
+        metadata: { subtype: 'person', images: [img('Panaetius Nuremberg Chronicle.jpg', 'Woodcut of Panaetius', 'portrait')] },
       })
       const posidonius = node({
         type: 'entity',
@@ -197,7 +205,7 @@ const SEEDS: Seeder[] = [
         summary: 'Polymath of the Middle Stoa — philosophy, science, history.',
         start: Y(-135),
         end: Y(-51),
-        metadata: { subtype: 'person', images: [img('Posidonio, replica augustea (23 ac.-14 dc ca) da originale del 100-50 ac. ca. 6142.JPG', 'Bust of Posidonius, Naples')] },
+        metadata: { subtype: 'person', images: [img('Posidonio, replica augustea (23 ac.-14 dc ca) da originale del 100-50 ac. ca. 6142.JPG', 'Bust of Posidonius, Naples', 'portrait')] },
       })
       const seneca = node({
         type: 'entity',
@@ -205,7 +213,7 @@ const SEEDS: Seeder[] = [
         summary: 'Statesman, dramatist, and Stoic letter-writer.',
         start: Y(-4),
         end: Y(65),
-        metadata: { subtype: 'person', images: [img('Duble herma of Socrates and Seneca Antikensammlung Berlin 07.jpg', 'Double herm of Socrates and Seneca, Berlin')] },
+        metadata: { subtype: 'person', images: [img('Duble herma of Socrates and Seneca Antikensammlung Berlin 07.jpg', 'Double herm of Socrates and Seneca, Berlin', 'portrait')] },
       })
       const epictetus = node({
         type: 'entity',
@@ -213,7 +221,7 @@ const SEEDS: Seeder[] = [
         summary: 'Born a slave; taught that freedom lies in what is up to us.',
         start: Y(50),
         end: Y(135),
-        metadata: { subtype: 'person', images: [img('Epicteti Enchiridion Latinis versibus adumbratum (Oxford 1715) frontispiece (cropped).jpg', 'Frontispiece portrait of Epictetus')] },
+        metadata: { subtype: 'person', images: [img('Epicteti Enchiridion Latinis versibus adumbratum (Oxford 1715) frontispiece (cropped).jpg', 'Frontispiece portrait of Epictetus', 'portrait')] },
       })
       const marcus = node({
         type: 'entity',
@@ -221,7 +229,7 @@ const SEEDS: Seeder[] = [
         summary: 'Roman emperor and the last great Stoic.',
         start: Y(121),
         end: Y(180),
-        metadata: { subtype: 'person', images: [img('MSR-ra-61-b-1-DM.jpg', 'Bust of Marcus Aurelius')] },
+        metadata: { subtype: 'person', images: [img('MSR-ra-61-b-1-DM.jpg', 'Bust of Marcus Aurelius', 'portrait')] },
       })
 
       // --- The turning-point events ---
@@ -263,7 +271,7 @@ const SEEDS: Seeder[] = [
         metadata: {
           subtype: 'work',
           citations: [{ title: 'Discourses of Epictetus', url: 'https://en.wikipedia.org/wiki/Discourses_of_Epictetus' }],
-          images: [img('The Discourses of Epictetus - Elizabeth Carter - 1759 - page 1.jpg', 'Title page of the Discourses (Carter, 1759)')],
+          images: [img('The Discourses of Epictetus - Elizabeth Carter - 1759 - page 1.jpg', 'Title page of the Discourses (Carter, 1759)', 'portrait')],
         },
       })
       const meditations = node({
@@ -274,7 +282,7 @@ const SEEDS: Seeder[] = [
         metadata: {
           subtype: 'work',
           citations: [{ title: 'Meditations', url: 'https://en.wikipedia.org/wiki/Meditations' }],
-          images: [img('Marcus Aurelius. De seipso, seu vita sua (Xylander, 1558).jpg', 'Title page of Meditations (Xylander, 1558)')],
+          images: [img('Marcus Aurelius. De seipso, seu vita sua (Xylander, 1558).jpg', 'Title page of Meditations (Xylander, 1558)', 'portrait')],
         },
       })
 
@@ -376,7 +384,7 @@ const SEEDS: Seeder[] = [
         title: 'Backpropagation popularized',
         start: Y(1986),
         summary: 'Rumelhart, Hinton & Williams.',
-        metadata: { images: [img('Geoffrey Hinton at UBC.jpg', 'Geoffrey Hinton')] },
+        metadata: { images: [img('Geoffrey Hinton at UBC.jpg', 'Geoffrey Hinton', 'portrait')] },
       })
       const alexnet = node({
         type: 'event',
@@ -401,7 +409,7 @@ const SEEDS: Seeder[] = [
         summary: 'The transformer architecture.',
         metadata: {
           citations: [{ title: 'Attention Is All You Need', url: 'https://arxiv.org/abs/1706.03762' }],
-          images: [img('Transformer, full architecture.png', 'Transformer architecture diagram')],
+          images: [img('Transformer, full architecture.png', 'Transformer architecture diagram', 'portrait')],
         },
       })
       const gpt = node({ type: 'event', title: 'GPT released', start: Y(2018), metadata: { images: [img('OpenAI Logo.svg', 'OpenAI logo')] } })
@@ -447,7 +455,7 @@ const SEEDS: Seeder[] = [
         title: 'Gagarin orbits Earth',
         start: Y(1961, 3, 12),
         precision: 'day',
-        metadata: { images: [img('Yuri Gagarin (1961) - Restoration.jpg', 'Yuri Gagarin')] },
+        metadata: { images: [img('Yuri Gagarin (1961) - Restoration.jpg', 'Yuri Gagarin', 'portrait')] },
       })
       const apollo = node({
         type: 'period',
@@ -464,7 +472,7 @@ const SEEDS: Seeder[] = [
         summary: 'First crewed lunar landing.',
         metadata: {
           citations: [{ title: 'NASA — Apollo 11', url: 'https://www.nasa.gov/mission/apollo-11/' }],
-          images: [img('Aldrin Apollo 11 original.jpg', 'Buzz Aldrin on the Moon')],
+          images: [img('Aldrin Apollo 11 original.jpg', 'Buzz Aldrin on the Moon', 'portrait')],
         },
       })
       const nasa = node({
@@ -499,14 +507,14 @@ const SEEDS: Seeder[] = [
         title: 'Julius Caesar',
         start: Y(-100),
         end: Y(-44),
-        metadata: { subtype: 'person', images: [img('Gaius Iulius Caesar (Vatican Museum).jpg', 'Bust of Julius Caesar')] },
+        metadata: { subtype: 'person', images: [img('Gaius Iulius Caesar (Vatican Museum).jpg', 'Bust of Julius Caesar', 'portrait')] },
       })
       const rubicon = node({
         type: 'event',
         title: 'Caesar crosses the Rubicon',
         start: Y(-49),
         summary: 'Civil war begins.',
-        metadata: { images: [img('Gaius Iulius Caesar (Vatican Museum).jpg', 'Julius Caesar')] },
+        metadata: { images: [img('Gaius Iulius Caesar (Vatican Museum).jpg', 'Julius Caesar', 'portrait')] },
       })
       const ides = node({
         type: 'event',
@@ -520,7 +528,7 @@ const SEEDS: Seeder[] = [
         title: 'Augustus becomes emperor',
         start: Y(-27),
         summary: 'The Republic becomes the Empire.',
-        metadata: { images: [img('Statue-Augustus.jpg', 'Augustus of Prima Porta')] },
+        metadata: { images: [img('Statue-Augustus.jpg', 'Augustus of Prima Porta', 'portrait')] },
       })
 
       edge(republic, rubicon, 'caused')
@@ -543,7 +551,7 @@ const SEEDS: Seeder[] = [
         start: Y(1452),
         end: Y(1519),
         summary: 'Polymath of the High Renaissance.',
-        metadata: { subtype: 'person', images: [img('Francesco Melzi - Portrait of Leonardo - WGA14795.jpg', 'Portrait of Leonardo da Vinci')] },
+        metadata: { subtype: 'person', images: [img('Francesco Melzi - Portrait of Leonardo - WGA14795.jpg', 'Portrait of Leonardo da Vinci', 'portrait')] },
       })
       const newton = node({
         type: 'entity',
@@ -551,7 +559,7 @@ const SEEDS: Seeder[] = [
         start: Y(1643),
         end: Y(1727),
         summary: 'Laws of motion and universal gravitation.',
-        metadata: { subtype: 'person', images: [img('GodfreyKneller-IsaacNewton-1689.jpg', 'Portrait of Isaac Newton')] },
+        metadata: { subtype: 'person', images: [img('GodfreyKneller-IsaacNewton-1689.jpg', 'Portrait of Isaac Newton', 'portrait')] },
       })
       const darwin = node({
         type: 'entity',
@@ -559,7 +567,7 @@ const SEEDS: Seeder[] = [
         start: Y(1809),
         end: Y(1882),
         summary: 'Theory of evolution by natural selection.',
-        metadata: { subtype: 'person', images: [img('Charles Darwin seated crop.jpg', 'Photograph of Charles Darwin')] },
+        metadata: { subtype: 'person', images: [img('Charles Darwin seated crop.jpg', 'Photograph of Charles Darwin', 'portrait')] },
       })
       const lovelace = node({
         type: 'entity',
@@ -567,7 +575,7 @@ const SEEDS: Seeder[] = [
         start: Y(1815),
         end: Y(1852),
         summary: 'First algorithm intended for a machine.',
-        metadata: { subtype: 'person', images: [img('Ada Lovelace portrait.jpg', 'Portrait of Ada Lovelace')] },
+        metadata: { subtype: 'person', images: [img('Ada Lovelace portrait.jpg', 'Portrait of Ada Lovelace', 'portrait')] },
       })
       const curie = node({
         type: 'entity',
@@ -575,7 +583,7 @@ const SEEDS: Seeder[] = [
         start: Y(1867),
         end: Y(1934),
         summary: 'Pioneer of radioactivity; two Nobel Prizes.',
-        metadata: { subtype: 'person', images: [img('Marie Curie c. 1920s.jpg', 'Photograph of Marie Curie')] },
+        metadata: { subtype: 'person', images: [img('Marie Curie c. 1920s.jpg', 'Photograph of Marie Curie', 'portrait')] },
       })
       const einstein = node({
         type: 'entity',
@@ -583,7 +591,7 @@ const SEEDS: Seeder[] = [
         start: Y(1879),
         end: Y(1955),
         summary: 'Relativity; reshaped modern physics.',
-        metadata: { subtype: 'person', images: [img('Einstein 1921 by F Schmutzer - restoration.jpg', 'Photograph of Albert Einstein')] },
+        metadata: { subtype: 'person', images: [img('Einstein 1921 by F Schmutzer - restoration.jpg', 'Photograph of Albert Einstein', 'portrait')] },
       })
 
       edge(newton, darwin, 'influenced')
@@ -611,6 +619,9 @@ const SEEDS: Seeder[] = [
             bodyText:
               'He had read Newton’s mechanics as a student and admired how one law could govern many phenomena. Now he wanted the same for life: a single principle behind its endless forms.',
             kind: 'interior',
+            // Spotlight Newton on this beat: the canvas pans + rings him and the
+            // panel beside the story switches to his card (per-beat focus).
+            focusNodeId: newton,
             relatedNodeIds: [newton],
           },
           {

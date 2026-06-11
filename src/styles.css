@@ -208,6 +208,18 @@ body {
   color: var(--color-on-accent);
 }
 
+/* Icon transport button inside the playing-story chip (play/pause). */
+.lens-bar-ctrl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+}
+.lens-bar-ctrl svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* Canvas nodes */
 .sf-node {
   display: inline-flex;
@@ -253,6 +265,20 @@ body {
   height: 60px;
 }
 
+/* Portrait thumbnails keep their width but render taller (3:4). Size-scoped so
+   they beat the per-size .sf-img height rules. */
+.sf-img-portrait {
+  height: 50px;
+}
+
+.sf-size-small .sf-img-portrait {
+  height: 32px;
+}
+
+.sf-size-large .sf-img-portrait {
+  height: 80px;
+}
+
 /* Person "polaroid" card */
 .sf-person {
   position: relative;
@@ -275,6 +301,16 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Portrait orientation makes the polaroid frame taller (3:4); landscape/default
+   keeps the square frame so existing person cards are unchanged. */
+.sf-person-frame-landscape {
+  aspect-ratio: 1 / 1;
+}
+
+.sf-person-frame-portrait {
+  aspect-ratio: 3 / 4;
 }
 
 .sf-person-portrait {
@@ -735,6 +771,44 @@ body {
 
 .detail-desc-empty {
   color: var(--color-fg-subtle);
+}
+
+/* Clamp long descriptions to a few lines (read-first); the toggle below expands. */
+.detail-desc-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-desc-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  overflow: hidden;
+}
+
+.detail-desc-toggle {
+  align-self: flex-start;
+  margin-left: 8px;
+  padding: 2px 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-accent-primary);
+  cursor: pointer;
+}
+
+.detail-desc-toggle:hover {
+  text-decoration: underline;
+}
+
+.detail-desc-toggle:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* Inline-edit title is a button inside the <h2> heading so it's keyboard-operable
@@ -1446,27 +1520,86 @@ body {
   border-left: 2px solid var(--color-border);
 }
 
+/* Preview eyebrow — shown in .detail-head when the panel is a read-only preview
+   of the entity a story beat focuses on (sits left of the close button). */
+.detail-preview-eyebrow {
+  align-self: center;
+  min-width: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent-story);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* =========================================================================
-   Story viewer — Reels/Stories tap-through (StoryViewer.tsx)
-   A native <dialog> opened with showModal(): top-layer, focus-trapped, Esc to
-   close. Full-screen immersive surface; tap zones + segmented progress bars.
+   Story reader — Reels/Stories tap-through (StoryReader.tsx)
+   DOCKED beside the entity dialog (not full-screen): shares the .detail-panel
+   chrome and sits immediately to its left. The .sv-* internals below are
+   position:absolute within this container; the few that assumed a full viewport
+   are overridden here to be container-relative.
    ========================================================================= */
 
-.story-viewer {
-  width: 100vw;
-  max-width: 100vw;
-  height: 100dvh;
-  max-height: 100dvh;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: var(--color-bg-base);
-  color: var(--color-fg-primary);
+.story-reader {
+  position: absolute;
+  top: var(--dock-top);
+  bottom: var(--dock-bottom);
+  /* Left of the .detail-panel (its width 340 + right:12 + a 12px gap). */
+  right: calc(340px + 24px);
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  z-index: 6;
   overflow: hidden;
+  color: var(--color-fg-primary);
+  background: color-mix(in oklab, var(--color-bg-surface) 96%, transparent);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  backdrop-filter: blur(8px);
+  animation: dock-slide-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
-.story-viewer::backdrop {
-  background: color-mix(in oklab, var(--color-bg-base) 78%, black 22%);
-  backdrop-filter: blur(3px);
+.story-reader:focus {
+  outline: none;
+}
+
+/* Container-relative overrides — the .sv-* base assumes a full viewport. */
+.story-reader .sv-stage {
+  inset: 0;
+  width: auto;
+  margin: 0;
+  padding: 60px 18px 52px;
+  gap: 14px;
+}
+.story-reader .sv-title {
+  font-size: 19px;
+}
+.story-reader .sv-hook {
+  font-size: 13px;
+}
+.story-reader .sv-text {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* Below the side-by-side breakpoint the reader spans the dock and overlays the
+   entity panel (the beat text still names the focus entity, and the canvas still
+   pans + rings it behind). */
+@media (max-width: 860px) {
+  .story-reader {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    z-index: 7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story-reader {
+    animation: none;
+  }
 }
 
 /* Segmented progress, pinned across the top. */
@@ -1713,55 +1846,55 @@ body {
   color: var(--color-accent-primary);
 }
 
-/* Edge chevrons — visible nav affordance + keyboard targets. */
-.sv-edge {
+/* Bottom nav row: prev / counter / next (chevrons live here now, not on the edges). */
+.sv-foot {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 0;
+  right: 0;
+  bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  /* The row itself is tap-through (so the tap zones still reach the bottom strip);
+     only the controls inside opt back into pointer events. */
+  pointer-events: none;
+}
+.sv-foot > * {
+  pointer-events: auto;
+}
+.sv-edge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
   border: 1px solid var(--color-border-subtle);
   background: color-mix(in oklab, var(--color-bg-surface) 70%, transparent);
   color: var(--color-fg-secondary);
   cursor: pointer;
-  opacity: 0.5;
-  transition: opacity 0.15s;
+  transition:
+    opacity 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 .sv-edge:hover:not(:disabled) {
-  opacity: 1;
   color: var(--color-fg-primary);
+  border-color: var(--color-fg-muted);
 }
 .sv-edge:disabled {
-  opacity: 0;
+  opacity: 0.3;
   pointer-events: none;
 }
 .sv-edge svg {
-  width: 20px;
-  height: 20px;
-}
-.sv-edge-prev {
-  left: 10px;
-}
-.sv-edge-next {
-  right: 10px;
-}
-
-.sv-foot {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: max(14px, env(safe-area-inset-bottom));
-  z-index: 3;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
+  width: 18px;
+  height: 18px;
 }
 .sv-count {
+  min-width: 44px;
+  text-align: center;
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--color-fg-subtle);
@@ -1781,47 +1914,132 @@ body {
   color: var(--color-on-accent);
 }
 
-/* Detail: images */
-.detail-images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.detail-image {
+/* Detail: image hero strip — sits at the top of the panel (Notion-style cover).
+   A single image fills the panel width; multiple images become fixed-width cards
+   that scroll horizontally (Google-Maps-place-card style), leading with the
+   visual so the moment reads as a face, not a box. */
+.detail-hero {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  gap: 6px;
+}
+
+.detail-image-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  /* Bleed to the panel padding so cards can scroll edge-to-edge. */
+  margin: 0 -16px;
+  padding: 0 16px 4px;
+}
+
+.detail-image-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 248px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
-  padding: 6px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 8px;
-  opacity: 0.55;
+  scroll-snap-align: start;
 }
 
-.detail-image-shown {
-  opacity: 1;
-  border-color: var(--color-accent-primary);
+/* Lone landscape image → fill the panel instead of a half-width card. */
+.detail-image-strip > .detail-image-card:only-child {
+  width: 100%;
 }
 
-.detail-image-thumb {
-  width: 72px;
-  height: 72px;
+/* Portrait framing: a narrower, taller card so the orientation reads. A lone
+   portrait stays its natural width and centers rather than stretching wide. */
+.detail-image-portrait {
+  width: 168px;
+}
+
+.detail-image-strip > .detail-image-card.detail-image-portrait:only-child {
+  width: 168px;
+  margin-inline: auto;
+}
+
+.detail-image-photo {
+  width: 100%;
+  height: 150px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-base);
+}
+
+.detail-image-portrait .detail-image-photo {
+  height: 224px;
+}
+
+/* Per-image orientation toggle (edit mode): a small segmented control. */
+.detail-image-aspect {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.detail-image-aspect-btn {
+  padding: 3px 8px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+
+.detail-image-aspect-btn:hover {
+  color: var(--color-fg-primary);
+}
+
+.detail-image-aspect-active {
+  background: var(--color-bg-elevated);
+  color: var(--color-fg-primary);
+  font-weight: 500;
+}
+
+.detail-image-aspect-btn:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 1px;
+}
+
+/* While editing, dim images hidden from the canvas and ring the shown ones so
+   the "Show on canvas" toggle's effect is legible. */
+.detail-image-strip-editing .detail-image-card:not(.detail-image-shown) {
+  opacity: 0.5;
+}
+
+.detail-image-strip-editing .detail-image-shown .detail-image-photo {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: -2px;
 }
 
 .detail-image-cap {
-  max-width: 84px;
   font-size: 10px;
   line-height: 1.2;
   color: var(--color-fg-muted);
-  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.detail-image-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 .detail-image-show {
@@ -1831,6 +2049,12 @@ body {
   font-size: 11px;
   color: var(--color-fg-muted);
   cursor: pointer;
+}
+
+.detail-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .detail-cite-head {

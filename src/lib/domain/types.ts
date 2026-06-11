@@ -18,8 +18,15 @@ export type NodeSize = (typeof NODE_SIZES)[number]
 export const NODE_SUBTYPES = ['person', 'org', 'place', 'work'] as const
 export type NodeSubtype = (typeof NODE_SUBTYPES)[number]
 
-// An image attached to a node; `show` marks it for display on the timeline.
-export type NodeImage = { url: string; alt?: string; show?: boolean }
+// How an image is framed when presented: `landscape` (horizontal, wider than
+// tall) or `portrait` (vertical, taller than wide). Drives the crop ratio on the
+// canvas card and in the detail panel's hero strip. Absent → landscape.
+export const IMAGE_ASPECTS = ['landscape', 'portrait'] as const
+export type ImageAspect = (typeof IMAGE_ASPECTS)[number]
+
+// An image attached to a node; `show` marks it for display on the timeline,
+// `aspect` chooses its framing (landscape/portrait — defaults to landscape).
+export type NodeImage = { url: string; alt?: string; show?: boolean; aspect?: ImageAspect }
 
 // Note: GraphOp lives in `~/lib/db/schema` (alongside the rows it references).
 // It is intentionally NOT re-exported here — this module is reachable from
@@ -124,6 +131,9 @@ export type StoryBeat = {
   bodyText: string
   settingNote: string | null
   relatedNodeIds: string[]
+  // The entity this beat spotlights (a node id), or null to stay on the moment.
+  // While reading, the canvas pans + rings it and the detail panel switches to it.
+  focusNodeId: string | null
   // S2 slice 1 — real sources backing this beat. Same shape as a node's
   // citations (CanvasCitation), so the reader renders them identically.
   citations: CanvasCitation[]

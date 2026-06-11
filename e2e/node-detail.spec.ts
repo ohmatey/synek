@@ -42,9 +42,9 @@ test('detail panel offers manual image upload and citations (no AI illustrate)',
   const panel = page.getByRole('dialog', { name: 'Node details' })
   await expect(panel).toBeVisible()
 
-  // View-first: the editors are revealed on click. Images are user-supplied —
-  // a manual Upload control, no AI generation.
-  await expect(panel.getByText('Images', { exact: true })).toBeVisible()
+  // View-first: the editors are revealed on click. Images lead the panel as a
+  // hero strip; the management controls (manual Upload, no AI generation) fold in
+  // behind the Edit affordance.
   await panel.getByTestId('edit-images').click()
   await expect(panel.getByRole('button', { name: 'Upload' })).toBeVisible()
 

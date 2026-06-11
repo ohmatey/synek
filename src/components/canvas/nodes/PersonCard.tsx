@@ -15,7 +15,7 @@ export function PersonCard({ data }: NodeProps) {
       style={{ width: d.width, borderColor: d.color ?? undefined }}
     >
       <Handle type="target" position={Position.Left} className="sf-handle" />
-      <div className="sf-person-frame">
+      <div className={`sf-person-frame sf-person-frame-${portrait?.aspect ?? 'landscape'}`}>
         {portrait ? (
           <img className="sf-person-portrait" src={portrait.url} alt={portrait.alt ?? d.title} />
         ) : (

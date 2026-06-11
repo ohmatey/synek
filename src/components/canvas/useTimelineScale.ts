@@ -48,6 +48,9 @@ const NOMINAL_WIDTH = 130
 const TYPE_BODY: Record<NodeType, number> = { period: 72, entity: 34, concept: 40, event: 26 }
 const SIZE_SCALE: Record<NodeSize, number> = { small: 0.85, medium: 1, large: 1.3 }
 const IMG_STRIP: Record<NodeSize, number> = { small: 30, medium: 44, large: 66 }
+// Portrait images render taller (3:4) than landscape (square) thumbnails, so the
+// strip — and the node's packed height — grows when a shown image is portrait.
+const IMG_STRIP_PORTRAIT: Record<NodeSize, number> = { small: 40, medium: 58, large: 88 }
 // Extra height a node gains when it renders a clamped (~2-line) summary on the card.
 const SUMMARY_BODY = 32
 
@@ -58,6 +61,8 @@ const SUMMARY_BODY = 32
 // Card = padding + square portrait frame (≈ width − padding) + caption plate.
 // Slightly over-estimated so tall cards never overlap the next row/lane.
 const PERSON_CARD_BODY = 160
+// A portrait frame (3:4) is taller than the square default, so the polaroid grows.
+const PERSON_CARD_BODY_PORTRAIT = 200
 const PERSON_CARD_BASE_WIDTH = 124
 
 export function personCardWidth(size: NodeSize = 'medium'): number {
@@ -218,10 +223,15 @@ export function estimateNodeHeight(
   hasImages = false,
   subtype: NodeSubtype | null = null,
   hasSummary = false,
+  hasPortraitImage = false,
 ): number {
   const summary = hasSummary ? Math.round(SUMMARY_BODY * SIZE_SCALE[size]) : 0
-  if (subtype === 'person') return Math.round(PERSON_CARD_BODY * SIZE_SCALE[size]) + summary
-  return Math.round(TYPE_BODY[type] * SIZE_SCALE[size]) + (hasImages ? IMG_STRIP[size] : 0) + summary
+  if (subtype === 'person') {
+    const frame = hasPortraitImage ? PERSON_CARD_BODY_PORTRAIT : PERSON_CARD_BODY
+    return Math.round(frame * SIZE_SCALE[size]) + summary
+  }
+  const strip = hasImages ? (hasPortraitImage ? IMG_STRIP_PORTRAIT[size] : IMG_STRIP[size]) : 0
+  return Math.round(TYPE_BODY[type] * SIZE_SCALE[size]) + strip + summary
 }
 
 type LayoutItem = { id: string; type: NodeType; x: number; width?: number; height?: number; lane?: string | null }

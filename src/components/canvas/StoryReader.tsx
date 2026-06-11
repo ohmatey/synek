@@ -1,23 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Pause, Play, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '~/lib/utils'
 import type { GraphNode, StoryDTO } from '~/lib/domain/types'
 
-// Reels/Stories-style playback: a full-screen, tap-through reader for a story.
-// One beat fills the screen at a time; segmented progress bars across the top
-// auto-advance (the CSS fill animation IS the timer — onAnimationEnd steps), and
-// the reader walks the canvas camera beat-to-beat behind the overlay (the same
-// onCameraTargets seam the panel used). Built on a native <dialog> opened with
-// showModal() so focus-trapping, top-layer stacking, and Esc-to-close come for
-// free (accessible by default); tap-zones are a pointer affordance layered on top.
+// Reels/Stories-style playback, DOCKED beside the entity dialog (not full-screen).
+// One beat fills the panel at a time; segmented progress bars across the top
+// auto-advance (the CSS fill animation IS the timer — onAnimationEnd steps). As the
+// reader steps, it reports the active beat index up (onBeatChange); the canvas maps
+// that to a camera pan + which entity the detail panel beside it shows (per-beat
+// focusNodeId). Rendered as a plain <aside role="dialog"> — NOT a native <dialog> —
+// so it sits in the canvas dock next to the panel instead of taking over the screen
+// (this also sidesteps the StrictMode showModal() self-close gotcha entirely).
 //
 // Interaction model (matches Instagram/Snapchat Stories):
 //   • Tap the right two-thirds → next beat (past the last → close). Tap the left
 //     third → previous beat.
 //   • Press-and-hold anywhere → pause; release → resume (distinguished from a tap
 //     by a short hold threshold).
-//   • Keyboard: →/Space next, ← previous, Esc close (native). Explicit Prev/Next/
-//     Pause/Close buttons back the pointer affordances for keyboard + SR users.
+//   • Keyboard: →/Space next, ← previous, Esc close. Explicit Prev/Next/Pause/Close
+//     buttons back the pointer affordances for keyboard + SR users.
 //   • prefers-reduced-motion → no auto-advance and no animated fill; the reader
 //     becomes fully manual (no content vanishing on a timer), segments static.
 
@@ -35,45 +36,40 @@ function beatDurationMs(text: string): number {
   return Math.min(MAX_BEAT_MS, Math.max(MIN_BEAT_MS, ms))
 }
 
-export function StoryViewer({
+export function StoryReader({
   story,
-  momentId,
   momentTitle,
   nodeById,
+  paused,
+  onPausedChange,
   onClose,
   onSelectNode,
-  onCameraTargets,
+  onBeatChange,
 }: {
   story: StoryDTO
-  momentId: string
   momentTitle: string
   nodeById: Map<string, GraphNode>
+  // Pause state is lifted to the canvas so the top story chip can drive it too.
+  paused: boolean
+  onPausedChange: (paused: boolean) => void
   onClose: () => void
-  // Navigate the canvas selection to a related node (closes the viewer first).
+  // Navigate the canvas selection to a related node (closes the reader first).
   onSelectNode: (id: string) => void
-  // Pan the canvas camera to these node ids as the reader steps (GAP 1·B).
-  onCameraTargets: (ids: string[]) => void
+  // Report the active beat index as the reader steps; the canvas maps it to a
+  // camera pan + the entity the detail panel shows (per-beat focusNodeId). Stable.
+  onBeatChange: (index: number) => void
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const asideRef = useRef<HTMLElement>(null)
   const beats = story.beats
   const count = beats.length
   const [index, setIndex] = useState(0)
-  const [paused, setPaused] = useState(false)
   const [reduced, setReduced] = useState(false)
   const safeIndex = Math.min(index, Math.max(0, count - 1))
   const beat = beats[safeIndex]
 
-  // Open as a true modal (top layer + focus trap + Esc) on mount; close on unmount.
-  // NOTE: the cleanup's d.close() fires the dialog's native 'close' event. React
-  // StrictMode (dev) double-invokes this effect (setup → cleanup → setup), so that
-  // 'close' fires spuriously during mount — which is exactly why we DON'T bind the
-  // parent close to the dialog's onClose below (only to user dismissal). See onCancel.
+  // Focus the panel on mount so keyboard nav + Esc work without a click first.
   useEffect(() => {
-    const d = dialogRef.current
-    if (d && !d.open) d.showModal()
-    return () => {
-      if (d?.open) d.close()
-    }
+    asideRef.current?.focus()
   }, [])
 
   // Honor reduced-motion: turn the timed auto-advance + animated fill off.
@@ -94,39 +90,38 @@ export function StoryViewer({
   }, [safeIndex, count, onClose])
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), [])
 
-  // Walk the canvas camera to the active beat's first related node (or the moment
-  // at every beat with no link), and restore the moment overview when the viewer
-  // closes — so the map glides behind the story as you tap through it.
+  // Report the active beat up as the reader steps so the canvas can pan + switch
+  // the entity panel to this beat's focus. The canvas restores the moment overview
+  // when reading ends (this panel unmounts), so no cleanup needed here.
   useEffect(() => {
-    onCameraTargets([beat?.relatedNodeIds[0] ?? momentId])
-  }, [safeIndex, beat, momentId, onCameraTargets])
-  useEffect(() => () => onCameraTargets([momentId]), [momentId, onCameraTargets])
+    onBeatChange(safeIndex)
+  }, [safeIndex, onBeatChange])
 
   // Press-and-hold detection: a quick press is a tap (navigate by zone); a long
   // press pauses without navigating. Shared by both tap zones.
   const holdRef = useRef<{ held: boolean; timer: ReturnType<typeof setTimeout> } | null>(null)
   const startHold = useCallback(() => {
-    setPaused(true)
+    onPausedChange(true)
     const state = { held: false, timer: setTimeout(() => (state.held = true), HOLD_THRESHOLD_MS) }
     holdRef.current = state
-  }, [])
+  }, [onPausedChange])
   const endHold = useCallback(
     (dir: 'next' | 'prev') => {
       const state = holdRef.current
       holdRef.current = null
-      setPaused(false)
+      onPausedChange(false)
       if (!state) return
       clearTimeout(state.timer)
       if (!state.held) (dir === 'next' ? goNext : goPrev)()
     },
-    [goNext, goPrev],
+    [goNext, goPrev, onPausedChange],
   )
   const cancelHold = useCallback(() => {
     const state = holdRef.current
     holdRef.current = null
     if (state) clearTimeout(state.timer)
-    setPaused(false)
-  }, [])
+    onPausedChange(false)
+  }, [onPausedChange])
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -136,9 +131,12 @@ export function StoryViewer({
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault()
         goPrev()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
       }
     },
-    [goNext, goPrev],
+    [goNext, goPrev, onClose],
   )
 
   const navigateTo = useCallback(
@@ -152,16 +150,12 @@ export function StoryViewer({
   const durationMs = beat ? beatDurationMs(beat.bodyText) : MIN_BEAT_MS
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="story-viewer"
+    <aside
+      ref={asideRef}
+      className="story-reader"
+      role="dialog"
       aria-label={`Story: ${story.title}`}
-      // Only treat USER dismissal (Esc → 'cancel') as a close. We deliberately do
-      // NOT bind onClose to the native 'close' event: our own d.close() (incl. the
-      // StrictMode-cleanup one) fires 'close' too, and routing that to the parent
-      // would tear the viewer down the instant it opened in dev. Explicit closes
-      // (the X button, tap navigation) call onClose directly.
-      onCancel={onClose}
+      tabIndex={-1}
       onKeyDown={onKeyDown}
     >
       {/* Segmented progress — one segment per beat; the active one animates fill
@@ -190,8 +184,7 @@ export function StoryViewer({
         ))}
       </div>
 
-      {/* Chrome: moment label + transport controls (backing the tap zones for
-          keyboard + screen-reader users). */}
+      {/* Chrome: moment label + close (play/pause + stop live in the top story chip). */}
       <header className="sv-head">
         <div className="sv-head-label">
           <span className="sv-eyebrow">Story</span>
@@ -200,17 +193,6 @@ export function StoryViewer({
           </span>
         </div>
         <div className="sv-head-actions">
-          {!reduced && (
-            <button
-              type="button"
-              className="sv-ctrl"
-              onClick={() => setPaused((p) => !p)}
-              aria-label={paused ? 'Resume' : 'Pause'}
-              aria-pressed={paused}
-            >
-              {paused ? <Play aria-hidden /> : <Pause aria-hidden />}
-            </button>
-          )}
           <button type="button" className="sv-ctrl" onClick={onClose} aria-label="Close story">
             <X aria-hidden />
           </button>
@@ -279,25 +261,24 @@ export function StoryViewer({
         )}
       </div>
 
-      {/* Edge chevrons — visible affordance + real keyboard targets. */}
-      <button
-        type="button"
-        className="sv-edge sv-edge-prev"
-        onClick={goPrev}
-        disabled={safeIndex === 0}
-        aria-label="Previous beat"
-      >
-        <ChevronLeft aria-hidden />
-      </button>
-      <button type="button" className="sv-edge sv-edge-next" onClick={goNext} aria-label="Next beat">
-        <ChevronRight aria-hidden />
-      </button>
-
+      {/* Bottom nav — prev / counter / next (real keyboard targets + tap affordance). */}
       <footer className="sv-foot">
+        <button
+          type="button"
+          className="sv-edge sv-edge-prev"
+          onClick={goPrev}
+          disabled={safeIndex === 0}
+          aria-label="Previous beat"
+        >
+          <ChevronLeft aria-hidden />
+        </button>
         <span className="sv-count">
           {safeIndex + 1} / {count}
         </span>
+        <button type="button" className="sv-edge sv-edge-next" onClick={goNext} aria-label="Next beat">
+          <ChevronRight aria-hidden />
+        </button>
       </footer>
-    </dialog>
+    </aside>
   )
 }

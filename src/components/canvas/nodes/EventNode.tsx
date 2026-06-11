@@ -22,7 +22,7 @@ export function EventNode({ data }: NodeProps) {
       {d.images?.length ? (
         <div className="sf-images">
           {d.images.map((im, i) => (
-            <img key={i} className="sf-img" src={im.url} alt={im.alt ?? ''} />
+            <img key={i} className={`sf-img${im.aspect === 'portrait' ? ' sf-img-portrait' : ''}`} src={im.url} alt={im.alt ?? ''} />
           ))}
         </div>
       ) : null}

@@ -12,6 +12,7 @@ import {
   type Node,
   type Edge,
 } from '@xyflow/react'
+import { Pause, Play } from 'lucide-react'
 import { useTheme } from '@synek/ui'
 import { EventNode } from './nodes/EventNode'
 import { EntityNode } from './nodes/EntityNode'
@@ -33,12 +34,14 @@ import {
 } from './useTimelineScale'
 import { formatInstant, eraTint } from '~/lib/domain/dates'
 import { getGraph } from '~/lib/server/graph'
+import { getStory } from '~/lib/server/stories'
 import { useTimelineStream } from './useTimelineStream'
 import { AppBar } from './AppBar'
 import { ShareControl } from './ShareControl'
 import { ProfileMenu } from '~/components/ProfileMenu'
 import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
+import { StoryReader } from './StoryReader'
 import { TimeRuler } from './TimeRuler'
 import { CanvasSettings } from './CanvasSettings'
 import { McpStatusChip } from './McpStatusChip'
@@ -47,7 +50,7 @@ import { ExportControls } from './ExportControls'
 import { StoriesMenu } from './StoriesMenu'
 import { useBuildStream } from './build-stream'
 import type { CanvasNodeData, NodeDraft } from './types'
-import type { EdgeKind, NodeSubtype, NodeType, StoryDTO } from '~/lib/domain/types'
+import type { EdgeKind, NodeSubtype, NodeType } from '~/lib/domain/types'
 
 // The token a node is filtered by: entities filter by their subtype (person/
 // org/place/work, or 'entity' when untyped); everything else by its type.
@@ -76,16 +79,69 @@ function ViewportInit({ timelineId, nodeCount }: { timelineId: string; nodeCount
   return null
 }
 
-// Frames the story camera target(s) — the moment on open, then the current beat's
-// node as the reader steps (GAP 1·B), "walking you around the map". maxZoom caps the
-// zoom so a single small node isn't blown up; this is reader-driven, never data-driven,
-// so it doesn't fight ViewportInit's saved-camera restore.
+// Frames the story camera target(s) as the reader steps — the current beat's focus
+// node (GAP 1·B), "walking you around the map". Crucially it frames the node in the
+// VISIBLE canvas to the LEFT of the docked reader + panel (measured at runtime), not
+// centered under them, so the focused entity sits nicely beside the story. maxZoom
+// caps the zoom so a single small node isn't blown up; reader-driven, never
+// data-driven, so it doesn't fight ViewportInit's saved-camera restore.
+const STORY_CAM_MAX_ZOOM = 1.2
+const STORY_CAM_PAD = 0.28
 function StoryCamera({ ids }: { ids: string[] }) {
   const rf = useReactFlow()
   const key = ids.join(',')
   useEffect(() => {
     if (!ids.length) return
-    rf.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.3, duration: 450, maxZoom: 1.2 })
+    // World-space bounds of the target node(s), from their measured DOM size.
+    const targets = ids.map((id) => rf.getNode(id)).filter(Boolean) as NonNullable<ReturnType<typeof rf.getNode>>[]
+    if (!targets.length) {
+      rf.fitView({ nodes: ids.map((id) => ({ id })), padding: STORY_CAM_PAD, duration: 450, maxZoom: STORY_CAM_MAX_ZOOM })
+      return
+    }
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity
+    for (const n of targets) {
+      const w = n.measured?.width ?? n.width ?? 0
+      const h = n.measured?.height ?? n.height ?? 0
+      minX = Math.min(minX, n.position.x)
+      minY = Math.min(minY, n.position.y)
+      maxX = Math.max(maxX, n.position.x + w)
+      maxY = Math.max(maxY, n.position.y + h)
+    }
+    const bw = Math.max(1, maxX - minX)
+    const bh = Math.max(1, maxY - minY)
+    const cx = (minX + maxX) / 2
+    const cy = (minY + maxY) / 2
+
+    const pane = document.querySelector('.react-flow') as HTMLElement | null
+    if (!pane) {
+      rf.fitView({ nodes: ids.map((id) => ({ id })), padding: STORY_CAM_PAD, duration: 450, maxZoom: STORY_CAM_MAX_ZOOM })
+      return
+    }
+    const pr = pane.getBoundingClientRect()
+    // The docked reader is the leftmost occluder; fall back to the detail panel.
+    const dock = (document.querySelector('.story-reader') ?? document.querySelector('.detail-panel')) as HTMLElement | null
+    // When the dock sits beside the canvas (not a narrow full-width overlay), the
+    // usable width is everything left of it; otherwise use the whole pane.
+    let visibleW = pr.width
+    if (dock) {
+      const dr = dock.getBoundingClientRect()
+      if (dr.left > pr.left + 160) visibleW = dr.left - pr.left
+    }
+    const zoom = Math.max(
+      0.1,
+      Math.min(
+        STORY_CAM_MAX_ZOOM,
+        (visibleW * (1 - 2 * STORY_CAM_PAD)) / bw,
+        (pr.height * (1 - 2 * STORY_CAM_PAD)) / bh,
+      ),
+    )
+    // Center the node within the visible (left) region, not the whole pane.
+    const x = visibleW / 2 - cx * zoom
+    const y = pr.height / 2 - cy * zoom
+    rf.setViewport({ x, y, zoom }, { duration: 450 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rf, key])
   return null
@@ -105,12 +161,23 @@ const EDGE_STYLE: Record<EdgeKind, { color: string; width: number; dash?: string
 export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const { resolvedTheme } = useTheme()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  // A moment whose story should auto-open in the Reels viewer (set by the AppBar
-  // Stories menu). The detail panel consumes it once its story loads, then clears.
+  // While true the docked StoryReader is open beside the panel; activeBeat tracks
+  // the beat it's on (drives the per-beat camera + which entity the panel shows).
+  // `storyPaused` is lifted so the top story chip can drive play/pause too.
+  const [reading, setReading] = useState(false)
+  const [activeBeat, setActiveBeat] = useState(0)
+  const [storyPaused, setStoryPaused] = useState(false)
+  // A moment whose story should auto-open in the reader (set by the AppBar Stories
+  // menu). Consumed once its story loads with beats, then cleared.
   const [autoPlayStoryId, setAutoPlayStoryId] = useState<string | null>(null)
   const playStory = useCallback((momentId: string) => {
     setSelectedId(momentId)
     setAutoPlayStoryId(momentId)
+  }, [])
+  // Selecting a node always drops any open reader first.
+  const selectNode = useCallback((id: string) => {
+    setReading(false)
+    setSelectedId(id)
   }, [])
   // Horizontal time density (px/day) + gap-collapsing — the axis scale,
   // independent of camera zoom. Seeded from the per-timeline saved preference.
@@ -186,30 +253,37 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
 
   const { pending, focusIds, setFocusIds } = useBuildStream()
 
-  // Story lens: when a story opens, ring the moment + its referenced nodes and dim
-  // the rest, reusing the build-stream lens machinery (rf-focused/rf-dimmed + the
-  // lens bar). Set by the detail panel reporting its loaded story up; cleared when
-  // the reader closes. While active it overrides the build-stream focus.
-  const [storyLens, setStoryLens] = useState<{ momentId: string; title: string; focusIds: string[] } | null>(null)
-  // The node ids the story camera frames (GAP 1·B): the moment on open, the current
-  // beat's target as the reader steps. Null → fall back to framing the moment.
-  const [storyCamIds, setStoryCamIds] = useState<string[] | null>(null)
-  const handleStoryLoaded = useCallback(
-    (story: StoryDTO | null) => {
-      setStoryCamIds(null) // reset the camera to the moment on (re)load / clear
-      if (!story || !selectedId) {
-        setStoryLens(null)
-        return
-      }
-      const ids = new Set<string>([selectedId])
-      for (const b of story.beats) for (const id of b.relatedNodeIds) ids.add(id)
-      setStoryLens({ momentId: selectedId, title: story.title, focusIds: [...ids] })
-    },
-    [selectedId],
-  )
-  const handleStoryCamera = useCallback((ids: string[]) => setStoryCamIds(ids), [])
-  // A story lens wins over the build-stream lens while reading.
-  const effectiveFocusIds = storyLens ? storyLens.focusIds : focusIds
+  // The story attached to the selected moment (read-only playback), or null. Keyed
+  // by node id so it refetches on selection change; the storyVersion watch above
+  // invalidates ['story'] so a live write_story refresh updates an open reader.
+  const { data: story } = useQuery({
+    queryKey: ['story', selectedId],
+    queryFn: () => getStory({ data: selectedId as string }),
+    enabled: !!selectedId,
+  })
+  const momentStory = story ?? null // undefined while loading → treat as none here
+
+  // A new selection drops any open reader; (re)opening starts at beat 0, unpaused.
+  useEffect(() => {
+    setReading(false)
+    setActiveBeat(0)
+    setStoryPaused(false)
+  }, [selectedId])
+  // Auto-play from the AppBar Stories menu: once the picked moment's story loads
+  // with beats, open the reader and consume the one-shot signal.
+  useEffect(() => {
+    if (autoPlayStoryId && autoPlayStoryId === selectedId && momentStory && momentStory.beats.length > 0) {
+      setActiveBeat(0)
+      setStoryPaused(false)
+      setReading(true)
+      setAutoPlayStoryId(null)
+    }
+  }, [autoPlayStoryId, selectedId, momentStory])
+  const startReading = useCallback(() => {
+    setActiveBeat(0)
+    setStoryPaused(false)
+    setReading(true)
+  }, [])
 
   // getGraph returns a discriminated result: an `ok` payload (with the graph +
   // access flags), or notFound/forbidden. Non-owners get a read-only canvas.
@@ -221,6 +295,44 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const title = graph?.title ?? 'Untitled timeline'
   // Derive the selection from live data, so a deleted node closes the panel.
   const selectedNode = selectedId ? (gnodes.find((n) => n.id === selectedId) ?? null) : null
+  const nodeById = useMemo(() => new Map(gnodes.map((n) => [n.id, n])), [gnodes])
+
+  // Story lens + per-beat focus — only while READING (selecting a moment just opens
+  // its panel; pressing Play starts the story). While reading we ring the moment +
+  // its whole cast (every beat's focus + related nodes) and dim the rest, reusing
+  // the build-stream lens machinery (rf-focused/rf-dimmed + the lens bar). The active
+  // beat's focusNodeId additionally drives the camera and which entity the detail
+  // panel shows beside the story — it "follows the beat"; beats with no focus fall
+  // back to the moment.
+  const storyFocusIds = useMemo(() => {
+    if (!reading || !selectedId || !momentStory) return null
+    const ids = new Set<string>([selectedId])
+    for (const b of momentStory.beats) {
+      if (b.focusNodeId) ids.add(b.focusNodeId)
+      for (const id of b.relatedNodeIds) ids.add(id)
+    }
+    return [...ids]
+  }, [reading, selectedId, momentStory])
+  const activeBeatData =
+    reading && momentStory ? momentStory.beats[Math.min(activeBeat, momentStory.beats.length - 1)] : null
+  // The entity the current beat spotlights (guard self / dangling ids).
+  const beatFocusId = activeBeatData?.focusNodeId ?? null
+  const focusNode = beatFocusId && beatFocusId !== selectedId ? (nodeById.get(beatFocusId) ?? null) : null
+  // The panel follows the beat's focus while reading, else shows the moment.
+  const displayNode = focusNode ?? selectedNode
+  // Camera only moves while reading: frame the beat's focus/related node (else the
+  // moment). Selecting a node never pans the canvas.
+  const cameraIds =
+    reading && momentStory && selectedId
+      ? [beatFocusId ?? activeBeatData?.relatedNodeIds[0] ?? selectedId]
+      : null
+  // A story lens wins over the build-stream lens while reading.
+  const effectiveFocusIds = storyFocusIds ?? focusIds
+  // A deleted moment (gone from live data) tears the reader down too.
+  useEffect(() => {
+    if (!selectedNode && reading) setReading(false)
+  }, [selectedNode, reading])
+  const noopDraft = useCallback(() => {}, [])
 
   // Per-kind visibility filter — session-only (a returning user shouldn't find
   // nodes "missing"). Node counts feed the filter chips.
@@ -334,14 +446,23 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     // Spread same-lane nodes that would overlap horizontally onto stacked rows
     // (real + pending laid out together so they don't collide mid-stream).
     const laneYById = layoutLaneY([
-      ...realPositioned.map((r) => ({
-        id: r.n.id,
-        type: r.n.type,
-        x: r.x,
-        width: r.width,
-        lane: r.n.lane,
-        height: estimateNodeHeight(r.n.type, r.n.size, r.n.images.some((i) => i.show), r.n.subtype, !!r.n.summary),
-      })),
+      ...realPositioned.map((r) => {
+        const shown = r.n.images.filter((i) => i.show)
+        // Person cards frame only the first shown image; other nodes tile a strip,
+        // so any portrait among them stretches it. Match that for the height estimate.
+        const hasPortrait =
+          r.n.subtype === 'person'
+            ? shown[0]?.aspect === 'portrait'
+            : shown.some((i) => i.aspect === 'portrait')
+        return {
+          id: r.n.id,
+          type: r.n.type,
+          x: r.x,
+          width: r.width,
+          lane: r.n.lane,
+          height: estimateNodeHeight(r.n.type, r.n.size, shown.length > 0, r.n.subtype, !!r.n.summary, hasPortrait),
+        }
+      }),
       ...pendingPositioned.map((pp) => ({
         id: pp.id,
         type: pp.p.type,
@@ -511,17 +632,32 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         {lensSize > 0 && (
           <div className="lens-bar">
             <span>
-              {storyLens ? `Story · ${storyLens.title}` : `Lens · ${lensSize} node${lensSize === 1 ? '' : 's'}`}
+              {reading
+                ? `Story · ${momentStory?.title ?? ''}`
+                : `Lens · ${lensSize} node${lensSize === 1 ? '' : 's'}`}
             </span>
-            <button
-              type="button"
-              // Closing a story lens closes the reader (which clears the lens via the
-              // panel's unmount); a build lens just clears its focus.
-              onClick={() => (storyLens ? setSelectedId(null) : setFocusIds([]))}
-              title={storyLens ? 'Close story' : 'Clear lens'}
-            >
-              {storyLens ? 'Close ✕' : 'Clear ✕'}
-            </button>
+            {reading ? (
+              <>
+                {/* Transport for the playing story (mirrors the docked reader). */}
+                <button
+                  type="button"
+                  className="lens-bar-ctrl"
+                  onClick={() => setStoryPaused((p) => !p)}
+                  aria-pressed={storyPaused}
+                  title={storyPaused ? 'Resume' : 'Pause'}
+                  aria-label={storyPaused ? 'Resume story' : 'Pause story'}
+                >
+                  {storyPaused ? <Play aria-hidden /> : <Pause aria-hidden />}
+                </button>
+                <button type="button" onClick={() => setReading(false)} title="Stop story" aria-label="Stop story">
+                  Stop ✕
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setFocusIds([])} title="Clear lens">
+                Clear ✕
+              </button>
+            )}
           </div>
         )}
         <ReactFlow
@@ -549,7 +685,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           <Background gap={48} />
           <Controls showInteractive={false} />
           <ViewportInit timelineId={timelineId} nodeCount={gnodes.length} />
-          {storyLens && <StoryCamera ids={storyCamIds?.length ? storyCamIds : [storyLens.momentId]} />}
+          {cameraIds && <StoryCamera ids={cameraIds} />}
           {(gnodes.length > 0 || pending.length > 0) && <TimeRuler scale={scale} />}
           {!isLoading && gnodes.length === 0 && pending.length === 0 && (
             <Panel position="top-center">
@@ -561,21 +697,43 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             </Panel>
           )}
         </ReactFlow>
-        {selectedNode ? (
+        {displayNode ? (
           <NodeDetailPanel
-            key={selectedNode.id}
-            node={selectedNode}
+            // Re-key on the displayed node so it remounts (fresh state) when the
+            // reader steps to a beat that focuses a different entity.
+            key={displayNode.id}
+            node={displayNode}
             edges={gedges}
             nodes={gnodes}
             timelineId={timelineId}
-            readOnly={!isOwner}
-            onClose={() => setSelectedId(null)}
-            onSelectNode={setSelectedId}
-            onDraft={handleDraft}
-            onStoryLoaded={handleStoryLoaded}
-            onStoryCamera={handleStoryCamera}
-            autoPlayStory={autoPlayStoryId === selectedNode.id}
-            onAutoPlayConsumed={() => setAutoPlayStoryId(null)}
+            // While reading, the panel is a read-only preview of the beat's focus.
+            readOnly={!isOwner || reading}
+            preview={reading}
+            previewLabel={selectedNode?.title}
+            // The story section only shows on the moment when not reading (the
+            // docked reader is the story surface while reading).
+            story={reading ? undefined : story}
+            onClose={() => {
+              setSelectedId(null)
+              setReading(false)
+            }}
+            onSelectNode={selectNode}
+            // A preview panel must not emit drafts (it shows a different node than
+            // the selected moment); the onDraft-change cleanup clears any stale one.
+            onDraft={reading ? noopDraft : handleDraft}
+            onPlayStory={startReading}
+          />
+        ) : null}
+        {reading && momentStory && selectedNode ? (
+          <StoryReader
+            story={momentStory}
+            momentTitle={selectedNode.title}
+            nodeById={nodeById}
+            paused={storyPaused}
+            onPausedChange={setStoryPaused}
+            onClose={() => setReading(false)}
+            onSelectNode={selectNode}
+            onBeatChange={setActiveBeat}
           />
         ) : null}
       </div>

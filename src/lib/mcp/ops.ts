@@ -39,15 +39,29 @@ const imageInput = z.object({
     ),
   alt: z.string().optional().describe('Short caption / alt text — who or what the image shows.'),
   show: z.boolean().optional().describe('Display on the canvas card. Defaults to true.'),
+  aspect: z
+    .enum(['landscape', 'portrait'])
+    .optional()
+    .describe(
+      'How to frame the image: "landscape" (horizontal, wider than tall) or "portrait" (vertical, taller than ' +
+        'wide). Pick "portrait" for headshots/full-figure people and tall artworks; "landscape" for scenes, ' +
+        'logos, and wide photos. Defaults to landscape.',
+    ),
 })
 const imagesHint =
   'Images to show on this node — supply real, web-sourced image URLs you found (a Wikimedia portrait for a ' +
   'person, a logo for an org, public-domain art for an era/event). Gives the node a face instead of a bare box. ' +
-  'On update_node, the array you pass REPLACES the node\'s images; omit to leave existing images untouched.'
+  'Set each image\'s `aspect` to "portrait" for tall subjects (a standing figure, a headshot) or "landscape" for ' +
+  'wide ones. On update_node, the array you pass REPLACES the node\'s images; omit to leave existing images untouched.'
 
 type ImageInput = z.infer<typeof imageInput>
 const normalizeImages = (imgs: ImageInput[]): NodeImage[] =>
-  imgs.map((im) => ({ url: im.url, ...(im.alt ? { alt: im.alt } : {}), show: im.show ?? true }))
+  imgs.map((im) => ({
+    url: im.url,
+    ...(im.alt ? { alt: im.alt } : {}),
+    show: im.show ?? true,
+    ...(im.aspect ? { aspect: im.aspect } : {}),
+  }))
 
 // One edit in a batch. `ref` (on add_node/add_edge) lets a single batch create a
 // node and then connect an edge to it — the alias resolves to the new id.
