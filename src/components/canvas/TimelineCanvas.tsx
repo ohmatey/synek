@@ -314,17 +314,20 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   }, [reading, selectedId, momentStory])
   const activeBeatData =
     reading && momentStory ? momentStory.beats[Math.min(activeBeat, momentStory.beats.length - 1)] : null
-  // The entity the current beat spotlights (guard self / dangling ids).
-  const beatFocusId = activeBeatData?.focusNodeId ?? null
-  const focusNode = beatFocusId && beatFocusId !== selectedId ? (nodeById.get(beatFocusId) ?? null) : null
+  // The entity this beat spotlights: an explicit focusNodeId, else its first related
+  // node. BOTH the camera and the detail panel follow it, so the right panel tracks
+  // whatever the current beat is about; a beat that names nothing falls back to the
+  // moment (the story's originator). Guard self / dangling ids.
+  const rawBeatFocus = activeBeatData
+    ? (activeBeatData.focusNodeId ?? activeBeatData.relatedNodeIds[0] ?? null)
+    : null
+  const beatFocusId = rawBeatFocus && rawBeatFocus !== selectedId && nodeById.has(rawBeatFocus) ? rawBeatFocus : null
+  const focusNode = beatFocusId ? (nodeById.get(beatFocusId) ?? null) : null
   // The panel follows the beat's focus while reading, else shows the moment.
   const displayNode = focusNode ?? selectedNode
-  // Camera only moves while reading: frame the beat's focus/related node (else the
-  // moment). Selecting a node never pans the canvas.
-  const cameraIds =
-    reading && momentStory && selectedId
-      ? [beatFocusId ?? activeBeatData?.relatedNodeIds[0] ?? selectedId]
-      : null
+  // Camera only moves while reading; frame the focus (else the moment). Selecting a
+  // node never pans the canvas.
+  const cameraIds = reading && selectedId ? [beatFocusId ?? selectedId] : null
   // A story lens wins over the build-stream lens while reading.
   const effectiveFocusIds = storyFocusIds ?? focusIds
   // A deleted moment (gone from live data) tears the reader down too.

@@ -108,8 +108,19 @@ test('a focus beat switches the entity panel to the focused entity (dialog follo
   await expect(detail.getByRole('heading', { name: 'Isaac Newton' })).toBeVisible()
   await expect(page.locator('.react-flow__node.rf-focused', { hasText: 'Isaac Newton' })).toBeVisible()
 
+  // Beat 4 has no explicit focus but references Einstein → the panel follows the
+  // first related node too (panel tracks the same target the camera frames).
+  await reader.getByRole('button', { name: 'Next beat' }).click() // 3/4 (no focus → moment)
+  await expect(reader.getByText('3 / 4')).toBeVisible()
+  await expect(detail.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
+  await reader.getByRole('button', { name: 'Next beat' }).click() // 4/4 (related Einstein)
+  await expect(reader.getByText('4 / 4')).toBeVisible()
+  await expect(detail.getByRole('heading', { name: 'Albert Einstein' })).toBeVisible()
+
   // Stepping back to beat 1 returns the panel to the moment.
-  await reader.getByRole('button', { name: 'Previous beat' }).click()
+  await reader.getByRole('button', { name: 'Previous beat' }).click() // 3/4
+  await reader.getByRole('button', { name: 'Previous beat' }).click() // 2/4
+  await reader.getByRole('button', { name: 'Previous beat' }).click() // 1/4
   await expect(reader.getByText('1 / 4')).toBeVisible()
   await expect(detail.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
 })
