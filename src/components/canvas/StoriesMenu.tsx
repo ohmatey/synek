@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BookOpen, ChevronDown, Play } from 'lucide-react'
+import { BookOpen, ChevronDown, Play, Plus } from 'lucide-react'
 import { Button } from '~/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { cn } from '~/lib/utils'
 import { listStories } from '~/lib/server/stories'
+import { NewStoryDialog } from './NewStoryDialog'
 import { floatChip } from './chrome'
 
 // AppBar "Stories" control: a popover listing every story on the timeline as a
@@ -18,13 +19,20 @@ import { floatChip } from './chrome'
 export function StoriesMenu({
   timelineId,
   storyVersion,
+  canCreate,
+  nodes,
   onPlay,
 }: {
   timelineId: string
   storyVersion: string
-  onPlay: (momentId: string) => void
+  // Owners can create a new story (the picker + copy-prompt dialog); viewers can't.
+  canCreate: boolean
+  // Moments to offer in the "New Story" picker.
+  nodes: { id: string; title: string; type: string }[]
+  onPlay: (momentId: string, storyId: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [newOpen, setNewOpen] = useState(false)
   const { data: stories } = useQuery({
     queryKey: ['stories-list', timelineId, storyVersion],
     queryFn: () => listStories({ data: timelineId }),
@@ -32,6 +40,7 @@ export function StoriesMenu({
   const count = stories?.length ?? 0
 
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className={cn(floatChip, 'h-8')} title="Stories on this timeline">
@@ -41,12 +50,27 @@ export function StoriesMenu({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 max-w-[calc(100vw-24px)] overflow-hidden p-0">
-        <div className="flex items-center justify-between border-b px-3 py-2.5">
+        <div className="flex items-center justify-between border-b px-3 py-2">
           <span className="text-sm font-medium">Stories</span>
-          <span className="text-xs text-muted-foreground">{count}</span>
+          {canCreate && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={() => {
+                setOpen(false)
+                setNewOpen(true)
+              }}
+            >
+              <Plus className="size-3.5" />
+              New Story
+            </Button>
+          )}
         </div>
         {count === 0 ? (
-          <div className="px-3 py-6 text-center text-xs text-muted-foreground">No stories yet.</div>
+          <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+            {canCreate ? 'No stories yet — create one with New Story.' : 'No stories yet.'}
+          </div>
         ) : (
           <div className="flex max-h-[60vh] flex-col gap-2 overflow-auto p-2">
             {stories!.map((s) => (
@@ -55,7 +79,7 @@ export function StoriesMenu({
                 type="button"
                 onClick={() => {
                   setOpen(false)
-                  onPlay(s.momentId)
+                  onPlay(s.momentId, s.storyId)
                 }}
                 className="group flex cursor-pointer flex-col gap-1.5 rounded-lg border border-border bg-card/60 p-3 text-left transition-colors hover:border-foreground/20 hover:bg-accent/50 focus-visible:border-foreground/20 focus-visible:bg-accent/50 focus-visible:outline-none"
                 title={`Play “${s.title}”`}
@@ -89,5 +113,9 @@ export function StoriesMenu({
         )}
       </PopoverContent>
     </Popover>
+    {canCreate && (
+      <NewStoryDialog open={newOpen} onOpenChange={setNewOpen} timelineId={timelineId} nodes={nodes} />
+    )}
+    </>
   )
 }

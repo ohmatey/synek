@@ -80,6 +80,17 @@ export type TimelineGraph = { title: string; nodes: GraphNode[]; edges: GraphEdg
 // applied on open when the device has no local override.
 export type TimelineViewSettings = { pxPerDay: number; collapseGaps: boolean }
 
+// Bounds + default for the horizontal time density (px of base layout per day).
+// Domain-level so both the canvas controls and the MCP set_timeline_view tool
+// validate against the same range.
+export const BASE_PX_PER_DAY = 0.5
+export const MIN_PX_PER_DAY = 0.005 // compressed enough to fit millennia on screen
+export const MAX_PX_PER_DAY = 4
+
+export function clampPxPerDay(v: number): number {
+  return Math.min(MAX_PX_PER_DAY, Math.max(MIN_PX_PER_DAY, v))
+}
+
 export type TimelineGraphResult =
   | ({
       status: 'ok'
@@ -149,9 +160,11 @@ export type StoryDTO = {
   beats: StoryBeat[]
 }
 
-// One entry in the AppBar's "Stories" dropdown — every story on a timeline, in
-// chronological moment order. Carries the moment it sits on so picking one opens
-// + plays it; `beatCount` lets the menu show length at a glance.
+// One entry in a story list — the AppBar's "Stories" dropdown (every story on a
+// timeline, chronological) and the entity panel's per-moment list (a moment can
+// hold several). Carries the moment it sits on so picking one opens + plays it;
+// `beatCount` + `estimatedMinutes` + `povType` let the row show meta chips at a
+// glance without fetching the full story.
 export type StoryListItem = {
   momentId: string
   momentTitle: string
@@ -159,5 +172,7 @@ export type StoryListItem = {
   title: string
   hook: string | null
   depthTier: DepthTier
+  povType: PovType
+  estimatedMinutes: number | null
   beatCount: number
 }

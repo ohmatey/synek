@@ -260,17 +260,19 @@ export type PersonRow = typeof people.$inferSelect
 export type StoryRow = typeof stories.$inferSelect
 export type StorySegmentRow = typeof storySegments.$inferSelect
 
-// A moment's story (+ its ordered segments) captured at delete time so an undo can
-// restore it. Stories live outside the Patch engine and cascade on node delete, so
-// without this an undo/redo would lose them (see db/patches.ts).
+// A story (+ its ordered segments) captured at delete time so an undo can restore
+// it. Stories live outside the Patch engine and cascade on node delete, so without
+// this an undo/redo would lose them (see db/patches.ts).
 export type StorySnapshot = { story: StoryRow; segments: StorySegmentRow[] }
 
 // A single reversible graph mutation. Updates carry before/after; deletes carry
 // the full row(s) so they can be restored. invertPatch = ops.map(invert).reverse().
-// `add_node.story` is set only on the op that RESTORES a deleted moment (the inverse
-// of a delete) — it re-inserts the cascaded story so undo/redo stays faithful.
+// `add_node.stories` is set only on the op that RESTORES a deleted moment (the
+// inverse of a delete) — it re-inserts ALL the cascaded stories (a moment can hold
+// several) so undo/redo stays faithful. Legacy patch rows may carry a single
+// `story` instead; the restore path accepts both (see db/patches.ts).
 export type GraphOp =
-  | { kind: 'add_node'; node: NodeRow; story?: StorySnapshot | null }
+  | { kind: 'add_node'; node: NodeRow; stories?: StorySnapshot[] | null; story?: StorySnapshot | null }
   | { kind: 'update_node'; id: string; before: Partial<NodeRow>; after: Partial<NodeRow> }
   | { kind: 'delete_node'; node: NodeRow; edges: EdgeRow[] }
   | { kind: 'add_edge'; edge: EdgeRow }

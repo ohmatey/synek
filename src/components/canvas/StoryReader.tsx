@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import { cn } from '~/lib/utils'
-import type { GraphNode, StoryDTO } from '~/lib/domain/types'
+import type { GraphNode, PovType, StoryDTO } from '~/lib/domain/types'
+
+// Human labels for the story POV; only surfaced when it's not the default.
+const POV_LABEL: Record<PovType, string> = {
+  omniscient: 'Omniscient',
+  first_person: 'First person',
+  witness: 'Witness',
+  diary: 'Diary',
+}
 
 // Reels/Stories-style playback, DOCKED beside the entity dialog (not full-screen).
 // One beat fills the panel at a time; segmented progress bars across the top
@@ -64,6 +72,10 @@ export function StoryReader({
   const count = beats.length
   const [index, setIndex] = useState(0)
   const [reduced, setReduced] = useState(false)
+  // The reader opens on a cover (title + hook + meta); the stepped player + the
+  // timed auto-advance only begin once the reader is "started" (Play pressed). On
+  // the cover the canvas keeps the moment in focus (beat index -1 reported up).
+  const [started, setStarted] = useState(false)
   const safeIndex = Math.min(index, Math.max(0, count - 1))
   const beat = beats[safeIndex]
 
@@ -91,11 +103,12 @@ export function StoryReader({
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), [])
 
   // Report the active beat up as the reader steps so the canvas can pan + switch
-  // the entity panel to this beat's focus. The canvas restores the moment overview
-  // when reading ends (this panel unmounts), so no cleanup needed here.
+  // the entity panel to this beat's focus. While on the cover (not started) report
+  // -1 so the canvas keeps the moment framed. The canvas restores the moment
+  // overview when reading ends (this panel unmounts), so no cleanup needed here.
   useEffect(() => {
-    onBeatChange(safeIndex)
-  }, [safeIndex, onBeatChange])
+    onBeatChange(started ? safeIndex : -1)
+  }, [started, safeIndex, onBeatChange])
 
   // Press-and-hold detection: a quick press is a tap (navigate by zone); a long
   // press pauses without navigating. Shared by both tap zones.
@@ -125,18 +138,28 @@ export function StoryReader({
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+        return
+      }
+      // On the cover, →/Space/Enter starts playback rather than stepping.
+      if (!started) {
+        if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') {
+          e.preventDefault()
+          setStarted(true)
+        }
+        return
+      }
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Spacebar') {
         e.preventDefault()
         goNext()
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault()
         goPrev()
-      } else if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
       }
     },
-    [goNext, goPrev, onClose],
+    [started, goNext, goPrev, onClose],
   )
 
   const navigateTo = useCallback(
@@ -160,29 +183,31 @@ export function StoryReader({
     >
       {/* Segmented progress — one segment per beat; the active one animates fill
           over the beat's reading time and steps onAnimationEnd (the fill is the
-          timer, so a hold-pause naturally delays the advance). */}
-      <div className="sv-progress" role="presentation">
-        {beats.map((b, i) => (
-          <div className="sv-seg" key={b.id}>
-            <div
-              // Re-key the active fill by index so each step restarts the fill from
-              // 0; a pause/resume keeps the same key (toggles play-state instead).
-              key={i === safeIndex ? `active-${safeIndex}` : `idle-${i}`}
-              className={cn(
-                'sv-seg-fill',
-                i < safeIndex && 'is-done',
-                i === safeIndex && (reduced ? 'is-current' : 'is-active'),
-              )}
-              style={
-                i === safeIndex && !reduced
-                  ? { animationDuration: `${durationMs}ms`, animationPlayState: paused ? 'paused' : 'running' }
-                  : undefined
-              }
-              onAnimationEnd={i === safeIndex && !reduced ? goNext : undefined}
-            />
-          </div>
-        ))}
-      </div>
+          timer, so a hold-pause naturally delays the advance). Hidden on the cover. */}
+      {started && (
+        <div className="sv-progress" role="presentation">
+          {beats.map((b, i) => (
+            <div className="sv-seg" key={b.id}>
+              <div
+                // Re-key the active fill by index so each step restarts the fill from
+                // 0; a pause/resume keeps the same key (toggles play-state instead).
+                key={i === safeIndex ? `active-${safeIndex}` : `idle-${i}`}
+                className={cn(
+                  'sv-seg-fill',
+                  i < safeIndex && 'is-done',
+                  i === safeIndex && (reduced ? 'is-current' : 'is-active'),
+                )}
+                style={
+                  i === safeIndex && !reduced
+                    ? { animationDuration: `${durationMs}ms`, animationPlayState: paused ? 'paused' : 'running' }
+                    : undefined
+                }
+                onAnimationEnd={i === safeIndex && !reduced ? goNext : undefined}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Chrome: moment label + close (play/pause + stop live in the top story chip). */}
       <header className="sv-head">
@@ -199,86 +224,112 @@ export function StoryReader({
         </div>
       </header>
 
-      {/* Tap zones — pointer-only affordance (real controls live in the chrome). */}
-      <div
-        className="sv-zone sv-zone-prev"
-        aria-hidden="true"
-        onPointerDown={startHold}
-        onPointerUp={() => endHold('prev')}
-        onPointerLeave={cancelHold}
-        onPointerCancel={cancelHold}
-      />
-      <div
-        className="sv-zone sv-zone-next"
-        aria-hidden="true"
-        onPointerDown={startHold}
-        onPointerUp={() => endHold('next')}
-        onPointerLeave={cancelHold}
-        onPointerCancel={cancelHold}
-      />
+      {started ? (
+        <>
+          {/* Tap zones — pointer-only affordance (real controls live in the chrome). */}
+          <div
+            className="sv-zone sv-zone-prev"
+            aria-hidden="true"
+            onPointerDown={startHold}
+            onPointerUp={() => endHold('prev')}
+            onPointerLeave={cancelHold}
+            onPointerCancel={cancelHold}
+          />
+          <div
+            className="sv-zone sv-zone-next"
+            aria-hidden="true"
+            onPointerDown={startHold}
+            onPointerUp={() => endHold('next')}
+            onPointerLeave={cancelHold}
+            onPointerCancel={cancelHold}
+          />
 
-      {/* The active beat. */}
-      <div className="sv-stage" role="group" aria-roledescription="story beat" aria-label={`Beat ${safeIndex + 1} of ${count}`}>
-        {safeIndex === 0 && (
+          {/* The active beat. */}
+          <div
+            className="sv-stage"
+            role="group"
+            aria-roledescription="story beat"
+            aria-label={`Beat ${safeIndex + 1} of ${count}`}
+          >
+            {beat && (
+              <article className={cn('sv-beat', `sv-beat-${beat.kind}`)} key={beat.id}>
+                {beat.settingNote && <p className="sv-setting">{beat.settingNote}</p>}
+                <p className="sv-text">{beat.bodyText}</p>
+                {beat.relatedNodeIds.length > 0 && (
+                  <div className="sv-links">
+                    {beat.relatedNodeIds.map((id) => {
+                      const other = nodeById.get(id)
+                      if (!other) return null
+                      return (
+                        <button key={id} type="button" className="sv-link" onClick={() => navigateTo(id)}>
+                          → {other.title}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                {beat.citations.length > 0 && (
+                  <div className="sv-cites">
+                    {beat.citations.map((c, i) => (
+                      <div className="sv-cite" key={i}>
+                        <span className="sv-cite-title">{c.title || 'Untitled source'}</span>
+                        {c.quote?.trim() && <span className="sv-cite-quote">“{c.quote}”</span>}
+                        {c.url?.trim() && (
+                          <a className="sv-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
+                            Open source ↗
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+            )}
+          </div>
+
+          {/* Bottom nav — prev / counter / next (real keyboard targets + tap affordance). */}
+          <footer className="sv-foot">
+            <button
+              type="button"
+              className="sv-edge sv-edge-prev"
+              onClick={goPrev}
+              disabled={safeIndex === 0}
+              aria-label="Previous beat"
+            >
+              <ChevronLeft aria-hidden />
+            </button>
+            <span className="sv-count">
+              {safeIndex + 1} / {count}
+            </span>
+            <button type="button" className="sv-edge sv-edge-next" onClick={goNext} aria-label="Next beat">
+              <ChevronRight aria-hidden />
+            </button>
+          </footer>
+        </>
+      ) : (
+        /* Cover: title + hook + meta chips, with a Play button to begin the stepped,
+           auto-advancing reader. */
+        <div className="sv-cover">
           <div className="sv-intro">
             <h2 className="sv-title">{story.title}</h2>
             {story.hook && <p className="sv-hook">{story.hook}</p>}
           </div>
-        )}
-        {beat && (
-          <article className={cn('sv-beat', `sv-beat-${beat.kind}`)} key={beat.id}>
-            {beat.settingNote && <p className="sv-setting">{beat.settingNote}</p>}
-            <p className="sv-text">{beat.bodyText}</p>
-            {beat.relatedNodeIds.length > 0 && (
-              <div className="sv-links">
-                {beat.relatedNodeIds.map((id) => {
-                  const other = nodeById.get(id)
-                  if (!other) return null
-                  return (
-                    <button key={id} type="button" className="sv-link" onClick={() => navigateTo(id)}>
-                      → {other.title}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-            {beat.citations.length > 0 && (
-              <div className="sv-cites">
-                {beat.citations.map((c, i) => (
-                  <div className="sv-cite" key={i}>
-                    <span className="sv-cite-title">{c.title || 'Untitled source'}</span>
-                    {c.quote?.trim() && <span className="sv-cite-quote">“{c.quote}”</span>}
-                    {c.url?.trim() && (
-                      <a className="sv-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
-                        Open source ↗
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
-        )}
-      </div>
-
-      {/* Bottom nav — prev / counter / next (real keyboard targets + tap affordance). */}
-      <footer className="sv-foot">
-        <button
-          type="button"
-          className="sv-edge sv-edge-prev"
-          onClick={goPrev}
-          disabled={safeIndex === 0}
-          aria-label="Previous beat"
-        >
-          <ChevronLeft aria-hidden />
-        </button>
-        <span className="sv-count">
-          {safeIndex + 1} / {count}
-        </span>
-        <button type="button" className="sv-edge sv-edge-next" onClick={goNext} aria-label="Next beat">
-          <ChevronRight aria-hidden />
-        </button>
-      </footer>
+          <div className="sv-cover-meta">
+            <span className={cn('sv-chip', story.depthTier === 'deep' && 'sv-chip-deep')}>
+              {story.depthTier === 'deep' ? 'Deep' : 'Light'}
+            </span>
+            {story.povType !== 'omniscient' && <span className="sv-chip">{POV_LABEL[story.povType]}</span>}
+            {story.estimatedMinutes != null && <span className="sv-chip">~{story.estimatedMinutes} min</span>}
+            <span className="sv-chip">
+              {count} {count === 1 ? 'beat' : 'beats'}
+            </span>
+          </div>
+          <button type="button" className="sv-play" onClick={() => setStarted(true)} disabled={count === 0}>
+            <Play aria-hidden />
+            Play story
+          </button>
+        </div>
+      )}
     </aside>
   )
 }

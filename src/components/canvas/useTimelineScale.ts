@@ -1,20 +1,16 @@
 import type { NodeType, NodeSize, NodeSubtype } from '~/lib/domain/types'
+import { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay } from '~/lib/domain/types'
 
 const MS_PER_DAY = 86_400_000
 
 // Horizontal time density: pixels of base layout per day. This is the *axis*
 // scale (how far apart dates sit), independent of React Flow's camera zoom
-// (which scales node size). The canvas owns this as state; these are the bounds
-// and the default the TimeScaleControls step between.
-export const BASE_PX_PER_DAY = 0.5
-export const MIN_PX_PER_DAY = 0.005 // compressed enough to fit millennia on screen
-export const MAX_PX_PER_DAY = 4
+// (which scales node size). The canvas owns this as state; the bounds + default
+// live in the domain layer (shared with the MCP set_timeline_view tool) and are
+// re-exported here for the canvas controls.
+export { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY }
 
 const DAYS_PER_YEAR = 365.25
-
-function clampPxPerDay(v: number): number {
-  return Math.min(MAX_PX_PER_DAY, Math.max(MIN_PX_PER_DAY, v))
-}
 
 // Density (px/day) that fits `years` of time across `worldWidth` base pixels —
 // the basis for the timespan presets (Decade/Century/Millennium).
@@ -69,6 +65,28 @@ export function personCardWidth(size: NodeSize = 'medium'): number {
   return Math.round(PERSON_CARD_BASE_WIDTH * SIZE_SCALE[size])
 }
 
+// Spanless entity cards (a work/org/place with no end date) get a fixed width,
+// applied both to the DOM and to the lane packer's overlap test. Left to
+// auto-size, a long title renders the card far wider than NOMINAL_WIDTH and
+// same-lane neighbors visually overlap even though the packer saw them clear.
+const ENTITY_CARD_BASE_WIDTH = 200
+
+export function entityCardWidth(size: NodeSize = 'medium'): number {
+  return Math.round(ENTITY_CARD_BASE_WIDTH * SIZE_SCALE[size])
+}
+
+// Event pills render one nowrap line (dot + title + date), so their width is
+// text-driven; estimate it for the packer from the title. Deliberately a touch
+// generous (≈7px/glyph at the 12px base font, ~70px for the date, ~40px of
+// chrome) so the packer stacks before the DOM overlaps.
+const PILL_CHROME_PX = 40
+const PILL_CHAR_PX = 7
+const PILL_DATE_PX = 70
+
+export function eventPillWidth(title: string, size: NodeSize = 'medium'): number {
+  return Math.round((PILL_CHROME_PX + title.length * PILL_CHAR_PX + PILL_DATE_PX) * SIZE_SCALE[size])
+}
+
 // x = date. The base scale; the canvas itself pans/zooms on top of this.
 export function instantToX(instant: number, minInstant: number, pxPerDay = BASE_PX_PER_DAY): number {
   return ((instant - minInstant) / MS_PER_DAY) * pxPerDay
@@ -92,13 +110,30 @@ export type TimeScale = {
   collapsedRanges: { x0: number; x1: number }[]
 }
 
-// Only genuinely large empty spans collapse; anything shorter stays linear so a
-// dense cluster keeps its natural rhythm (collapsing decade-scale gaps reads as
-// cramped). Tuned above typical in-cluster spacing.
-const GAP_MIN_YEARS = 75
-const GAP_MIN_DAYS = GAP_MIN_YEARS * DAYS_PER_YEAR
+// Only spans that are large RELATIVE TO THIS TIMELINE collapse; anything near
+// the data's own rhythm stays linear so a dense cluster keeps its spacing. A
+// gap collapses when it dwarfs the median inter-anchor gap (an org founded in
+// 1923 before a 1997–2027 cluster) — a uniformly sparse timeline (a node every
+// ~20 years) has a large median and never collapses. The floor keeps small-gap
+// noise from collapsing ordinary pauses in dense timelines.
+const GAP_MEDIAN_FACTOR = 8
+const GAP_FLOOR_YEARS = 4
+const GAP_FLOOR_DAYS = GAP_FLOOR_YEARS * DAYS_PER_YEAR
 // Rendered width a collapsed span shrinks to (px, before camera zoom).
 const COLLAPSED_PX = 72
+
+// Median of the positive gaps (days) between consecutive sorted instants.
+function medianGapDays(sorted: number[]): number {
+  const gaps: number[] = []
+  for (let k = 1; k < sorted.length; k++) {
+    const d = (sorted[k]! - sorted[k - 1]!) / MS_PER_DAY
+    if (d > 0) gaps.push(d)
+  }
+  if (gaps.length === 0) return 0
+  gaps.sort((a, b) => a - b)
+  const mid = Math.floor(gaps.length / 2)
+  return gaps.length % 2 ? gaps[mid]! : (gaps[mid - 1]! + gaps[mid]!) / 2
+}
 
 export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps: boolean): TimeScale {
   const sorted = Array.from(new Set(instants)).sort((a, b) => a - b)
@@ -112,6 +147,9 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
     }
   }
 
+  // A gap collapses when it dwarfs this timeline's own rhythm.
+  const gapMinDays = Math.max(GAP_FLOOR_DAYS, GAP_MEDIAN_FACTOR * medianGapDays(sorted))
+
   // Piecewise-linear breakpoints: each anchor instant gets a cumulative x.
   const anchorInstant = sorted
   const anchorX: number[] = [0]
@@ -119,7 +157,7 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
   for (let k = 1; k < sorted.length; k++) {
     const days = (sorted[k]! - sorted[k - 1]!) / MS_PER_DAY
     const linearPx = days * pxPerDay
-    const collapse = days > GAP_MIN_DAYS && linearPx > COLLAPSED_PX
+    const collapse = days > gapMinDays && linearPx > COLLAPSED_PX
     const width = collapse ? COLLAPSED_PX : linearPx
     const x0 = anchorX[k - 1]!
     anchorX[k] = x0 + width
@@ -157,8 +195,11 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
 
 // --- Per-timeline scale preference (localStorage) -------------------------
 // `autoRefresh` drives the canvas's background poll for external MCP writes;
-// default on so a freshly-built timeline updates in place.
-export type ScalePref = { pxPerDay: number; collapseGaps: boolean; autoRefresh: boolean }
+// default on so a freshly-built timeline updates in place. `chosen` marks that
+// the USER explicitly adjusted the scale on this device — the pref is also
+// auto-saved ambiently on every open, and only an explicit choice should win
+// over the timeline's saved default view (setTimelineView / MCP set_timeline_view).
+export type ScalePref = { pxPerDay: number; collapseGaps: boolean; autoRefresh: boolean; chosen?: boolean }
 
 const scaleKey = (timelineId: string) => `synek:scale:${timelineId}`
 
@@ -169,7 +210,7 @@ export function loadScalePref(timelineId: string): ScalePref | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<ScalePref>
     const pxPerDay = typeof parsed.pxPerDay === 'number' ? clampPxPerDay(parsed.pxPerDay) : BASE_PX_PER_DAY
-    return { pxPerDay, collapseGaps: !!parsed.collapseGaps, autoRefresh: parsed.autoRefresh !== false }
+    return { pxPerDay, collapseGaps: !!parsed.collapseGaps, autoRefresh: parsed.autoRefresh !== false, chosen: !!parsed.chosen }
   } catch {
     return null
   }

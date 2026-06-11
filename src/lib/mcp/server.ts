@@ -7,13 +7,16 @@ import {
   loadGraph,
   getTimelineTitle,
   getTimelineMeta,
+  setTimelineView,
 } from '~/lib/db/graph'
+import { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay } from '~/lib/domain/types'
 import { PatchBuilder, commitPatch, undo, redo, historyState, maxAppliedSeq } from '~/lib/db/patches'
 import { writeStory, getMomentTimelineId } from '~/lib/db/stories'
 import { emitTimelineEvent } from '~/lib/server/bus'
 import { POV_TYPES, DEPTH_TIERS, SEGMENT_KINDS } from '~/lib/domain/types'
 import { BASE_URL } from '~/lib/auth'
 import { opSchema, applyOps } from './ops'
+import { collectPatchWarnings } from './warnings'
 
 const json = (data: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(data) }] })
 
@@ -38,7 +41,8 @@ export function buildMcpServer(ownerId: string): McpServer {
         'Within a batch, set `ref` on an add_node and reuse that alias as an edge endpoint to wire edges to nodes created in the same call. ' +
         'Give nodes a FACE, not a bare box: when you know a real, web-accessible image for a node (a Wikimedia portrait for a person, an official logo for an org, public-domain art for an era/event), pass it in the add_node/update_node `images` field as a URL. Set each image\'s `aspect` to "portrait" for tall subjects (a standing person, a headshot) or "landscape" for wide ones (scenes, logos) so it is framed correctly. Synek stores and renders it; it does not generate images. ' +
         'undo / redo step the per-timeline history. ' +
-        'To attach a NARRATIVE to a moment (node), call write_story with that node\'s id (momentId) and an ordered list of beats — stories are separate from the graph, written directly, and are NOT part of the undo/redo Patch stack. Set a beat\'s `focusNodeId` to another node id to make the canvas pan to that entity and the panel beside the story switch to it as the reader reaches that beat (a guided tour); omit it to stay on the moment. ' +
+        'After building (or reshaping) a timeline, call set_timeline_view to pick the default zoom (pxPerDay) and gap collapsing so the canvas opens readable — heed the density warnings apply_patch returns. ' +
+        'To attach a NARRATIVE to a moment (node), call write_story with that node\'s id (momentId) and an ordered list of beats — stories are separate from the graph, written directly, and are NOT part of the undo/redo Patch stack. A moment can hold SEVERAL stories: omit `storyId` to create a new one, or pass an existing story\'s id to update it in place. Set a beat\'s `focusNodeId` to another node id to make the canvas pan to that entity and the panel beside the story switch to it as the reader reaches that beat (a guided tour); omit it to stay on the moment. ' +
         'You only see and edit your own timelines.',
     },
   )
@@ -74,12 +78,18 @@ export function buildMcpServer(ownerId: string): McpServer {
     'get_timeline',
     {
       title: 'Get timeline graph',
-      description: 'Return a timeline\'s full graph: { title, nodes, edges }. Use node ids for update/delete/edge ops.',
+      description:
+        'Return a timeline\'s full graph: { title, viewSettings, nodes, edges }. Use node ids for update/delete/edge ops. ' +
+        '`viewSettings` is the saved default time-axis scale ({ pxPerDay, collapseGaps }, null if never set) — change it with set_timeline_view.',
       inputSchema: { timelineId: z.string() },
     },
     async ({ timelineId }) => {
       requireOwned(timelineId)
-      return json({ title: getTimelineTitle(timelineId), ...loadGraph(timelineId) })
+      return json({
+        title: getTimelineTitle(timelineId),
+        viewSettings: getTimelineMeta(timelineId)?.viewSettings ?? null,
+        ...loadGraph(timelineId),
+      })
     },
   )
 
@@ -88,7 +98,8 @@ export function buildMcpServer(ownerId: string): McpServer {
     {
       title: 'Apply a batch of edits',
       description:
-        'Apply a batch of graph edits as ONE atomic, undoable Patch. ops is an ordered list of add_node/update_node/delete_node/add_edge/update_edge/delete_edge. Use `ref` on add_node to reference the new node from a later add_edge in the same batch.',
+        'Apply a batch of graph edits as ONE atomic, undoable Patch. ops is an ordered list of add_node/update_node/delete_node/add_edge/update_edge/delete_edge. Use `ref` on add_node to reference the new node from a later add_edge in the same batch. ' +
+        'The result includes `warnings` — broken image URLs, lanes too dense for the current scale, dates that stretch the axis. The patch is COMMITTED regardless; act on warnings with a follow-up apply_patch or set_timeline_view.',
       inputSchema: { timelineId: z.string(), summary: z.string(), ops: z.array(opSchema) },
     },
     async ({ timelineId, summary, ops }) => {
@@ -99,7 +110,47 @@ export function buildMcpServer(ownerId: string): McpServer {
       const builder = new PatchBuilder(timelineId, loadGraph(timelineId))
       const { results } = applyOps(builder, ops)
       const patchId = commitPatch(timelineId, builder, (summary || 'MCP edit').slice(0, 200))
-      return json({ patchId, results, ...historyState(timelineId) })
+      // Advisory only, computed after the commit (image checks hit the network);
+      // live viewers already got the SSE nudge from commitPatch.
+      const warnings = await collectPatchWarnings(
+        loadGraph(timelineId),
+        ops,
+        getTimelineMeta(timelineId)?.viewSettings ?? null,
+      )
+      return json({ patchId, results, warnings, ...historyState(timelineId) })
+    },
+  )
+
+  server.registerTool(
+    'set_timeline_view',
+    {
+      title: 'Set timeline view defaults',
+      description:
+        'Save the timeline\'s default time-axis view, applied when a viewer opens it (a device where the user ' +
+        'already adjusted the scale keeps its own). Call this once AFTER building so the first open isn\'t the ' +
+        'wrong zoom. `pxPerDay` is horizontal pixels per day of the base layout, clamped to ' +
+        `[${MIN_PX_PER_DAY}, ${MAX_PX_PER_DAY}] (default ${BASE_PX_PER_DAY}) — pick it so the dense era fills a few screens: ` +
+        'pxPerDay ≈ 3000 / (days spanned by the bulk of the nodes). `collapseGaps` squeezes long empty spans into a ' +
+        'compact axis break — enable it when outlier dates (an org founded decades before the events, an ancient ' +
+        'precursor) would otherwise stretch the axis into dead space. Omitted fields keep their current value. ' +
+        'Read the current settings via get_timeline\'s `viewSettings`.',
+      inputSchema: {
+        timelineId: z.string(),
+        pxPerDay: z.number().positive().optional().describe('Pixels per day, clamped to the allowed range.'),
+        collapseGaps: z.boolean().optional().describe('Collapse long empty spans into a fixed-width axis break.'),
+      },
+    },
+    async ({ timelineId, pxPerDay, collapseGaps }) => {
+      requireOwned(timelineId)
+      const current = getTimelineMeta(timelineId)?.viewSettings ?? null
+      const next = {
+        pxPerDay: clampPxPerDay(pxPerDay ?? current?.pxPerDay ?? BASE_PX_PER_DAY),
+        collapseGaps: collapseGaps ?? current?.collapseGaps ?? false,
+      }
+      setTimelineView(timelineId, ownerId, next)
+      // Live viewers re-pull the graph (which carries viewSettings) on any event.
+      emitTimelineEvent({ timelineId, kind: 'view', seq: maxAppliedSeq(timelineId) })
+      return json({ ok: true, viewSettings: next })
     },
   )
 
@@ -108,9 +159,12 @@ export function buildMcpServer(ownerId: string): McpServer {
     {
       title: 'Write a story onto a moment',
       description:
-        'Attach a narrative to a moment (a node) as an ordered list of beats (segments). Stories are SEPARATE from the graph — written directly, with their own provenance, and NOT part of the undo/redo Patch stack. Re-calling REPLACES the moment\'s existing story. Pass the node id as `momentId`. The canvas shows a badge on moments with a story and plays the beats back beside the moment when the user opens the node. To turn a beat into a guided tour, set `focusNodeId` to another node id on the same timeline: as the reader reaches that beat the canvas pans + rings that entity and the detail panel beside the story switches to show it (omit it to stay on the moment). Ground each beat in real sources: pass `citations` (title + optional url + verbatim quote) on every beat that makes a factual claim — stories without sources are just plausible fiction.',
+        'Attach a narrative to a moment (a node) as an ordered list of beats (segments). Stories are SEPARATE from the graph — written directly, with their own provenance, and NOT part of the undo/redo Patch stack. A moment can hold SEVERAL stories: omit `storyId` to CREATE a new story; pass an existing `storyId` (one belonging to this moment) to UPDATE that story in place (replacing its meta + beats). Pass the node id as `momentId`. The canvas shows a badge on moments with a story and lists them beside the moment when the user opens the node, playing the beats back on demand. To turn a beat into a guided tour, set `focusNodeId` to another node id on the same timeline: as the reader reaches that beat the canvas pans + rings that entity and the detail panel beside the story switches to show it (omit it to stay on the moment). Ground each beat in real sources: pass `citations` (title + optional url + verbatim quote) on every beat that makes a factual claim — stories without sources are just plausible fiction.',
       inputSchema: {
         momentId: z.string(),
+        // Omit to create a new story; pass an existing story id (on this moment) to
+        // update it in place.
+        storyId: z.string().optional(),
         title: z.string(),
         hook: z.string().optional(),
         povType: z.enum(POV_TYPES).optional(),
@@ -137,13 +191,13 @@ export function buildMcpServer(ownerId: string): McpServer {
           .min(1),
       },
     },
-    async ({ momentId, title, hook, povType, depthTier, estimatedMinutes, segments }) => {
+    async ({ momentId, storyId, title, hook, povType, depthTier, estimatedMinutes, segments }) => {
       // write_story keys off a node id; resolve its timeline and run the same
       // owner check the timeline-scoped tools use.
       const timelineId = getMomentTimelineId(momentId)
       const meta = timelineId ? getTimelineMeta(timelineId) : null
       if (!timelineId || !meta || meta.ownerId !== ownerId) throw new Error(`moment "${momentId}" not found`)
-      const result = writeStory(momentId, { title, hook, povType, depthTier, estimatedMinutes }, segments)
+      const result = writeStory(momentId, { title, hook, povType, depthTier, estimatedMinutes }, segments, { storyId })
       // Nudge live viewers to refetch so the depth badge appears in near-real-time
       // (same SSE channel as patches; seq = current max so it never rewinds Last-Event-ID).
       emitTimelineEvent({ timelineId, kind: 'story', seq: maxAppliedSeq(timelineId) })

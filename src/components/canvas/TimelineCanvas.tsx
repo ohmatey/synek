@@ -11,6 +11,7 @@ import {
   useReactFlow,
   type Node,
   type Edge,
+  type NodeChange,
 } from '@xyflow/react'
 import { Pause, Play } from 'lucide-react'
 import { useTheme } from '@synek/ui'
@@ -23,6 +24,8 @@ import {
   layoutLaneY,
   estimateNodeHeight,
   personCardWidth,
+  entityCardWidth,
+  eventPillWidth,
   makeTimeScale,
   loadScalePref,
   saveScalePref,
@@ -34,7 +37,7 @@ import {
 } from './useTimelineScale'
 import { formatInstant, eraTint } from '~/lib/domain/dates'
 import { getGraph } from '~/lib/server/graph'
-import { getStory } from '~/lib/server/stories'
+import { getStoriesForMomentFn, getStoryByIdFn } from '~/lib/server/stories'
 import { useTimelineStream } from './useTimelineStream'
 import { AppBar } from './AppBar'
 import { ShareDialog } from './ShareDialog'
@@ -160,18 +163,22 @@ const EDGE_STYLE: Record<EdgeKind, { color: string; width: number; dash?: string
 export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const { resolvedTheme } = useTheme()
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // A moment can hold several stories; this is the one the docked reader plays.
+  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null)
   // While true the docked StoryReader is open beside the panel; activeBeat tracks
-  // the beat it's on (drives the per-beat camera + which entity the panel shows).
+  // the beat it's on (drives the per-beat camera + which entity the panel shows; -1
+  // = on the cover, so the moment stays framed).
   // `storyPaused` is lifted so the top story chip can drive play/pause too.
   const [reading, setReading] = useState(false)
-  const [activeBeat, setActiveBeat] = useState(0)
+  const [activeBeat, setActiveBeat] = useState(-1)
   const [storyPaused, setStoryPaused] = useState(false)
-  // A moment whose story should auto-open in the reader (set by the AppBar Stories
-  // menu). Consumed once its story loads with beats, then cleared.
-  const [autoPlayStoryId, setAutoPlayStoryId] = useState<string | null>(null)
-  const playStory = useCallback((momentId: string) => {
+  // A story that should auto-open in the reader (set by the AppBar Stories menu).
+  // Consumed once it loads with beats, then cleared.
+  const [autoPlay, setAutoPlay] = useState<{ momentId: string; storyId: string } | null>(null)
+  const playStory = useCallback((momentId: string, storyId: string) => {
     setSelectedId(momentId)
-    setAutoPlayStoryId(momentId)
+    setSelectedStoryId(storyId)
+    setAutoPlay({ momentId, storyId })
   }, [])
   // Selecting a node always drops any open reader first.
   const selectNode = useCallback((id: string) => {
@@ -183,6 +190,18 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const initialPref = useRef(loadScalePref(timelineId)).current
   const [pxPerDay, setPxPerDay] = useState(initialPref?.pxPerDay ?? BASE_PX_PER_DAY)
   const [collapseGaps, setCollapseGaps] = useState(initialPref?.collapseGaps ?? false)
+  // True once the USER explicitly adjusted the scale on this device (vs the
+  // ambient auto-save below) — only then does the local pref beat the timeline's
+  // saved default view. Persisted in the pref so the choice survives reloads.
+  const scaleChosen = useRef(initialPref?.chosen ?? false)
+  const choosePxPerDay = useCallback((v: number) => {
+    scaleChosen.current = true
+    setPxPerDay(v)
+  }, [])
+  const chooseCollapseGaps = useCallback((v: boolean) => {
+    scaleChosen.current = true
+    setCollapseGaps(v)
+  }, [])
   // Live updates from the MCP client — on by default, toggled in settings.
   const [autoRefresh, setAutoRefresh] = useState(initialPref?.autoRefresh ?? true)
 
@@ -203,9 +222,10 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // A separate-process (stdio) story write emits no SSE frame, so an open reader
   // (keyed ['story', nodeId]) won't refresh from the stream — it converges only
   // via the graph poll. getGraph carries a storyVersion signature that shifts on
-  // any story write/rewrite; when it changes here, invalidate the ['story'] family
-  // so an open reader refetches. (Same-process writes still refresh instantly via
-  // the SSE 'story' frame in useTimelineStream; this is the poll-based floor.)
+  // any story write/rewrite; when it changes here, invalidate the ['story'] +
+  // ['stories'] families so an open reader AND the panel's per-moment list refetch.
+  // (Same-process writes still refresh instantly via the SSE 'story' frame in
+  // useTimelineStream; this is the poll-based floor.)
   const qc = useQueryClient()
   const storyVersion = data && data.status === 'ok' ? data.storyVersion : null
   const prevStoryVersion = useRef<string | null>(null)
@@ -213,6 +233,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     if (storyVersion == null) return
     if (prevStoryVersion.current != null && prevStoryVersion.current !== storyVersion) {
       void qc.invalidateQueries({ queryKey: ['story'] })
+      void qc.invalidateQueries({ queryKey: ['stories'] })
     }
     prevStoryVersion.current = storyVersion
   }, [storyVersion, qc])
@@ -229,15 +250,39 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     setPxPerDay(pref?.pxPerDay ?? BASE_PX_PER_DAY)
     setCollapseGaps(pref?.collapseGaps ?? false)
     setAutoRefresh(pref?.autoRefresh ?? true)
+    scaleChosen.current = pref?.chosen ?? false
+    measuredRef.current = new Map() // sizes belong to the previous timeline's nodes
     // New timeline → re-baseline the story-version watch so the first load of the
     // new graph isn't mistaken for a story write.
     prevStoryVersion.current = null
   }, [timelineId])
 
-  // Persist the chosen scale per timeline (local-first; no DB).
+  // Persist the scale per timeline (local-first; no DB). Runs on mount too, so
+  // the pref's mere existence means nothing — `chosen` carries the user intent.
   useEffect(() => {
-    saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh })
+    saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh, chosen: scaleChosen.current })
   }, [timelineId, pxPerDay, collapseGaps, autoRefresh])
+
+  // Measured DOM size per node id — the layout's second pass. Estimates place
+  // nodes on first paint; once React Flow measures the real cards, lanes re-pack
+  // with the truth, so estimate drift can never overlap nodes again. A ref +
+  // version counter (not state) so a burst of dimension events costs one re-pack.
+  const measuredRef = useRef(new Map<string, { w: number; h: number }>())
+  const [measuredVersion, setMeasuredVersion] = useState(0)
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    let dirty = false
+    for (const c of changes) {
+      if (c.type !== 'dimensions' || !c.dimensions) continue
+      const { width, height } = c.dimensions
+      if (!width || !height) continue
+      const prev = measuredRef.current.get(c.id)
+      // Sub-2px jitter (zoom rounding) doesn't earn a re-pack.
+      if (prev && Math.abs(prev.w - width) < 2 && Math.abs(prev.h - height) < 2) continue
+      measuredRef.current.set(c.id, { w: width, h: height })
+      dirty = true
+    }
+    if (dirty) setMeasuredVersion((v) => v + 1)
+  }, [])
 
   // Latest anchor instants (node start/end), mirrored so the controls can build
   // a prospective scale for keep-center re-anchoring without recomputing here.
@@ -252,34 +297,50 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
 
   const { pending, focusIds, setFocusIds } = useBuildStream()
 
-  // The story attached to the selected moment (read-only playback), or null. Keyed
-  // by node id so it refetches on selection change; the storyVersion watch above
-  // invalidates ['story'] so a live write_story refresh updates an open reader.
-  const { data: story } = useQuery({
-    queryKey: ['story', selectedId],
-    queryFn: () => getStory({ data: selectedId as string }),
+  // Every story on the selected moment — backs the panel's compact list. Keyed by
+  // node id so it refetches on selection change; the storyVersion watch invalidates
+  // ['stories'] so a live write_story refresh updates the list.
+  const { data: stories } = useQuery({
+    queryKey: ['stories', selectedId],
+    queryFn: () => getStoriesForMomentFn({ data: selectedId as string }),
     enabled: !!selectedId,
   })
-  const momentStory = story ?? null // undefined while loading → treat as none here
+  // The full DTO of the story the reader plays (chosen from the list), or null. Keyed
+  // by story id; the storyVersion watch invalidates ['story'] so a live rewrite
+  // refreshes an open reader.
+  const { data: readingStoryData } = useQuery({
+    queryKey: ['story', selectedStoryId],
+    queryFn: () => getStoryByIdFn({ data: selectedStoryId as string }),
+    enabled: !!selectedStoryId,
+  })
+  const readingStory = readingStoryData ?? null // undefined while loading → treat as none
 
-  // A new selection drops any open reader; (re)opening starts at beat 0, unpaused.
+  // A new selection drops any open reader + its chosen story.
   useEffect(() => {
     setReading(false)
-    setActiveBeat(0)
+    setSelectedStoryId(null)
+    setActiveBeat(-1)
     setStoryPaused(false)
   }, [selectedId])
-  // Auto-play from the AppBar Stories menu: once the picked moment's story loads
-  // with beats, open the reader and consume the one-shot signal.
+  // Auto-play from the AppBar Stories menu: once the picked story loads with beats,
+  // open the reader and consume the one-shot signal.
   useEffect(() => {
-    if (autoPlayStoryId && autoPlayStoryId === selectedId && momentStory && momentStory.beats.length > 0) {
-      setActiveBeat(0)
+    if (
+      autoPlay &&
+      autoPlay.momentId === selectedId &&
+      autoPlay.storyId === selectedStoryId &&
+      readingStory &&
+      readingStory.beats.length > 0
+    ) {
+      setActiveBeat(-1)
       setStoryPaused(false)
       setReading(true)
-      setAutoPlayStoryId(null)
+      setAutoPlay(null)
     }
-  }, [autoPlayStoryId, selectedId, momentStory])
-  const startReading = useCallback(() => {
-    setActiveBeat(0)
+  }, [autoPlay, selectedId, selectedStoryId, readingStory])
+  const startReading = useCallback((storyId: string) => {
+    setSelectedStoryId(storyId)
+    setActiveBeat(-1)
     setStoryPaused(false)
     setReading(true)
   }, [])
@@ -304,16 +365,19 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // panel shows beside the story — it "follows the beat"; beats with no focus fall
   // back to the moment.
   const storyFocusIds = useMemo(() => {
-    if (!reading || !selectedId || !momentStory) return null
+    if (!reading || !selectedId || !readingStory) return null
     const ids = new Set<string>([selectedId])
-    for (const b of momentStory.beats) {
+    for (const b of readingStory.beats) {
       if (b.focusNodeId) ids.add(b.focusNodeId)
       for (const id of b.relatedNodeIds) ids.add(id)
     }
     return [...ids]
-  }, [reading, selectedId, momentStory])
+  }, [reading, selectedId, readingStory])
+  // activeBeat is -1 on the cover → no beat focus (frame the moment).
   const activeBeatData =
-    reading && momentStory ? momentStory.beats[Math.min(activeBeat, momentStory.beats.length - 1)] : null
+    reading && readingStory && activeBeat >= 0
+      ? readingStory.beats[Math.min(activeBeat, readingStory.beats.length - 1)]
+      : null
   // The entity this beat spotlights: an explicit focusNodeId, else its first related
   // node. BOTH the camera and the detail panel follow it, so the right panel tracks
   // whatever the current beat is about; a beat that names nothing falls back to the
@@ -377,15 +441,18 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeIdKey, timelineId])
 
-  // Apply the owner-saved default scale once per timeline, but only when this
-  // device has no local override (the local working scale wins on a return visit).
-  const serverDefaultFor = useRef<string | null>(null)
+  // Apply the saved default scale (owner "save as default" / MCP set_timeline_view)
+  // whenever its VALUE changes — including live, mid-session, as a building agent
+  // calls set_timeline_view. A device where the user explicitly adjusted the scale
+  // keeps its own (`chosen`); the ambient auto-saved pref does not block this.
+  const serverDefaultKey = useRef<string | null>(null)
   useEffect(() => {
-    if (serverDefaultFor.current === timelineId) return
     const vs = graph?.viewSettings
     if (!vs) return
-    serverDefaultFor.current = timelineId
-    if (loadScalePref(timelineId)) return
+    const key = `${timelineId}|${vs.pxPerDay}|${vs.collapseGaps}`
+    if (serverDefaultKey.current === key) return
+    serverDefaultKey.current = key
+    if (loadScalePref(timelineId)?.chosen) return
     setPxPerDay(vs.pxPerDay)
     setCollapseGaps(vs.collapseGaps)
   }, [graph?.viewSettings, timelineId])
@@ -436,17 +503,32 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       x: scale.toX(n.startInstant),
       // Person cards are fixed-size polaroids anchored at the start instant
       // (the lifespan moves into the caption), not stretched across the span.
-      width: n.subtype === 'person' ? personCardWidth(n.size) : widthOf(n.startInstant, n.endInstant),
+      // Other spanless nodes need an honest width too — the packer can only
+      // prevent overlap if it knows the rendered size: entities get a fixed
+      // card width, event pills a text-driven estimate.
+      width:
+        n.subtype === 'person'
+          ? personCardWidth(n.size)
+          : (widthOf(n.startInstant, n.endInstant) ??
+            (n.type === 'entity'
+              ? entityCardWidth(n.size)
+              : n.type === 'event'
+                ? eventPillWidth(n.title, n.size)
+                : undefined)),
     }))
     const pendingPositioned = pending.map((p) => ({
       p,
       id: `pending:${p.key}`,
       x: scale.toX(p.startInstant),
-      width: widthOf(p.startInstant, p.endInstant),
+      width:
+        widthOf(p.startInstant, p.endInstant) ??
+        (p.type === 'entity' ? entityCardWidth() : p.type === 'event' ? eventPillWidth(p.title) : undefined),
     }))
 
     // Spread same-lane nodes that would overlap horizontally onto stacked rows
     // (real + pending laid out together so they don't collide mid-stream).
+    // Measured DOM sizes (second pass) beat the estimates once available.
+    const m = measuredRef.current
     const laneYById = layoutLaneY([
       ...realPositioned.map((r) => {
         const shown = r.n.images.filter((i) => i.show)
@@ -456,21 +538,31 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           r.n.subtype === 'person'
             ? shown[0]?.aspect === 'portrait'
             : shown.some((i) => i.aspect === 'portrait')
+        // A fixed-width entity card clamps a long title to a second line, which
+        // estimateNodeHeight's single-line body doesn't cover.
+        const titleWrap =
+          r.n.type === 'entity' && r.n.subtype !== 'person' && r.n.endInstant == null && r.n.title.length > 16
+            ? 16
+            : 0
+        const meas = m.get(r.n.id)
         return {
           id: r.n.id,
           type: r.n.type,
           x: r.x,
-          width: r.width,
+          width: meas?.w ?? r.width,
           lane: r.n.lane,
-          height: estimateNodeHeight(r.n.type, r.n.size, shown.length > 0, r.n.subtype, !!r.n.summary, hasPortrait),
+          height:
+            meas?.h ??
+            estimateNodeHeight(r.n.type, r.n.size, shown.length > 0, r.n.subtype, !!r.n.summary, hasPortrait) +
+              titleWrap,
         }
       }),
       ...pendingPositioned.map((pp) => ({
         id: pp.id,
         type: pp.p.type,
         x: pp.x,
-        width: pp.width,
-        height: estimateNodeHeight(pp.p.type, 'medium', false),
+        width: m.get(pp.id)?.w ?? pp.width,
+        height: m.get(pp.id)?.h ?? estimateNodeHeight(pp.p.type, 'medium', false),
       })),
     ])
 
@@ -548,7 +640,10 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     })
 
     return { rfNodes, rfEdges, scale }
-  }, [gnodes, gedges, pending, draft, selectedId, effectiveFocusIds, pxPerDay, collapseGaps, hiddenKinds])
+    // measuredVersion stands in for measuredRef.current's contents (a ref, so
+    // not a valid dep itself) — it bumps exactly when a node's DOM size changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gnodes, gedges, pending, draft, selectedId, effectiveFocusIds, pxPerDay, collapseGaps, hiddenKinds, measuredVersion])
 
   // Layer the transient "new node" glow on top WITHOUT re-running lane packing
   // (a cheap shallow remap, vs. recomputing the whole layout in the memo above).
@@ -604,8 +699,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           <div className="canvas-toolbar">
             {isOwner && <McpStatusChip />}
             {isOwner && <HistoryControls timelineId={timelineId} />}
-            {gnodes.some((n) => n.hasStory) && (
-              <StoriesMenu timelineId={timelineId} storyVersion={storyVersion ?? ''} onPlay={playStory} />
+            {(isOwner || gnodes.some((n) => n.hasStory)) && (
+              <StoriesMenu
+                timelineId={timelineId}
+                storyVersion={storyVersion ?? ''}
+                canCreate={isOwner}
+                nodes={gnodes.map((n) => ({ id: n.id, title: n.title, type: n.type }))}
+                onPlay={playStory}
+              />
             )}
             {(gnodes.length > 0 || pending.length > 0) && (
               <CanvasSettings
@@ -620,8 +721,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 hiddenKinds={hiddenKinds}
                 onToggleKind={toggleKind}
                 onResetKinds={resetKinds}
-                onPxPerDay={setPxPerDay}
-                onCollapseGaps={setCollapseGaps}
+                onPxPerDay={choosePxPerDay}
+                onCollapseGaps={chooseCollapseGaps}
                 onAutoRefresh={setAutoRefresh}
               />
             )}
@@ -639,7 +740,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           <div className="lens-bar">
             <span>
               {reading
-                ? `Story · ${momentStory?.title ?? ''}`
+                ? `Story · ${readingStory?.title ?? ''}`
                 : `Lens · ${lensSize} node${lensSize === 1 ? '' : 's'}`}
             </span>
             {reading ? (
@@ -674,6 +775,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           edges={rfEdges}
           nodeTypes={nodeTypes}
           nodesDraggable={false}
+          // Dimension changes feed the measured-size layout pass; we never apply
+          // the changes back (positions are owned by the layout memo).
+          onNodesChange={handleNodesChange}
           // Flip xyflow's built-in styles (controls, minimap, attribution, default
           // edge defaults) to match the active app theme. Node accent colors
           // (per-node borderColor) are intentionally NOT theme-coupled — those are
@@ -716,9 +820,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             readOnly={!isOwner || reading}
             preview={reading}
             previewLabel={selectedNode?.title}
-            // The story section only shows on the moment when not reading (the
-            // docked reader is the story surface while reading).
-            story={reading ? undefined : story}
+            // The story list only shows on the moment when not reading (the docked
+            // reader is the story surface while reading).
+            stories={reading ? undefined : stories}
             onClose={() => {
               setSelectedId(null)
               setReading(false)
@@ -730,9 +834,11 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             onPlayStory={startReading}
           />
         ) : null}
-        {reading && momentStory && selectedNode ? (
+        {reading && readingStory && selectedNode ? (
           <StoryReader
-            story={momentStory}
+            // Re-key on the story so switching stories resets the reader (cover, beat 0).
+            key={readingStory.id}
+            story={readingStory}
             momentTitle={selectedNode.title}
             nodeById={nodeById}
             paused={storyPaused}

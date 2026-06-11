@@ -126,7 +126,7 @@ export function CanvasSettings({
     setSaving(true)
     try {
       await setTimelineView({ data: { id: timelineId, view: { pxPerDay, collapseGaps } } })
-      saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh })
+      saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh, chosen: true })
       toast.success('Saved as this timeline’s default scale')
     } catch {
       toast.error('Couldn’t save the default')

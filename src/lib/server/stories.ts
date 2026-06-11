@@ -1,5 +1,14 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getMomentTimelineId, getStoryForMoment, listStoriesForTimeline } from '~/lib/db/stories'
+import {
+  getMomentTimelineId,
+  getStoryById,
+  getStoryForMoment,
+  getStoriesForMoment,
+  listStoriesForTimeline,
+} from '~/lib/db/stories'
+import { db } from '~/lib/db/index'
+import { stories } from '~/lib/db/schema'
+import { eq } from 'drizzle-orm'
 import { getTimelineMeta, canView } from '~/lib/db/graph'
 import { getCurrentUser } from '~/lib/auth/session'
 import type { StoryDTO, StoryListItem } from '~/lib/domain/types'
@@ -31,4 +40,36 @@ export const listStories = createServerFn({ method: 'GET' })
     const user = await getCurrentUser()
     if (!canView(meta, user?.id ?? null)) return []
     return listStoriesForTimeline(timelineId)
+  })
+
+// Every story attached to a single moment (for the entity panel's story list),
+// gated by the same visibility rule. Returns [] when the moment has none or can't
+// be viewed.
+export const getStoriesForMomentFn = createServerFn({ method: 'GET' })
+  .inputValidator((momentId: string) => momentId)
+  .handler(async ({ data: momentId }): Promise<StoryListItem[]> => {
+    const timelineId = getMomentTimelineId(momentId)
+    if (!timelineId) return []
+    const meta = getTimelineMeta(timelineId)
+    if (!meta) return []
+    const user = await getCurrentUser()
+    if (!canView(meta, user?.id ?? null)) return []
+    return getStoriesForMoment(momentId)
+  })
+
+// One story by id (for the docked reader), gated by the same visibility rule. The
+// story resolves to its moment → timeline for the check. Returns null when missing
+// or forbidden.
+export const getStoryByIdFn = createServerFn({ method: 'GET' })
+  .inputValidator((storyId: string) => storyId)
+  .handler(async ({ data: storyId }): Promise<StoryDTO | null> => {
+    const row = db.select({ momentId: stories.momentId }).from(stories).where(eq(stories.id, storyId)).get()
+    if (!row) return null
+    const timelineId = getMomentTimelineId(row.momentId)
+    if (!timelineId) return null
+    const meta = getTimelineMeta(timelineId)
+    if (!meta) return null
+    const user = await getCurrentUser()
+    if (!canView(meta, user?.id ?? null)) return null
+    return getStoryById(storyId)
   })

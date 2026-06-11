@@ -7,9 +7,9 @@ import { Textarea } from '~/components/ui/textarea'
 import { parseDate, formatInstant } from '~/lib/domain/dates'
 import { editNode, deleteNode } from '~/lib/server/nodes'
 import { fileToDataUrl } from '~/lib/files'
-import { CopyButton } from '~/components/home/CopyButton'
+import { NewStoryDialog } from './NewStoryDialog'
 import { IMAGE_ASPECTS, NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
-import type { GraphNode, GraphEdge, CanvasCitation, ImageAspect, NodeImage, NodeSize, NodeSubtype, NodeType, Precision, EdgeKind, PovType, StoryDTO } from '~/lib/domain/types'
+import type { GraphNode, GraphEdge, CanvasCitation, ImageAspect, NodeImage, NodeSize, NodeSubtype, NodeType, Precision, EdgeKind, PovType, StoryListItem } from '~/lib/domain/types'
 import type { NodeDraft } from './types'
 
 // Mirrors the canvas edge palette. CSS vars flip per theme automatically;
@@ -69,7 +69,7 @@ export function NodeDetailPanel({
   readOnly = false,
   preview = false,
   previewLabel,
-  story,
+  stories,
   onClose,
   onSelectNode,
   onDraft,
@@ -85,28 +85,26 @@ export function NodeDetailPanel({
   // edit affordances — just the entity, with a "Story · {previewLabel}" eyebrow.
   preview?: boolean
   previewLabel?: string
-  // The story attached to this moment (passed from the canvas, which owns the
-  // query). undefined while loading, null when there's none. Ignored in preview.
-  story?: StoryDTO | null
+  // The stories attached to this moment (passed from the canvas, which owns the
+  // query). A moment can hold several. undefined while loading, [] when there are
+  // none. Ignored in preview.
+  stories?: StoryListItem[]
   onClose: () => void
   onSelectNode: (id: string) => void
   onDraft: (draft: NodeDraft | null) => void
-  // Open the docked story reader beside this panel (only meaningful on the moment).
-  onPlayStory?: () => void
+  // Open the docked story reader beside this panel on a specific story (only
+  // meaningful on the moment).
+  onPlayStory?: (storyId: string) => void
 }) {
   const qc = useQueryClient()
   const hasSpan = node.type !== 'event'
-  const beatCount = story?.beats.length ?? 0
 
   // GAP 3·B — the app holds no AI, so it can't generate a story; instead, a
   // story-less moment offers a ready-made prompt the user pastes into their
   // connected Claude, which writes the story back via the write_story MCP tool.
-  const askPrompt =
-    `Using the Synek MCP tools, write a short, source-grounded story onto this moment with write_story.\n` +
-    `- momentId: ${node.id}\n` +
-    `- timelineId: ${timelineId}\n` +
-    `- moment: "${node.title}"\n` +
-    `Use 3–5 beats. Ground every factual beat with a real citation (title + url + a short verbatim quote). Keep it readable and faithful to what actually happened.`
+  // Opens the shared New Story dialog (same one the AppBar uses), pre-anchored to
+  // this entity. The app holds no AI, so the dialog hands off a prompt to Claude.
+  const [newStoryOpen, setNewStoryOpen] = useState(false)
 
   // Edges touching this node, resolved to the other endpoint's title.
   const nodeById = new Map(nodes.map((n) => [n.id, n]))
@@ -760,87 +758,75 @@ export function NodeDetailPanel({
         )}
       </div>
 
-      {!preview && story && (
-        <div className={`detail-field detail-section detail-story${story.depthTier === 'deep' ? ' detail-story-deep' : ''}`}>
-          <span className="detail-label">Story</span>
-          <h3 className="detail-story-title">{story.title}</h3>
-          {story.hook && <p className="detail-story-hook">{story.hook}</p>}
-          <div className="detail-story-meta">
-            <span className={`detail-story-tier${story.depthTier === 'deep' ? ' detail-story-tier-deep' : ''}`}>
-              {story.depthTier === 'deep' ? 'Deep' : 'Light'}
-            </span>
-            {story.povType !== 'omniscient' && <span className="detail-story-pov">{POV_LABEL[story.povType]}</span>}
-            {story.estimatedMinutes != null && <span className="detail-story-mins">~{story.estimatedMinutes} min</span>}
-            <span className="detail-story-beatcount">
-              {beatCount} {beatCount === 1 ? 'beat' : 'beats'}
-            </span>
-          </div>
-          {/* Headline action: open the docked, stepped story reader beside this panel. */}
-          <Button className="detail-story-play" onClick={() => onPlayStory?.()} disabled={beatCount === 0}>
-            <Play className="size-4" />
-            Play story
-          </Button>
-          {/* Static, readable beat list (in-panel reading + grounding). The
-              immersive, stepped tap-through lives in StoryReader (docked alongside). */}
-          <ol className="detail-story-beats">
-            {story.beats.map((b) => (
-              <li key={b.id} className={`detail-story-beat detail-story-${b.kind}`}>
-                {b.settingNote && <span className="detail-story-setting">{b.settingNote}</span>}
-                <p className="detail-story-text">{b.bodyText}</p>
-                {b.relatedNodeIds.length > 0 && (
-                  <div className="detail-story-links">
-                    {b.relatedNodeIds.map((id) => {
-                      const other = nodeById.get(id)
-                      if (!other) return null
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          className="detail-story-link"
-                          onClick={() => onSelectNode(id)}
-                          title={`Go to ${other.title}`}
-                        >
-                          → {other.title}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-                {b.citations.length > 0 && (
-                  <div className="detail-story-cites">
-                    {b.citations.map((c, i) => (
-                      <div className="detail-citation" key={i}>
-                        <div className="detail-cite-title">{c.title || 'Untitled source'}</div>
-                        {c.quote?.trim() && <p className="detail-cite-quote">“{c.quote}”</p>}
-                        {c.url?.trim() && (
-                          <a className="detail-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
-                            Open source ↗
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+      {!preview && stories && stories.length > 0 && (
+        <div className="detail-field detail-section detail-story">
+          <span className="detail-label">
+            {stories.length === 1 ? 'Story' : `Stories · ${stories.length}`}
+          </span>
+          {/* A moment can hold several stories — list them compactly; the full
+              readable text plays beat-by-beat in the docked reader (Play). */}
+          <ul className="detail-story-list">
+            {stories.map((s) => (
+              <li
+                key={s.storyId}
+                className={`detail-story-row${s.depthTier === 'deep' ? ' detail-story-deep' : ''}`}
+              >
+                <h3 className="detail-story-title">{s.title}</h3>
+                {s.hook && <p className="detail-story-hook">{s.hook}</p>}
+                <div className="detail-story-meta">
+                  <span className={`detail-story-tier${s.depthTier === 'deep' ? ' detail-story-tier-deep' : ''}`}>
+                    {s.depthTier === 'deep' ? 'Deep' : 'Light'}
+                  </span>
+                  {s.povType !== 'omniscient' && <span className="detail-story-pov">{POV_LABEL[s.povType]}</span>}
+                  {s.estimatedMinutes != null && <span className="detail-story-mins">~{s.estimatedMinutes} min</span>}
+                  <span className="detail-story-beatcount">
+                    {s.beatCount} {s.beatCount === 1 ? 'beat' : 'beats'}
+                  </span>
+                </div>
+                {/* Open the docked, stepped reader on this story (cover first). */}
+                <Button
+                  className="detail-story-play"
+                  onClick={() => onPlayStory?.(s.storyId)}
+                  disabled={s.beatCount === 0}
+                >
+                  <Play className="size-4" />
+                  Play story
+                </Button>
               </li>
             ))}
-          </ol>
+          </ul>
+          {!readOnly && (
+            <Button variant="outline" className="detail-story-play" onClick={() => setNewStoryOpen(true)}>
+              <Plus className="size-4" />
+              Add another story
+            </Button>
+          )}
         </div>
       )}
 
-      {!preview && story === null && !readOnly && (
+      {!preview && stories && stories.length === 0 && !readOnly && (
         <div className="detail-field detail-section detail-story-ask">
           <span className="detail-label">Story</span>
           <p className="detail-empty">No story on this moment yet.</p>
-          <CopyButton
-            text={askPrompt}
-            label="Generate a story with Claude"
-            copiedLabel="Prompt copied — paste into Claude"
-          />
+          <Button className="detail-story-play" onClick={() => setNewStoryOpen(true)}>
+            <Plus className="size-4" />
+            New story
+          </Button>
           <p className="detail-hint">
-            Copies a prompt; paste it into your connected Claude to generate a grounded story onto this moment. It
-            appears here as a tap-through story you can play.
+            Opens the New Story dialog — pick the cast and copy a prompt for your connected Claude, which writes a
+            grounded story onto this moment. It appears here as a tap-through story you can play.
           </p>
         </div>
+      )}
+
+      {!preview && !readOnly && (
+        <NewStoryDialog
+          open={newStoryOpen}
+          onOpenChange={setNewStoryOpen}
+          timelineId={timelineId}
+          nodes={nodes.map((n) => ({ id: n.id, title: n.title, type: n.type }))}
+          initialAnchorId={node.id}
+        />
       )}
 
       <div className="detail-field detail-section">

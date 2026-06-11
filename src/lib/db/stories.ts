@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from './index'
 import { stories, storySegments, nodes } from './schema'
 import type { Citation } from './schema'
@@ -42,35 +42,56 @@ const slugify = (s: string): string =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 60) || 'story'
 
-// Write one story onto a moment, REPLACING any existing story on it (S1 = one
-// story per moment, so re-calling is idempotent). One transaction inserting a
-// `stories` row + N ordered `story_segments` rows; no `patches` row, no undo
-// entry. The slug is globally unique (schema constraint), so it carries a random
-// suffix.
+// Write a story onto a moment. A moment can hold SEVERAL stories. Without
+// `opts.storyId` this CREATES a new story; with one (that belongs to the moment)
+// it UPDATES that story in place — replacing its meta + segments — so a re-run is
+// idempotent against a known id. One transaction writes the `stories` row + N
+// ordered `story_segments` rows; no `patches` row, no undo entry. The slug is
+// globally unique (schema constraint), so a new story carries a random suffix.
 export function writeStory(
   momentId: string,
   meta: NewStory,
   segments: NewStorySegment[],
+  opts?: { storyId?: string },
 ): { storyId: string; segmentCount: number } {
   let storyId = ''
   db.transaction((tx) => {
-    // Replace: cascade drops the previous story's segments.
-    tx.delete(stories).where(eq(stories.momentId, momentId)).run()
-    const inserted = tx
-      .insert(stories)
-      .values({
-        momentId,
-        slug: `${slugify(meta.title)}-${crypto.randomUUID().slice(0, 8)}`,
-        title: meta.title,
-        hook: meta.hook ?? null,
-        povType: meta.povType ?? 'omniscient',
-        depthTier: meta.depthTier ?? 'light',
-        estimatedMinutes: meta.estimatedMinutes ?? null,
-        status: 'published',
-      })
-      .returning({ id: stories.id })
-      .get()
-    storyId = inserted!.id
+    const existing = opts?.storyId
+      ? tx.select({ id: stories.id }).from(stories).where(and(eq(stories.id, opts.storyId), eq(stories.momentId, momentId))).get()
+      : undefined
+    if (existing) {
+      // Update in place: refresh meta, then swap the segment set.
+      storyId = existing.id
+      tx.update(stories)
+        .set({
+          title: meta.title,
+          hook: meta.hook ?? null,
+          povType: meta.povType ?? 'omniscient',
+          depthTier: meta.depthTier ?? 'light',
+          estimatedMinutes: meta.estimatedMinutes ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(stories.id, storyId))
+        .run()
+      tx.delete(storySegments).where(eq(storySegments.storyId, storyId)).run()
+    } else {
+      // Create a new story on the moment (leaves any existing stories untouched).
+      const inserted = tx
+        .insert(stories)
+        .values({
+          momentId,
+          slug: `${slugify(meta.title)}-${crypto.randomUUID().slice(0, 8)}`,
+          title: meta.title,
+          hook: meta.hook ?? null,
+          povType: meta.povType ?? 'omniscient',
+          depthTier: meta.depthTier ?? 'light',
+          estimatedMinutes: meta.estimatedMinutes ?? null,
+          status: 'published',
+        })
+        .returning({ id: stories.id })
+        .get()
+      storyId = inserted!.id
+    }
     segments.forEach((s, i) => {
       tx.insert(storySegments)
         .values({
@@ -89,17 +110,9 @@ export function writeStory(
   return { storyId, segmentCount: segments.length }
 }
 
-// The story attached to a moment as a client-serializable DTO (beats ordered by
-// sequence), or null if it has none. Backs the node-detail playback reader.
-export function getStoryForMoment(momentId: string): StoryDTO | null {
-  const story = db
-    .select()
-    .from(stories)
-    .where(eq(stories.momentId, momentId))
-    .orderBy(desc(stories.createdAt))
-    .limit(1)
-    .get()
-  if (!story) return null
+// Hydrate a `stories` row + its ordered segments into a client DTO. Shared by the
+// by-moment (latest) and by-id readers.
+function hydrateStory(story: typeof stories.$inferSelect): StoryDTO {
   const segs = db
     .select()
     .from(storySegments)
@@ -126,24 +139,29 @@ export function getStoryForMoment(momentId: string): StoryDTO | null {
   }
 }
 
-// All stories on a timeline, in chronological moment order — backs the AppBar's
-// "Stories" dropdown. One row per story (S1 = one story per moment) with its moment
-// title + a beat count, so the menu reads without N+1 round-trips.
-export function listStoriesForTimeline(timelineId: string): StoryListItem[] {
-  const rows = db
-    .select({
-      momentId: stories.momentId,
-      momentTitle: nodes.title,
-      storyId: stories.id,
-      title: stories.title,
-      hook: stories.hook,
-      depthTier: stories.depthTier,
-    })
+// The latest story attached to a moment as a client-serializable DTO, or null if
+// it has none. A moment may hold several; this returns the most recent (used by
+// the legacy single-story getStory RPC).
+export function getStoryForMoment(momentId: string): StoryDTO | null {
+  const story = db
+    .select()
     .from(stories)
-    .innerJoin(nodes, eq(stories.momentId, nodes.id))
-    .where(eq(nodes.timelineId, timelineId))
-    .orderBy(asc(nodes.startInstant))
-    .all()
+    .where(eq(stories.momentId, momentId))
+    .orderBy(desc(stories.createdAt))
+    .limit(1)
+    .get()
+  return story ? hydrateStory(story) : null
+}
+
+// A specific story by id as a client DTO (beats ordered by sequence), or null.
+// Backs the docked reader, which opens an exact story chosen from the panel list.
+export function getStoryById(storyId: string): StoryDTO | null {
+  const story = db.select().from(stories).where(eq(stories.id, storyId)).get()
+  return story ? hydrateStory(story) : null
+}
+
+// Attach per-story beat counts to a set of story rows in one grouped query.
+function withBeatCounts<T extends { storyId: string }>(rows: T[]): (T & { beatCount: number })[] {
   if (rows.length === 0) return []
   const counts = new Map<string, number>()
   for (const r of db
@@ -153,22 +171,52 @@ export function listStoriesForTimeline(timelineId: string): StoryListItem[] {
     .groupBy(storySegments.storyId)
     .all())
     counts.set(r.storyId, Number(r.n))
-  return rows.map((r) => ({
-    momentId: r.momentId,
-    momentTitle: r.momentTitle,
-    storyId: r.storyId,
-    title: r.title,
-    hook: r.hook,
-    depthTier: r.depthTier,
-    beatCount: counts.get(r.storyId) ?? 0,
-  }))
+  return rows.map((r) => ({ ...r, beatCount: counts.get(r.storyId) ?? 0 }))
 }
 
-// A cheap content signature over the stories attached to these moments. Because
-// writeStory REPLACES the row (minting a new story id) on every call, the signature
-// changes on any write/rewrite — even a same-depth one the depth badge can't see.
-// The canvas threads this through the graph poll so a separate-process (stdio)
-// story write refreshes an already-open reader within the polling interval.
+const STORY_LIST_COLUMNS = {
+  momentId: stories.momentId,
+  momentTitle: nodes.title,
+  storyId: stories.id,
+  title: stories.title,
+  hook: stories.hook,
+  depthTier: stories.depthTier,
+  povType: stories.povType,
+  estimatedMinutes: stories.estimatedMinutes,
+} as const
+
+// All stories on a timeline, in chronological moment order — backs the AppBar's
+// "Stories" dropdown. One row per story (a moment may have several) with its moment
+// title + meta + a beat count, so the menu reads without N+1 round-trips.
+export function listStoriesForTimeline(timelineId: string): StoryListItem[] {
+  const rows = db
+    .select(STORY_LIST_COLUMNS)
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .where(eq(nodes.timelineId, timelineId))
+    .orderBy(asc(nodes.startInstant), asc(stories.createdAt))
+    .all()
+  return withBeatCounts(rows)
+}
+
+// Every story attached to a single moment (newest first) — backs the entity
+// panel's per-moment story list. Same shape as the timeline-wide dropdown rows.
+export function getStoriesForMoment(momentId: string): StoryListItem[] {
+  const rows = db
+    .select(STORY_LIST_COLUMNS)
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .where(eq(stories.momentId, momentId))
+    .orderBy(desc(stories.createdAt))
+    .all()
+  return withBeatCounts(rows)
+}
+
+// A cheap content signature over the stories attached to these moments. Each story
+// row's id + updatedAt folds in, so the signature shifts on any create/update/delete
+// — even a same-depth rewrite the depth badge can't see. The canvas threads this
+// through the graph poll so a separate-process (stdio) story write refreshes an
+// already-open reader within the polling interval.
 export function storyVersionForMoments(momentIds: string[]): string {
   if (momentIds.length === 0) return ''
   const rows = db
@@ -183,7 +231,8 @@ export function storyVersionForMoments(momentIds: string[]): string {
 }
 
 // Which of the given moments have a story, and at what depth — one query, for the
-// canvas depth badge. Map presence = "has a story".
+// canvas depth badge. Map presence = "has a story"; when a moment holds several
+// stories, the DEEPEST wins so the badge reflects its richest story.
 export function storyDepthByMoment(momentIds: string[]): Map<string, DepthTier> {
   const out = new Map<string, DepthTier>()
   if (momentIds.length === 0) return out
@@ -192,6 +241,8 @@ export function storyDepthByMoment(momentIds: string[]): Map<string, DepthTier> 
     .from(stories)
     .where(inArray(stories.momentId, momentIds))
     .all()
-  for (const r of rows) out.set(r.momentId, r.depthTier)
+  for (const r of rows) {
+    if (r.depthTier === 'deep' || !out.has(r.momentId)) out.set(r.momentId, r.depthTier)
+  }
   return out
 }

@@ -1448,6 +1448,31 @@ body {
   margin-top: 10px;
 }
 
+/* A moment can hold several stories — list them as compact cards (title, hook,
+   meta chips, Play). The full readable text plays in the docked reader. */
+.detail-story-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-story-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-base);
+}
+
+.detail-story-row.detail-story-deep {
+  border-color: var(--color-accent-story);
+}
+
 .detail-story-beats {
   list-style: none;
   margin: 4px 0 0;
@@ -1768,6 +1793,69 @@ body {
   font-size: 14px;
   font-style: italic;
   color: var(--color-fg-muted);
+}
+/* Cover: the reader opens here (title + hook + meta), with Play to begin the
+   stepped, auto-advancing beats. Centered like the stage; no progress/tap zones. */
+.sv-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  width: min(640px, 88vw);
+  margin: 0 auto;
+  padding: 88px 16px 96px;
+  text-align: center;
+}
+.sv-cover-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.sv-chip {
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--color-fg-muted);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-subtle);
+}
+.sv-chip-deep {
+  color: var(--color-accent-story);
+  border-color: var(--color-accent-story);
+}
+.sv-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 11px 22px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: var(--color-accent-primary);
+}
+.sv-play:hover {
+  filter: brightness(1.06);
+}
+.sv-play:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sv-play svg {
+  width: 18px;
+  height: 18px;
 }
 .sv-beat {
   display: flex;

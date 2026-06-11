@@ -12,8 +12,9 @@ import { EventEmitter } from 'node:events'
 export type TimelineEvent = {
   timelineId: string
   // `patch`/`undo`/`redo` are graph mutations; `story` is a write_story commit
-  // (separate from the Patch stack). Clients refetch on ANY kind.
-  kind: 'patch' | 'undo' | 'redo' | 'story'
+  // (separate from the Patch stack); `view` is a saved-view-settings change
+  // (MCP set_timeline_view). Clients refetch on ANY kind.
+  kind: 'patch' | 'undo' | 'redo' | 'story' | 'view'
   // The patch seq involved. For `patch`, the newly-committed seq; for undo/redo,
   // the seq of the patch that flipped; for `story`, the timeline's current max
   // applied seq (so it never rewinds Last-Event-ID). Clients refetch on ANY
