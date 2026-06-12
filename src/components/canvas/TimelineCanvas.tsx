@@ -722,112 +722,117 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
 
     // Invitation ghosts (NEXT.5 Tier 2): the map showing its own holes and offering
     // to fill them. Three variants, all dashed InvitationNode cards opening the
-    // shared fill PromptDialog. Each capped so the canvas stays calm.
+    // shared fill PromptDialog. Each capped so the canvas stays calm. Owner-only —
+    // these are authoring affordances ("Fill this gap" / "Add to this track" /
+    // "Populate this era") that hand the user a build prompt; a public read-only
+    // viewer can't build, so they never see the ghosts and the public/seed canvas
+    // stays an exact reflection of its real nodes.
+    if (isOwner) {
+      // 1. GAP — a dead zone (big empty stretch of the axis). LINEAR mode only;
+      //    collapse mode already squeezes big gaps (so a ghost would sit in a squeezed
+      //    span — the collapsed-range marker is its own future affordance). Skip any
+      //    zone a period bar spans (its start/end bracket the gap → the bar fills it).
+      if (!collapseGaps) {
+        const gapInstants = effectiveNodes.flatMap((n) => [
+          n.startInstant,
+          ...(n.endInstant != null ? [n.endInstant] : []),
+        ])
+        const zones = findDeadZones(gapInstants)
+          .filter(
+            (z) =>
+              !effectiveNodes.some(
+                (n) => n.startInstant <= z.fromInstant && (n.endInstant ?? n.startInstant) >= z.toInstant,
+              ),
+          )
+          .slice(0, MAX_GAP_GHOSTS)
+        for (const z of zones) {
+          const midX = scale.toX((z.fromInstant + z.toInstant) / 2)
+          rfNodes.push({
+            id: `inv-gap:${z.fromInstant}:${z.toInstant}`,
+            type: 'invitation',
+            position: { x: midX - GAP_CARD_W / 2, y: GAP_Y },
+            data: {
+              variant: 'gap',
+              title: `≈ ${z.years} years empty`,
+              subtitle: `${formatInstant(z.fromInstant, 'year')} → ${formatInstant(z.toInstant, 'year')}`,
+              cta: 'Fill this gap',
+              cardWidth: GAP_CARD_W,
+              onFill: () => setGapSpec(fillGapSpec(z, { timelineId, timelineTitle: title, surface: 'canvas_gap' })),
+            },
+            draggable: false,
+            selectable: false,
+          })
+        }
+      }
 
-    // 1. GAP — a dead zone (big empty stretch of the axis). LINEAR mode only;
-    //    collapse mode already squeezes big gaps (so a ghost would sit in a squeezed
-    //    span — the collapsed-range marker is its own future affordance). Skip any
-    //    zone a period bar spans (its start/end bracket the gap → the bar fills it).
-    if (!collapseGaps) {
-      const gapInstants = effectiveNodes.flatMap((n) => [
-        n.startInstant,
-        ...(n.endInstant != null ? [n.endInstant] : []),
-      ])
-      const zones = findDeadZones(gapInstants)
-        .filter(
-          (z) =>
-            !effectiveNodes.some(
-              (n) => n.startInstant <= z.fromInstant && (n.endInstant ?? n.startInstant) >= z.toInstant,
-            ),
-        )
-        .slice(0, MAX_GAP_GHOSTS)
-      for (const z of zones) {
-        const midX = scale.toX((z.fromInstant + z.toInstant) / 2)
+      // 2. LANE — a thin swimlane ("rival track" with ≤ SPARSE_LANE_MAX nodes). Ghost
+      //    sits just past the lane's rightmost node, in that lane's row.
+      const laneStats = new Map<string, { count: number; maxRight: number; y: number }>()
+      for (const r of realPositioned) {
+        if (!r.n.lane) continue
+        const right = r.x + (r.width ?? GAP_CARD_W)
+        const y = laneYById.get(r.n.id) ?? GAP_Y
+        const g = laneStats.get(r.n.lane) ?? { count: 0, maxRight: -Infinity, y }
+        g.count++
+        g.maxRight = Math.max(g.maxRight, right)
+        laneStats.set(r.n.lane, g)
+      }
+      const sparseLanes = [...laneStats.entries()].filter(([, g]) => g.count <= SPARSE_LANE_MAX).slice(0, MAX_LANE_GHOSTS)
+      for (const [lane, g] of sparseLanes) {
         rfNodes.push({
-          id: `inv-gap:${z.fromInstant}:${z.toInstant}`,
+          id: `inv-lane:${lane}`,
           type: 'invitation',
-          position: { x: midX - GAP_CARD_W / 2, y: GAP_Y },
+          position: { x: g.maxRight + 24, y: g.y },
           data: {
-            variant: 'gap',
-            title: `≈ ${z.years} years empty`,
-            subtitle: `${formatInstant(z.fromInstant, 'year')} → ${formatInstant(z.toInstant, 'year')}`,
-            cta: 'Fill this gap',
+            variant: 'lane',
+            title: lane,
+            subtitle: 'thin track',
+            cta: 'Add to this track',
             cardWidth: GAP_CARD_W,
-            onFill: () => setGapSpec(fillGapSpec(z, { timelineId, timelineTitle: title, surface: 'canvas_gap' })),
+            onFill: () => setGapSpec(extendLaneSpec(lane, { timelineId, timelineTitle: title, surface: 'canvas_lane' })),
           },
           draggable: false,
           selectable: false,
         })
       }
-    }
 
-    // 2. LANE — a thin swimlane ("rival track" with ≤ SPARSE_LANE_MAX nodes). Ghost
-    //    sits just past the lane's rightmost node, in that lane's row.
-    const laneStats = new Map<string, { count: number; maxRight: number; y: number }>()
-    for (const r of realPositioned) {
-      if (!r.n.lane) continue
-      const right = r.x + (r.width ?? GAP_CARD_W)
-      const y = laneYById.get(r.n.id) ?? GAP_Y
-      const g = laneStats.get(r.n.lane) ?? { count: 0, maxRight: -Infinity, y }
-      g.count++
-      g.maxRight = Math.max(g.maxRight, right)
-      laneStats.set(r.n.lane, g)
-    }
-    const sparseLanes = [...laneStats.entries()].filter(([, g]) => g.count <= SPARSE_LANE_MAX).slice(0, MAX_LANE_GHOSTS)
-    for (const [lane, g] of sparseLanes) {
-      rfNodes.push({
-        id: `inv-lane:${lane}`,
-        type: 'invitation',
-        position: { x: g.maxRight + 24, y: g.y },
-        data: {
-          variant: 'lane',
-          title: lane,
-          subtitle: 'thin track',
-          cta: 'Add to this track',
-          cardWidth: GAP_CARD_W,
-          onFill: () => setGapSpec(extendLaneSpec(lane, { timelineId, timelineTitle: title, surface: 'canvas_lane' })),
-        },
-        draggable: false,
-        selectable: false,
-      })
-    }
-
-    // 3. ERA — a period with ≤ BARE_ERA_MAX nodes inside its span. Ghost sits at the
-    //    era's midpoint, below the period bar.
-    const bareEras = effectiveNodes
-      .filter((n) => n.type === 'period')
-      .filter((p) => {
+      // 3. ERA — a period with ≤ BARE_ERA_MAX nodes inside its span. Ghost sits at the
+      //    era's midpoint, below the period bar.
+      const bareEras = effectiveNodes
+        .filter((n) => n.type === 'period')
+        .filter((p) => {
+          const end = p.endInstant ?? p.startInstant
+          const within = effectiveNodes.filter(
+            (n) => n.id !== p.id && n.type !== 'period' && n.startInstant >= p.startInstant && n.startInstant <= end,
+          )
+          return within.length <= BARE_ERA_MAX
+        })
+        .slice(0, MAX_ERA_GHOSTS)
+      for (const p of bareEras) {
         const end = p.endInstant ?? p.startInstant
-        const within = effectiveNodes.filter(
-          (n) => n.id !== p.id && n.type !== 'period' && n.startInstant >= p.startInstant && n.startInstant <= end,
-        )
-        return within.length <= BARE_ERA_MAX
-      })
-      .slice(0, MAX_ERA_GHOSTS)
-    for (const p of bareEras) {
-      const end = p.endInstant ?? p.startInstant
-      const midX = scale.toX((p.startInstant + end) / 2)
-      rfNodes.push({
-        id: `inv-era:${p.id}`,
-        type: 'invitation',
-        position: { x: midX - GAP_CARD_W / 2, y: ERA_Y },
-        data: {
-          variant: 'era',
-          title: p.title,
-          subtitle: `${formatInstant(p.startInstant, 'year')} → ${formatInstant(end, 'year')}`,
-          cta: 'Populate this era',
-          cardWidth: GAP_CARD_W,
-          onFill: () =>
-            setGapSpec(
-              populateEraSpec(
-                { title: p.title, fromInstant: p.startInstant, toInstant: end },
-                { timelineId, timelineTitle: title, surface: 'canvas_era' },
+        const midX = scale.toX((p.startInstant + end) / 2)
+        rfNodes.push({
+          id: `inv-era:${p.id}`,
+          type: 'invitation',
+          position: { x: midX - GAP_CARD_W / 2, y: ERA_Y },
+          data: {
+            variant: 'era',
+            title: p.title,
+            subtitle: `${formatInstant(p.startInstant, 'year')} → ${formatInstant(end, 'year')}`,
+            cta: 'Populate this era',
+            cardWidth: GAP_CARD_W,
+            onFill: () =>
+              setGapSpec(
+                populateEraSpec(
+                  { title: p.title, fromInstant: p.startInstant, toInstant: end },
+                  { timelineId, timelineTitle: title, surface: 'canvas_era' },
+                ),
               ),
-            ),
-        },
-        draggable: false,
-        selectable: false,
-      })
+          },
+          draggable: false,
+          selectable: false,
+        })
+      }
     }
 
     // Period nodes are background context; their connections stay hidden until
@@ -868,7 +873,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     // measuredVersion stands in for measuredRef.current's contents (a ref, so
     // not a valid dep itself) — it bumps exactly when a node's DOM size changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gnodes, gedges, pending, draft, selectedId, effectiveFocusIds, pxPerDay, collapseGaps, hiddenKinds, measuredVersion, timelineId, title])
+  }, [gnodes, gedges, pending, draft, selectedId, effectiveFocusIds, pxPerDay, collapseGaps, hiddenKinds, measuredVersion, timelineId, title, isOwner])
 
   // Layer the transient "new node" glow on top WITHOUT re-running lane packing
   // (a cheap shallow remap, vs. recomputing the whole layout in the memo above).
