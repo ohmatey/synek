@@ -97,3 +97,40 @@ test('owner themes a timeline: per-scheme colors, texture, anon sees it, clear r
   expect(await inlineVar(page, '--color-accent-primary')).toBe('')
   await expect(page.locator('.canvas-root')).toHaveAttribute('data-canvas-texture', 'default')
 })
+
+test('textures render distinctly and the Default option is gone', async ({ page }) => {
+  await loginAsOwner(page)
+  await page.goto('/timelines/figures')
+  await expect(page.getByText('Albert Einstein')).toBeVisible()
+
+  await page.getByTestId('canvas-settings').click()
+  await page.getByTestId('theme-edit').click()
+  // The "Default" texture button was removed; only none/dots/grid/paper remain.
+  await expect(page.getByTestId('theme-texture-default')).toHaveCount(0)
+  await expect(page.getByTestId('theme-texture-dots')).toBeVisible()
+
+  const patternColor = () =>
+    page.evaluate(() =>
+      getComputedStyle(document.querySelector('.canvas-root') as HTMLElement)
+        .getPropertyValue('--xy-background-pattern-color')
+        .trim(),
+    )
+  const rfBackgroundImage = () =>
+    page.evaluate(() => getComputedStyle(document.querySelector('.react-flow') as HTMLElement).backgroundImage)
+
+  // Dots: the explicit texture strengthens the pattern color to the (theme-aware)
+  // border-default token — distinctly different from the faint default grid.
+  await page.getByTestId('theme-texture-dots').click()
+  await expect(page.locator('.canvas-root')).toHaveAttribute('data-canvas-texture', 'dots')
+  const dotsColor = await patternColor()
+  expect(dotsColor).not.toBe('')
+
+  // Paper: a real SVG grain is painted as the .react-flow background-image.
+  await page.getByTestId('theme-texture-paper').click()
+  await expect(page.locator('.canvas-root')).toHaveAttribute('data-canvas-texture', 'paper')
+  expect(await rfBackgroundImage()).toContain('svg')
+
+  // Click the active texture again to clear it (back to the baseline grid).
+  await page.getByTestId('theme-texture-paper').click()
+  await expect(page.locator('.canvas-root')).toHaveAttribute('data-canvas-texture', 'default')
+})

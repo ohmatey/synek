@@ -1029,12 +1029,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           proOptions={{ hideAttribution: true }}
         >
           {/* Texture: 'default' keeps the classic 48px dot grid; 'dots'/'grid'
-              are denser themed variants; 'paper' is a CSS grain layer (styles.css)
-              and 'none' is a clean wash — both render no RF Background. */}
+              are denser, visible variants (styles.css strengthens their pattern
+              color); 'paper' is a CSS grain layer and 'none' is a clean wash —
+              both render no RF Background. */}
           {texture !== 'none' && texture !== 'paper' && (
             <Background
-              gap={texture === 'dots' ? 24 : 48}
-              size={texture === 'dots' ? 1.5 : undefined}
+              gap={texture === 'dots' ? 20 : 48}
+              size={texture === 'dots' ? 2.5 : undefined}
+              lineWidth={texture === 'grid' ? 1 : undefined}
               variant={texture === 'grid' ? BackgroundVariant.Lines : BackgroundVariant.Dots}
             />
           )}

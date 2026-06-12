@@ -29,9 +29,9 @@ const SLOT_META: { key: keyof ThemeColorSlots; label: string; hint: string }[] =
   { key: 'canvasBg', label: 'Canvas', hint: 'The background wash behind the graph' },
 ]
 
-// 'default' represents "no texture set" (the classic dot grid) — stored as undefined.
-const TEXTURE_OPTIONS: { value: ThemeTexture | 'default'; label: string }[] = [
-  { value: 'default', label: 'Default' },
+// The selectable textures. Clicking the active one again unsets it (back to the
+// canvas's baseline dot grid), so no separate "default" option is needed.
+const TEXTURE_OPTIONS: { value: ThemeTexture; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'dots', label: 'Dots' },
   { value: 'grid', label: 'Grid' },
@@ -212,7 +212,7 @@ export function ThemeEditorDialog({
             <Label>Texture</Label>
             <div className="flex gap-1">
               {TEXTURE_OPTIONS.map((t) => {
-                const active = (draft.texture ?? 'default') === t.value
+                const active = draft.texture === t.value
                 return (
                   <Button
                     key={t.value}
@@ -220,9 +220,8 @@ export function ThemeEditorDialog({
                     size="sm"
                     className="h-7 flex-1 px-1 text-xs"
                     aria-pressed={active}
-                    onClick={() =>
-                      update({ ...draft, texture: t.value === 'default' ? undefined : (t.value as ThemeTexture) })
-                    }
+                    // Click the active texture again to clear it (baseline grid).
+                    onClick={() => update({ ...draft, texture: active ? undefined : t.value })}
                     data-testid={`theme-texture-${t.value}`}
                   >
                     {t.label}

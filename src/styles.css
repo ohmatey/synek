@@ -156,14 +156,25 @@ body {
   font-family: var(--font-display, inherit);
 }
 
-/* Texture "paper": an SVG fractal-noise grain layered over the canvas wash
-   (background-image sits above background-color; xyflow's pane color comes from
-   --xy-background-color). Opacity is baked into the SVG so one tile works over
-   any canvasBg, dark or light. The dots/grid textures use the React Flow
-   <Background> component instead (TimelineCanvas). */
+/* Texture "paper": a DESATURATED SVG fractal-noise grain layered over the canvas
+   wash (background-image sits above background-color; xyflow's pane color comes
+   from --xy-background-color). feColorMatrix saturate=0 makes it grey speckle (not
+   rainbow noise) and the opacity is high enough to actually read; baked into the
+   SVG so one tile works over any canvasBg, light or dark. The dots/grid textures
+   use the React Flow <Background> component instead (TimelineCanvas). */
 .canvas-root[data-canvas-texture='paper'] .react-flow {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
-  background-size: 280px 280px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.16'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* The dot/line grids read almost invisibly at the default faint pattern color, so
+   strengthen it for the explicit texture choices (theme-aware token → adapts to
+   light/dark). A themed canvasBg still wins: resolveTimelineTheme sets a derived
+   --xy-background-pattern-color inline, which outranks this rule. The untextured
+   baseline keeps the faint default, so unthemed timelines are unchanged. */
+.canvas-root[data-canvas-texture='dots'],
+.canvas-root[data-canvas-texture='grid'] {
+  --xy-background-pattern-color: var(--color-border-default);
 }
 
 .canvas-loading {
