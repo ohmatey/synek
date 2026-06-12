@@ -8,6 +8,7 @@ import {
   ListFilter,
   MapPin,
   MessagesSquare,
+  Palette,
   Search,
   Sparkles,
   User,
@@ -35,8 +36,7 @@ import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
 import { capture } from '~/lib/posthog/client'
 import { cn } from '~/lib/utils'
 import { formatInstant } from '~/lib/domain/dates'
-import { buildTalkToPrompt } from '~/lib/talk-to-prompt'
-import { buildImproveTimelinePrompt } from '~/lib/timeline-prompt'
+import { talkToSpec, improveTimelineSpec, themeTimelineSpec, verbsForNode } from '~/lib/verbs'
 import type { GraphNode, NodeType } from '~/lib/domain/types'
 import { floatChip } from './chrome'
 
@@ -79,11 +79,14 @@ export function CommandPalette({
   onSelect,
   timelineId,
   timelineTitle,
+  selectedNode,
 }: {
   nodes: GraphNode[]
   onSelect: (id: string) => void
   timelineId: string
   timelineTitle: string
+  // The node currently open in the detail panel, if any — its verbs lead the list.
+  selectedNode?: GraphNode | null
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -146,6 +149,16 @@ export function CommandPalette({
 
   const entityNodes = useMemo(() => nodes.filter((n) => n.type === 'entity'), [nodes])
 
+  // Verbs for the currently-selected node lead the list, so opening ⌘K with a node
+  // selected puts its actions at the very top, typeable by name. The per-entity
+  // Talk-to list (discovery without a selection) drops the selected node so its
+  // Talk-to isn't shown twice.
+  const selectedVerbs = useMemo(() => (selectedNode ? verbsForNode(selectedNode) : []), [selectedNode])
+  const talkToEntities = useMemo(
+    () => entityNodes.filter((n) => n.id !== selectedNode?.id),
+    [entityNodes, selectedNode],
+  )
+
   // Per-palette result filter: which categories show in the list. Separate from
   // the canvas kind-filter — this only narrows the palette, not the canvas.
   // 'actions' + each present node group; default all shown.
@@ -159,10 +172,11 @@ export function CommandPalette({
     })
   const categories = useMemo(
     () => [
-      { key: 'actions', label: 'Actions', count: 1 + entityNodes.length },
+      // +2 = the timeline-level actions (Improve, Theme); the rest are per-node.
+      { key: 'actions', label: 'Verbs', count: selectedVerbs.length + 2 + talkToEntities.length },
       ...groups.map((g) => ({ key: g.type as string, label: g.label, count: g.items.length })),
     ],
-    [groups, entityNodes],
+    [groups, selectedVerbs, talkToEntities],
   )
 
   function navigate(id: string) {
@@ -182,36 +196,9 @@ export function CommandPalette({
     promptTimer.current = setTimeout(() => setPromptSpec(spec), 260)
   }
 
-  function talkToSpec(n: GraphNode): PromptSpec {
-    const kind = n.subtype ?? 'entity'
-    return {
-      title: `Talk to ${n.title}`,
-      description: `Get ${n.title}'s first-person perspective written onto the moment they're most part of — as a grounded story on the canvas.`,
-      params: [
-        { label: 'Speaker', value: `${n.title} (${kind})` },
-        { label: 'Timeline', value: timelineTitle },
-      ],
-      prompt: buildTalkToPrompt({ timelineId, nodeId: n.id, name: n.title, kind }),
-      contextLabel: `Ask ${n.title} something, or set a focus (optional)`,
-      contextPlaceholder: `e.g. their exile, a rivalry, founding a school — or a question for them`,
-      contextHeading: `What the user wants ${n.title} to address or focus on:`,
-      analytics: { event: 'talk_to_prompt_copied', props: { timeline_id: timelineId, node_kind: kind } },
-    }
-  }
-
-  function improveSpec(): PromptSpec {
-    return {
-      title: 'Improve this timeline',
-      description:
-        'Ask your connected Claude to review the current graph and fill it out — gaps, missing moments, edges, and citations.',
-      params: [{ label: 'Timeline', value: timelineTitle }],
-      prompt: buildImproveTimelinePrompt({ timelineId, title: timelineTitle }),
-      contextLabel: 'Anything specific to focus on? (optional)',
-      contextPlaceholder: 'e.g. add the Roman Stoics, focus on 200–100 BCE, fix the gaps after Seneca',
-      contextHeading: 'Focus the improvements on what the user asked for:',
-      analytics: { event: 'improve_prompt_copied', props: { timeline_id: timelineId } },
-    }
-  }
+  // Verb specs come from the shared registry (src/lib/verbs.ts) so the palette
+  // and the node panel produce identical prompts; `surface` tags the copy event.
+  const ctx = { timelineId, timelineTitle, surface: 'command_palette' }
 
   return (
     <>
@@ -292,21 +279,49 @@ export function CommandPalette({
           <CommandEmpty>No matching nodes or actions.</CommandEmpty>
 
           {!hiddenCats.has('actions') && (
-            <CommandGroup heading="Actions">
+            <CommandGroup heading="Verbs">
+              {/* The selected node's verbs lead — open ⌘K on a node, type "expand"
+                  / "talk" / "story", and act on it without leaving the keyboard. */}
+              {selectedNode &&
+                selectedVerbs.map((v) => {
+                  const Icon = v.icon
+                  return (
+                    <CommandItem
+                      key={`verb:${v.id}`}
+                      value={`verb:${v.id}:${selectedNode.id}`}
+                      keywords={[...v.keywords, selectedNode.title, v.family]}
+                      onSelect={() => runAction(v.makeSpec(selectedNode, ctx))}
+                    >
+                      <Icon className="text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate">{v.label(selectedNode)}</span>
+                      <span className="shrink-0 pl-3 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {selectedNode.title}
+                      </span>
+                    </CommandItem>
+                  )
+                })}
               <CommandItem
                 value="action:improve"
-                keywords={['improve', 'expand', 'fill', 'gaps', 'review', 'fix', 'timeline']}
-                onSelect={() => runAction(improveSpec())}
+                keywords={['improve', 'fill', 'gaps', 'review', 'fix', 'timeline']}
+                onSelect={() => runAction(improveTimelineSpec(ctx))}
               >
                 <Sparkles className="text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate">Improve this timeline…</span>
               </CommandItem>
-              {entityNodes.map((n) => (
+              <CommandItem
+                value="action:theme"
+                keywords={['theme', 'colors', 'palette', 'style', 'font', 'mood', 'look', 'design']}
+                onSelect={() => runAction(themeTimelineSpec(ctx))}
+              >
+                <Palette className="text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">Theme this timeline…</span>
+              </CommandItem>
+              {talkToEntities.map((n) => (
                 <CommandItem
                   key={`talk:${n.id}`}
                   value={`talk:${n.id}`}
                   keywords={[n.title, 'talk', 'voice', 'perspective', 'interview', n.subtype ?? '']}
-                  onSelect={() => runAction(talkToSpec(n))}
+                  onSelect={() => runAction(talkToSpec(n, ctx))}
                 >
                   <MessagesSquare className="text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">Talk to {n.title}</span>

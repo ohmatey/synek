@@ -72,8 +72,9 @@ export function resetUser(): void {
 export type ClientEvent =
   | 'timeline_created'
   | 'build_prompt_copied'
-  | 'improve_prompt_copied'
-  | 'talk_to_prompt_copied'
+  // One event for every canvas "verb" (NEXT.5), keyed by `verb_id` + `surface` in
+  // props, so copy-rates self-prioritize the catalogue (bet B5) in one query.
+  | 'verb_prompt_copied'
   | 'story_prompt_copied'
   | 'command_palette_used'
   | 'story_started'

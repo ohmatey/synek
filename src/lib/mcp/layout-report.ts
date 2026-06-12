@@ -1,9 +1,11 @@
 import type { Graph } from '~/lib/db/graph'
 import type { Citation, NodeRow } from '~/lib/db/schema'
-import { BASE_PX_PER_DAY, type TimelineViewSettings } from '~/lib/domain/types'
+import { BASE_PX_PER_DAY, type TimelineTheme, type TimelineViewSettings } from '~/lib/domain/types'
 import { formatInstant } from '~/lib/domain/dates'
+import { findDeadZones } from '~/lib/domain/dead-zones'
 import { listStoriesForTimeline, listSegmentCitationsForTimeline } from '~/lib/db/stories'
 import { collectPatchWarnings } from './warnings'
+import { themeContrastWarnings } from './theme-warnings'
 
 // The whole-graph "shape" review behind the get_layout_report MCP tool. The
 // building client works blind — get_timeline returns the FULL graph (every
@@ -56,7 +58,12 @@ function sourceRegistry(citations: Citation[]) {
   }
 }
 
-export async function buildLayoutReport(timelineId: string, graph: Graph, view: TimelineViewSettings | null) {
+export async function buildLayoutReport(
+  timelineId: string,
+  graph: Graph,
+  view: TimelineViewSettings | null,
+  theme: TimelineTheme | null = null,
+) {
   const { nodes, edges } = graph
   const pxPerDay = view?.pxPerDay ?? BASE_PX_PER_DAY
 
@@ -71,20 +78,12 @@ export async function buildLayoutReport(timelineId: string, graph: Graph, view: 
     .flatMap((n) => [n.startInstant, ...(n.endInstant != null ? [n.endInstant] : [])])
     .sort((a, b) => a - b)
   const span = instants.length >= 2 ? instants[instants.length - 1]! - instants[0]! : 0
-  const deadZones: { from: string; to: string; years: number }[] = []
-  if (span > 0) {
-    for (let i = 1; i < instants.length; i++) {
-      const gap = instants[i]! - instants[i - 1]!
-      if (gap > span * 0.15) {
-        deadZones.push({
-          from: fmt(instants[i - 1]!),
-          to: fmt(instants[i]!),
-          years: Math.round(gap / MS_PER_DAY / DAYS_PER_YEAR),
-        })
-      }
-    }
-  }
-  deadZones.sort((a, b) => b.years - a.years)
+  // Same rule the canvas uses for its gap invitations (shared module → no drift).
+  const deadZones = findDeadZones(instants).map((z) => ({
+    from: fmt(z.fromInstant),
+    to: fmt(z.toInstant),
+    years: z.years,
+  }))
 
   // --- lanes ------------------------------------------------------------------
   const byLane = new Map<string, NodeRow[]>()
@@ -133,8 +132,8 @@ export async function buildLayoutReport(timelineId: string, graph: Graph, view: 
   const sources = sourceRegistry([...nodeCitations, ...listSegmentCitationsForTimeline(timelineId)])
 
   // --- advisories (the same lane-density + axis-outlier checks apply_patch runs;
-  // empty ops → no network checks) ---------------------------------------------
-  const advisories = await collectPatchWarnings(graph, [], view)
+  // empty ops → no network checks) plus theme contrast problems -----------------
+  const advisories = [...(await collectPatchWarnings(graph, [], view)), ...themeContrastWarnings(theme)]
 
   // --- compact node index — one line per node, for re-laning/repositioning work
   const nodeIndex = [...nodes]
@@ -173,6 +172,9 @@ export async function buildLayoutReport(timelineId: string, graph: Graph, view: 
       totalBeats: storyList.reduce((sum, s) => sum + s.beatCount, 0),
     },
     sources,
+    // The saved visual theme (null = default look) — reuse imageStyle/mood in
+    // image prompts; change with set_timeline_theme.
+    theme,
     advisories,
     nodeIndex,
   }

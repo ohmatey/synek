@@ -6,6 +6,7 @@ import {
   GitBranch,
   KeyRound,
   Network,
+  Plus,
   Quote,
   Sparkles,
   Undo2,
@@ -132,6 +133,9 @@ export function Landing() {
         <HeroPreview />
       </section>
 
+      {/* The alive canvas (gap invitations) ----------------------------- */}
+      <AliveCanvasSection />
+
       {/* How it works --------------------------------------------------- */}
       <section id="how-it-works" className="relative mx-auto max-w-5xl scroll-mt-20 px-6 py-16 md:py-24">
         <SectionHeading
@@ -237,6 +241,63 @@ function SectionHeading({ eyebrow, title, sub }: { eyebrow: string; title: strin
         {title}
       </h2>
       <p className="mt-3 text-pretty leading-relaxed text-muted-foreground">{sub}</p>
+    </div>
+  )
+}
+
+// The signature Tier 2 differentiator, shown on the landing page: the canvas points
+// at its own empty stretches ("dead zones") and offers to fill them. The mini-canvas
+// below is a live illustration of the gesture; when the 60-second demo recording
+// exists, it drops in here as the hero media (see docs/product/prd/next5-tier2-alive-canvas.md).
+function AliveCanvasSection() {
+  return (
+    <section id="alive-canvas" className="relative scroll-mt-20 px-6 py-16 md:py-24">
+      <div className="mx-auto max-w-5xl">
+        <SectionHeading
+          eyebrow="The alive canvas"
+          title="Watch the canvas fill its own gaps"
+          sub="When your timeline jumps centuries with nothing in between, Synek shows the hole — a dashed invitation right where it’s empty. Tap it, your model fills exactly that span, and the gap closes itself."
+        />
+
+        {/* Live illustration of a dead zone + its ghost-card invitation. */}
+        <div className="lp-reveal mt-12 rounded-2xl border border-border bg-card/60 p-4 backdrop-blur sm:p-6">
+          <div className="relative overflow-x-auto rounded-xl border border-border bg-background/60 p-6">
+            <div className="flex items-stretch justify-between gap-3" style={{ minWidth: 620 }}>
+              <MiniNode title="Zeno" date="≈300 BCE" />
+              <MiniNode title="Cleanthes" date="≈260 BCE" />
+
+              {/* the ghost card — dashed, an invitation, not a real node */}
+              <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-muted-foreground/50 bg-background/70 px-4 py-3 text-center">
+                <span className="text-xs font-medium text-foreground/80">≈ 470 years empty</span>
+                <span className="text-[11px] text-muted-foreground">300 BCE → 170 CE</span>
+                <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                  <Plus className="size-3" />
+                  Fill this gap
+                </span>
+              </div>
+
+              <MiniNode title="Marcus Aurelius" date="≈170 CE" />
+            </div>
+            {/* the time axis */}
+            <div className="mt-5 h-px w-full bg-border" style={{ minWidth: 620 }} />
+          </div>
+
+          <p className="mt-4 px-1 text-center text-sm text-muted-foreground">
+            <span className="font-medium text-foreground/80">Solid</span> = a real moment ·{' '}
+            <span className="font-medium text-foreground/80">dashed</span> = an invitation. Click it and
+            your connected Claude adds the missing moments — live.
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function MiniNode({ title, date }: { title: string; date: string }) {
+  return (
+    <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-card px-3 py-3 text-center">
+      <span className="text-xs font-medium">{title}</span>
+      <span className="text-[11px] text-muted-foreground">{date}</span>
     </div>
   )
 }

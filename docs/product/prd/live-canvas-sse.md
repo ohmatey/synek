@@ -171,6 +171,6 @@ Description:
   - undo retracts live; reconnect replays; EventSource-fail falls back to poll
   - typecheck + build green; no listener leaks
 
-  Spec: .can/prd/live-canvas-sse.md
+  Spec: docs/product/prd/live-canvas-sse.md
 Dependencies: NOW.0/1/2 (shipped). Drive demo writes via HTTP MCP, not stdio.
 ```

@@ -8,6 +8,9 @@ async function loginAsDemo(page: Page) {
   await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
+  // Wait until the workspace renders (session resolved + landing→dashboard swap).
+  // The "Timelines" heading is the stable signed-in marker.
+  await expect(page.getByRole('heading', { name: 'Timelines' })).toBeVisible()
 }
 
 test('home lists the demo timelines and opens one (after login)', async ({ page }) => {
@@ -22,11 +25,19 @@ test('home lists the demo timelines and opens one (after login)', async ({ page 
 
 test('creating a timeline opens it (after login)', async ({ page }) => {
   await loginAsDemo(page)
-  // The create composer only renders when signed in.
-  await page.getByPlaceholder(/Name a timeline/).fill('Renaissance art')
-  await page.getByRole('button', { name: 'New timeline' }).click()
 
-  // Content is built later by an MCP client; creating just opens the empty canvas.
+  // Creation now lives behind a "New timeline" dialog (home redesign a302e99):
+  // open it, name the timeline, create it, then open the freshly-made canvas.
+  await page.getByRole('button', { name: 'New timeline' }).click()
+  // Scope to the open dialog by role only — its accessible name flips from
+  // "New timeline" to "… is ready" after the create step, so don't pin the name.
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Name', { exact: true }).fill('Renaissance art')
+  await dialog.getByRole('button', { name: 'Create timeline' }).click()
+
+  // Creating just makes the empty canvas (content is built later by an MCP
+  // client); the dialog flips to a "ready" step — open the canvas from there.
+  await dialog.getByRole('button', { name: 'Open the canvas' }).click()
   await expect(page).toHaveURL(/\/timelines\/[^/]+$/)
 })
 

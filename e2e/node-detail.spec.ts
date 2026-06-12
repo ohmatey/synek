@@ -8,8 +8,10 @@ async function loginAsDemo(page: Page) {
   await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
-  // Wait until signed in (the create composer appears) before navigating.
-  await expect(page.getByPlaceholder(/Name a timeline/)).toBeVisible()
+  // Wait until signed in before navigating. The home redesign (a302e99) moved
+  // creation into a "New timeline" dialog, so the old inline composer placeholder
+  // is gone — the workspace "Timelines" heading is the stable signed-in marker.
+  await expect(page.getByRole('heading', { name: 'Timelines' })).toBeVisible()
 }
 
 async function openDarwinPanel(page: Page) {

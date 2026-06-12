@@ -72,28 +72,27 @@ test('Play opens the docked reader beside the panel and tapping through advances
   await expect(page.getByRole('dialog', { name: 'Node details' })).toBeVisible()
 })
 
-test('the top story chip appears only while playing and carries play controls', async ({ page }) => {
+test('selecting a moment does not start the story; Play opens the docked reader, Close tears it down', async ({
+  page,
+}) => {
   const panel = await openDarwinPanel(page)
 
-  // Selecting a moment must NOT start the story: no top "Story · …" chip yet.
-  const chip = page.getByText(/^Story · The long wait before Origin/)
-  await expect(chip).toBeHidden()
+  // The standalone top "Story · …" chip + its Pause/Stop transport were removed
+  // when the docked reader took over its own transport (TimelineCanvas: "no bar
+  // up top"). So selecting a moment must NOT open the reader on its own.
+  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+  await expect(reader).toBeHidden()
 
-  // Pressing Play surfaces the chip with transport controls.
+  // Pressing Play opens the docked reader — which now carries the transport
+  // (Play story on the cover, prev/next, Close story).
   await panel.getByRole('button', { name: 'Play story' }).click()
-  await expect(chip).toBeVisible()
-  const pause = page.getByRole('button', { name: 'Pause story' })
-  await expect(pause).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Stop story' })).toBeVisible()
+  await expect(reader).toBeVisible()
+  await expect(reader.getByRole('button', { name: 'Close story' })).toBeVisible()
 
-  // The pause control toggles to resume.
-  await pause.click()
-  await expect(page.getByRole('button', { name: 'Resume story' })).toBeVisible()
-
-  // Stop tears the reader + chip down.
-  await page.getByRole('button', { name: 'Stop story' }).click()
-  await expect(page.getByRole('dialog', { name: 'Story: The long wait before Origin' })).toBeHidden()
-  await expect(chip).toBeHidden()
+  // Close tears the reader down; the moment panel stays on the canvas.
+  await reader.getByRole('button', { name: 'Close story' }).click()
+  await expect(reader).toBeHidden()
+  await expect(page.getByRole('dialog', { name: 'Node details' })).toBeVisible()
 })
 
 test('a focus beat switches the entity panel to the focused entity (dialog follows the beat)', async ({ page }) => {

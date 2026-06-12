@@ -4,6 +4,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   Background,
+  BackgroundVariant,
   Controls,
   Panel,
   MarkerType,
@@ -14,10 +15,13 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import { useTheme } from '@synek/ui'
+import { resolveThemeVars } from '~/lib/theme/resolveTimelineTheme'
+import type { TimelineTheme } from '~/lib/domain/types'
 import { EventNode } from './nodes/EventNode'
 import { EntityNode } from './nodes/EntityNode'
 import { PeriodNode } from './nodes/PeriodNode'
 import { ConceptNode } from './nodes/ConceptNode'
+import { InvitationNode } from './nodes/InvitationNode'
 import {
   laneY,
   layoutLaneY,
@@ -36,6 +40,9 @@ import {
   type TimeScale,
 } from './useTimelineScale'
 import { formatInstant, eraTint } from '~/lib/domain/dates'
+import { findDeadZones } from '~/lib/domain/dead-zones'
+import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
+import { fillGapSpec, extendLaneSpec, populateEraSpec } from '~/lib/verbs'
 import { getGraph } from '~/lib/server/graph'
 import { getStoriesForMomentFn, getStoryByIdFn } from '~/lib/server/stories'
 import { useTimelineStream } from './useTimelineStream'
@@ -70,7 +77,20 @@ function kindToken(n: { type: NodeType; subtype?: NodeSubtype | null }): string 
 }
 
 // Memoized module-level — required by React Flow.
-const nodeTypes = { event: EventNode, entity: EntityNode, period: PeriodNode, concept: ConceptNode }
+const nodeTypes = { event: EventNode, entity: EntityNode, period: PeriodNode, concept: ConceptNode, invitation: InvitationNode }
+
+// Invitation ghosts (NEXT.5 Tier 2): the dashed card's fixed width, the vertical
+// band gap/era ghosts sit in (a dead zone is horizontally empty across all lanes,
+// so any y in the timeline band is collision-free), and per-kind on-screen caps.
+const GAP_CARD_W = 188
+const GAP_Y = 72
+const ERA_Y = 120
+const MAX_GAP_GHOSTS = 4
+const MAX_LANE_GHOSTS = 3
+const MAX_ERA_GHOSTS = 3
+// A lane/era counts as worth an invitation at or below this many real nodes.
+const SPARSE_LANE_MAX = 2
+const BARE_ERA_MAX = 1
 
 // Frame the graph ONCE, the first time nodes arrive (the query loads async, so the
 // initial graph appears after mount). If the user has a saved camera for this
@@ -178,6 +198,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // A node chosen from the ⌘K palette to fly the camera to (one-shot; cleared
   // by FlyToCamera once it has framed the node).
   const [flyToId, setFlyToId] = useState<string | null>(null)
+  // The fill-this-gap prompt shown in the shared PromptDialog (null = closed),
+  // opened by clicking a dashed gap-invitation ghost on the canvas (NEXT.5 Tier 2).
+  const [gapSpec, setGapSpec] = useState<PromptSpec | null>(null)
   // A moment can hold several stories; this is the one the docked reader plays.
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null)
   // While true the docked StoryReader is open beside the panel; activeBeat tracks
@@ -187,6 +210,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const [reading, setReading] = useState(false)
   const [activeBeat, setActiveBeat] = useState(-1)
   const [storyPaused, setStoryPaused] = useState(false)
+  // Theme being live-previewed by the ThemeEditorDialog (wins over the saved
+  // one while editing); null = show the server-saved theme.
+  const [previewTheme, setPreviewTheme] = useState<TimelineTheme | null>(null)
   // User-resizable widths for the right-docked panels (detail + story reader).
   // Applied as CSS vars on .canvas-root; persisted to localStorage on release.
   const [panelW, setPanelW] = useState<PanelWidths>(() => loadPanelWidths())
@@ -283,6 +309,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     setSpeakStories(pref?.speak ?? false)
     scaleChosen.current = pref?.chosen ?? false
     measuredRef.current = new Map() // sizes belong to the previous timeline's nodes
+    setPreviewTheme(null) // a theme preview belongs to the previous timeline
     // New timeline → re-baseline the story-version watch so the first load of the
     // new graph isn't mistaken for a story write.
     prevStoryVersion.current = null
@@ -390,6 +417,17 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const isOwner = graph?.isOwner ?? false
   const isPublic = graph?.isPublic ?? false
   const title = graph?.title ?? 'Untitled timeline'
+  // The timeline's saved theme (live: an MCP set_timeline_theme lands via the
+  // same SSE → refetch path as everything else). The editor's preview wins
+  // while it's open; saving/cancelling hands back to server truth.
+  const timelineTheme = graph?.theme ?? null
+  const effectiveTheme = previewTheme ?? timelineTheme
+  const themeVars = useMemo(
+    () => resolveThemeVars(effectiveTheme, resolvedTheme),
+    [effectiveTheme, resolvedTheme],
+  )
+  // 'default' = today's untextured canvas (the plain 48px dot grid).
+  const texture = effectiveTheme?.texture ?? 'default'
   // Derive the selection from live data, so a deleted node closes the panel.
   const selectedNode = selectedId ? (gnodes.find((n) => n.id === selectedId) ?? null) : null
   const nodeById = useMemo(() => new Map(gnodes.map((n) => [n.id, n])), [gnodes])
@@ -682,6 +720,116 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       })
     }
 
+    // Invitation ghosts (NEXT.5 Tier 2): the map showing its own holes and offering
+    // to fill them. Three variants, all dashed InvitationNode cards opening the
+    // shared fill PromptDialog. Each capped so the canvas stays calm.
+
+    // 1. GAP — a dead zone (big empty stretch of the axis). LINEAR mode only;
+    //    collapse mode already squeezes big gaps (so a ghost would sit in a squeezed
+    //    span — the collapsed-range marker is its own future affordance). Skip any
+    //    zone a period bar spans (its start/end bracket the gap → the bar fills it).
+    if (!collapseGaps) {
+      const gapInstants = effectiveNodes.flatMap((n) => [
+        n.startInstant,
+        ...(n.endInstant != null ? [n.endInstant] : []),
+      ])
+      const zones = findDeadZones(gapInstants)
+        .filter(
+          (z) =>
+            !effectiveNodes.some(
+              (n) => n.startInstant <= z.fromInstant && (n.endInstant ?? n.startInstant) >= z.toInstant,
+            ),
+        )
+        .slice(0, MAX_GAP_GHOSTS)
+      for (const z of zones) {
+        const midX = scale.toX((z.fromInstant + z.toInstant) / 2)
+        rfNodes.push({
+          id: `inv-gap:${z.fromInstant}:${z.toInstant}`,
+          type: 'invitation',
+          position: { x: midX - GAP_CARD_W / 2, y: GAP_Y },
+          data: {
+            variant: 'gap',
+            title: `≈ ${z.years} years empty`,
+            subtitle: `${formatInstant(z.fromInstant, 'year')} → ${formatInstant(z.toInstant, 'year')}`,
+            cta: 'Fill this gap',
+            cardWidth: GAP_CARD_W,
+            onFill: () => setGapSpec(fillGapSpec(z, { timelineId, timelineTitle: title, surface: 'canvas_gap' })),
+          },
+          draggable: false,
+          selectable: false,
+        })
+      }
+    }
+
+    // 2. LANE — a thin swimlane ("rival track" with ≤ SPARSE_LANE_MAX nodes). Ghost
+    //    sits just past the lane's rightmost node, in that lane's row.
+    const laneStats = new Map<string, { count: number; maxRight: number; y: number }>()
+    for (const r of realPositioned) {
+      if (!r.n.lane) continue
+      const right = r.x + (r.width ?? GAP_CARD_W)
+      const y = laneYById.get(r.n.id) ?? GAP_Y
+      const g = laneStats.get(r.n.lane) ?? { count: 0, maxRight: -Infinity, y }
+      g.count++
+      g.maxRight = Math.max(g.maxRight, right)
+      laneStats.set(r.n.lane, g)
+    }
+    const sparseLanes = [...laneStats.entries()].filter(([, g]) => g.count <= SPARSE_LANE_MAX).slice(0, MAX_LANE_GHOSTS)
+    for (const [lane, g] of sparseLanes) {
+      rfNodes.push({
+        id: `inv-lane:${lane}`,
+        type: 'invitation',
+        position: { x: g.maxRight + 24, y: g.y },
+        data: {
+          variant: 'lane',
+          title: lane,
+          subtitle: 'thin track',
+          cta: 'Add to this track',
+          cardWidth: GAP_CARD_W,
+          onFill: () => setGapSpec(extendLaneSpec(lane, { timelineId, timelineTitle: title, surface: 'canvas_lane' })),
+        },
+        draggable: false,
+        selectable: false,
+      })
+    }
+
+    // 3. ERA — a period with ≤ BARE_ERA_MAX nodes inside its span. Ghost sits at the
+    //    era's midpoint, below the period bar.
+    const bareEras = effectiveNodes
+      .filter((n) => n.type === 'period')
+      .filter((p) => {
+        const end = p.endInstant ?? p.startInstant
+        const within = effectiveNodes.filter(
+          (n) => n.id !== p.id && n.type !== 'period' && n.startInstant >= p.startInstant && n.startInstant <= end,
+        )
+        return within.length <= BARE_ERA_MAX
+      })
+      .slice(0, MAX_ERA_GHOSTS)
+    for (const p of bareEras) {
+      const end = p.endInstant ?? p.startInstant
+      const midX = scale.toX((p.startInstant + end) / 2)
+      rfNodes.push({
+        id: `inv-era:${p.id}`,
+        type: 'invitation',
+        position: { x: midX - GAP_CARD_W / 2, y: ERA_Y },
+        data: {
+          variant: 'era',
+          title: p.title,
+          subtitle: `${formatInstant(p.startInstant, 'year')} → ${formatInstant(end, 'year')}`,
+          cta: 'Populate this era',
+          cardWidth: GAP_CARD_W,
+          onFill: () =>
+            setGapSpec(
+              populateEraSpec(
+                { title: p.title, fromInstant: p.startInstant, toInstant: end },
+                { timelineId, timelineTitle: title, surface: 'canvas_era' },
+              ),
+            ),
+        },
+        draggable: false,
+        selectable: false,
+      })
+    }
+
     // Period nodes are background context; their connections stay hidden until
     // one endpoint is selected, so the canvas isn't cluttered with links to long
     // time-span bars.
@@ -707,8 +855,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         style: { stroke: s.color, strokeWidth: s.width, strokeDasharray: s.dash, opacity: dim ? 0.12 : undefined },
         labelStyle: { fill: s.color, fontSize: 11, fontWeight: 500, opacity: dim ? 0.12 : undefined },
         // A canvas-bg pill plate behind the label so it doesn't collide with the
-        // nodes it routes between.
-        labelBgStyle: { fill: 'var(--color-bg-base)', fillOpacity: dim ? 0.12 : 0.88 },
+        // nodes it routes between. Reads the pane wash (themed canvasBg or the
+        // brand bg-base) so the plate always matches the surface it sits on.
+        labelBgStyle: { fill: 'var(--xy-background-color, var(--color-bg-base))', fillOpacity: dim ? 0.12 : 0.88 },
         labelBgPadding: [6, 3] as [number, number],
         labelBgBorderRadius: 999,
         markerEnd: { type: MarkerType.ArrowClosed, color: s.color },
@@ -719,7 +868,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     // measuredVersion stands in for measuredRef.current's contents (a ref, so
     // not a valid dep itself) — it bumps exactly when a node's DOM size changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gnodes, gedges, pending, draft, selectedId, effectiveFocusIds, pxPerDay, collapseGaps, hiddenKinds, measuredVersion])
+  }, [gnodes, gedges, pending, draft, selectedId, effectiveFocusIds, pxPerDay, collapseGaps, hiddenKinds, measuredVersion, timelineId, title])
 
   // Layer the transient "new node" glow on top WITHOUT re-running lane packing
   // (a cheap shallow remap, vs. recomputing the whole layout in the memo above).
@@ -771,10 +920,15 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     <ReactFlowProvider>
       <div
         className="canvas-root"
+        data-canvas-texture={texture}
         style={
           {
             '--detail-panel-w': `${panelW.detail}px`,
             '--story-reader-w': `${panelW.story}px`,
+            // Per-timeline theme overrides (inline custom properties cascade to
+            // every canvas descendant). React drops keys absent from a new style
+            // object, so clearing the theme reverts in one render.
+            ...themeVars,
           } as React.CSSProperties
         }
       >
@@ -787,6 +941,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 onSelect={flyTo}
                 timelineId={timelineId}
                 timelineTitle={title}
+                selectedNode={selectedNode}
               />
             )}
             {isOwner && <McpStatusChip />}
@@ -803,6 +958,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             {(gnodes.length > 0 || pending.length > 0) && (
               <CanvasSettings
                 timelineId={timelineId}
+                timelineTitle={title}
                 isOwner={isOwner}
                 pxPerDay={pxPerDay}
                 collapseGaps={collapseGaps}
@@ -818,6 +974,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 hiddenKinds={hiddenKinds}
                 onToggleKind={toggleKind}
                 onResetKinds={resetKinds}
+                theme={timelineTheme}
+                onPreviewTheme={setPreviewTheme}
               />
             )}
             {/* Sharing (public link + export) + account live at the far right of the bar. */}
@@ -865,7 +1023,16 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           minZoom={0.1}
           proOptions={{ hideAttribution: true }}
         >
-          <Background gap={48} />
+          {/* Texture: 'default' keeps the classic 48px dot grid; 'dots'/'grid'
+              are denser themed variants; 'paper' is a CSS grain layer (styles.css)
+              and 'none' is a clean wash — both render no RF Background. */}
+          {texture !== 'none' && texture !== 'paper' && (
+            <Background
+              gap={texture === 'dots' ? 24 : 48}
+              size={texture === 'dots' ? 1.5 : undefined}
+              variant={texture === 'grid' ? BackgroundVariant.Lines : BackgroundVariant.Dots}
+            />
+          )}
           <Controls showInteractive={false} />
           <ViewportInit timelineId={timelineId} nodeCount={gnodes.length} />
           {cameraIds && <StoryCamera ids={cameraIds} dockW={panelW.detail + panelW.story} />}
@@ -933,6 +1100,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             onCommitResize={commitPanelW}
           />
         ) : null}
+        {/* Fill-this-gap prompt, opened by a dashed gap-invitation ghost (Tier 2). */}
+        <PromptDialog open={!!gapSpec} onOpenChange={(o) => { if (!o) setGapSpec(null) }} spec={gapSpec} />
       </div>
     </ReactFlowProvider>
   )

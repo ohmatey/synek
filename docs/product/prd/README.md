@@ -35,6 +35,17 @@ Once a timeline is dense, getting *to* a moment matters as much as building it.
 
 \* **NAV built** — `cmdk` palette over the in-memory graph; selecting a result pans/centers the camera and opens the node. Client-only (no schema/RPC/Patch). Typecheck + build green; live in-browser pass owed. Forward-links to **S2.5** (artifact recall) as its next result source.
 
+### Expansion layer (grow the map)
+
+Once you can find a moment, the next gesture is to *deepen or grow* it. Every object offers its obvious next move.
+
+| Track | Title | The one-line promise | Status |
+|---|---|---|---|
+| [VERBS](next5-verb-system.md) | Expansion affordances | Look at any node; it offers the obvious next move. | Tier 1 shipped (2026-06-12) |
+| [VERBS-T2](next5-tier2-alive-canvas.md) | The alive canvas (gap invitations) | The map shows its own holes and offers to fill them. | proposed (2026-06-12) — the demo centerpiece |
+
+VERBS generalizes NAV's two stranded actions into a systematic, state-gated verb library (node panel + ⌘K). **S3.4 Talk-to is verb #1; Tier 1 shipped.** **VERBS-T2** is the signature Tier 2 layer — dashed "ghost cards" over the map's empty stretches (dead zones), the moment the launch demo is built around and linked from the landing page.
+
 ### Connection layer (the MCP front door)
 
 The inversion made the MCP server the product surface. This track makes *connecting a client* a first-class, manageable act.

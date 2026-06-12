@@ -1,11 +1,14 @@
 ---
 project: "Synek"
 syncedAt: 2026-06-09T00:00:00.000Z
+queueSeededAt: 2026-06-12T00:00:00.000Z
+migrated: ".can/roadmap.md → docs/product/roadmap.md (2026-06-12)"
 ---
 
 # Synek Roadmap
 
-> Offline source of truth for Sal. **Core UX first — most lovable product before any thought of money.**
+> Narrative source for sequencing and rationale. **Core UX first — most lovable product before any thought of money.**
+> **Work queue:** `.sector137/state.json` — issue ids (`#local-N`) below resolve there; Sal reconciles via `sync_state` when the MCP is online. **Strategy + bets + the lovable gate:** [product-strategy.md](product-strategy.md).
 > **Scope guardrail:** This repo is the single-user, local-first Core. Cloud/SaaS, teams, billing, public sharing, hosted models, scheduled jobs, and integrations are explicitly deferred (see **Deferred** below) until the core feels undeniable. See `CLAUDE.md` for the full guardrail.
 > **Hosting is the eventual destination** (see **Hosting horizon** below). We build nothing hosted yet, but architectural decisions should be *hosting-aware*: every "the user brings their own X" in the local Core (model, key, DB, secrets) is the local-first shape of a managed, metered service later. Pick local-first defaults that have a clean hosted upgrade path — don't pick ones that have to be torn out.
 

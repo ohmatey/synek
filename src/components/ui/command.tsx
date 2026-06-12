@@ -44,7 +44,19 @@ function CommandDialog({
     <Dialog {...props}>
       {/* No overflow-hidden: the close button hovers OUTSIDE the dialog (top-right),
           so the content box must not clip it. The Command clips its own corners. */}
-      <DialogContent className={cn('p-0', className)} showCloseButton={false}>
+      <DialogContent
+        className={cn('p-0', className)}
+        showCloseButton={false}
+        // Land focus on the search input, not the floating close button. The
+        // DialogClose is first in DOM order, so Radix's focus scope would grab it
+        // on open — pre-empt that and focus the command input instead.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          ;(e.currentTarget as HTMLElement | null)
+            ?.querySelector<HTMLInputElement>('[data-slot="command-input"]')
+            ?.focus()
+        }}
+      >
         {showCloseButton && (
           <DialogClose
             aria-label="Close"

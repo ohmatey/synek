@@ -6,11 +6,13 @@ import { centerOnNodes } from './cameraFocus'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
+import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
 import { parseDate, formatInstant, formatInstantRange } from '~/lib/domain/dates'
 import { editNode, deleteNode } from '~/lib/server/nodes'
 import { capture } from '~/lib/posthog/client'
 import { fileToDataUrl } from '~/lib/files'
 import { NewStoryDialog } from './NewStoryDialog'
+import { NodeVerbBar } from './NodeVerbBar'
 import { ResizeHandle } from './ResizeHandle'
 import { IMAGE_ASPECTS, NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
 import type { GraphNode, GraphEdge, CanvasCitation, ImageAspect, NodeImage, NodeSize, NodeSubtype, Precision, EdgeKind, PovType, StoryListItem } from '~/lib/domain/types'
@@ -123,6 +125,11 @@ export function NodeDetailPanel({
   // Opens the shared New Story dialog (same one the AppBar uses), pre-anchored to
   // this entity. The app holds no AI, so the dialog hands off a prompt to Claude.
   const [newStoryOpen, setNewStoryOpen] = useState(false)
+
+  // The verb prompt currently shown in the shared PromptDialog (null = closed).
+  // Today just "Talk to {name}" (NEXT.5 verb #1 — S3.4); local-66 grows this into
+  // a state-gated NodeVerbBar with the full Tier-1 verb set.
+  const [promptSpec, setPromptSpec] = useState<PromptSpec | null>(null)
 
   // Edges touching this node, resolved to the other endpoint's title.
   const nodeById = new Map(nodes.map((n) => [n.id, n]))
@@ -492,6 +499,19 @@ export function NodeDetailPanel({
         </p>
       )}
 
+      {/* Verb action row — NEXT.5 Tier 1 (docs/product/prd/next5-verb-system.md).
+          The verbs that apply to this node, from the shared registry, type/state
+          gated. Owner-only, read mode. 'write-story' is excluded here because the
+          dedicated Story section is rendered further down. */}
+      {canEdit && !editMode && (
+        <NodeVerbBar
+          node={node}
+          ctx={{ timelineId, surface: 'node_panel' }}
+          onRun={setPromptSpec}
+          exclude={['write-story']}
+        />
+      )}
+
       {/* Description — body field, clamped to a few lines with Show more.
           Hidden entirely when blank in read mode. */}
       {editMode ? (
@@ -756,6 +776,17 @@ export function NodeDetailPanel({
           initialAnchorId={node.id}
         />
       )}
+
+      {/* Verb prompt dialog (shared swap-seam). The panel is a docked div, not a
+          Radix modal, so opening this modal from it needs no close-sequencing
+          dance (unlike ⌘K). */}
+      <PromptDialog
+        open={!!promptSpec}
+        onOpenChange={(next) => {
+          if (!next) setPromptSpec(null)
+        }}
+        spec={promptSpec}
+      />
 
       {/* Citations — read mode shows them only when present; the editor (with
           Add) is part of edit mode. */}
