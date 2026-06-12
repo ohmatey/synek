@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-12T08:03:03.800764+00:00",
+  "updatedAt": "2026-06-12T08:20:50.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -374,6 +374,62 @@
         "etag": null,
         "syncedAt": null
       }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-81",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Implement per-timeline styled themes (theme system + MCP tool)",
+        "description": "Each timeline carries its own visual identity — freeform per-scheme hex accents, a canvas wash, a curated display font, and a texture — set from the canvas settings (owner-only) and by the MCP client, which also gets imageStyle/mood metadata for coherent future image generation.\n\nShipped on branch `feat/timeline-themes` @ commit 324bf1f.\n\n### What landed\n- `timelines.theme` JSON column (migration 0017); `TimelineTheme` contract + shared Zod schema (`domain/theme.ts`).\n- `setTimelineTheme` DB fn + RPC; theme flows into the getGraph payload; live via the existing SSE `view` path.\n- `set_timeline_theme` MCP tool with WCAG contrast warnings (`mcp/theme-warnings.ts`); theme in get_timeline + resource; `create_timeline` accepts an initial theme.\n- `resolveTimelineTheme` CSS-var layer on `.canvas-root` — re-declares the `:root`-baked aliases (`--primary`/`--ring`/`--xy-*`) and derives soft tints in JS to dodge the lightningcss color-mix bake; styles.css var hooks (zero-diff unthemed) + 5 lazy fontsource families + paper texture.\n- Owner-gated Theme section in CanvasSettings + ThemeEditorDialog (live preview) + an `Ask your agent` copy-prompt.\n\n### Verified\ntypecheck + build clean · `verify:theme` (19 asserts) green · `e2e/theme.spec.ts` + `set_timeline_theme` round-trip in `e2e/mcp.spec.ts` green.\n\n### Caveat\nTheme hunks in TimelineCanvas.tsx + layout-report.ts left uncommitted (co-mingled with concurrent VERBS-T2 gap work) — see local-82. Sits alongside the alive-canvas verb work (local-74/75).",
+        "horizon": "next",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": []
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-82",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Commit theme canvas-wiring hunks once verb-system work settles",
+        "description": "`TimelineCanvas.tsx` and `src/lib/mcp/layout-report.ts` carry per-timeline-theme hunks that were left OUT of commit 324bf1f because both files also hold concurrent VERBS-T2 gap-invitation edits and arent separable at file granularity.\n\n### Theme hunks still uncommitted\n- TimelineCanvas.tsx: resolveThemeVars spread on `.canvas-root`, previewTheme state, texture + Background variants, edge labelBg `--xy-background-color` fix, CanvasSettings theme props.\n- layout-report.ts: `theme` param on buildLayoutReport, `themeContrastWarnings` folded into advisories, theme in the returned report.\n\nOnce VERBS-T2 (local-74/75) lands and those files settle, commit the theme hunks so `feat/timeline-themes` is whole. Working tree currently holds them.",
+        "horizon": "now",
+        "type": "chore",
+        "status": "open",
+        "dependencies": [
+          "local-75"
+        ]
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-83",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Fix stale e2e specs broken by the home redesign",
+        "description": "5 Playwright specs fail on main, unrelated to recent feature work:\n- home.spec.ts:23, node-detail.spec.ts:28/:39/:65 — wait for `getByPlaceholder(/Name a timeline/)`, the inline composer the home redesign (commit a302e99) replaced with a New Timeline dialog. Placeholder no longer exists in src/.\n- story-reader.spec.ts:75 — `Stop story` control not visible; likely similar UI drift.\n\nUpdate the login/creation helpers to wait for a stable signed-in marker and open the New Timeline dialog. Already spawned as a harness fix-task this session (separate from this queue). Run: `bun run seed:e2e` then `E2E_PORT=3002 bun run test:e2e`.\n\n### Done 2026-06-12 (commit f78c4df)\nhome.spec + node-detail login helpers now wait on the 'Timelines' heading (stable signed-in marker); home's create test drives the New Timeline dialog (New timeline → Name → Create timeline → Open the canvas). story-reader.spec.ts:75 tested a REMOVED feature — the top `Story · …` chip + Pause/Stop/Resume transport are gone (docked reader owns its own transport) — rewritten to the surviving contract (select ≠ auto-play; Play opens the docked reader; Close tears down). Diagnosis surfaced a 6th failure: the VERBS-T2 invitation ghosts (local-74/75) rendered for ALL viewers and inflated the ANONYMOUS seed-data canvas, breaking seed-data.spec's exact node count (figures +2, deep-learning +1) — owner-gated the invitation block (`if (isOwner)` + isOwner in the rfNodes memo deps). 31/31 e2e green, typecheck clean.",
+        "horizon": "now",
+        "type": "fix",
+        "status": "completed",
+        "dependencies": []
+      }
     }
   ],
   "tasks": [],
@@ -446,6 +502,34 @@
         "dirty": true,
         "etag": null,
         "syncedAt": null
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-84",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Session wrap — per-timeline themes (offline) — 2026-06-12",
+        "body": "Shipped per-timeline styled themes (local-81, completed) on branch feat/timeline-themes @ 324bf1f: timelines.theme column (migration 0017), set_timeline_theme MCP tool + WCAG contrast warnings, resolveTimelineTheme CSS-var layer, ThemeEditorDialog + agent copy-prompt. Verified green (typecheck/build, verify:theme 19 asserts, theme + mcp e2e). Two loose ends recorded: local-82 (theme hunks in TimelineCanvas/layout-report left uncommitted, co-mingled with concurrent VERBS-T2 gap work) and local-83 (5 pre-existing stale e2e specs from the home redesign, also spawned as a harness fix-task). Release v0.1.0 (local-70) still draft — not activated. Reconcile with mcp__sector137__sync_state when the MCP returns."
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-85",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Session wrap — e2e drift fix + invitation owner-gate (offline) — 2026-06-12",
+        "body": "local-83 DONE (commit f78c4df on main). Fixed the 5 home-redesign-stale Playwright specs and one collateral failure the diagnosis exposed.\n\n### e2e drift (the assigned 5)\n- home.spec.ts + node-detail.spec.ts login helpers waited on `getByPlaceholder(/Name a timeline/)`, deleted when the home redesign (a302e99) moved creation into the New Timeline dialog. Now they wait on the 'Timelines' heading (stable signed-in marker).\n- home's create test rewritten to drive the dialog: New timeline → fill Name → Create timeline → Open the canvas (follow-ups scoped to getByRole('dialog') by role only — its a11y name flips to '… is ready' after create).\n- story-reader.spec.ts:75 tested a REMOVED feature: the standalone top `Story · …` chip + Pause/Stop/Resume transport (docked reader owns transport now; lucide no longer imports Pause/Stop; `paused` is hold-gesture only). Rewritten to assert select ≠ auto-play / Play opens docked reader / Close tears down.\n\n### collateral (6th) failure → owner-gate\nDiagnosing story-reader surfaced that the VERBS-T2 invitation ghosts (local-74/75) render for EVERY viewer, inflating the ANONYMOUS seed-data canvas and breaking seed-data.spec.ts:98's exact `.react-flow__node` count (figures 8 vs 6, deep-learning 9 vs 8; ghosts are `.react-flow__node-invitation`, no `.sf-*` class so per-type asserts still passed). Founder's call (asked + answered): owner-gate over scoping the test — invitations are authoring affordances that hand the user a build prompt, which a public read-only viewer can't act on. Wrapped the invitation block in `if (isOwner)` and added isOwner to the rfNodes memo deps. [[strata-verb-system]] memory updated.\n\n### verification\nFresh `vite build` (e2e:serve) → 31/31 e2e green on E2E_PORT=3002; `bun run typecheck` clean.\n\n### loose ends\n- local-82 (commit theme hunks) left OPEN — TimelineCanvas.tsx + ThemeEditorDialog.tsx show fresh uncommitted edits from the concurrent background commit process, which I did NOT touch. A background process also swept this session's e2e spec edits into HEAD (101b3b2) mid-session; my owner-gate is f78c4df.\n- Release v0.1.0 (local-70) still draft. Reconcile with mcp__sector137__sync_state when the MCP returns."
       }
     }
   ],
