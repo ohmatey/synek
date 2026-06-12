@@ -1,16 +1,16 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-12T10:00:00.000Z",
+  "updatedAt": "2026-06-12T16:00:00.000Z",
   "syncedAt": null,
   "issues": [
     {
       "data": {
         "title": "Implement S2.1 — sources + artifacts tables with citation backfill",
-        "description": "Create `sources` + `artifacts` tables per ADR 0001 (BCE-safe dateInstant + precision, reliability note, transcript/translation/image). One-shot backfill from `story_segments.citations` so slice-1 inline citations are preserved. Refs: docs/engineering/adr/0001-sources-artifacts-schema.md, docs/product/prd/s2-artifact-grounding.md.",
+        "description": "Create `sources` + `artifacts` tables per ADR 0001 (BCE-safe dateInstant + precision, reliability note, transcript/translation/image). One-shot backfill from `story_segments.citations` so slice-1 inline citations are preserved. Refs: docs/engineering/adr/0001-sources-artifacts-schema.md, docs/product/prd/s2-artifact-grounding.md.\n\n### Closed 2026-06-12\nShipped in efa195d (S2 full batch); ADR 0001 Accepted; verify:artifacts green. Queue entry was stale — closed in reconciliation (see note local-87).",
         "horizon": "now",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": []
       },
       "meta": {
@@ -25,10 +25,10 @@
     {
       "data": {
         "title": "Implement S2.2 — story_artifacts + moment_artifacts + segment_citations joins",
-        "description": "The reuse layer: one artifact, many beats/stories; composite PKs; artifact-first browse back to everything it anchors. Per ADR 0001.",
+        "description": "The reuse layer: one artifact, many beats/stories; composite PKs; artifact-first browse back to everything it anchors. Per ADR 0001.\n\n### Closed 2026-06-12\nShipped in efa195d, including the two-site undo-safety fix (StorySnapshot + moment_artifacts). verify:artifact-undo green. Closed in reconciliation (note local-87).",
         "horizon": "now",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-56"
         ]
@@ -45,10 +45,10 @@
     {
       "data": {
         "title": "Implement S2.3 — register_artifact MCP tool + write_story v2 artifact refs",
-        "description": "Grounded generation: write_story beats reference pre-registered artifacts by id; register_artifact writes the reusable rows. Beats name their source.",
+        "description": "Grounded generation: write_story beats reference pre-registered artifacts by id; register_artifact writes the reusable rows. Beats name their source.\n\n### Closed 2026-06-12\nShipped in efa195d — register_artifact tool + write_story v2 single-home citations (ADR 0001 Decision 8). Closed in reconciliation (note local-87).",
         "horizon": "now",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-57"
         ]
@@ -65,10 +65,10 @@
     {
       "data": {
         "title": "Implement S2.4 — artifact UX (beat tap → artifact card, artifact-first browse)",
-        "description": "Tap a cited beat sentence → artifact card (transcript/translation/image/reliability); artifact library browse → anchored stories; optional canvas lens for dated artifacts.",
+        "description": "Tap a cited beat sentence → artifact card (transcript/translation/image/reliability); artifact library browse → anchored stories; optional canvas lens for dated artifacts.\n\n### Closed 2026-06-12\nReader artifact card shipped in efa195d. Browse-grid view + canvas lens explicitly DEFERRED to a later browser pass (per ADR 0001 wrap) — if that pass becomes real work, it gets a fresh issue. Closed in reconciliation (note local-87).",
         "horizon": "now",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-57"
         ]
@@ -85,10 +85,10 @@
     {
       "data": {
         "title": "Implement S2.5 — search_artifacts MCP tool (FTS5 lexical recall)",
-        "description": "SQLite FTS5 over artifacts.title/transcript/translation so Claude can recall a prior artifact in a later session and re-ground new work. Lexical first; embeddings deferred per ADR 0001. Validates bet B4.",
+        "description": "SQLite FTS5 over artifacts.title/transcript/translation so Claude can recall a prior artifact in a later session and re-ground new work. Lexical first; embeddings deferred per ADR 0001. Validates bet B4.\n\n### Closed 2026-06-12\nShipped in efa195d — hand-authored FTS5 migration (0016) + search_artifacts tool; verify:search green. Closed in reconciliation (note local-87).",
         "horizon": "now",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-56"
         ]
@@ -569,6 +569,20 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-78",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Queue reconciliation + S3 PRD rewrite commissioned — 2026-06-12",
+        "body": "Founder directives this session: (1) S2 issues local-56..60 were stale-open in the queue despite S2 shipping in full (efa195d, ADR 0001 Accepted, verify:artifacts/artifact-undo/search green) — all five closed; release v0.1.0 scope is now down to the two human tasks (local-62 live in-browser pass -> local-61 demo recording). S2.4's browse-grid + canvas lens remain deferred per the ADR wrap and get a fresh issue if picked up. (2) GLOBE lens is IN PROGRESS in a parallel session — its PRD (docs/product/prd/globe-lens.md) + README index row sit uncommitted in the working tree; no queue issue created here to avoid local-ID collision, the owning session should create it. (3) The S3 multi-POV PRD (docs/product/prd/s3-multi-pov.md) was a stale pre-inversion draft (in-app generation service, prompt_templates/generations) — Margot dispatched to rewrite it to the MCP-inversion architecture (write_story cast, copy-prompt idiom, shipped Talk-to verb as front door). (4) Telemetry opt-in (local-19, LATER.3) assessed: unstarted by design; shipped PostHog work is operator analytics (key-gated, opt-out), NOT the self-hoster phone-home this issue describes — stays LATER. NOTE: notes array has a pre-existing duplicate localId local-77 (⌘K polish + Tier 2 follow-ups) — flag for sync-time dedup."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-87",
         "dirty": true,
         "etag": null,
         "syncedAt": null

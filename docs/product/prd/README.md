@@ -46,6 +46,14 @@ Once you can find a moment, the next gesture is to *deepen or grow* it. Every ob
 
 VERBS generalizes NAV's two stranded actions into a systematic, state-gated verb library (node panel + ⌘K). **S3.4 Talk-to is verb #1; Tier 1 shipped.** **VERBS-T2** is the signature Tier 2 layer — dashed "ghost cards" over the map's empty stretches (dead zones), the moment the launch demo is built around and linked from the landing page.
 
+### Geography layer (where things happened)
+
+The canvas tells you *when*. This track tells you *where* — rendering the timeline's location data on a navigable globe with a play-through animation.
+
+| Track | Title | The one-line promise | Status |
+|---|---|---|---|
+| [GLOBE](globe-lens.md) | Globe lens | Press play and watch history happen on the map. | proposed (2026-06-12) |
+
 ### Connection layer (the MCP front door)
 
 The inversion made the MCP server the product surface. This track makes *connecting a client* a first-class, manageable act.
