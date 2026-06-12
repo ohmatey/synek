@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-12T05:00:00.000Z",
+  "updatedAt": "2026-06-12T08:03:03.800764+00:00",
   "syncedAt": null,
   "issues": [
     {
@@ -13,7 +13,14 @@
         "status": "open",
         "dependencies": []
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-56", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-56",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -22,9 +29,18 @@
         "horizon": "now",
         "type": "feature",
         "status": "open",
-        "dependencies": ["local-56"]
+        "dependencies": [
+          "local-56"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-57", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-57",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -33,9 +49,18 @@
         "horizon": "now",
         "type": "feature",
         "status": "open",
-        "dependencies": ["local-57"]
+        "dependencies": [
+          "local-57"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-58", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-58",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -44,9 +69,18 @@
         "horizon": "now",
         "type": "feature",
         "status": "open",
-        "dependencies": ["local-57"]
+        "dependencies": [
+          "local-57"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-59", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-59",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -55,9 +89,18 @@
         "horizon": "now",
         "type": "feature",
         "status": "open",
-        "dependencies": ["local-56"]
+        "dependencies": [
+          "local-56"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-60", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-60",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -66,9 +109,18 @@
         "horizon": "now",
         "type": "chore",
         "status": "open",
-        "dependencies": ["local-62"]
+        "dependencies": [
+          "local-62"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-61", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-61",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -79,7 +131,14 @@
         "status": "open",
         "dependencies": []
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-62", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-62",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -88,9 +147,18 @@
         "horizon": "next",
         "type": "spike",
         "status": "open",
-        "dependencies": ["local-61"]
+        "dependencies": [
+          "local-61"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-63", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-63",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -99,9 +167,18 @@
         "horizon": "next",
         "type": "feature",
         "status": "open",
-        "dependencies": ["local-58"]
+        "dependencies": [
+          "local-58"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-64", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-64",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -112,7 +189,14 @@
         "status": "completed",
         "dependencies": []
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-65", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-65",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -121,9 +205,18 @@
         "horizon": "next",
         "type": "feature",
         "status": "completed",
-        "dependencies": ["local-65"]
+        "dependencies": [
+          "local-65"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-66", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-66",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -132,31 +225,59 @@
         "horizon": "next",
         "type": "feature",
         "status": "completed",
-        "dependencies": ["local-66"]
+        "dependencies": [
+          "local-66"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-74", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-74",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
         "title": "Implement VERBS-T2 empty-lane + bare-era invitations (variants)",
-        "description": "Same ghost-card primitive as local-74, different targets: empty/sparse lanes (from layout-report lanes.fragments) → 'Add to {lane}' ghost (buildExtendLanePrompt, add_node+lane); bare eras (from eras[].nodesWithin) → 'Populate {era}' affordance on the period node (buildPopulateEraPrompt, add_node + opt write_story). GapInvitationNode gets a `variant` prop. Depends on the gap primitive landing.",
+        "description": "DONE (build-verified 2026-06-12; live in-browser pass owed via local-62). Generalized GapInvitationNode -> InvitationNode (variant gap|lane|era; one dumb presenter, canvas formats copy). LANE: sparse swimlanes (<=2 nodes) get an Add-to-track ghost at the lane right-end (extendLaneSpec/buildExtendLanePrompt, add_node+lane). ERA: periods with <=1 node inside get a Populate-era ghost at the era midpoint (populateEraSpec/buildPopulateEraPrompt). Both reuse the shared fill PromptDialog; verb_prompt_copied verb_id extend-lane/populate-era, surface canvas_lane/canvas_era. Caps: 3 lane + 3 era ghosts. typecheck + build green.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
-        "dependencies": ["local-74"]
+        "status": "completed",
+        "dependencies": [
+          "local-74"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-75", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-75",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
         "title": "Landing page: feature + link the gap-fill demo",
-        "description": "Add a section to src/components/home/Landing.tsx — 'Watch the canvas fill its own gaps' — featuring/linking the 60-second demo recording (local-61). If cheap, make HeroPreview/LiveTimeline show a ghost card filling in its loop so the landing page demonstrates the differentiator. Prereq: the demo recording (local-61). Spec: docs/product/prd/next5-tier2-alive-canvas.md → The demo centerpiece.",
+        "description": "DONE for the buildable scope (build-verified 2026-06-12). Added the \"alive canvas\" section to src/components/home/Landing.tsx (AliveCanvasSection): \"Watch the canvas fill its own gaps\" with a LIVE inline illustration of a dead zone + dashed ghost-card invitation (solid=real, dashed=invitation), demonstrating the differentiator without needing the video. OWED: the 60-second demo recording (local-61, a human screen-capture artifact) drops into this section as the hero media + a watch-the-demo link when it exists.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
-        "dependencies": ["local-61", "local-74"]
+        "status": "completed",
+        "dependencies": [
+          "local-61",
+          "local-74"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-76", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-76",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -167,7 +288,14 @@
         "status": "open",
         "dependencies": []
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-18", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-18",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -176,9 +304,19 @@
         "horizon": "later",
         "type": "feature",
         "status": "open",
-        "dependencies": ["local-58", "local-64"]
+        "dependencies": [
+          "local-58",
+          "local-64"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-67", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-67",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -187,9 +325,19 @@
         "horizon": "later",
         "type": "feature",
         "status": "open",
-        "dependencies": ["local-60", "local-63"]
+        "dependencies": [
+          "local-60",
+          "local-63"
+        ]
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-50", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-50",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -200,7 +348,14 @@
         "status": "open",
         "dependencies": []
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-19", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-19",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
@@ -211,7 +366,14 @@
         "status": "open",
         "dependencies": []
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-68", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-68",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "tasks": [],
@@ -221,28 +383,70 @@
         "title": "Project init (offline) — 2026-06-12",
         "body": "Initialized via /sal in offline mode (sector137 MCP unavailable). Docs migrated .can/ -> docs/ (crew layout); product strategy doc created (docs/product/product-strategy.md, bets B1-B7, lovable gate: >=3 of ~10 invited users return week-2+ unprompted). Queue seeded from docs/product/roadmap.md; deferred stubs (#local-20/21/22/45-49) and shipped items intentionally not materialized as issues — the roadmap's Deferred section remains their record. Reconcile with mcp__sector137__sync_state when the MCP returns."
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-69", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-69",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
         "title": "NEXT.5 verb-system PRD written — 2026-06-12",
         "body": "Wrote docs/product/prd/next5-verb-system.md (VERBS), distilling the roadmap NEXT.5 section into a house-format PRD: the object+intent->PromptSpec->MCP-tool primitive, Interact/Expand families, the Tier 1-4 catalogue, registry architecture (src/lib/verbs.ts feeding panel + ⌘K), and Tier-1 Done-when. Chosen as the parallel track to S2 because Tier 1 touches NodeDetailPanel in a different region than S2.4. local-65 (Talk-to, verb #1) marked in_progress as the active build; local-66 (Tier 1 row) unblocked (PRD no longer owed). Contrarian call recorded in the decision log: do NOT parallelize Postgres/Docker (local-18) with S2 — S2.1's FTS5 migration is SQLite-only."
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-71", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-71",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
         "title": "S3.4 Talk-to shipped (build-verified) — 2026-06-12",
         "body": "local-65 done at the data/build layer (live in-browser pass owed, covered by local-62). Created src/lib/verbs.ts as the shared verb-spec registry seed (talkToSpec, improveTimelineSpec) with a surface tag on the copy analytics ('command_palette' vs 'node_panel') so bet B5 copy-rates read per-surface. CommandPalette now reads verbs.ts (no behavior change). NodeDetailPanel: 'Talk to {name}' button on entity panels (owner, read mode, after dateline) opening the shared PromptDialog — closes the founder-named gap (Talk-to was ⌘K-only). My files typecheck-clean; build green (3.07s). NOTE: repo typecheck is red on src/lib/db/patches.ts:49 — the founder's in-flight S2.2 added storyArtifacts/segmentCitations to StorySnapshot (schema.ts) but the snapshot capture isn't updated yet (the ADR-0001 landmine). Not mine; left for the S2 track. local-66 (Tier 1 row) extends verbs.ts into a showWhen descriptor registry + NodeVerbBar."
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-72", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-72",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     },
     {
       "data": {
         "title": "NEXT.5 Tier 1 verb batch shipped — 2026-06-12",
         "body": "local-66 done (build-verified). Completed the Tier 1 verb catalogue: verbs.ts is now a real descriptor registry (showWhen + makeSpec + icon + keywords), 5 node verbs total. Two surfaces read it: NodeVerbBar on the node panel, and ⌘K which now leads with the SELECTED node's verbs (typeable — open ⌘K, type 'expand'/'talk'/'story', act). All verbs emit one verb_prompt_copied event keyed by verb_id+surface (bet B5). typecheck clean, build 1.73s. Next lovable batch when Tier 1 copy-rates land: Tier 2 'alive canvas' — Gap invitations (dashed ghost-cards over axis dead zones from get_layout_report), Populate/extend era, Add a rival track (the demo centerpiece, higher effort)."
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-73", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-73",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "⌘K palette polish shipped — 2026-06-12",
+        "body": "Merged to main as 101b3b2 (ff from feat/timeline-themes; also carried the per-timeline themes commit 324bf1f). Two ⌘K fixes: (1) the palette now focuses the search input on open — the floating DialogClose was first in DOM order so Radix's focus scope grabbed it; CommandDialog now pre-empts onOpenAutoFocus and focuses [data-slot=command-input], fixing every CommandDialog. (2) The actions lead the list: surfaced the timeline-level 'Theme this timeline' action at the top alongside 'Improve this timeline' (Theme was previously only reachable from the view-settings popover); result-filter count bumped +1→+2. typecheck clean. Polish on the already-shipped verb/⌘K surface (local-65/66/74) — no new issue."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-77",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "releases": [
@@ -250,10 +454,25 @@
       "data": {
         "name": "v0.1.0 — Grounded core + demo",
         "status": "draft",
-        "scope": ["local-56", "local-57", "local-58", "local-59", "local-60", "local-61", "local-62"],
+        "scope": [
+          "local-56",
+          "local-57",
+          "local-58",
+          "local-59",
+          "local-60",
+          "local-61",
+          "local-62"
+        ],
         "description": "The artifact-grounding moat (S2 complete) plus the North Star demo recording, verified by a live in-browser pass. Exit criteria: bets B2 and B4 move from unproven to measuring; the lovable-gate experiment (local-63) becomes runnable."
       },
-      "meta": { "origin": "local", "serverId": null, "localId": "local-70", "dirty": true, "etag": null, "syncedAt": null }
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-70",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "tags": []
