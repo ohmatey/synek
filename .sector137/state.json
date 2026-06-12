@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-12T08:20:50.000Z",
+  "updatedAt": "2026-06-12T10:00:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -221,7 +221,7 @@
     {
       "data": {
         "title": "Implement VERBS-T2 gap invitations (the alive-canvas demo centerpiece)",
-        "description": "DONE (build-verified 2026-06-12; live in-browser pass owed via local-62). Shared gap rule extracted to src/lib/domain/dead-zones.ts (findDeadZones, DEAD_ZONE_THRESHOLD 0.15) — layout-report.ts now imports it (no drift; logic-tested). GapInvitationNode (dashed ghost card) added as a `gap` React Flow node type; rfNodes memo pushes one per dead zone (LINEAR mode only), filtered for period-coverage, capped at 4 (MAX_GAP_GHOSTS), positioned via scale.toX(midpoint). Click → TimelineCanvas-hosted PromptDialog via fillGapSpec/buildFillGapPrompt (add_node, date-range scoped); verb_prompt_copied verb_id:'fill-gap'+years+surface:'canvas_gap'. Filled gap closes itself (re-derived each memo). typecheck + build green. FOLLOW-UP (small): collapse-mode currently hides ghosts; making the collapsed-range marker itself the fill affordance is deferred. Spec: docs/product/prd/next5-tier2-alive-canvas.md.",
+        "description": "DONE (build-verified 2026-06-12; live in-browser pass owed via local-62). Shared gap rule extracted to src/lib/domain/dead-zones.ts (findDeadZones, DEAD_ZONE_THRESHOLD 0.15) — layout-report.ts now imports it (no drift; logic-tested). GapInvitationNode (dashed ghost card) added as a `gap` React Flow node type; rfNodes memo pushes one per dead zone (LINEAR mode only), filtered for period-coverage, capped at 4 (MAX_GAP_GHOSTS), positioned via scale.toX(midpoint). Click → TimelineCanvas-hosted PromptDialog via fillGapSpec/buildFillGapPrompt (add_node, date-range scoped); verb_prompt_copied verb_id:'fill-gap'+years+surface:'canvas_gap'. Filled gap closes itself (re-derived each memo). typecheck + build green. Collapse-mode: the collapsed-range break marker is now the fill affordance (TimeRuler onFillGap, owner-only, surface canvas_gap_collapsed) — shipped 2026-06-12. Spec: docs/product/prd/next5-tier2-alive-canvas.md.",
         "horizon": "next",
         "type": "feature",
         "status": "completed",
@@ -404,10 +404,10 @@
       },
       "data": {
         "title": "Commit theme canvas-wiring hunks once verb-system work settles",
-        "description": "`TimelineCanvas.tsx` and `src/lib/mcp/layout-report.ts` carry per-timeline-theme hunks that were left OUT of commit 324bf1f because both files also hold concurrent VERBS-T2 gap-invitation edits and arent separable at file granularity.\n\n### Theme hunks still uncommitted\n- TimelineCanvas.tsx: resolveThemeVars spread on `.canvas-root`, previewTheme state, texture + Background variants, edge labelBg `--xy-background-color` fix, CanvasSettings theme props.\n- layout-report.ts: `theme` param on buildLayoutReport, `themeContrastWarnings` folded into advisories, theme in the returned report.\n\nOnce VERBS-T2 (local-74/75) lands and those files settle, commit the theme hunks so `feat/timeline-themes` is whole. Working tree currently holds them.",
+        "description": "`TimelineCanvas.tsx` and `src/lib/mcp/layout-report.ts` carry per-timeline-theme hunks that were left OUT of commit 324bf1f because both files also hold concurrent VERBS-T2 gap-invitation edits and arent separable at file granularity.\n\n### Theme hunks still uncommitted\n- TimelineCanvas.tsx: resolveThemeVars spread on `.canvas-root`, previewTheme state, texture + Background variants, edge labelBg `--xy-background-color` fix, CanvasSettings theme props.\n- layout-report.ts: `theme` param on buildLayoutReport, `themeContrastWarnings` folded into advisories, theme in the returned report.\n\nOnce VERBS-T2 (local-74/75) lands and those files settle, commit the theme hunks so `feat/timeline-themes` is whole. Working tree currently holds them.\n\n### Resolved\nVerb-system + theme wiring both merged to main; the remaining texture hunk (dots size/lineWidth) committed in 1e42d98 alongside the texture-visibility fix. No co-mingled hunks left.",
         "horizon": "now",
         "type": "chore",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-75"
         ]
@@ -530,6 +530,48 @@
       "data": {
         "title": "Session wrap — e2e drift fix + invitation owner-gate (offline) — 2026-06-12",
         "body": "local-83 DONE (commit f78c4df on main). Fixed the 5 home-redesign-stale Playwright specs and one collateral failure the diagnosis exposed.\n\n### e2e drift (the assigned 5)\n- home.spec.ts + node-detail.spec.ts login helpers waited on `getByPlaceholder(/Name a timeline/)`, deleted when the home redesign (a302e99) moved creation into the New Timeline dialog. Now they wait on the 'Timelines' heading (stable signed-in marker).\n- home's create test rewritten to drive the dialog: New timeline → fill Name → Create timeline → Open the canvas (follow-ups scoped to getByRole('dialog') by role only — its a11y name flips to '… is ready' after create).\n- story-reader.spec.ts:75 tested a REMOVED feature: the standalone top `Story · …` chip + Pause/Stop/Resume transport (docked reader owns transport now; lucide no longer imports Pause/Stop; `paused` is hold-gesture only). Rewritten to assert select ≠ auto-play / Play opens docked reader / Close tears down.\n\n### collateral (6th) failure → owner-gate\nDiagnosing story-reader surfaced that the VERBS-T2 invitation ghosts (local-74/75) render for EVERY viewer, inflating the ANONYMOUS seed-data canvas and breaking seed-data.spec.ts:98's exact `.react-flow__node` count (figures 8 vs 6, deep-learning 9 vs 8; ghosts are `.react-flow__node-invitation`, no `.sf-*` class so per-type asserts still passed). Founder's call (asked + answered): owner-gate over scoping the test — invitations are authoring affordances that hand the user a build prompt, which a public read-only viewer can't act on. Wrapped the invitation block in `if (isOwner)` and added isOwner to the rfNodes memo deps. [[strata-verb-system]] memory updated.\n\n### verification\nFresh `vite build` (e2e:serve) → 31/31 e2e green on E2E_PORT=3002; `bun run typecheck` clean.\n\n### loose ends\n- local-82 (commit theme hunks) left OPEN — TimelineCanvas.tsx + ThemeEditorDialog.tsx show fresh uncommitted edits from the concurrent background commit process, which I did NOT touch. A background process also swept this session's e2e spec edits into HEAD (101b3b2) mid-session; my owner-gate is f78c4df.\n- Release v0.1.0 (local-70) still draft. Reconcile with mcp__sector137__sync_state when the MCP returns."
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-86",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Theme texture visibility fix — 2026-06-12",
+        "body": "Follow-up to local-81: the dot/grid/paper textures were wired but imperceptible (dots used the near-invisible faint pattern token; paper sat at 0.05 full-colour noise). Fixed in commit 1e42d98 (on main): strengthen --xy-background-pattern-color to the theme-aware --color-border-default for dots/grid (themed canvasBg still wins via the inline derived value; untextured baseline unchanged), bigger dot size + grid lineWidth, paper rewritten as desaturated grain at 0.16. Also removed the Default texture button (now None/Dots/Grid/Paper; click active to clear). e2e/theme.spec covers it; both theme tests green. Closes local-82 (theme wiring fully on main, no co-mingled hunks). Note: my theme feature (324bf1f) and the verb system both merged to main; feat/timeline-themes branch repurposed for verbs."
+      }
+    },
+    {
+      "data": {
+        "title": "Tier 2 deferred follow-ups closed — 2026-06-12",
+        "body": "Collapse-mode fill affordance DONE: TimeRuler break marker (the squeezed-gap glyph) is now a clickable owner-only button -> fillGapSpec (surface canvas_gap_collapsed); .time-break-fill CSS. So gap invitations work in BOTH linear (dashed ghost card) and collapse (marker) modes. NOT shipped: the optional HeroPreview ghost-fill LOOP — LiveTimeline is a one-shot pixel-positioned CSS/SVG mock with no replace mechanism, a faithful fill loop needs a new looping animation, and the landing AliveCanvasSection (local-76) already demonstrates the gap-fill robustly. Blind (no preview hydration) pixel-tuning of the hero would risk degrading it, so it folds into the live browser pass (local-62). Remaining truly-open Tier 2-adjacent: local-61 (demo recording, human), local-62 (live in-browser pass, human)."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-77",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Tier 2 analytics rounded out + committed — 2026-06-12",
+        "body": "Added invitation_shown impression event (posthog/client.ts ClientEvent + TimelineCanvas useEffect keyed on per-variant gap/lane/era counts, fires once per distinct invitation set per timeline). This gives the fill-gap/extend-lane/populate-era copy events a denominator so bet B5 copy-RATE is computable for the canvas surface, not just raw counts. All verb COPY events were already wired (verb_prompt_copied). typecheck + build green. Session work committed to main (matching the repo solo workflow): feat(canvas) for the collapse affordance + analytics, chore(sal) for the queue/docs."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-78",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
       }
     }
   ],

@@ -154,7 +154,7 @@ All three are the **same primitive** — a dashed invitation rendered from exist
 - [ ] Clicking a ghost opens the shared `PromptDialog` with a date-range-scoped fill prompt + add-context field; copy fires `verb_prompt_copied` (`verb_id:'fill-gap'`).
 - [ ] After Claude fills the span (or in a seeded test), the ghost disappears because the gap is no longer >15% of span — no manual dismiss.
 - [ ] Ghosts are non-selectable, non-draggable, excluded from lane packing, and don't collide with real nodes; correct under pan/zoom.
-- [ ] Collapse-gaps mode: no wide ghost drawn into a squeezed span; the collapsed-range marker is the fill affordance instead.
+- [x] Collapse-gaps mode: no wide ghost drawn into a squeezed span; the collapsed-range break marker is the fill affordance instead (owner-only; `TimeRuler` `onFillGap` → `fillGapSpec`, surface `canvas_gap_collapsed`). Shipped 2026-06-12.
 - [ ] Empty-lane and bare-era variants render from `lanes.fragments` / `eras[].nodesWithin` and open their respective prompts.
 - [ ] Landing page features + links the demo; (if done) `HeroPreview` loop shows a ghost filling.
 - [ ] No schema / RPC / MCP change; no new fetch. `typecheck` + `build` green; live in-browser pass (prod build) confirms ghost render + fill.
