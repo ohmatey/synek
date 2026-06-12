@@ -1,7 +1,7 @@
 ---
 phase: S2
 title: "Artifact grounding (the moat)"
-status: "S2.0 shipped (inline citations, 2026-06-10); S2.1–S2.5 active NEXT (promoted 2026-06-11)"
+status: "S2.0 shipped (inline citations, 2026-06-10); S2.1–S2.5 building (ADR 0001 accepted 2026-06-12)"
 era: "Story Layer (the pivot)"
 updated: 2026-06-12
 ---
@@ -78,11 +78,13 @@ Depends on S2.1 (the artifact rows must exist before the joins can reference the
 
 ### S2.3 — Grounded generation (`write_story` v2 + `register_artifact`)
 
-`write_story` v2 accepts pre-registered artifact ids on each beat. A new `register_artifact` MCP tool (or artifact creation folded into `apply_patch` — see open questions) writes `sources`/`artifacts` rows so Claude can register an artifact and immediately cite it in the same session. Beats name their source; beats with no artifact remain uncited (honest).
+A new **standalone** `register_artifact` MCP tool writes `sources`/`artifacts` rows (and an optional `moment_artifacts` link) so Claude can register a reusable artifact and immediately cite it in the same session. It is **not** folded into `apply_patch` — artifacts are reference data, kept off the graph-Patch/undo path (ADR 0001, Decision 7).
 
-Depends on S2.2 (the join tables must exist before segment citations can be written by id).
+`write_story` v2 takes, per beat citation, **one of two forms** (single-home-per-citation, Decision 8): `{ artifactId, excerptUsed? }` for an artifact-backed citation (→ `segment_citations` join) **or** `{ title, url?, quote?, sourceType? }` for an unregistered one-off mention (→ inline JSON, the shipped path). The two are unambiguous, and existing inline-only calls keep working — no contract break. Beats with no citation stay uncited (honest).
 
-**Done when:** a `write_story` call referencing artifact ids round-trips through `segment_citations` and surfaces in `getStoryForMoment`; uncited beats show nothing; undo/redo of the moment preserves all citation links; typecheck clean; data-layer test covers artifact-id → segment citation round-trip.
+Depends on S2.2 (the join tables must exist before artifact-backed citations can be written by id).
+
+**Done when:** a `write_story` call mixing `artifactId` and inline citations round-trips — artifact-backed → `segment_citations` (+ `story_artifacts`), inline → the JSON column — and both surface merged in `getStoryForMoment`; uncited beats show nothing; undo/redo of the moment preserves all citation links; an unknown `artifactId` is warned, not fatal; typecheck clean; data-layer test covers the round-trip.
 
 ---
 
@@ -117,7 +119,9 @@ Depends on S2.1 (FTS5 index lives on the `artifacts` table). Forward-links to NA
 
 Sources and artifacts are **reference data** — direct CRUD, not graph Patches. The schema introduces five tables: `sources` (provenance metadata, reliability note), `artifacts` (the primary-source objects themselves, with BCE-safe `dateInstant + precision`, transcript, translation, image, attributed person), `story_artifacts` (story-level anchor/reference/background join), `moment_artifacts` (artifact ↔ moment/node — the direct link that powers artifact-first browse and the canvas lens, since a moment can hold artifacts *before* any story is written, so the link can't be derived from `story_artifacts`), and `segment_citations` (beat-level citation join with the excerpt used). Artifacts with a `dateInstant` can be placed on the timeline axis using the existing `instantToX` helper.
 
-Data model and all schema decisions — column names, enums, the backfill query, the FTS5 index definition, the moment-link decision, and the reliability taxonomy — live in the authoritative spec:
+Citations follow **single-home-per-citation** (ADR 0001, Decision 8): an artifact-backed citation lives only in `segment_citations`; an unregistered one-off mention lives only in the inline `story_segments.citations` JSON. No duplication, and therefore **no bulk backfill** — old inline citations are already in their correct (unregistered) tier.
+
+Data model and all schema decisions — column names, enums, the FTS5 index definition, the moment-link decision, the citation-storage model, and the reliability taxonomy — live in the authoritative spec:
 
 **[ADR 0001 — Sources/Artifacts schema](../../engineering/adr/0001-sources-artifacts-schema.md)**
 
@@ -127,7 +131,7 @@ Do not embed DDL here. The PRD owns the product intent; the ADR owns the data mo
 
 ## Open product questions
 
-1. **`register_artifact` as a standalone MCP tool vs. folded into `apply_patch`?** ADR 0001 (Decision 7) points to **standalone**: artifacts are reference data written by direct CRUD or the `write_story` transaction — explicitly *not* graph Patches. Since `apply_patch` is the graph-Patch path, folding artifact creation into it would pull reference data into the Patch/undo invariant it's deliberately kept out of. Direction: a standalone `register_artifact` tool. Confirm with Kael before S2.3 starts.
+1. **`register_artifact` standalone vs. folded into `apply_patch`? — RESOLVED (founder, 2026-06-12): standalone.** Artifacts are reference data, kept off the graph-Patch/undo path; `apply_patch` stays graph-only (ADR 0001, Decision 7 + Open/deferred).
 
 2. **How aggressive is AI artifact suggestion in S2?** Start: Claude suggests from its own knowledge, curator confirms — no external fetch. The question is whether the suggestion affordance lives in the curation UI (explicit "suggest artifacts for this moment" action) or surfaces automatically when a story is generated without citations. Explicit is safer for S2; automatic is the goal for S3+.
 

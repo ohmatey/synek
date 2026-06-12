@@ -1,11 +1,12 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from './index'
-import { stories, storySegments, nodes } from './schema'
+import { stories, storySegments, storyArtifacts, segmentCitations, artifacts, nodes } from './schema'
 import type { Citation } from './schema'
 import type {
   DepthTier,
   PovType,
   SegmentKind,
+  StoryBeatCitation,
   StoryCastMember,
   StoryDTO,
   StoryImage,
@@ -18,6 +19,10 @@ import type {
 // (see the story-layer note in schema.ts).
 
 // A beat as accepted from the MCP write_story tool (already validated upstream).
+// Citations are single-home (ADR 0001, Decision 8): `citations` holds unregistered
+// one-off mentions (→ inline JSON); `artifactCitations` references registered
+// artifacts by id (→ segment_citations join). The server pre-validates artifactIds
+// (unknown ones are dropped to warnings), so what arrives here is safe to write.
 export type NewStorySegment = {
   bodyText: string
   kind?: SegmentKind
@@ -25,6 +30,7 @@ export type NewStorySegment = {
   relatedNodeIds?: string[]
   focusNodeId?: string | null
   citations?: Citation[]
+  artifactCitations?: { artifactId: string; excerptUsed?: string | null }[]
   image?: StoryImage | null
 }
 
@@ -107,8 +113,13 @@ export function writeStory(
         .get()
       storyId = inserted!.id
     }
+    // Replace-in-place deletes the old segments above (cascading their
+    // segment_citations via FK); story_artifacts is story-level, so clear it here.
+    tx.delete(storyArtifacts).where(eq(storyArtifacts.storyId, storyId)).run()
+    const referencedArtifacts = new Set<string>()
     segments.forEach((s, i) => {
-      tx.insert(storySegments)
+      const seg = tx
+        .insert(storySegments)
         .values({
           storyId,
           sequence: i,
@@ -120,8 +131,24 @@ export function writeStory(
           citations: s.citations ?? null,
           image: s.image ?? null,
         })
-        .run()
+        .returning({ id: storySegments.id })
+        .get()!
+      // Artifact-backed citations → segment_citations (the single home for them).
+      for (const ac of s.artifactCitations ?? []) {
+        tx.insert(segmentCitations)
+          .values({ segmentId: seg.id, artifactId: ac.artifactId, excerptUsed: ac.excerptUsed ?? null })
+          .onConflictDoNothing()
+          .run()
+        referencedArtifacts.add(ac.artifactId)
+      }
     })
+    // The story references every artifact any of its beats cite (deduped).
+    for (const artifactId of referencedArtifacts) {
+      tx.insert(storyArtifacts)
+        .values({ storyId, artifactId, relationship: 'referenced' })
+        .onConflictDoNothing()
+        .run()
+    }
   })
   return { storyId, segmentCount: segments.length }
 }
@@ -135,6 +162,47 @@ function hydrateStory(story: typeof stories.$inferSelect): StoryDTO {
     .where(eq(storySegments.storyId, story.id))
     .orderBy(asc(storySegments.sequence))
     .all()
+  // Artifact-backed citations (segment_citations ⨝ artifacts), grouped by segment,
+  // projected into the beat-citation shape so the reader renders them identically
+  // (title from the artifact) and the S2.4 card has the artifact fields it needs.
+  const artifactCitesBySeg = new Map<string, StoryBeatCitation[]>()
+  if (segs.length) {
+    const rows = db
+      .select({
+        segmentId: segmentCitations.segmentId,
+        excerptUsed: segmentCitations.excerptUsed,
+        artifactId: artifacts.id,
+        title: artifacts.title,
+        sourceType: artifacts.sourceType,
+        reliability: artifacts.reliability,
+        transcript: artifacts.transcript,
+        translation: artifacts.translation,
+        imageUrl: artifacts.imageUrl,
+      })
+      .from(segmentCitations)
+      .innerJoin(artifacts, eq(segmentCitations.artifactId, artifacts.id))
+      .where(
+        inArray(
+          segmentCitations.segmentId,
+          segs.map((s) => s.id),
+        ),
+      )
+      .all()
+    for (const r of rows) {
+      const list = artifactCitesBySeg.get(r.segmentId) ?? []
+      list.push({
+        title: r.title,
+        quote: r.excerptUsed ?? undefined,
+        sourceType: r.sourceType ?? undefined,
+        artifactId: r.artifactId,
+        reliability: r.reliability ?? undefined,
+        transcript: r.transcript,
+        translation: r.translation,
+        imageUrl: r.imageUrl,
+      })
+      artifactCitesBySeg.set(r.segmentId, list)
+    }
+  }
   return {
     id: story.id,
     title: story.title,
@@ -152,7 +220,8 @@ function hydrateStory(story: typeof stories.$inferSelect): StoryDTO {
       settingNote: s.settingNote,
       relatedNodeIds: s.relatedNodeIds ?? [],
       focusNodeId: s.focusNodeId ?? null,
-      citations: s.citations ?? [],
+      // Single-home merge: inline one-offs + artifact-backed citations (Decision 8).
+      citations: [...(s.citations ?? []), ...(artifactCitesBySeg.get(s.id) ?? [])],
       image: s.image ?? null,
     })),
   }
@@ -241,7 +310,18 @@ export function listSegmentCitationsForTimeline(timelineId: string): Citation[] 
     .innerJoin(nodes, eq(stories.momentId, nodes.id))
     .where(eq(nodes.timelineId, timelineId))
     .all()
-  return rows.flatMap((r) => r.citations ?? [])
+  const inline = rows.flatMap((r) => r.citations ?? [])
+  // Artifact-backed citations count too (single-home: they live only in the join).
+  const fromArtifacts = db
+    .select({ title: artifacts.title, sourceType: artifacts.sourceType })
+    .from(segmentCitations)
+    .innerJoin(artifacts, eq(segmentCitations.artifactId, artifacts.id))
+    .innerJoin(storySegments, eq(segmentCitations.segmentId, storySegments.id))
+    .innerJoin(stories, eq(storySegments.storyId, stories.id))
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .where(eq(nodes.timelineId, timelineId))
+    .all()
+  return [...inline, ...fromArtifacts.map((a) => ({ title: a.title, sourceType: a.sourceType ?? undefined }))]
 }
 
 // A cheap content signature over the stories attached to these moments. Each story

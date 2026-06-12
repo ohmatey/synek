@@ -12,8 +12,20 @@ import {
 import { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay } from '~/lib/domain/types'
 import { PatchBuilder, commitPatch, undo, redo, historyState, maxAppliedSeq } from '~/lib/db/patches'
 import { writeStory, getMomentTimelineId, getStoriesForMoment, storyDepthByMoment } from '~/lib/db/stories'
+import { registerArtifact, searchArtifacts, listArtifactsForMoment, existingArtifactIds } from '~/lib/db/artifacts'
 import { emitTimelineEvent } from '~/lib/server/bus'
-import { POV_TYPES, DEPTH_TIERS, SEGMENT_KINDS, IMAGE_ASPECTS, STORY_IMAGE_LAYOUTS, NODE_TYPES } from '~/lib/domain/types'
+import {
+  POV_TYPES,
+  DEPTH_TIERS,
+  SEGMENT_KINDS,
+  IMAGE_ASPECTS,
+  STORY_IMAGE_LAYOUTS,
+  NODE_TYPES,
+  ARTIFACT_TYPES,
+  RELIABILITY,
+  SOURCE_TYPES,
+  CITATION_SOURCE_TYPES,
+} from '~/lib/domain/types'
 import { parseDate, formatInstant } from '~/lib/domain/dates'
 import { BASE_URL } from '~/lib/auth'
 import { opSchema, applyOps } from './ops'
@@ -76,10 +88,22 @@ function enrich(name: string, args: any, result: any): Record<string, unknown> {
     return extra
   }
   if (name === 'write_story') {
+    const segs: any[] = Array.isArray(args?.segments) ? args.segments : []
+    const artifactCites = segs.reduce(
+      (n, s) => n + (Array.isArray(s?.citations) ? s.citations.filter((c: any) => c && 'artifactId' in c).length : 0),
+      0,
+    )
     return {
-      segments: Array.isArray(args?.segments) ? args.segments.length : 0,
+      segments: segs.length,
       cast: Array.isArray(args?.cast) ? args.cast.length : 0,
+      artifact_citations: artifactCites,
     }
+  }
+  if (name === 'register_artifact') {
+    return { has_source: !!args?.source, linked_moment: !!args?.momentId, has_transcript: !!args?.transcript }
+  }
+  if (name === 'search_artifacts') {
+    return { query_length: typeof args?.query === 'string' ? args.query.length : 0, scoped: !!args?.timelineId }
   }
   return {}
 }
@@ -108,6 +132,7 @@ export function buildMcpServer(ownerId: string): McpServer {
         'To attach a NARRATIVE to a moment (node), call write_story with that node\'s id (momentId) and an ordered list of beats — stories are separate from the graph, written directly, and are NOT part of the undo/redo Patch stack. A moment can hold SEVERAL stories: omit `storyId` to create a new one, or pass an existing story\'s id to update it in place. Set a beat\'s `focusNodeId` to another node id to make the canvas pan to that entity and the panel beside the story switch to it as the reader reaches that beat (a guided tour); omit it to stay on the moment. ' +
         'Give stories a CAST: make sure the story\'s key characters exist as entity nodes FIRST (apply_patch), then pass them in `cast` and tour them with focusNodeId — write_story warns about cast names that have no node yet. ' +
         'Give stories ART: a story takes a `coverImage` and each beat an `image` ({url, aspect, layout: full | inset-left | inset-right | bleed}) — a sensory beat with a period artwork reads like a scene. Same sourcing rules as node images: real URLs only. ' +
+        'GROUND beats in reusable SOURCES: for a primary source you will cite more than once or want to find again later (a letter, diary, photo, inscription, record), call register_artifact — it stores the transcript + reliability and returns an `artifactId` you pass as a beat citation `{ artifactId, excerptUsed }` in write_story (reusable + searchable), instead of an inline `{ title, url, quote }` one-off. Recall a prior artifact in a LATER session with search_artifacts and cite it again; link an artifact to a moment so it can sit on the canvas. ' +
         'You only see and edit your own timelines.',
     },
   )
@@ -448,16 +473,28 @@ export function buildMcpServer(ownerId: string): McpServer {
               // entity panel beside the story switches to show it. A node id on the
               // same timeline; omit to stay on the moment.
               focusNodeId: z.string().optional(),
-              // Real sources grounding this beat (cite freely). Same shape as a
-              // node's citations: a title plus an optional url and a verbatim quote.
+              // Real sources grounding this beat (cite freely). Each citation is
+              // ONE of two forms (single-home, ADR 0001): an artifact-backed ref
+              // `{ artifactId, excerptUsed? }` to a REGISTERED artifact (preferred —
+              // reusable + searchable; register it first with register_artifact), OR
+              // an inline one-off `{ title, url?, quote?, sourceType? }` for a passing
+              // mention with no reusable source. The two are disjoint by their keys.
               citations: z
                 .array(
-                  z.object({
-                    title: z.string(),
-                    url: z.string().optional(),
-                    quote: z.string().optional(),
-                    sourceType: z.enum(['primary', 'scholarship', 'data', 'press']).optional(),
-                  }),
+                  z.union([
+                    z.object({
+                      artifactId: z
+                        .string()
+                        .describe('Id of a registered artifact (from register_artifact / search_artifacts).'),
+                      excerptUsed: z.string().optional().describe('The passage of the artifact this beat draws on.'),
+                    }),
+                    z.object({
+                      title: z.string(),
+                      url: z.string().optional(),
+                      quote: z.string().optional(),
+                      sourceType: z.enum(CITATION_SOURCE_TYPES).optional(),
+                    }),
+                  ]),
                 )
                 .optional(),
               image: storyImageInput.optional().describe('Optional art for this beat; `layout` picks its treatment.'),
@@ -505,16 +542,128 @@ export function buildMcpServer(ownerId: string): McpServer {
       const imageUrls = [...(coverImage ? [coverImage.url] : []), ...segments.flatMap((s) => (s.image ? [s.image.url] : []))]
       if (imageUrls.length) warnings.push(...(await imageUrlWarnings(imageUrls, 'story image URL')))
 
+      // Split each beat's citations into inline one-offs vs artifact-backed refs
+      // (single-home, ADR 0001 Dec. 8). Validate artifactIds up front so an unknown
+      // one is dropped to a warning, not an FK error mid-write.
+      const referenced = segments.flatMap((s) =>
+        (s.citations ?? []).flatMap((c) => ('artifactId' in c ? [c.artifactId] : [])),
+      )
+      const known = existingArtifactIds(referenced)
+      const prepared = segments.map((s, i) => {
+        const inline: { title: string; url?: string; quote?: string; sourceType?: (typeof CITATION_SOURCE_TYPES)[number] }[] = []
+        const artifactCitations: { artifactId: string; excerptUsed?: string | null }[] = []
+        for (const c of s.citations ?? []) {
+          if ('artifactId' in c) {
+            if (known.has(c.artifactId)) artifactCitations.push({ artifactId: c.artifactId, excerptUsed: c.excerptUsed ?? null })
+            else
+              warnings.push(
+                `beat ${i + 1}: artifactId "${c.artifactId}" is not a registered artifact — citation dropped (register it first with register_artifact)`,
+              )
+          } else {
+            inline.push(c)
+          }
+        }
+        return { ...s, citations: inline, artifactCitations }
+      })
+
       const result = writeStory(
         momentId,
         { title, hook, povType, depthTier, estimatedMinutes, coverImage, cast },
-        segments,
+        prepared,
         { storyId },
       )
       // Nudge live viewers to refetch so the depth badge appears in near-real-time
       // (same SSE channel as patches; seq = current max so it never rewinds Last-Event-ID).
       emitTimelineEvent({ timelineId, kind: 'story', seq: maxAppliedSeq(timelineId) })
       return json({ ...result, warnings })
+    },
+  )
+
+  register(
+    'register_artifact',
+    {
+      title: 'Register a reusable artifact',
+      description:
+        'Register a primary-source ARTIFACT (a letter, diary entry, photo, inscription, record, object, document) as REUSABLE reference data — cite it from many story beats and recall it in a later session with search_artifacts. Optionally attach the SOURCE it came from (a book/archive/collection) and link it to a moment (node) so it can sit on the canvas. Artifacts are NOT part of the graph or the undo/redo Patch stack. Returns the new `artifactId` — pass it as a beat citation `{ artifactId, excerptUsed }` in write_story. Set `reliability` (primary = contemporaneous/eyewitness, secondary, tertiary) and `date` (when the artifact was MADE) where known. Image/source URLs are sourced, never invented.',
+      inputSchema: {
+        title: z.string().describe('e.g. "Tablet 291: Claudia Severa\'s birthday invitation".'),
+        artifactType: z.enum(ARTIFACT_TYPES),
+        transcript: z.string().optional().describe('The actual text content (full-text searchable).'),
+        translation: z.string().optional().describe('Translation, if from another language (searchable).'),
+        date: z
+          .string()
+          .optional()
+          .describe('When the artifact was MADE — "AD 100", "49 BCE", "Q3 2008" (parsed to an instant + precision).'),
+        reliability: z.enum(RELIABILITY).optional().describe('Provenance distance: primary | secondary | tertiary.'),
+        reliabilityNote: z.string().optional().describe('Free-text nuance ("eyewitness, written 3 days later").'),
+        sourceType: z
+          .enum(CITATION_SOURCE_TYPES)
+          .optional()
+          .describe('Genre: primary | scholarship | data | press (orthogonal to reliability).'),
+        imageUrl: z.string().optional().describe('A real, web-accessible image of the artifact — never invented.'),
+        momentId: z.string().optional().describe('Link the artifact to this moment (node) so it can sit on the canvas.'),
+        momentNote: z.string().optional().describe('Why this artifact belongs at this moment.'),
+        source: z
+          .object({
+            title: z.string(),
+            author: z.string().optional(),
+            year: z.number().int().optional(),
+            url: z.string().optional(),
+            sourceType: z.enum(SOURCE_TYPES).optional(),
+            citation: z.string().optional().describe('A formatted bibliographic string.'),
+          })
+          .optional()
+          .describe('The bibliographic source this artifact came from.'),
+      },
+    },
+    async ({ title, artifactType, transcript, translation, date, reliability, reliabilityNote, sourceType, imageUrl, momentId, momentNote, source }) => {
+      // If linking to a moment, resolve its timeline and run the owner check.
+      if (momentId) {
+        const timelineId = getMomentTimelineId(momentId)
+        const meta = timelineId ? getTimelineMeta(timelineId) : null
+        if (!timelineId || !meta || meta.ownerId !== ownerId) throw new Error(`moment "${momentId}" not found`)
+      }
+      const warnings: string[] = []
+      if (imageUrl) warnings.push(...(await imageUrlWarnings([imageUrl], 'artifact image URL')))
+      const parsed = date ? parseDate(date) : null
+      const { artifactId, sourceId } = registerArtifact({
+        artifact: {
+          title,
+          artifactType,
+          transcript,
+          translation,
+          dateInstant: parsed?.instant ?? null,
+          datePrecision: parsed?.precision ?? 'year',
+          reliability,
+          reliabilityNote,
+          sourceType,
+          imageUrl,
+        },
+        source,
+        momentId,
+        momentNote,
+      })
+      return json({ artifactId, sourceId, warnings })
+    },
+  )
+
+  register(
+    'search_artifacts',
+    {
+      title: 'Search the artifact corpus',
+      description:
+        'Recall registered artifacts by keyword — lexical full-text search over title + transcript + translation. Use it to pull a prior artifact back into a NEW build and re-ground new work, or to find an artifact to cite. Returns compact ranked rows (id, title, a highlighted `snippet`, type, reliability, source); pass a row\'s `id` as a write_story beat citation `{ artifactId }`. Optionally scope to a timeline (artifacts linked to its moments) and filter by type / reliability. `score` is opaque — higher is better; do not interpret it.',
+      inputSchema: {
+        query: z.string().describe('Free text — keywords or phrases. Punctuation/operators are ignored.'),
+        timelineId: z.string().optional().describe('Scope to artifacts linked to this timeline\'s moments.'),
+        types: z.array(z.enum(ARTIFACT_TYPES)).optional(),
+        reliability: z.array(z.enum(RELIABILITY)).optional(),
+        limit: z.number().int().positive().max(50).optional().describe('Max rows (default 10, max 50).'),
+      },
+    },
+    async ({ query, timelineId, types, reliability, limit }) => {
+      if (timelineId) requireOwned(timelineId)
+      return json({ results: searchArtifacts({ query, timelineId, types, reliability, limit }) })
     },
   )
 

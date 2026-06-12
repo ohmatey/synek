@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index, primaryKey } from 'drizzle-orm/sqlite-core'
 
 // Better Auth core tables (user/session/account/verification) — kept in this
 // schema so they share the project's drizzle-kit migration pipeline.
@@ -21,6 +21,11 @@ import {
   DEPTH_TIERS,
   STORY_STATUS,
   SEGMENT_KINDS,
+  CITATION_SOURCE_TYPES,
+  SOURCE_TYPES,
+  ARTIFACT_TYPES,
+  RELIABILITY,
+  STORY_ARTIFACT_REL,
   type CitationSourceType,
   type NodeImage,
   type NodeSize,
@@ -266,6 +271,113 @@ export const storySegments = sqliteTable('story_segments', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
 })
 
+// --- S2 artifact grounding (ADR 0001) -------------------------------------
+// Reusable primary-source reference data. Sources + artifacts are CRUD (never
+// graph Patches). The three join tables wire artifacts to stories / moments /
+// beats. Citation storage is single-home-per-citation: an artifact-backed
+// citation lives only in `segment_citations`; an unregistered one-off mention
+// lives only in `story_segments.citations` (the inline JSON). See ADR 0001.
+
+// Bibliographic record (a book, an archive, a museum collection).
+export const sources = sqliteTable('sources', {
+  id: text('id').primaryKey().$defaultFn(newId),
+  title: text('title').notNull(),
+  author: text('author'),
+  // Publication year — a plain int, NOT a timeline instant. Sources are not plotted.
+  year: integer('year'),
+  citation: text('citation'), // formatted bibliographic string
+  url: text('url'),
+  sourceType: text('source_type', { enum: SOURCE_TYPES }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+})
+
+// The reusable primary-source objects that ground beats. Addressed by id; no slug.
+export const artifacts = sqliteTable(
+  'artifacts',
+  {
+    id: text('id').primaryKey().$defaultFn(newId),
+    title: text('title').notNull(), // "Tablet 291: Claudia Severa's birthday invitation"
+    artifactType: text('artifact_type', { enum: ARTIFACT_TYPES }).notNull(),
+    // Domain time (instant + precision), BCE-safe — canvas-placeable via instantToX.
+    dateInstant: integer('date_instant'), // when the artifact was MADE (epoch-ms, negative = BCE)
+    datePrecision: text('date_precision', { enum: PRECISIONS }).notNull().default('year'),
+    transcript: text('transcript'), // the actual text content (FTS-indexed)
+    translation: text('translation'), // if from another language (FTS-indexed)
+    imageUrl: text('image_url'), // sourced URL, never generated (matches node-image rule)
+    // Provenance distance (rank/filter handle) + free-text nuance.
+    reliability: text('reliability', { enum: RELIABILITY }),
+    reliabilityNote: text('reliability_note'),
+    // Genre of source — reuse the existing Citation enum, orthogonal to reliability.
+    sourceType: text('artifact_source_type', { enum: CITATION_SOURCE_TYPES }),
+    sourceId: text('source_id').references(() => sources.id, { onDelete: 'set null' }),
+    attributedPersonId: text('attributed_person_id').references(() => people.id, { onDelete: 'set null' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  },
+  (t) => [
+    index('artifacts_title_idx').on(t.title), // dedupe-by-title on curation/upsert
+    index('artifacts_source_id_idx').on(t.sourceId),
+  ],
+)
+
+// Stories anchored/referenced/backgrounded by artifacts (composite PK).
+export const storyArtifacts = sqliteTable(
+  'story_artifacts',
+  {
+    storyId: text('story_id')
+      .notNull()
+      .references(() => stories.id, { onDelete: 'cascade' }),
+    artifactId: text('artifact_id')
+      .notNull()
+      .references(() => artifacts.id, { onDelete: 'cascade' }),
+    relationship: text('relationship', { enum: STORY_ARTIFACT_REL }).notNull().default('referenced'),
+  },
+  (t) => [primaryKey({ columns: [t.storyId, t.artifactId] }), index('story_artifacts_artifact_idx').on(t.artifactId)],
+)
+
+// Artifact <-> node/moment — the canvas-lens + artifact-first link. Powers
+// "objects placed in time" and "this artifact belongs to this point" independent
+// of any story (a moment can carry artifacts before any story exists).
+export const momentArtifacts = sqliteTable(
+  'moment_artifacts',
+  {
+    momentId: text('moment_id')
+      .notNull()
+      .references(() => nodes.id, { onDelete: 'cascade' }),
+    artifactId: text('artifact_id')
+      .notNull()
+      .references(() => artifacts.id, { onDelete: 'cascade' }),
+    note: text('note'), // optional "why this artifact sits here"
+  },
+  (t) => [primaryKey({ columns: [t.momentId, t.artifactId] }), index('moment_artifacts_artifact_idx').on(t.artifactId)],
+)
+
+// A beat <-> the artifact that grounds it (composite PK). The artifact-backed
+// citation tier; `excerptUsed` is the specific passage the beat draws on.
+export const segmentCitations = sqliteTable(
+  'segment_citations',
+  {
+    segmentId: text('segment_id')
+      .notNull()
+      .references(() => storySegments.id, { onDelete: 'cascade' }),
+    artifactId: text('artifact_id')
+      .notNull()
+      .references(() => artifacts.id, { onDelete: 'cascade' }),
+    excerptUsed: text('excerpt_used'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.segmentId, t.artifactId] }),
+    index('segment_citations_artifact_idx').on(t.artifactId),
+  ],
+)
+
+export type SourceRow = typeof sources.$inferSelect
+export type ArtifactRow = typeof artifacts.$inferSelect
+export type StoryArtifactRow = typeof storyArtifacts.$inferSelect
+export type MomentArtifactRow = typeof momentArtifacts.$inferSelect
+export type SegmentCitationRow = typeof segmentCitations.$inferSelect
+
 export type TimelineRow = typeof timelines.$inferSelect
 export type NodeRow = typeof nodes.$inferSelect
 export type EdgeRow = typeof edges.$inferSelect
@@ -278,8 +390,17 @@ export type StorySegmentRow = typeof storySegments.$inferSelect
 
 // A story (+ its ordered segments) captured at delete time so an undo can restore
 // it. Stories live outside the Patch engine and cascade on node delete, so without
-// this an undo/redo would lose them (see db/patches.ts).
-export type StorySnapshot = { story: StoryRow; segments: StorySegmentRow[] }
+// this an undo/redo would lose them (see db/patches.ts). The join rows that hang
+// off the story (`story_artifacts` off the story, `segment_citations` off each
+// segment) cascade away too, so they ride along in the snapshot — keyed by
+// segmentId for the citations so restore can pair them to each re-inserted beat
+// (ADR 0001, Decision 7 / two-site undo capture).
+export type StorySnapshot = {
+  story: StoryRow
+  segments: StorySegmentRow[]
+  storyArtifacts: StoryArtifactRow[]
+  segmentCitations: Record<string, SegmentCitationRow[]>
+}
 
 // A single reversible graph mutation. Updates carry before/after; deletes carry
 // the full row(s) so they can be restored. invertPatch = ops.map(invert).reverse().
@@ -287,8 +408,18 @@ export type StorySnapshot = { story: StoryRow; segments: StorySegmentRow[] }
 // inverse of a delete) — it re-inserts ALL the cascaded stories (a moment can hold
 // several) so undo/redo stays faithful. Legacy patch rows may carry a single
 // `story` instead; the restore path accepts both (see db/patches.ts).
+// `add_node.momentArtifacts` is the node-side companion to `stories`: the
+// `moment_artifacts` links that hang off the node itself (not a story) and
+// cascade on delete. Set only on a restore (delete-inverse) op so undo/redo
+// brings a moment's artifact links back (ADR 0001 — two-site undo capture).
 export type GraphOp =
-  | { kind: 'add_node'; node: NodeRow; stories?: StorySnapshot[] | null; story?: StorySnapshot | null }
+  | {
+      kind: 'add_node'
+      node: NodeRow
+      stories?: StorySnapshot[] | null
+      story?: StorySnapshot | null
+      momentArtifacts?: MomentArtifactRow[] | null
+    }
   | { kind: 'update_node'; id: string; before: Partial<NodeRow>; after: Partial<NodeRow> }
   | { kind: 'delete_node'; node: NodeRow; edges: EdgeRow[] }
   | { kind: 'add_edge'; edge: EdgeRow }

@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, max } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, max } from 'drizzle-orm'
 import { db } from './index'
 import {
   nodes,
@@ -6,11 +6,15 @@ import {
   patches,
   stories,
   storySegments,
+  storyArtifacts,
+  momentArtifacts,
+  segmentCitations,
   type NodeRow,
   type EdgeRow,
   type NodeMetadata,
   type GraphOp,
   type StorySnapshot,
+  type MomentArtifactRow,
 } from './schema'
 import type { NodeType, EdgeKind, Precision } from '~/lib/domain/types'
 import { emitTimelineEvent } from '~/lib/server/bus'
@@ -46,15 +50,26 @@ function readStorySnapshots(tx: Tx, momentId: string): StorySnapshot[] {
     .where(eq(stories.momentId, momentId))
     .orderBy(asc(stories.createdAt))
     .all()
-  return rows.map((story) => ({
-    story,
-    segments: tx
+  return rows.map((story) => {
+    const segments = tx
       .select()
       .from(storySegments)
       .where(eq(storySegments.storyId, story.id))
       .orderBy(asc(storySegments.sequence))
-      .all(),
-  }))
+      .all()
+    // Capture the join rows that cascade with the story (ADR 0001 two-site undo):
+    // story_artifacts off the story, segment_citations off each segment (grouped
+    // by segmentId so restore can pair them to the beat it re-inserts).
+    const artifactsForStory = tx.select().from(storyArtifacts).where(eq(storyArtifacts.storyId, story.id)).all()
+    const citationsBySegment: Record<string, (typeof segmentCitations.$inferSelect)[]> = {}
+    if (segments.length) {
+      const segIds = segments.map((s) => s.id)
+      for (const c of tx.select().from(segmentCitations).where(inArray(segmentCitations.segmentId, segIds)).all()) {
+        ;(citationsBySegment[c.segmentId] ??= []).push(c)
+      }
+    }
+    return { story, segments, storyArtifacts: artifactsForStory, segmentCitations: citationsBySegment }
+  })
 }
 
 // Snapshot the stories of every moment a delete_node op will remove, keyed by node
@@ -84,6 +99,10 @@ function attachStories(ops: GraphOp[], snapshots: Map<string, StorySnapshot[]>):
 
 // Re-insert a captured story + segments alongside a restored node. createdAt/updatedAt
 // survive the patches JSON round-trip as numbers, so coerce back to Date (timestamp_ms).
+// FK order: story → segments (+ each segment's citations) → story_artifacts. The
+// referenced artifacts always survive a node delete (only the join rows cascade),
+// so the artifactId FKs resolve on restore. Joins have no timestamps to coerce.
+// `?? []`/`?? {}` guards legacy patch rows captured before the join fields existed.
 function restoreStory(tx: Tx, snap: StorySnapshot): void {
   tx.insert(stories)
     .values({
@@ -92,9 +111,13 @@ function restoreStory(tx: Tx, snap: StorySnapshot): void {
       updatedAt: new Date(snap.story.updatedAt),
     })
     .run()
+  const citationsBySegment = snap.segmentCitations ?? {}
   for (const seg of snap.segments) {
     tx.insert(storySegments).values({ ...seg, createdAt: new Date(seg.createdAt) }).run()
+    const cites = citationsBySegment[seg.id]
+    if (cites?.length) tx.insert(segmentCitations).values(cites).run()
   }
+  if (snap.storyArtifacts?.length) tx.insert(storyArtifacts).values(snap.storyArtifacts).run()
 }
 
 // Restore every story baked onto a restore (add_node) op. Accepts both the current
@@ -102,6 +125,35 @@ function restoreStory(tx: Tx, snap: StorySnapshot): void {
 function restoreStories(tx: Tx, op: Extract<GraphOp, { kind: 'add_node' }>): void {
   const snaps = op.stories ?? (op.story ? [op.story] : [])
   for (const snap of snaps) restoreStory(tx, snap)
+}
+
+// --- moment_artifacts (node-side undo capture) ----------------------------
+// moment_artifacts hangs off the NODE, not a story, and cascades on delete_node
+// even when the moment has no story. So it's captured separately from stories and
+// baked onto the same restore (add_node) op (ADR 0001 two-site undo capture).
+function captureMomentArtifacts(tx: Tx, ops: GraphOp[]): Map<string, MomentArtifactRow[]> {
+  const out = new Map<string, MomentArtifactRow[]>()
+  for (const op of ops) {
+    if (op.kind === 'delete_node') {
+      const links = tx.select().from(momentArtifacts).where(eq(momentArtifacts.momentId, op.node.id)).all()
+      if (links.length) out.set(op.node.id, links)
+    }
+  }
+  return out
+}
+
+function attachMomentArtifacts(ops: GraphOp[], map: Map<string, MomentArtifactRow[]>): GraphOp[] {
+  if (map.size === 0) return ops
+  return ops.map((op) =>
+    op.kind === 'add_node' && map.has(op.node.id) ? { ...op, momentArtifacts: map.get(op.node.id)! } : op,
+  )
+}
+
+// Re-insert the moment's artifact links alongside a restored node (the artifacts
+// themselves always survive — only the join cascaded — so the FKs resolve).
+function restoreMomentArtifacts(tx: Tx, op: Extract<GraphOp, { kind: 'add_node' }>): void {
+  const links = op.momentArtifacts ?? []
+  if (links.length) tx.insert(momentArtifacts).values(links).run()
 }
 
 // --- apply / invert -------------------------------------------------------
@@ -112,8 +164,10 @@ function applyOp(tx: Tx, op: GraphOp): void {
   switch (op.kind) {
     case 'add_node':
       tx.insert(nodes).values({ ...op.node, createdAt: new Date(op.node.createdAt) }).run()
-      // Restore the moment's stories too, if this add_node is the inverse of a delete.
+      // Restore the moment's stories + artifact links too, if this add_node is the
+      // inverse of a delete (both ride along on the op; no-ops otherwise).
       restoreStories(tx, op)
+      restoreMomentArtifacts(tx, op)
       break
     case 'update_node':
       tx.update(nodes).set(op.after).where(eq(nodes.id, op.id)).run()
@@ -271,9 +325,11 @@ export function commitPatch(timelineId: string, builder: PatchBuilder, summary: 
   let patchId: string | null = null
   let committedSeq = 0
   db.transaction((tx) => {
-    // Snapshot the story of any moment this patch deletes BEFORE the cascade drops
-    // it, and bake it into the delete's inverse (an add_node) so undo restores it.
-    const inverseOps = attachStories(invertOps(ops), captureStories(tx, ops))
+    // Snapshot the story + artifact links of any moment this patch deletes BEFORE
+    // the cascade drops them, and bake them onto the delete's inverse (an add_node)
+    // so undo restores them. Both captures MUST precede the apply loop.
+    let inverseOps = attachStories(invertOps(ops), captureStories(tx, ops))
+    inverseOps = attachMomentArtifacts(inverseOps, captureMomentArtifacts(tx, ops))
     for (const op of ops) applyOp(tx, op)
     // A new action truncates any redo branch.
     tx.delete(patches).where(and(eq(patches.timelineId, timelineId), eq(patches.status, 'undone'))).run()
@@ -310,10 +366,11 @@ export function undo(timelineId: string): boolean {
     // delete_node), cascading any story written *after* the patch committed. Snapshot
     // it first and persist it onto the forward add_node, so a later redo restores it.
     const captured = captureStories(tx, p.inverseOps)
+    const capturedMA = captureMomentArtifacts(tx, p.inverseOps)
     for (const op of p.inverseOps) applyOp(tx, op)
     const next =
-      captured.size > 0
-        ? { status: 'undone' as const, ops: attachStories(p.ops, captured) }
+      captured.size > 0 || capturedMA.size > 0
+        ? { status: 'undone' as const, ops: attachMomentArtifacts(attachStories(p.ops, captured), capturedMA) }
         : { status: 'undone' as const }
     tx.update(patches).set(next).where(eq(patches.id, p.id)).run()
   })

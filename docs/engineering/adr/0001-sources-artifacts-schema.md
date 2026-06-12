@@ -1,8 +1,8 @@
 # ADR 0001 — Sources / artifacts normalized schema (S2 — artifact grounding)
 
-- **Status:** Proposed
+- **Status:** Accepted (founder, 2026-06-12) — all eight decisions confirmed; **Decision 8 refined** to single-home-per-citation (no inline/normalized duplication — see the decision).
 - **Date:** 2026-06-12
-- **Deciders:** Kael (Chief Engineer, owner) · Margot (Product, PRD)
+- **Deciders:** Kael (Chief Engineer, owner) · Margot (Product, PRD) · founder (sign-off)
 - **Scope:** S2.1–S2.5 ("Artifact grounding — the moat")
 - **Supersedes:** the inline schema dump in `../../product/prd/s2-artifact-grounding.md` (~lines 93–144). That PRD now references **this ADR** as the data-model source of truth.
 - **Product context:** `../../product/prd/s2-artifact-grounding.md` · **Roadmap:** `../../product/roadmap.md` (NEXT.1, Hosting horizon)
@@ -54,7 +54,11 @@ Eight decisions, each locked with a one-line justification. Concrete DDL in **Sc
 
 7. **Patch / undo interaction: reference data is direct CRUD, never a graph Patch — and the join rows are made undo-safe by design.** `sources`/`artifacts` are CRUD (curation or `register_artifact`). `story_artifacts`/`segment_citations` are written by the `write_story` transaction or curation; `moment_artifacts` by curation/`register_artifact`. The graph Patch invariant is **untouched**. **The undo-safety subtlety the PRD missed (verified in `patches.ts`):** `restoreStory` (line 87) re-inserts a deleted moment's stories via `tx.insert(storySegments).values({ ...seg })` — it spreads the **segment row only**. It does **not** capture or restore any join table. So when a moment is deleted (or its create-patch undone) and the story cascades away, `segment_citations` rows would be silently dropped and **not** restored on redo — a latent data-loss bug if we naively FK `segment_citations.segmentId → story_segments.id ON DELETE CASCADE` and stop there. **Resolution (locked):** extend the `StorySnapshot` capture to include each segment's `segment_citations` rows, and have `restoreStory` re-insert them alongside the segment. `story_artifacts` and `moment_artifacts` are keyed off `stories`/`nodes` that the snapshot/cascade already handles for the story side, but `story_artifacts` must be captured too (it hangs off `story.id`). See **Migration & rollout → Undo-safety** for the exact `patches.ts` change. This is a *snapshot* extension, not a Patch-engine change — the engine still knows nothing about artifacts.
 
-8. **Inline `story_segments.citations` survives backfill as a denormalized read cache — not dropped.** *Justification:* it is the shipped MCP contract surface (`write_story` accepts `citations` on every beat) and the reader's current render path. Dropping it forces a simultaneous MCP-contract change + reader rewrite + risky data move in one migration. Keeping it as a cache means: backfill normalizes (reads inline → upserts `sources`/`artifacts` → writes `segment_citations`), the inline column stays the fast read path *and* the write-acceptance surface, and `write_story` v2 *additionally* normalizes what it receives. **No data lost, no contract break.** Revisit dropping it only once the reader reads exclusively from joins and the corpus is the system of record (a later, separate ADR if ever).
+8. **Single-home-per-citation: inline `story_segments.citations` is the home of *unregistered, one-off* citations only — NOT a cache of normalized rows.** *(Refined by founder sign-off, 2026-06-12. The original framing — "inline as a denormalized cache of the same data that also lives in `segment_citations`" — was rejected: two copies of one citation drift, and a "retire later" cache becomes permanent debt.)* The locked model recognizes **two genuinely different tiers** wearing the word "citation":
+   - **Artifact-backed** — references a registered `artifact` (transcript, reliability, reusable, searchable). Lives **only** in `segment_citations` (FK → `artifacts`). No inline copy. The reader reads it via the join. This is where an FK is correct.
+   - **Unregistered one-off** — a thin mention (`{ title, url?, quote?, sourceType? }`) with no reusable identity, no transcript, nothing to dedupe on. Lives **only** in the inline `citations` JSON. Forcing it into an `artifacts` row would pollute the corpus with junk rows that have no identity — the very "join over a single-use entity is overhead" anti-pattern S2.0 avoided.
+
+   So **no citation lives in two places** → nothing drifts. `write_story` v2 accepts, per beat, **either** `{ artifactId, excerptUsed? }` (→ `segment_citations`) **or** `{ title, url?, quote?, sourceType? }` (→ inline) — disjoint required keys make the union unambiguous, and existing inline-only calls keep working unchanged. **Consequence: no bulk-promotion backfill** — old inline citations are already in their correct (unregistered) tier; promoting one to an artifact is a deliberate *curation* action, never a migration (see Migration & rollout). This is strictly better than both "cache" (drifts) and "normalize everything" (forces junk artifacts + breaks the contract).
 
 ---
 
@@ -202,7 +206,7 @@ END;
 - **Artifacts are canvas-placeable for free** (`dateInstant` + `instantToX`) — the artifact-first lens needs no new geometry.
 - **Retrieval ships with zero new dependencies and zero model** — FTS5 is in the box, and it does not break the inversion. Claude reasons; Synek recalls.
 - **`search_artifacts` is backend-agnostic**, so the FTS5 → `pgvector` swap is a single-seam change invisible to the MCP client.
-- **No data loss, no MCP contract break** — inline `citations` stays accepted and rendered; normalization is additive.
+- **No data loss, no MCP contract break, no duplication** — inline `citations` stays accepted and rendered as the unregistered tier; artifact-backed citations live only in `segment_citations`. Single-home-per-citation (Decision 8) means nothing drifts.
 - **Undo/redo stays faithful** with a *snapshot* extension, not a Patch-engine change — the engine still knows nothing about artifacts.
 - **Reliability is both rankable (enum) and nuanced (note)**, and it does not collide with the existing genre enum.
 
@@ -210,7 +214,7 @@ END;
 - **More tables and join logic** — `write_story` v2 and curation now write up to four related tables in one transaction; more surface to keep consistent.
 - **The undo-safety extension touches `patches.ts`** (`StorySnapshot`, `captureStories`, `restoreStory`) — the one place this design reaches into the Patch machinery. It must be done precisely or `segment_citations`/`story_artifacts` leak on moment-delete/undo (the exact bug the PRD missed). Mitigated by a `verify:artifact-undo` data-layer test (Migration & rollout).
 - **FTS5 DDL is hand-authored** in the migration (drizzle-kit won't generate the virtual table or triggers) — a manual step a builder must not forget, and one drizzle won't diff on future schema pulls.
-- **Inline-cache duplication** — a beat's grounding lives both inline (cache) and in `segment_citations` (system of record) until a future ADR retires the inline path; writers must keep them coherent (the `write_story` transaction does).
+- **Two citation tiers to route** — `write_story` v2 and `hydrateStory` must direct each beat citation to the right home (inline vs join) and merge both for display. This complexity is inherent to having a reusable tier and a one-off tier; the single-home rule (Decision 8) makes it explicit and drift-free rather than hidden behind a cache.
 
 **Neutral**
 - `sources.year` as a plain int is deliberately *less* expressive than the instant model — accepted, because sources are never plotted.
@@ -222,7 +226,8 @@ END;
 ## Alternatives considered
 
 - **Vector-first / embedding retrieval (rejected as default).** The headline rejection. Requires an embedding model the app deliberately lacks → forces a BYO `SYNEK_EMBED_*` key or a bundled model, breaking the inversion. And it buys nothing at Core scale: hundreds of artifacts want store-and-scan, not an ANN index (which only pays off at ~10k+ vectors — a hosted concern next to D.1). Deferred behind an unchanged `search_artifacts` contract; hosted path is `pgvector`.
-- **JSON-inline-forever (rejected).** Keep `story_segments.citations` as the only home, never normalize. Fails the actual S2 requirement: no stable artifact identity to cite again, nowhere to attach transcript/image/reliability once, nothing to search over, no reuse. Inline was right for S2.0's one-shot world; it cannot carry reuse. (We *keep* it as a cache — Decision 8 — but not as the system of record.)
+- **JSON-inline-forever (rejected).** Keep `story_segments.citations` as the only home, never normalize. Fails the actual S2 requirement: no stable artifact identity to cite again, nowhere to attach transcript/image/reliability once, nothing to search over, no reuse. Inline was right for S2.0's one-shot world; it cannot carry reuse. (We *keep* it — Decision 8 — but only as the home of the *unregistered one-off* tier, not for artifact-backed citations.)
+- **Normalize everything / drop inline (rejected).** Make `segment_citations → artifacts` the only citation home; every beat mention becomes an `artifacts` row. Breaks the shipped `write_story` contract, and forces a junk `artifacts` row (no identity, no dedupe key) for every passing title-only mention — polluting the searchable corpus. The single-home model (Decision 8) keeps the FK where an FK is correct and inline where there is nothing to point at.
 - **Slug PK on artifacts (rejected — was in the PRD draft).** `notNull().unique()` slug adds write-time collision handling and an MCP-contract slug-resolution step (`write_story`'s `[{ artifactSlug }]`) for zero lookup benefit, since artifacts are id-addressed from tool results. Dropped in favor of `newId` + an indexed `title` for dedupe.
 - **Four tables, no `moment_artifacts` (rejected).** Reuse `story_artifacts` for canvas placement. Fails the "artifact registered against a moment before any story exists" case and couples the canvas lens to story authorship. Added the moment link (Decision 5).
 - **Collapse reliability into the existing `sourceType` enum (rejected).** They are orthogonal axes (genre vs provenance distance); collapsing loses the "primary vs secondary" filter the reader card surfaces. Kept both.
@@ -235,16 +240,13 @@ END;
 
 **Next free migration number: `0016`.** Confirmed against `drizzle/` — highest existing is `0015_useful_retro_girl.sql` (counter ran past the 0012/0014/0015 cited in the roadmap). **This ADR does not generate the migration; design-only.** A builder runs `bun run db:generate` for the table DDL, then **hand-appends the FTS5 virtual table + triggers** (above) into the generated `0016_*.sql` — drizzle-kit won't author those.
 
-**Backfill (one-shot, idempotent), inside one transaction:**
-1. Read every `story_segments` row with a non-empty inline `citations: Citation[]`.
-2. For each citation: **upsert a `source`** (dedupe by `url`, else `title`) when the citation has source-ish fields, then **upsert an `artifact`** (dedupe by `url`-if-present else normalized `title`; carry `quote → transcript` heuristically, `sourceType` across, map nothing to `reliability` — leave null for curator to set). Reuse `crypto.randomUUID()` ids.
-3. Write a `segment_citations` row joining the segment → the upserted artifact (`excerptUsed = citation.quote`).
-4. **Keep the inline `citations` column** as the denormalized cache (Decision 8) — do not null it.
-5. *(Optional, recommended in the PRD)* a sibling pass seeding `sources`/`artifacts` from `node.metadata.citations` so prior canvas-level fact-checking isn't lost — same upsert/dedupe logic. Gate behind a flag; it's a nicety, not load-bearing.
+**Backfill: NONE (no-op).** *(Changed by the Decision 8 refinement, founder 2026-06-12.)* Under single-home-per-citation, the old inline `story_segments.citations` rows are **already in their correct tier** — the unregistered one-off tier — so there is nothing to promote and `0016` is **pure DDL** (5 tables + the FTS5 objects), with no data migration and no fixture dependency. A bulk read-inline→upsert-artifact→write-`segment_citations` pass would *duplicate* each citation across both tiers, contradicting Decision 8.
 
-Run under Node (`bunx tsx`), like every other DB script (better-sqlite3 ABI). Idempotent by the url/title dedupe, so re-running is safe.
+**Promotion is curation, not migration.** Turning an inline citation into a reusable artifact is a deliberate human action: a curator (or Claude) calls `register_artifact` for the source, then re-runs `write_story` on that beat with the `{ artifactId }` form. This is the right place for the title/url/`reliability` judgment that must be human (the model can't infer provenance distance).
 
-**No-break guarantee:** `write_story` keeps accepting inline `citations` on every beat (unchanged contract). `write_story` v2 *additionally* resolves those + any `artifactId` references into `segment_citations`/`story_artifacts` in the same transaction. The reader keeps rendering from the inline cache until it's rewired to read joins (separate UX task). Nothing the MCP client sends today breaks.
+**The `node.metadata.citations` seed pass is DEFERRED** (founder call) — not run in `0016`. If ever wanted, it ships as a separate flag-gated curator tool, never an automatic migration.
+
+**No-break guarantee:** `write_story` keeps accepting inline `citations` on every beat (unchanged contract — they route to the inline tier). `write_story` v2 *additionally* accepts the `{ artifactId }` form, resolving those into `segment_citations`/`story_artifacts` in the same transaction. The reader merges both tiers (`hydrateStory`) for display. Nothing the MCP client sends today breaks.
 
 **Undo-safety (the precise `patches.ts` change — locked):**
 - Extend `StorySnapshot` to `{ story; segments; storyArtifacts: StoryArtifactRow[]; segmentCitations: Record<segmentId, SegmentCitationRow[]> }`.
@@ -263,12 +265,14 @@ Run under Node (`bunx tsx`), like every other DB script (better-sqlite3 ABI). Id
 - **ANN index (HNSW/IVF)** — hosted/large-corpus only (~10k+ vectors). Not a Core concern.
 - **Retiring the inline `citations` cache** — only once the reader reads exclusively from joins and the corpus is the system of record; a future ADR if ever.
 - **AI artifact *suggestion* aggressiveness** — product/UX question (PRD open question), not schema. Schema supports it either way (curator confirms suggested rows via the same CRUD).
-- **`register_artifact` vs folding into `apply_patch`** — MCP surface decision deferred to S2.3 implementation; both write the same rows. Leaning standalone `register_artifact` to keep `apply_patch` graph-only and the Patch invariant clean.
+- **`register_artifact` vs folding into `apply_patch`** — **RESOLVED (founder, 2026-06-12): standalone `register_artifact`.** `apply_patch` is the graph-Patch path; folding artifact creation in would pull reference data into the undo/redo invariant it is deliberately kept out of (Decision 7). Artifacts are written by direct CRUD.
 - **`source` ↔ multiple artifacts richer modeling** (editions, sub-collections) — out of scope; `sources` is flat for now.
 
 ---
 
-### Founder input flagged
+### Founder input — resolved (2026-06-12)
 
-1. **`sourceType` lives in two places now** — `Citation.sourceType` (inline, genre) and `artifacts.sourceType` (same enum). Confirm we want the genre enum on artifacts *in addition to* the new `reliability` provenance enum (Decision 4). Recommended yes; they're orthogonal.
-2. **The `node.metadata.citations` seed pass** (backfill step 5) is optional — confirm whether to run it in `0016` or defer. Recommended: include it, flag-gated.
+1. **`sourceType` on artifacts in addition to `reliability`** — **YES.** Genre (`sourceType`) and provenance distance (`reliability`) are orthogonal; artifacts carry both (Decision 4).
+2. **The `node.metadata.citations` seed pass** — **DEFERRED.** Not in `0016`; ships later as a flag-gated curator tool if wanted (see Migration & rollout → Backfill).
+3. **`register_artifact` standalone vs `apply_patch` fold** — **STANDALONE** (see Open / deferred).
+4. **Decision 8 citation storage** — **single-home-per-citation** (no inline/normalized duplication); see Decision 8.

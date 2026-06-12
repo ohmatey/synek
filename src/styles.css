@@ -2305,6 +2305,64 @@ body {
 .sv-cite-link {
   color: var(--color-accent-primary);
 }
+/* Artifact-backed citation: a tappable source card (S2.4). */
+.sv-cite.is-artifact {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--color-bg-subtle, color-mix(in oklab, var(--color-fg-muted) 8%, transparent));
+}
+.sv-cite-rel {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  opacity: 0.85;
+}
+.sv-cite-rel.is-primary {
+  color: var(--color-accent-era, #2dd4bf);
+}
+.sv-cite-rel.is-secondary {
+  color: var(--color-fg-secondary);
+}
+.sv-cite-rel.is-tertiary {
+  color: var(--color-fg-muted);
+}
+.sv-cite-card {
+  width: 100%;
+}
+.sv-cite-card > summary {
+  cursor: pointer;
+  color: var(--color-accent-primary);
+  font-weight: 600;
+  list-style: none;
+}
+.sv-cite-card > summary::-webkit-details-marker {
+  display: none;
+}
+.sv-cite-card[open] > summary {
+  margin-bottom: 6px;
+}
+.sv-cite-img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.sv-cite-transcript {
+  font-style: italic;
+  color: var(--color-fg-secondary);
+  white-space: pre-wrap;
+}
+.sv-cite-translation {
+  color: var(--color-fg-muted);
+  white-space: pre-wrap;
+  margin-top: 4px;
+}
 
 /* Bottom nav row: prev / counter / next (chevrons live here now, not on the edges). */
 .sv-foot {

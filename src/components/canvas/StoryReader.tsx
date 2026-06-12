@@ -390,17 +390,38 @@ export function StoryReader({
                 )}
                 {beat.citations.length > 0 && (
                   <div className="sv-cites">
-                    {beat.citations.map((c, i) => (
-                      <div className="sv-cite" key={i}>
-                        <span className="sv-cite-title">{c.title || 'Untitled source'}</span>
-                        {c.quote?.trim() && <span className="sv-cite-quote">“{c.quote}”</span>}
-                        {c.url?.trim() && (
-                          <a className="sv-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
-                            Open source ↗
-                          </a>
-                        )}
-                      </div>
-                    ))}
+                    {beat.citations.map((c, i) => {
+                      const body = c.transcript?.trim() || c.translation?.trim()
+                      return (
+                        <div className={cn('sv-cite', c.artifactId && 'is-artifact')} key={i}>
+                          <span className="sv-cite-title">{c.title || 'Untitled source'}</span>
+                          {c.reliability && (
+                            <span className={cn('sv-cite-rel', `is-${c.reliability}`)}>{c.reliability}</span>
+                          )}
+                          {c.quote?.trim() && <span className="sv-cite-quote">“{c.quote}”</span>}
+                          {/* Artifact-backed citation → tap to reveal the source card
+                              (transcript / translation / image). Inline one-offs have
+                              no artifactId and render exactly as before. */}
+                          {c.artifactId && (body || c.imageUrl?.trim()) && (
+                            <details className="sv-cite-card">
+                              <summary>View artifact</summary>
+                              {c.imageUrl?.trim() && (
+                                <img className="sv-cite-img" src={c.imageUrl} alt={c.title} loading="lazy" />
+                              )}
+                              {c.transcript?.trim() && <p className="sv-cite-transcript">{c.transcript}</p>}
+                              {c.translation?.trim() && (
+                                <p className="sv-cite-translation">{c.translation}</p>
+                              )}
+                            </details>
+                          )}
+                          {c.url?.trim() && (
+                            <a className="sv-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
+                              Open source ↗
+                            </a>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </article>

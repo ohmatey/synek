@@ -34,6 +34,24 @@ export type NodeImage = { url: string; alt?: string; show?: boolean; aspect?: Im
 export const CITATION_SOURCE_TYPES = ['primary', 'scholarship', 'data', 'press'] as const
 export type CitationSourceType = (typeof CITATION_SOURCE_TYPES)[number]
 
+// --- S2 artifact grounding (ADR 0001) -------------------------------------
+// A bibliographic record (book, archive, museum collection) an artifact came from.
+export const SOURCE_TYPES = ['book', 'archive', 'paper', 'museum', 'letter_collection', 'website'] as const
+export type SourceType = (typeof SOURCE_TYPES)[number]
+
+// The kind of primary-source object an artifact is.
+export const ARTIFACT_TYPES = ['letter', 'diary_entry', 'photo', 'object', 'inscription', 'record', 'document'] as const
+export type ArtifactType = (typeof ARTIFACT_TYPES)[number]
+
+// Provenance distance from the event — orthogonal to CitationSourceType (genre).
+// A `press` source can be `primary` (same-day) or `tertiary` (a retrospective).
+export const RELIABILITY = ['primary', 'secondary', 'tertiary'] as const
+export type Reliability = (typeof RELIABILITY)[number]
+
+// How a story leans on an artifact it links to.
+export const STORY_ARTIFACT_REL = ['anchor', 'referenced', 'background'] as const
+export type StoryArtifactRel = (typeof STORY_ARTIFACT_REL)[number]
+
 // How a beat's image sits in the story reader: `full` (block above the text),
 // `inset-left`/`inset-right` (floated beside it), `bleed` (full-panel backdrop
 // behind the beat with a scrim). Defaults to `full`.
@@ -157,6 +175,19 @@ export type StoryStatus = (typeof STORY_STATUS)[number]
 export const SEGMENT_KINDS = ['narration', 'dialogue', 'sensory', 'interior'] as const
 export type SegmentKind = (typeof SEGMENT_KINDS)[number]
 
+// A citation shown on a story beat. Either an unregistered one-off (just the
+// CanvasCitation fields — single-home in story_segments.citations) or projected
+// from a registered artifact (carries `artifactId` + the artifact metadata the
+// S2.4 reader card surfaces). The reader renders `title`/`quote`/`url` for both;
+// the artifact fields are additive (older readers ignore them). ADR 0001 Dec. 8.
+export type StoryBeatCitation = CanvasCitation & {
+  artifactId?: string
+  reliability?: Reliability
+  transcript?: string | null
+  translation?: string | null
+  imageUrl?: string | null
+}
+
 // Client-serializable story payload for the node-detail playback reader (plain
 // primitives only — the RPC serializer rejects Date/unknown). A story is an
 // ordered list of beats (segments) attached to a moment/node.
@@ -170,9 +201,9 @@ export type StoryBeat = {
   // The entity this beat spotlights (a node id), or null to stay on the moment.
   // While reading, the canvas pans + rings it and the detail panel switches to it.
   focusNodeId: string | null
-  // S2 slice 1 — real sources backing this beat. Same shape as a node's
-  // citations (CanvasCitation), so the reader renders them identically.
-  citations: CanvasCitation[]
+  // Real sources backing this beat — inline one-offs and/or artifact-backed
+  // citations, merged for display (ADR 0001, Decision 8).
+  citations: StoryBeatCitation[]
   // Optional art for this beat; `layout` picks its reader treatment
   // (full/inset-left/inset-right/bleed). Null → text-only beat.
   image: StoryImage | null

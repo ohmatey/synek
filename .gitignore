@@ -15,13 +15,15 @@ e2e.db-*
 /test-results
 /playwright-report
 
-# Story data-layer check throwaway databases (bun run verify:story / verify:story-undo)
+# Data-layer check throwaway databases (bun run verify:*)
 verify-story.db
 verify-story.db-*
 verify-story-undo.db
 verify-story-undo.db-*
 verify-multi-story.db
 verify-multi-story.db-*
+verify-*.db
+verify-*.db-*
 
 # Env
 .env
