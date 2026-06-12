@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-12T16:00:00.000Z",
+  "updatedAt": "2026-06-12T16:30:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -430,6 +430,209 @@
         "status": "completed",
         "dependencies": []
       }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE G1 — data contract: lat/lng on NodeMetadata + apply_patch + layout report",
+        "description": "The globe lens data foundation (no UI). Refs: docs/product/prd/globe-lens.md (Technical design §1, §2).\n\n### Scope\n- Add `lat?: number`/`lng?: number` to `NodeMetadata` (schema.ts) + `GraphNode` DTO (domain/types.ts). JSON metadata column → NO migration.\n- DTO flow: add lat/lng to the hand-mapped serializer in server/graph.ts:49 AND the query_timeline/get_node rows (server.ts:305,348) so the MCP client can read back what it located.\n- MCP ops (mcp/ops.ts): add `lat` (z.number().min(-90).max(90).optional()) + `lng` (min(-180).max(180)) to add_node AND update_node opSchema branches with describe() hints; merge into metadata assembly (additive, pair-guarded).\n- warnings.ts: lone-coordinate (lat without lng or vice versa) + null-island (0,0) per-patch warnings via coordinateWarnings(ops) wired into collectPatchWarnings. NO ocean/landmass check (deferred — needs server TopoJSON).\n- layout-report.ts: new `coordinates` section { total, located, coveragePct, hasLocationNoCoords, sample[12] } after nodeIndex build.\n- node-verb-prompts.ts: buildGlobeBackfillPrompt (so the backfill loop works before the globe renders).\n\n### Done when\napply_patch accepts+validates lat/lng; get_layout_report returns coordinates section; Patch undo restores coords for free (metadata snapshot); typecheck + build green; no migration.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-88",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE G1a — seed coordinates (Stoicism + Space Race + Roman Republic)",
+        "description": "The seed has ZERO location strings and zero coordinates (grep -c 'location:' scripts/seed.ts → 0), so the lens is invisible/un-demoable out of the box. Add `location` + `lat`/`lng` to the geo-locatable seed nodes so the globe renders on a fresh install and success metrics have a baseline. Refs: globe-lens.md Technical design §0/§8. Depends on G1 type.\n\n### Session note 2026-06-12 (G1a pre-work)\nG1a was attempted and is VERIFIED BLOCKED on local-88 (G1): no `lat`/`lng` exists in NodeMetadata (schema.ts:40-52 has `location` only), the GraphNode DTO (domain/types.ts), or the serializer (server/graph.ts:49). No code changed. Stoicism coordinates are researched and ready (city-level, anchored on the place most associated with the work; birthplace goes in the display string only):\n\n- The Stoa Poikile — \"Athens, Greece\" — 37.98, 23.72\n- Zeno of Citium — \"Athens, Greece (b. Citium, Cyprus)\" — 37.98, 23.72\n- Cleanthes — \"Athens, Greece\" — 37.98, 23.72\n- Chrysippus — \"Athens, Greece (b. Soli, Cilicia)\" — 37.98, 23.72\n- Panaetius — \"Rhodes, Greece\" — 36.44, 28.22\n- Posidonius — \"Rhodes, Greece (b. Apamea, Syria)\" — 36.44, 28.22\n- Seneca the Younger — \"Rome, Italy (b. Córdoba, Hispania)\" — 41.89, 12.48\n- Epictetus — \"Nicopolis, Epirus (taught there after exile)\" — 39.02, 20.73\n- Marcus Aurelius — \"Rome, Italy\" — 41.89, 12.48\n- Event: Zeno founds the Stoa — \"Athens, Greece\" — 37.98, 23.72\n- Event: Stoicism reaches Rome — \"Rome, Italy\" — 41.89, 12.48\n\nThe Athens cluster (5 markers) is honest data and exercises overlapping-marker handling. Once G1 lands: edit the Stoicism block of scripts/seed.ts, `bun run db:seed stoicism`, read a node back to confirm coordinates survive the round-trip.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-88"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-89",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE G2 — globe lens component (d3-geo orthographic, markers, theme)",
+        "description": "GlobeLens.tsx in src/components/canvas/, client-only behind <ClientOnly>, lazy-imported. d3-geo geoOrthographic + geoPath + geoGraticule10 + geoDistance (back-face marker culling); country mesh from world-atlas countries-110m.json via topojson-client. SVG (not canvas) — hit-testing + CSS-var theming for free at 100s of nodes. Markers inherit .canvas-root theme vars (--color-accent-primary, --color-accent-era). Static (non-playing) view first. Deps: d3-geo ^3.1.1, topojson-client ^3.1.0, world-atlas ^2.0.2 + @types. Do NOT add three/globe.gl/d3 umbrella/geocoder. Refs: globe-lens.md Technical design §5, §7. Depends on G1.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-88"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-90",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE G3 — playback: scrubber, play/pause, non-linear time, spans",
+        "description": "Time cursor = cursorInstant (epoch-ms). Reuse makeTimeScale(instants, pxPerDay, collapseGaps:true) from useTimelineScale.ts — playback advances LINEARLY IN X-SPACE; cursorInstant = scale.toInstant(x) → density-uniform sweep (no new bucketer; OQ6 dissolved). rAF loop, 3-speed toggle (1×/2×/4×), drag-scrub, prefers-reduced-motion → default paused. Events appear at startInstant and stay; spans glow active / dim (~30%) after endInstant. BCE + year-precision: integer instants, formatInstant for labels (already BCE-aware). Auto-center rotation on active node, override on manual drag, resume on play (OQ3). Refs: globe-lens.md §4. Depends on G2.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-90"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-91",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE G4 — coverage gate + top-center view switcher + backfill prompt",
+        "description": "ViewSwitcher: a top-center floatChip ToggleGroup (Timeline | Globe) in the .top-bar, absolute-centered (left-1/2 -translate-x-1/2), driving lensView state in TimelineCanvas. Render ONLY when ≥1 coordinated node; coverage state (N=5/30% gate) in the Globe item tooltip when below threshold; NOT rendered at zero coords (top bar identical to today). Shows for public viewers (read-only nav). Coverage computed client-side from in-memory graph. Backfill: zero-coords → ⌘K 'Set up globe view' PromptSpec (globeBackfillSpec via buildGlobeBackfillPrompt) + NodeDetailPanel location-row affordance; below-threshold → coverage banner in the globe with copyable backfill prompt (PromptDialog). 'Switch to globe' (≥1 coord) is a plain CommandPalette NAV action, NOT a verbs.ts entry. Refs: globe-lens.md §Entry/exit, §Coverage gate, Technical design §3. Depends on G2, G3.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-90",
+          "local-91"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-92",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE G5 — click marker → NodeDetailPanel in its dock",
+        "description": "Marker onClick sets selectedId (existing TimelineCanvas state) → the existing NodeDetailPanel opens in its usual right dock, edit mode unchanged. Closing the panel does NOT change lensView (stays in globe). Globe reads --detail-panel-w to inset its right edge so it never sits under the dock. Refs: globe-lens.md §Exit, Technical design §3. Depends on G2, G3.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-90",
+          "local-91"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-93",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE G6 — SSE hot-update verification in the globe lens",
+        "description": "Thin verification (near-zero build per Technical design §6): GlobeLens consumes the SAME ['graph', timelineId] query result the canvas does (passed as a prop, not its own fetch), so a live apply_patch refetch re-renders markers with no globe-specific code. The one rule: playback state (cursorInstant, playing, userRotated, rAF) lives in GlobeLens local state and must SURVIVE a nodes prop change — no remount, clamp cursor into the new extent if it grows. Verify a coordinate-adding patch lights a new marker mid-session without resetting playback. Refs: globe-lens.md §SSE. Depends on G2, G4, G5.",
+        "horizon": "next",
+        "type": "chore",
+        "status": "open",
+        "dependencies": [
+          "local-90",
+          "local-92",
+          "local-93"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-94",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE G7 — PostHog analytics (6 client events)",
+        "description": "Wire 6 client events via posthog/client.ts capture seam: globe_lens_opened {timeline_id,node_count,coordinated_count,coverage_pct}, globe_playback_started {timeline_id,speed}, globe_scrubbed {timeline_id}, globe_marker_clicked {timeline_id,node_id,node_type}, globe_lens_closed {timeline_id,session_duration_ms,played}, globe_backfill_prompt_copied {timeline_id,uncoordinated_count}. Coordinate-adoption is the existing mcp_tool_called(apply_patch) with lat/lng — no new server event. Refs: globe-lens.md §Analytics. Depends on G4, G5.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-92",
+          "local-93"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-95",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Backlog — cross-timeline \"person explorer\" (S3 multi-POV future)",
+        "description": "S3's person thread (D4) scopes to the CURRENT timeline only. This is the future expansion: a person view that aggregates every story across ALL timelines where a person appears — follow one life through events, regardless of which timeline holds them. Founder flagged it 2026-06-12 as the fun future direction when resolving S3 PRD OQ4. Needs a cross-timeline query over story_people + a person-explorer surface (likely its own route, not the in-panel thread). Refs: docs/product/prd/s3-multi-pov.md (D4).",
+        "horizon": "later",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-64"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-96",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Backlog — extensible perspective anchors (non-person POVs)",
+        "description": "S3 ships person-only perspectives (D2). This generalizes the POV anchor beyond `people` to org/place/work entity nodes and richer framings — e.g. \"X person in Y era about Z work.\" The S3 cast/POV plumbing is deliberately built type-open (the anchor is not hard-coded to person) so this lands as an addition, not a rewrite: widen the picker, the primaryPerson/anchor field, and buildTalkToPoVPrompt to non-person subjects. Founder constraint recorded 2026-06-12 (S3 PRD OQ2/D2). Refs: docs/product/prd/s3-multi-pov.md (D2, S3.3b).",
+        "horizon": "later",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-64"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-97",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "tasks": [],
@@ -583,6 +786,20 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-87",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Globe session wrap — PRD committed, G1a verified blocked, coordinates staged — 2026-06-12",
+        "body": "This session: (1) Committed the globe-lens PRD + README geography-layer index row + s3-multi-pov engineering pass + queue reconciliation in b9af30c. (2) Attempted G1a (seed coordinates) and verified it BLOCKED on G1: grep-confirmed no lat/lng in NodeMetadata (schema.ts:40-52), the GraphNode DTO (domain/types.ts), or the serializer (server/graph.ts:49) — reported rather than half-done, zero code changed. (3) The full Stoicism coordinate table (11 nodes, city-level, work-place-anchored) is attached to local-89, so G1a is a mechanical seed edit once local-88 ships. (4) Observed the parallel session land GLOBE queue issues local-88..95 (G1-G7, dependency-chained per the PRD phasing) in the working tree AFTER b9af30c — this wrap commits them. s3-multi-pov.md has fresh uncommitted edits from the Margot rewrite session and is deliberately NOT committed here; the owning session wraps it. Pre-existing duplicate localId local-77 still flagged for sync-time dedup. ID-collision repair: this note was first written as local-96 while the parallel session concurrently took local-96/97 for the S3 backlog issues; re-idd to local-98."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-98",
         "dirty": true,
         "etag": null,
         "syncedAt": null
