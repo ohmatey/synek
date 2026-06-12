@@ -1795,7 +1795,8 @@ body {
   padding: 60px 18px 52px;
   gap: 14px;
 }
-.story-reader .sv-cover {
+.story-reader .sv-cover,
+.story-reader .sv-end {
   /* The base width (min(640px, 88vw)) over-constrains the inset:0 box inside the
      380px dock — the negative auto margin pushes it out the right edge, clipped. */
   width: auto;
