@@ -32,6 +32,7 @@ import {
   type NodeSubtype,
   type StoryCastMember,
   type StoryImage,
+  type TimelineTheme,
   type TimelineViewSettings,
 } from '~/lib/domain/types'
 
@@ -68,6 +69,10 @@ export const timelines = sqliteTable(
     description: text('description'),
     // Owner-saved display defaults (the time-axis scale) applied on open.
     viewSettings: text('view_settings', { mode: 'json' }).$type<TimelineViewSettings>(),
+    // Owner-saved visual theme (freeform accents, canvas wash, font, texture +
+    // AI imageStyle/mood). Separate from viewSettings: both setters are whole-
+    // object replace-writes, so sharing a column would have each clobber the other.
+    theme: text('theme', { mode: 'json' }).$type<TimelineTheme>(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
   },

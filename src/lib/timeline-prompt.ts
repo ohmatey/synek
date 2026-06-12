@@ -22,6 +22,25 @@ export function buildTimelinePrompt(input: {
   )
 }
 
+// "Theme this timeline" — asks the connected Claude to design a visual theme via
+// set_timeline_theme: era-appropriate colors per scheme, a display font, a
+// texture, and the AI-facing imageStyle/mood it should reuse for future art.
+export function buildThemePrompt(input: { timelineId: string; title: string }): string {
+  return (
+    `Using the Synek MCP tools, design a visual theme for this timeline with set_timeline_theme.\n` +
+    `- timelineId: ${input.timelineId}\n` +
+    `- title: "${input.title}"\n` +
+    `First call query_timeline to feel the subject's era and mood. Then set a theme: a short evocative ` +
+    `name; accent colors (accentPrimary, accentStory, accentInfluence, accentDialogue, accentEra) and a ` +
+    `canvas background (canvasBg) as hex — provide BOTH a dark and a light set, tuned for contrast on ` +
+    `near-black and near-white surfaces respectively; one display font from ` +
+    `default | serif | slab | mono | rounded | grotesk; a texture from none | dots | grid | paper; a short ` +
+    `imageStyle (an image-generation style fragment to reuse for this timeline's art) and 2-4 mood words. ` +
+    `Keep the accents distinguishable from each other — they color different relationship kinds — and fix ` +
+    `any contrast warnings the tool returns.`
+  )
+}
+
 // "Improve this timeline" — a prompt that asks the connected Claude to review the
 // current graph and fill it out, rather than build from scratch. Grounded in the
 // read tools (get_layout_report / query_timeline) so the model looks before it

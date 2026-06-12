@@ -8,6 +8,7 @@ import {
   getTimelineTitle,
   getTimelineMeta,
   setTimelineView,
+  setTimelineTheme,
 } from '~/lib/db/graph'
 import { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay } from '~/lib/domain/types'
 import { PatchBuilder, commitPatch, undo, redo, historyState, maxAppliedSeq } from '~/lib/db/patches'
@@ -28,8 +29,10 @@ import {
 } from '~/lib/domain/types'
 import { parseDate, formatInstant } from '~/lib/domain/dates'
 import { BASE_URL } from '~/lib/auth'
+import { timelineThemeSchema } from '~/lib/domain/theme'
 import { opSchema, applyOps } from './ops'
 import { collectPatchWarnings, imageUrlWarnings } from './warnings'
+import { themeContrastWarnings } from './theme-warnings'
 import { buildLayoutReport } from './layout-report'
 import { captureServer } from '~/lib/posthog/server'
 import type { Graph } from '~/lib/db/graph'
@@ -105,6 +108,20 @@ function enrich(name: string, args: any, result: any): Record<string, unknown> {
   if (name === 'search_artifacts') {
     return { query_length: typeof args?.query === 'string' ? args.query.length : 0, scoped: !!args?.timelineId }
   }
+  if (name === 'set_timeline_theme') {
+    const t = args?.theme
+    return {
+      cleared: t === null,
+      schemes: t?.colors ? Object.keys(t.colors).length : 0,
+      color_slots: t?.colors
+        ? Object.values(t.colors).reduce((n: number, s: any) => n + Object.keys(s ?? {}).length, 0)
+        : 0,
+      font: t?.font?.display ?? null,
+      texture: t?.texture ?? null,
+      has_image_style: !!t?.imageStyle,
+      mood_count: Array.isArray(t?.mood) ? t.mood.length : 0,
+    }
+  }
   return {}
 }
 
@@ -128,6 +145,7 @@ export function buildMcpServer(ownerId: string): McpServer {
         'CITE with links: every citation takes a `url` — add a stable public link wherever one exists (and never invent one); title-only is fine for print sources. apply_patch verifies the links you pass and warns on dead ones. ' +
         'undo / redo step the per-timeline history. ' +
         'After building (or reshaping) a timeline, call set_timeline_view to pick the default zoom (pxPerDay) and gap collapsing so the canvas opens readable — heed the density warnings apply_patch returns. ' +
+        'THEME the timeline to match its subject: call set_timeline_theme with freeform hex accents (per dark AND light scheme — an omitted scheme falls back to the default look), an optional canvas background wash, a display font (default | serif | slab | mono | rounded | grotesk), and a texture (none | dots | grid | paper) — a Roman timeline can feel like marble and ink, a startup timeline like a launch deck. Set `imageStyle` (a short image-generation style fragment) and `mood` keywords, then REUSE them: read the theme back via get_timeline and fold imageStyle/mood into every image or copy prompt you produce for this timeline so its art stays coherent. Heed the contrast warnings set_timeline_theme returns. ' +
         'After a multi-patch build, call get_layout_report and ACT on it — merge near-duplicate lanes, re-lane drifted nodes, fill story-poor eras, fix dead axis zones — before declaring the timeline done. ' +
         'To attach a NARRATIVE to a moment (node), call write_story with that node\'s id (momentId) and an ordered list of beats — stories are separate from the graph, written directly, and are NOT part of the undo/redo Patch stack. A moment can hold SEVERAL stories: omit `storyId` to create a new one, or pass an existing story\'s id to update it in place. Set a beat\'s `focusNodeId` to another node id to make the canvas pan to that entity and the panel beside the story switch to it as the reader reaches that beat (a guided tour); omit it to stay on the moment. ' +
         'Give stories a CAST: make sure the story\'s key characters exist as entity nodes FIRST (apply_patch), then pass them in `cast` and tour them with focusNodeId — write_story warns about cast names that have no node yet. ' +
@@ -186,12 +204,20 @@ export function buildMcpServer(ownerId: string): McpServer {
     'create_timeline',
     {
       title: 'Create timeline',
-      description: 'Create a new empty timeline. Returns its id, title, and viewer url — share the url with the user.',
-      inputSchema: { title: z.string() },
+      description:
+        'Create a new empty timeline. Returns its id, title, and viewer url — share the url with the user. ' +
+        'Optionally pass `theme` to style it at birth (same shape as set_timeline_theme).',
+      inputSchema: {
+        title: z.string(),
+        theme: timelineThemeSchema.optional().describe('Optional initial theme — same shape as set_timeline_theme.'),
+      },
     },
-    async ({ title }) => {
+    async ({ title, theme }) => {
       const t = createTimeline(title, ownerId)
-      return json({ id: t.id, title: t.title, url: viewerUrl(t.id) })
+      // No SSE emit needed: a brand-new timeline has no live viewers yet.
+      if (theme) setTimelineTheme(t.id, ownerId, theme)
+      const warnings = theme ? themeContrastWarnings(theme) : []
+      return json({ id: t.id, title: t.title, url: viewerUrl(t.id), ...(warnings.length ? { warnings } : {}) })
     },
   )
 
@@ -200,15 +226,19 @@ export function buildMcpServer(ownerId: string): McpServer {
     {
       title: 'Get timeline graph',
       description:
-        'Return a timeline\'s full graph: { title, viewSettings, nodes, edges }. Use node ids for update/delete/edge ops. ' +
-        '`viewSettings` is the saved default time-axis scale ({ pxPerDay, collapseGaps }, null if never set) — change it with set_timeline_view.',
+        'Return a timeline\'s full graph: { title, viewSettings, theme, nodes, edges }. Use node ids for update/delete/edge ops. ' +
+        '`viewSettings` is the saved default time-axis scale ({ pxPerDay, collapseGaps }, null if never set) — change it with set_timeline_view. ' +
+        '`theme` is the saved visual theme + AI style metadata (null if unset) — reuse its `imageStyle`/`mood` when ' +
+        'generating art or copy for this timeline; change it with set_timeline_theme.',
       inputSchema: { timelineId: z.string() },
     },
     async ({ timelineId }) => {
       requireOwned(timelineId)
+      const meta = getTimelineMeta(timelineId)!
       return json({
-        title: getTimelineTitle(timelineId),
-        viewSettings: getTimelineMeta(timelineId)?.viewSettings ?? null,
+        title: meta.title,
+        viewSettings: meta.viewSettings ?? null,
+        theme: meta.theme ?? null,
         ...loadGraph(timelineId),
       })
     },
@@ -349,8 +379,9 @@ export function buildMcpServer(ownerId: string): McpServer {
     },
     async ({ timelineId }) => {
       requireOwned(timelineId)
+      const meta = getTimelineMeta(timelineId)
       return json(
-        await buildLayoutReport(timelineId, loadGraph(timelineId), getTimelineMeta(timelineId)?.viewSettings ?? null),
+        await buildLayoutReport(timelineId, loadGraph(timelineId), meta?.viewSettings ?? null, meta?.theme ?? null),
       )
     },
   )
@@ -410,6 +441,39 @@ export function buildMcpServer(ownerId: string): McpServer {
       // Live viewers re-pull the graph (which carries viewSettings) on any event.
       emitTimelineEvent({ timelineId, kind: 'view', seq: maxAppliedSeq(timelineId) })
       return json({ ok: true, viewSettings: next })
+    },
+  )
+
+  register(
+    'set_timeline_theme',
+    {
+      title: 'Set timeline theme',
+      description:
+        'Give the timeline a STYLED THEME the canvas renders for every viewer: freeform hex accent colors per ' +
+        'color scheme (dark/light — the canvas adapts to the user\'s mode, so provide BOTH), an optional canvas ' +
+        'background wash (canvasBg), a curated display font (default | serif | slab | mono | rounded | grotesk), ' +
+        'a texture (none | dots | grid | paper), plus AI-facing metadata: `imageStyle` (a short image-generation ' +
+        'style fragment, e.g. "engraved 19th-century lithograph, muted sepia") and `mood` keywords. READ the theme ' +
+        'back via get_timeline and fold imageStyle/mood into every image or copy prompt you produce for this ' +
+        'timeline so its art stays coherent. REPLACE semantics: the theme you pass becomes the whole theme (read ' +
+        'the current one first to tweak one field); pass theme: null to clear back to the default look. A scheme ' +
+        'or slot you omit falls back to the default tokens. Like set_timeline_view this is NOT part of the ' +
+        'undo/redo Patch stack. Returns `warnings` for accents with poor contrast against the canvas background — ' +
+        'fix them with a follow-up call.',
+      inputSchema: {
+        timelineId: z.string(),
+        theme: timelineThemeSchema
+          .nullable()
+          .describe('The complete theme to store, or null to clear. Colors are hex ("#8a6d3b").'),
+      },
+    },
+    async ({ timelineId, theme }) => {
+      requireOwned(timelineId)
+      setTimelineTheme(timelineId, ownerId, theme ?? null)
+      const warnings = themeContrastWarnings(theme ?? null)
+      // Reuse kind 'view': live viewers refetch the graph (which carries theme).
+      emitTimelineEvent({ timelineId, kind: 'view', seq: maxAppliedSeq(timelineId) })
+      return json({ ok: true, theme: theme ?? null, warnings })
     },
   )
 
@@ -706,7 +770,7 @@ export function buildMcpServer(ownerId: string): McpServer {
           {
             uri: uri.href,
             mimeType: 'application/json',
-            text: JSON.stringify({ title: getTimelineTitle(id), ...loadGraph(id) }),
+            text: JSON.stringify({ title: getTimelineTitle(id), theme: getTimelineMeta(id)?.theme ?? null, ...loadGraph(id) }),
           },
         ],
       }

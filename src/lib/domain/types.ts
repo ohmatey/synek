@@ -134,12 +134,52 @@ export function clampPxPerDay(v: number): number {
   return Math.min(MAX_PX_PER_DAY, Math.max(MIN_PX_PER_DAY, v))
 }
 
+// --- Per-timeline styled theme ---------------------------------------------
+// A timeline's own visual identity, saved by the owner (settings UI) or the MCP
+// client (set_timeline_theme). Freeform hex colors over the canvas accent
+// system, an optional canvas wash, a curated display font and texture — plus
+// AI-facing metadata (imageStyle/mood) the MCP client reads back and folds into
+// the image/copy prompts it generates for this timeline. Stored as one JSON
+// column; replace-on-write (null clears), never part of the Patch/undo stack.
+
+// Curated display-font keys — the canvas maps these to real font stacks
+// (resolveTimelineTheme); the data layer stores only the key.
+export const THEME_FONTS = ['default', 'serif', 'slab', 'mono', 'rounded', 'grotesk'] as const
+export type ThemeFont = (typeof THEME_FONTS)[number]
+
+export const THEME_TEXTURES = ['none', 'dots', 'grid', 'paper'] as const
+export type ThemeTexture = (typeof THEME_TEXTURES)[number]
+
+// Freeform hex (#rgb | #rrggbb) overrides, every slot optional. An unset slot
+// falls back to the default token for the active color scheme.
+export type ThemeColorSlots = {
+  accentPrimary?: string // --color-accent-primary (selection, primary UI)
+  accentStory?: string // --color-accent-story (story badges, caused edges)
+  accentInfluence?: string // --color-accent-influence (influenced edges)
+  accentDialogue?: string // --color-accent-dialogue (succeeded edges)
+  accentEra?: string // --color-accent-era (period rails)
+  canvasBg?: string // the canvas pane wash behind the graph
+}
+
+export type TimelineTheme = {
+  name?: string // display name, e.g. "Imperial Marble"
+  // Per-scheme colors so a theme adapts to the global light/dark mode. Accents
+  // cross-fall-back to the other scheme; canvasBg is strictly per-scheme.
+  colors?: { dark?: ThemeColorSlots; light?: ThemeColorSlots }
+  font?: { display?: ThemeFont }
+  texture?: ThemeTexture
+  imageStyle?: string // image-generation style fragment ("engraved lithograph, sepia")
+  mood?: string[] // style keywords for AI art/copy coherence
+}
+
 export type TimelineGraphResult =
   | ({
       status: 'ok'
       isOwner: boolean
       isPublic: boolean
       viewSettings: TimelineViewSettings | null
+      // The timeline's saved visual theme (null = brand default look).
+      theme: TimelineTheme | null
       // A cheap content signature over every story on this timeline. It changes
       // whenever any story is written/rewritten, so the canvas can detect a
       // separate-process (stdio) story write via the graph poll and refresh an

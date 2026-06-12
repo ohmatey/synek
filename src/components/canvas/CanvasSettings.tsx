@@ -1,12 +1,18 @@
 import { useState, type ReactNode } from 'react'
 import { useReactFlow, useStore, useViewport } from '@xyflow/react'
-import { Check, Loader2, Minus, Plus, SlidersHorizontal, Volume2 } from 'lucide-react'
+import { Check, Loader2, Minus, Palette, Plus, SlidersHorizontal, Sparkles, Volume2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTheme } from '@synek/ui'
 import { Button } from '~/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { Switch } from '~/components/ui/switch'
 import { cn } from '~/lib/utils'
 import { setTimelineView } from '~/lib/server/timelines'
+import { PromptDialog } from '~/components/PromptDialog'
+import { themeTimelineSpec } from '~/lib/verbs'
+import { ThemeEditorDialog } from './ThemeEditorDialog'
+import { DEFAULT_SLOT_HEX } from '~/lib/theme/resolveTimelineTheme'
+import type { TimelineTheme } from '~/lib/domain/types'
 import {
   MIN_PX_PER_DAY,
   MAX_PX_PER_DAY,
@@ -81,6 +87,7 @@ function SectionHeader({ children, aside }: { children: ReactNode; aside?: React
 // viewport for keep-center re-anchoring and the readout.
 export function CanvasSettings({
   timelineId,
+  timelineTitle,
   isOwner,
   pxPerDay,
   collapseGaps,
@@ -96,8 +103,11 @@ export function CanvasSettings({
   hiddenKinds,
   onToggleKind,
   onResetKinds,
+  theme,
+  onPreviewTheme,
 }: {
   timelineId: string
+  timelineTitle: string
   isOwner: boolean
   pxPerDay: number
   collapseGaps: boolean
@@ -113,11 +123,20 @@ export function CanvasSettings({
   hiddenKinds: Set<string>
   onToggleKind: (token: string) => void
   onResetKinds: () => void
+  theme: TimelineTheme | null
+  onPreviewTheme: (theme: TimelineTheme | null) => void
 }) {
   const rf = useReactFlow()
   const width = useStore((s) => s.width)
   const { zoom } = useViewport()
+  const { resolvedTheme } = useTheme()
   const [saving, setSaving] = useState(false)
+  // Controlled so opening the theme editor / agent prompt can close it first
+  // (the dialogs render as SIBLINGS of the Popover — PopoverContent unmounts its
+  // children on close, which would tear an inline dialog down mid-open).
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const [themeEditorOpen, setThemeEditorOpen] = useState(false)
+  const [themePromptOpen, setThemePromptOpen] = useState(false)
   const speechSupported = useSpeechSupported()
   const [narration, setNarration] = useNarrationPrefs()
   const voices = useNarrationVoices()
@@ -167,8 +186,13 @@ export function CanvasSettings({
     }
   }
 
+  // Swatch row: the active scheme's themed slots, brand defaults where unset.
+  const themeSlots = theme?.colors?.[resolvedTheme] ?? {}
+  const swatch = (key: keyof typeof DEFAULT_SLOT_HEX.dark) => themeSlots[key] ?? DEFAULT_SLOT_HEX[resolvedTheme][key]
+
   return (
-    <Popover>
+    <>
+    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -441,6 +465,63 @@ export function CanvasSettings({
             )}
           </div>
 
+          {/* Theme — this timeline's own look (colors/font/texture), seen by every
+              viewer. Owner-only: edit by hand, or hand the job to the connected
+              Claude with a ready-made prompt (the product's inversion). */}
+          {isOwner && (
+            <div className="flex flex-col gap-2">
+              <SectionHeader
+                aside={
+                  theme?.name && <span className="text-xs font-normal text-muted-foreground">{theme.name}</span>
+                }
+              >
+                Theme
+              </SectionHeader>
+              <div className="flex items-center gap-1.5 px-0.5" aria-hidden data-testid="theme-swatches">
+                {(['accentPrimary', 'accentStory', 'accentInfluence', 'accentDialogue', 'accentEra'] as const).map(
+                  (k) => (
+                    <span key={k} className="size-2.5 rounded-full" style={{ background: swatch(k) }} />
+                  ),
+                )}
+                <span
+                  className="ml-1 h-2.5 w-6 rounded-sm border border-border"
+                  style={{ background: swatch('canvasBg') }}
+                  title="Canvas background"
+                />
+                {!theme && <span className="ml-auto text-xs text-muted-foreground">default</span>}
+              </div>
+              <div className="flex gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 flex-1 text-xs"
+                  data-testid="theme-edit"
+                  onClick={() => {
+                    setPopoverOpen(false)
+                    setThemeEditorOpen(true)
+                  }}
+                >
+                  <Palette />
+                  Edit theme
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 flex-1 text-xs"
+                  data-testid="theme-prompt"
+                  title="Copy a prompt that has your connected Claude design the theme"
+                  onClick={() => {
+                    setPopoverOpen(false)
+                    setThemePromptOpen(true)
+                  }}
+                >
+                  <Sparkles />
+                  Ask your agent
+                </Button>
+              </div>
+            </div>
+          )}
+
           {isOwner && (
             <div className="flex flex-col gap-2">
               <p className="text-xs leading-relaxed text-muted-foreground">
@@ -462,5 +543,19 @@ export function CanvasSettings({
         </div>
       </PopoverContent>
     </Popover>
+    {/* Siblings of the Popover root on purpose (see popoverOpen above). */}
+    <ThemeEditorDialog
+      open={themeEditorOpen}
+      onOpenChange={setThemeEditorOpen}
+      timelineId={timelineId}
+      theme={theme}
+      onPreview={onPreviewTheme}
+    />
+    <PromptDialog
+      open={themePromptOpen}
+      onOpenChange={setThemePromptOpen}
+      spec={themeTimelineSpec({ timelineId, timelineTitle, surface: 'canvas_settings' })}
+    />
+    </>
   )
 }

@@ -7,10 +7,12 @@ import {
   deleteTimeline as dbDeleteTimeline,
   setTimelinePublic as dbSetTimelinePublic,
   setTimelineView as dbSetTimelineView,
+  setTimelineTheme as dbSetTimelineTheme,
 } from '~/lib/db/graph'
 import { requireUser } from '~/lib/auth/session'
+import { timelineThemeSchema } from '~/lib/domain/theme'
 import type { TimelineRow } from '~/lib/db/schema'
-import type { TimelineSummary } from '~/lib/domain/types'
+import type { TimelineSummary, TimelineTheme } from '~/lib/domain/types'
 
 const toSummary = (t: TimelineRow): TimelineSummary => ({
   id: t.id,
@@ -78,5 +80,17 @@ export const setTimelineView = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const user = await requireUser()
     dbSetTimelineView(data.id, user.id, data.view)
+    return { ok: true as const }
+  })
+
+// Owner-only: REPLACE the timeline's theme wholesale (no deep merge — the client
+// sends the full object it wants); pass null to clear back to the default look.
+export const setTimelineTheme = createServerFn({ method: 'POST' })
+  .inputValidator((d: { id: string; theme: TimelineTheme | null }) =>
+    z.object({ id: z.string(), theme: timelineThemeSchema.nullable() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    dbSetTimelineTheme(data.id, user.id, data.theme)
     return { ok: true as const }
   })

@@ -2,6 +2,15 @@
 @import 'tw-animate-css';
 @import '@synek/ui/tokens.css';
 
+/* Curated per-timeline display fonts (resolveTimelineTheme). These imports only
+   register @font-face rules — the woff2 files download lazily, when a timeline
+   theme actually renders the family. */
+@import '@fontsource-variable/source-serif-4';
+@import '@fontsource-variable/roboto-slab';
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource-variable/nunito';
+
 /* The app drives theming with [data-theme] (set pre-paint by themeInitScript),
    so map Tailwind's `dark:` variant onto it for any shadcn component that uses it. */
 @custom-variant dark (&:is([data-theme='dark'], [data-theme='dark'] *));
@@ -131,6 +140,32 @@ body {
   height: 100%;
 }
 
+/* ── Per-timeline theme (resolveTimelineTheme → inline vars on .canvas-root) ──
+   The display font reaches node titles + panel/story titles only; body text
+   keeps the system stack for readability. No --font-display set → inherit,
+   byte-identical to the unthemed canvas. */
+.sf-label,
+.sf-person-name,
+.sf-work-title,
+.detail-title,
+.detail-title-input,
+.detail-title-edit,
+.detail-title-static,
+.story-title,
+.sv-title {
+  font-family: var(--font-display, inherit);
+}
+
+/* Texture "paper": an SVG fractal-noise grain layered over the canvas wash
+   (background-image sits above background-color; xyflow's pane color comes from
+   --xy-background-color). Opacity is baked into the SVG so one tile works over
+   any canvasBg, dark or light. The dots/grid textures use the React Flow
+   <Background> component instead (TimelineCanvas). */
+.canvas-root[data-canvas-texture='paper'] .react-flow {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  background-size: 280px 280px;
+}
+
 .canvas-loading {
   display: flex;
   align-items: center;
@@ -187,9 +222,11 @@ body {
 }
 
 .react-flow__node.rf-focused .sf-node {
+  /* Glow rides a per-timeline theme var when set (resolveTimelineTheme);
+     fallback = the brand literal, so unthemed timelines are byte-identical. */
   box-shadow:
     0 0 0 2px var(--color-accent-story),
-    0 0 16px rgba(224, 164, 88, 0.5);
+    0 0 16px var(--story-glow, rgba(224, 164, 88, 0.5));
 }
 
 .lens-bar {
@@ -202,7 +239,7 @@ body {
   align-items: center;
   gap: 10px;
   padding: 6px 12px;
-  background: rgba(224, 164, 88, 0.12);
+  background: var(--story-soft-trans, rgba(224, 164, 88, 0.12));
   border: 1px solid var(--color-accent-story);
   border-radius: 999px;
   color: var(--color-accent-story);
@@ -801,9 +838,9 @@ body {
   margin-left: 0;
 }
 
-/* Selection ring */
+/* Selection ring (glow themes via --primary-glow, see resolveTimelineTheme) */
 .react-flow__node.selected .sf-node {
-  box-shadow: 0 0 0 2px var(--color-accent-primary), 0 0 14px rgba(58, 109, 240, 0.45);
+  box-shadow: 0 0 0 2px var(--color-accent-primary), 0 0 14px var(--primary-glow, rgba(58, 109, 240, 0.45));
 }
 
 /* Optimistic 'pending' nodes streamed in while the AI is building */
@@ -2622,12 +2659,21 @@ body {
      content. Per-theme literals on purpose: a token wrapped in color-mix() gets
      statically inlined to the dark value at build time (lightningcss), which
      would leave a dark band over the light canvas. rgb values mirror
-     --color-bg-base (#08090c dark / #fafbfc light). */
-  background: linear-gradient(to top, rgba(8, 9, 12, 0.92), rgba(8, 9, 12, 0));
+     --color-bg-base (#08090c dark / #fafbfc light). A per-timeline theme with a
+     canvasBg overrides via --ruler-fade-* (JS-derived, resolveTimelineTheme). */
+  background: linear-gradient(
+    to top,
+    var(--ruler-fade-strong, rgba(8, 9, 12, 0.92)),
+    var(--ruler-fade-clear, rgba(8, 9, 12, 0))
+  );
 }
 
 [data-theme='light'] .react-flow__panel.time-ruler {
-  background: linear-gradient(to top, rgba(250, 251, 252, 0.94), rgba(250, 251, 252, 0));
+  background: linear-gradient(
+    to top,
+    var(--ruler-fade-strong, rgba(250, 251, 252, 0.94)),
+    var(--ruler-fade-clear, rgba(250, 251, 252, 0))
+  );
 }
 
 .time-tick {

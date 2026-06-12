@@ -26,9 +26,15 @@
     "verify:multi-story": "DATABASE_URL=verify-multi-story.db tsx scripts/verify-multi-story.ts",
     "verify:artifacts": "DATABASE_URL=verify-artifacts.db tsx scripts/verify-artifacts.ts",
     "verify:artifact-undo": "DATABASE_URL=verify-artifact-undo.db tsx scripts/verify-artifact-undo.ts",
-    "verify:search": "DATABASE_URL=verify-search.db tsx scripts/verify-search.ts"
+    "verify:search": "DATABASE_URL=verify-search.db tsx scripts/verify-search.ts",
+    "verify:theme": "DATABASE_URL=verify-theme.db tsx scripts/verify-theme.ts"
   },
   "dependencies": {
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@fontsource-variable/nunito": "^5.2.7",
+    "@fontsource-variable/roboto-slab": "^5.2.8",
+    "@fontsource-variable/source-serif-4": "^5.2.9",
+    "@fontsource-variable/space-grotesk": "^5.2.10",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@radix-ui/react-dialog": "^1.1.16",
     "@radix-ui/react-dropdown-menu": "^2.1.17",

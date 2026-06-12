@@ -29,6 +29,7 @@ export const getGraph = createServerFn({ method: 'GET' })
       isOwner: user?.id != null && meta.ownerId === user.id,
       isPublic: meta.isPublic,
       viewSettings: meta.viewSettings ?? null,
+      theme: meta.theme ?? null,
       storyVersion,
       title: meta.title,
       nodes: nodes.map((n) => ({

@@ -143,3 +143,63 @@ test('apply_patch then get_timeline round-trips through the MCP server', async (
     await client.close()
   }
 })
+
+test('set_timeline_theme round-trips, warns on poor contrast, and null clears', async () => {
+  const { raw } = createKey('theme')
+  const client = await connect(raw)
+
+  try {
+    // A timeline can be themed at birth.
+    const created = unwrap<{ id: string }>(
+      await client.callTool({
+        name: 'create_timeline',
+        arguments: {
+          title: 'MCP themed',
+          theme: { name: 'Birth Theme', colors: { dark: { accentPrimary: '#9b8cff' } } },
+        },
+      }),
+    )
+
+    const graph = unwrap<{ theme: { name?: string } | null }>(
+      await client.callTool({ name: 'get_timeline', arguments: { timelineId: created.id } }),
+    )
+    expect(graph.theme?.name).toBe('Birth Theme')
+
+    // Replace with a near-invisible dark accent → saved, but warned about; the
+    // single-scheme soft note rides along. Replace semantics drop `name`.
+    const set = unwrap<{ ok: boolean; theme: { name?: string }; warnings: string[] }>(
+      await client.callTool({
+        name: 'set_timeline_theme',
+        arguments: {
+          timelineId: created.id,
+          theme: { colors: { dark: { accentStory: '#0a0a0a' } } },
+        },
+      }),
+    )
+    expect(set.ok).toBe(true)
+    expect(set.theme.name).toBeUndefined()
+    expect(set.warnings.some((w) => w.includes('accentStory'))).toBe(true)
+    expect(set.warnings.some((w) => w.includes('only for dark'))).toBe(true)
+
+    // Invalid hex is rejected by the zod contract — the SDK surfaces input
+    // validation as an isError tool result (instructive message, nothing saved).
+    const invalid = (await client.callTool({
+      name: 'set_timeline_theme',
+      arguments: { timelineId: created.id, theme: { colors: { dark: { accentStory: 'red' } } } },
+    })) as { isError?: boolean; content?: Array<{ text?: string }> }
+    expect(invalid.isError).toBe(true)
+    expect(invalid.content?.[0]?.text).toContain('hex color')
+
+    // null clears back to the default look.
+    const cleared = unwrap<{ ok: boolean; theme: null }>(
+      await client.callTool({ name: 'set_timeline_theme', arguments: { timelineId: created.id, theme: null } }),
+    )
+    expect(cleared.theme).toBeNull()
+    const after = unwrap<{ theme: unknown }>(
+      await client.callTool({ name: 'get_timeline', arguments: { timelineId: created.id } }),
+    )
+    expect(after.theme).toBeNull()
+  } finally {
+    await client.close()
+  }
+})

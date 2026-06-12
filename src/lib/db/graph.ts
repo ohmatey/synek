@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from './index'
 import { timelines, nodes, edges, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
-import type { TimelineViewSettings } from '~/lib/domain/types'
+import type { TimelineTheme, TimelineViewSettings } from '~/lib/domain/types'
 
 export type Graph = { nodes: NodeRow[]; edges: EdgeRow[] }
 
@@ -12,6 +12,7 @@ export type TimelineMeta = {
   ownerId: string | null
   isPublic: boolean
   viewSettings: TimelineViewSettings | null
+  theme: TimelineTheme | null
 }
 
 // Create the timeline row if it doesn't exist yet, owned by `ownerId`. Used by the
@@ -66,6 +67,15 @@ export function setTimelineView(id: string, ownerId: string, view: TimelineViewS
     .run()
 }
 
+// Owner-scoped: replace the timeline's theme wholesale; null clears it back to
+// the brand-default look. A non-owner's call no-ops (0 rows matched).
+export function setTimelineTheme(id: string, ownerId: string, theme: TimelineTheme | null): void {
+  db.update(timelines)
+    .set({ theme, updatedAt: new Date() })
+    .where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId)))
+    .run()
+}
+
 // Ownership/visibility metadata for one timeline, or null if it doesn't exist.
 export function getTimelineMeta(id: string): TimelineMeta | null {
   const row = db
@@ -75,6 +85,7 @@ export function getTimelineMeta(id: string): TimelineMeta | null {
       ownerId: timelines.ownerId,
       isPublic: timelines.isPublic,
       viewSettings: timelines.viewSettings,
+      theme: timelines.theme,
     })
     .from(timelines)
     .where(eq(timelines.id, id))
