@@ -186,7 +186,7 @@ Maps to: S3 PRD (`prd/s3-multi-pov.md`). Depends on S2 (grounding makes multiple
 - S3.1 — `story_people` cast join; person role per story
 - S3.2 — POV-constrained generation (epistemic vantage; prior POVs passed to avoid paraphrase)
 - S3.3 — POV switcher on the canvas; "Add a perspective" affordance
-- **S3.4 — "Talk to [entity]" button (the entry affordance, founder 2026-06-11).** On an entity/person node, a button opens a dialog with a **pre-filled, copyable prompt** — "Speaking as <person>, present at <moment>, narrate this in first person, constrained to what they could plausibly have known…". Stays true to the inversion: Synek hands the prompt, Claude does the talking, the POV lands via `write_story` (`povType`/`primaryPersonId`) and wires the `story_people` cast. Same copy-prompt idiom already shipped in `buildContinueStoryPrompt` + the New Story / New Timeline dialogs — low cost, consistent, honest. This is the *front door* to S3.
+- **S3.4 — "Talk to [entity]" button (the entry affordance, founder 2026-06-11).** On an entity/person node, a button opens a dialog with a **pre-filled, copyable prompt** — "Speaking as <person>, present at <moment>, narrate this in first person, constrained to what they could plausibly have known…". Stays true to the inversion: Synek hands the prompt, Claude does the talking, the POV lands via `write_story` (`povType`/`primaryPersonId`) and wires the `story_people` cast. Same copy-prompt idiom already shipped in `buildContinueStoryPrompt` + the New Story / New Timeline dialogs — low cost, consistent, honest. This is the *front door* to S3 — and **verb #1** of the NEXT.5 affordance system (the `interact` family).
 
 ### NEXT.4 — Postgres + self-host path (2.5)
 
@@ -197,6 +197,77 @@ Maps to: 2.5 from the old substrate roadmap (`#local-18`, planned).
 - Drizzle adapter swap (schema is already Postgres-portable)
 - Single Docker Compose (app + Postgres + auto-migration on start)
 - `bun run issue:key` works in the Docker context
+
+### NEXT.5 — Expansion affordances (the verb system)
+
+*Why:* The canvas should feel **alive** — every object you look at should offer the obvious next move to deepen or grow it. Today there are exactly two action affordances (Improve-timeline, Talk-to-entity) and both are stranded in ⌘K; the node side panel — the surface you actually dwell on — has no way to expand what you're reading. NAV (NEXT.2) already built the action registry and S3.4 seeds the first per-entity action; this item recognizes they are **one pattern** and turns it into a systematic, contextual library of *verbs*.
+
+Maps to: generalizes the NAV action registry (`prd/canvas-command-palette.md` → *Extends to → More actions*); **S3.4 Talk-to is verb #1**; rides the `PromptDialog` swap-seam. PRD owed.
+
+**The primitive.** Every verb is the same shape: **object + intent → `PromptSpec` → MCP tool.** One `PromptSpec` builder per verb (siblings of `buildTalkToPrompt` / `buildImproveTimelinePrompt`), reused across every surface it appears on. Adding a verb = one builder + register where it shows.
+
+**Two families — keep them distinct in the UI:**
+
+- **Interact (explore)** — conversational, *no graph change*. Playing with the map (Talk-to). Optionally tailed with "…and if you learn something, add it," letting play spill into growth.
+- **Expand (mutate)** — the prompt instructs Claude to call `apply_patch` / `write_story`. Growing the map.
+
+Don't collapse the two into a generic "Ask AI" — *Talk to Caesar* (play) and *Find who influenced Caesar* (grow) are different gestures.
+
+**Intent → capability map** (the categories, each tied to the MCP tool it drives):
+
+| Intent | Family | What the verb asks Claude to do | MCP tool |
+|---|---|---|---|
+| Deepen | expand | tighten summary, sharpen dates/precision, add a portrait, cited claims | `update_node` |
+| Branch / connect | expand | pull in linked people/orgs/events not yet on canvas; wire edges | `add_node` + `add_edge` |
+| Narrate | expand | turn a moment into beats (cast, images, focus tour) | `write_story` |
+| Voice / interact | interact | first-person roleplay of an entity | none (opt. `write_story`) |
+| Contextualize | expand | add concurrent events in the field/region as a parallel lane | `add_node` + `lane` |
+| Source / verify | expand | back uncited claims, replace dead images/links, upgrade `sourceType` | `update_node` |
+| Restructure | expand | merge duplicate lanes, collapse dead zones, populate an empty era | `set_timeline_view`, `add_node`, `update_node.lane` |
+
+The Source/verify + Restructure intents are already **computed** server-side (`warnings` + `get_layout_report`) — this item *surfaces* them as user-facing invitations.
+
+**The verb catalogue** (priority = love ÷ effort; Tier 1 all reuse the shipped `PromptSpec → PromptDialog → copy` machinery — one builder + one button each):
+
+*Tier 1 — node-panel action row (ship together; this is the win):*
+
+| Verb | Object / shown when | Family | MCP |
+|---|---|---|---|
+| **Talk to {name}** | entity (esp. person) — *S3.4* | interact | — |
+| **Expand around this** | any node | expand | `add_node` + `add_edge` |
+| **Improve this {type}** | any node | expand | `update_node` |
+| **Write a story here** | any node (promote from the buried Story section) | expand | `write_story` |
+| **What else was happening?** | event / period | expand | `add_node` + `lane` |
+
+*Tier 2 — the "alive canvas" layer (signature; higher effort):*
+
+| Verb | Object / surface | MCP |
+|---|---|---|
+| **Gap invitations** | axis dead zones rendered as dashed ghost-cards | `add_node` |
+| **Populate / extend era** | period panel (*populate · era before/after · overview story*) | `add_node`, `write_story` |
+| **Add a rival track** | empty / sparse lane | `add_node` + `lane` |
+
+*Tier 3 — refine / trust (state-gated):*
+
+| Verb | Object / surface | MCP |
+|---|---|---|
+| **Add sources** | shown only on uncited nodes (badge → panel) | `update_node` |
+| **Fix this** | broken-image / dead-link warning badge | `update_node` |
+| **Tidy layout** | timeline-level (⌘K + display popover) | `set_timeline_view` + `update_node` |
+
+*Tier 4 — bigger bets (defer until Tier 1 proves engagement):* multi-select **Connect these** / **Story spanning these**; node/canvas **right-click context menu** (the eventual home for the verb library); edge-click **Explain this link** / branch-between-A→B.
+
+**Where they live — one seam, three surfaces, state-aware:**
+
+1. **Node-panel action row (primary).** A horizontal strip of 3–4 verb-buttons under the title/dateline in `NodeDetailPanel`, *before* the read content — **type- and state-gated** (a person shows *Talk to · Expand · Improve*; an era shows *Populate · adjacent-era · overview*; an uncited node surfaces *Add sources*). The state-gating is the anti-clutter mechanism: never 8 buttons, always the 3 *this* node wants. **This is the literal gap the founder named** — Talk-to exists in ⌘K but not on the person panel.
+2. **Canvas gap / empty-states (the differentiator).** Dead zones + empty lanes from `get_layout_report` render as **dashed ghost invitations**, not solid cards — the map showing its own holes and offering to fill them. Highest-delight idea here; the one to build the demo around.
+3. **⌘K as the power-user mirror.** Every verb is also a command scoped to the selected node — NAV's registry just grows. Palette = keyboard path; panel + gaps = discoverable paths.
+
+Card **hover** gets at most *one* subtle affordance that opens the same menu — no per-card toolbar; preserve the calm canvas.
+
+**Sequencing & instrumentation (the discipline):** ship the **Tier 1 panel row** first (~1–2 days, all reused machinery), starting with Talk-to on the person panel. **Instrument every verb** via `PromptSpec.analytics` (fires on copy; PostHog already wired) so copy-rates *self-prioritize* Tier 2/3 — don't guess which verbs matter. Only then build the gap layer.
+
+**Forward-compatible with hosting (why this is Core, not a nice-to-have):** every verb is a copy-prompt *today*; when Synek goes hosted, `PromptDialog`'s swap-seam turns each into one-click **Run** (see *Hosting horizon*). The verb library you build now *is* the future hosted action menu — built entirely as local-first Core UX, no scope-guardrail violation.
 
 ---
 
