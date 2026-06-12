@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useReactFlow, useStore, useViewport } from '@xyflow/react'
 import { Check, Loader2, Minus, Plus, SlidersHorizontal, Volume2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -36,6 +36,21 @@ const PRESETS: { label: string; years: number }[] = [
   { label: 'Millennium', years: 1000 },
 ]
 
+// All filterable kinds, in display order. `token` matches kindToken() in
+// TimelineCanvas (entity nodes filter by subtype; type otherwise). Only kinds
+// actually present in the timeline get a row. (Merged in from the old toolbar
+// FilterMenu so the whole canvas view lives in one popover.)
+const KIND_META: { token: string; label: string; color: string }[] = [
+  { token: 'period', label: 'Periods', color: 'var(--color-accent-influence)' },
+  { token: 'event', label: 'Events', color: 'var(--color-accent-primary)' },
+  { token: 'concept', label: 'Concepts', color: 'var(--color-accent-dialogue)' },
+  { token: 'person', label: 'People', color: 'var(--color-fg-secondary)' },
+  { token: 'org', label: 'Orgs', color: 'var(--color-fg-secondary)' },
+  { token: 'place', label: 'Places', color: 'var(--color-fg-secondary)' },
+  { token: 'work', label: 'Works', color: 'var(--color-fg-secondary)' },
+  { token: 'entity', label: 'Entities', color: 'var(--color-fg-secondary)' },
+]
+
 // Human label for a "zoom level" expressed as the timespan visible on screen.
 function formatSpan(years: number): string {
   if (years >= 1000) {
@@ -46,12 +61,24 @@ function formatSpan(years: number): string {
   return `${Math.max(1, Math.round(years * 12))} mo`
 }
 
+// Uniform section header for the view-settings popover — every group (time
+// scale, kind filters) reads the same: an uppercase muted label with an
+// optional right-aligned aside (the live readout, a "Show all" reset, …).
+function SectionHeader({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="flex h-5 items-center justify-between">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{children}</span>
+      {aside}
+    </div>
+  )
+}
+
 // Floating "view settings" menu → popover. One home for the canvas view: the
-// time-axis zoom (compress/expand, timespan presets, gap-collapsing), live
-// updates, narration, and — for the owner — a "save as default" that persists
-// the current scale. (Which node kinds show lives in the toolbar FilterMenu.)
-// Lives outside <ReactFlow> but inside <ReactFlowProvider>, so useReactFlow /
-// useStore reach the live viewport for keep-center re-anchoring and the readout.
+// time-axis zoom (compress/expand, timespan presets, gap-collapsing), which node
+// kinds show on the timeline, live updates, narration, and — for the owner — a
+// "save as default" that persists the current scale. Lives outside <ReactFlow>
+// but inside <ReactFlowProvider>, so useReactFlow / useStore reach the live
+// viewport for keep-center re-anchoring and the readout.
 export function CanvasSettings({
   timelineId,
   isOwner,
@@ -65,6 +92,10 @@ export function CanvasSettings({
   onAutoRefresh,
   speak,
   onSpeak,
+  kindCounts,
+  hiddenKinds,
+  onToggleKind,
+  onResetKinds,
 }: {
   timelineId: string
   isOwner: boolean
@@ -78,6 +109,10 @@ export function CanvasSettings({
   onAutoRefresh: (next: boolean) => void
   speak: boolean
   onSpeak: (next: boolean) => void
+  kindCounts: Map<string, number>
+  hiddenKinds: Set<string>
+  onToggleKind: (token: string) => void
+  onResetKinds: () => void
 }) {
   const rf = useReactFlow()
   const width = useStore((s) => s.width)
@@ -89,6 +124,10 @@ export function CanvasSettings({
   // Fall back to "Auto" when the saved voice isn't available on this device.
   const selectedVoiceURI =
     narration.voiceURI && voices.some((v) => v.voiceURI === narration.voiceURI) ? narration.voiceURI : ''
+
+  // Only kinds actually present get a filter row; hidden count flags the trigger.
+  const presentKinds = KIND_META.filter((k) => (kindCounts.get(k.token) ?? 0) > 0)
+  const hiddenCount = hiddenKinds.size
 
   const apply = (nextPxPerDay: number, nextCollapse: boolean) => {
     const clamped = Math.min(MAX_PX_PER_DAY, Math.max(MIN_PX_PER_DAY, nextPxPerDay))
@@ -134,28 +173,37 @@ export function CanvasSettings({
         <Button
           variant="outline"
           size="icon"
-          className={cn('size-8', floatChip)}
+          className={cn('relative size-8', floatChip)}
           title="View settings"
           aria-label="View settings"
           data-testid="canvas-settings"
         >
           <SlidersHorizontal />
+          {hiddenCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
+              {hiddenCount}
+            </span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">
         <div className="flex flex-col gap-4">
           {/* Time scale — zoom level (years across the screen) with −/+ and presets. */}
           <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Time scale
-              </span>
-              {spanYears != null && (
-                <span className="tabular-nums text-xs text-muted-foreground" data-testid="time-scale-level">
-                  {formatSpan(spanYears)} on screen
-                </span>
-              )}
-            </div>
+            <SectionHeader
+              aside={
+                spanYears != null && (
+                  <span
+                    className="tabular-nums text-xs text-muted-foreground"
+                    data-testid="time-scale-level"
+                  >
+                    {formatSpan(spanYears)} on screen
+                  </span>
+                )
+              }
+            >
+              Time scale
+            </SectionHeader>
             <div className="flex items-center gap-1.5">
               <Button
                 variant="outline"
@@ -223,7 +271,65 @@ export function CanvasSettings({
             </Button>
           </div>
 
-          <div className="flex flex-col gap-1">
+          {/* Show on timeline — which node kinds render (merged from the old
+              toolbar FilterMenu). Multi-select checkboxes; the menu stays open. */}
+          {presentKinds.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <SectionHeader
+                aside={
+                  hiddenCount > 0 && (
+                    <button
+                      type="button"
+                      className="cursor-pointer rounded-sm text-xs font-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                      onClick={onResetKinds}
+                    >
+                      Show all
+                    </button>
+                  )
+                }
+              >
+                Show on timeline
+              </SectionHeader>
+              <div className="flex flex-col gap-0.5">
+                {presentKinds.map((k) => {
+                  const visible = !hiddenKinds.has(k.token)
+                  return (
+                    <button
+                      key={k.token}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={visible}
+                      data-testid={`filter-kind-${k.token}`}
+                      onClick={() => onToggleKind(k.token)}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50"
+                    >
+                      <span
+                        className={cn(
+                          'flex size-4 shrink-0 items-center justify-center rounded-[4px] border',
+                          visible ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
+                        )}
+                      >
+                        {visible && <Check className="size-3" />}
+                      </span>
+                      <span
+                        className="size-2.5 shrink-0 rounded-full"
+                        style={{ background: k.color }}
+                        aria-hidden
+                      />
+                      <span className="flex-1 text-left">{k.label}</span>
+                      <span className="tabular-nums text-xs text-muted-foreground">
+                        {kindCounts.get(k.token) ?? 0}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Toggles — live updates + (when supported) narration. Both are plain
+              switch rows; the narration config only appears once it's enabled. */}
+          <div className="flex flex-col">
             <label className="flex cursor-pointer items-center justify-between gap-3 py-1.5 text-sm">
               <span
                 className="flex-1"
@@ -238,16 +344,11 @@ export function CanvasSettings({
                 aria-label="Live updates"
               />
             </label>
-          </div>
 
-          {/* Speech — narration on/off + the device's voice / speed / pitch and a
-              preview. Voice settings are device-global (available voices differ per
-              machine), so they persist separately from the per-timeline view. */}
-          {speechSupported && (
-            <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
-              <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
+            {speechSupported && (
+              <label className="flex cursor-pointer items-center justify-between gap-3 py-1.5 text-sm">
                 <span
-                  className="flex-1 font-medium"
+                  className="flex-1"
                   title="Read stories aloud as the reader plays each beat (browser speech)"
                 >
                   Read stories aloud
@@ -259,15 +360,19 @@ export function CanvasSettings({
                   aria-label="Read stories aloud"
                 />
               </label>
+            )}
 
-              <div className={cn('flex flex-col gap-3', !speak && 'pointer-events-none opacity-50')}>
+            {/* Narration config — voice / speed / pitch / preview. Device-global
+                (available voices differ per machine), so it persists separately
+                from the per-timeline view. Only shown while narration is on. */}
+            {speechSupported && speak && (
+              <div className="mt-1 flex flex-col gap-3 border-l border-border pl-3">
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-muted-foreground">Voice</span>
                   <select
                     className="h-8 cursor-pointer rounded-md border border-border bg-background px-2 text-sm"
                     value={selectedVoiceURI}
                     onChange={(e) => setNarration({ voiceURI: e.target.value || null })}
-                    disabled={!speak}
                     data-testid="narration-voice"
                     aria-label="Narration voice"
                   >
@@ -295,7 +400,6 @@ export function CanvasSettings({
                     step={NARRATION_RATE_RANGE.step}
                     value={narration.rate}
                     onChange={(e) => setNarration({ rate: Number(e.target.value) })}
-                    disabled={!speak}
                     className="w-full accent-primary"
                     data-testid="narration-rate"
                     aria-label="Narration speed"
@@ -316,7 +420,6 @@ export function CanvasSettings({
                     step={NARRATION_PITCH_RANGE.step}
                     value={narration.pitch}
                     onChange={(e) => setNarration({ pitch: Number(e.target.value) })}
-                    disabled={!speak}
                     className="w-full accent-primary"
                     data-testid="narration-pitch"
                     aria-label="Narration pitch"
@@ -328,7 +431,6 @@ export function CanvasSettings({
                   size="sm"
                   className="h-8 justify-center text-xs"
                   onClick={() => speakNarrationSample(narration)}
-                  disabled={!speak}
                   data-testid="narration-preview"
                   title="Hear a sample with these settings"
                 >
@@ -336,8 +438,8 @@ export function CanvasSettings({
                   Preview voice
                 </Button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {isOwner && (
             <div className="flex flex-col gap-2">

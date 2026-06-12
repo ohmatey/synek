@@ -46,7 +46,6 @@ import { HistoryControls } from './HistoryControls'
 import { NodeDetailPanel } from './NodeDetailPanel'
 import { centerOnNodes } from './cameraFocus'
 import { CommandPalette } from './CommandPalette'
-import { FilterMenu } from './FilterMenu'
 import { StoryReader } from './StoryReader'
 import { TimeRuler } from './TimeRuler'
 import { CanvasSettings } from './CanvasSettings'
@@ -790,14 +789,6 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 timelineTitle={title}
               />
             )}
-            {gnodes.length > 0 && (
-              <FilterMenu
-                counts={kindCounts}
-                hiddenKinds={hiddenKinds}
-                onToggleKind={toggleKind}
-                onResetKinds={resetKinds}
-              />
-            )}
             {isOwner && <McpStatusChip />}
             {isOwner && <HistoryControls timelineId={timelineId} />}
             {(isOwner || gnodes.some((n) => n.hasStory)) && (
@@ -823,6 +814,10 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 onAutoRefresh={setAutoRefresh}
                 speak={speakStories}
                 onSpeak={setSpeakStories}
+                kindCounts={kindCounts}
+                hiddenKinds={hiddenKinds}
+                onToggleKind={toggleKind}
+                onResetKinds={resetKinds}
               />
             )}
             {/* Sharing (public link + export) + account live at the far right of the bar. */}
