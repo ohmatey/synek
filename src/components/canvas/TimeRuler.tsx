@@ -19,7 +19,16 @@ const MIN_TICK_GAP = 30
 // viewport, projects the visible span to years through the shared TimeScale
 // (linear or gap-collapsing), and draws ticks at a "nice" interval. Where the
 // scale collapsed an empty stretch, it draws a break marker instead.
-export function TimeRuler({ scale }: { scale: TimeScale }) {
+export function TimeRuler({
+  scale,
+  onFillGap,
+}: {
+  scale: TimeScale
+  // When provided (owner only), the collapsed-gap break marker becomes a "fill
+  // this empty span" affordance — the collapse-mode counterpart of the dashed
+  // gap-invitation ghost (NEXT.5 Tier 2). Receives the gap's bracketing instants.
+  onFillGap?: (fromInstant: number, toInstant: number) => void
+}) {
   const { x, zoom } = useViewport()
   const width = useStore((s) => s.width)
   if (!width || !zoom) return null
@@ -43,16 +52,35 @@ export function TimeRuler({ scale }: { scale: TimeScale }) {
   }
 
   const breaks = scale.collapsedRanges
-    .map((r) => ({ left: worldToScreen((r.x0 + r.x1) / 2) }))
+    .map((r) => ({
+      left: worldToScreen((r.x0 + r.x1) / 2),
+      // World-space x → instant maps back to the dates bracketing the collapsed
+      // gap, so a click can build a fill prompt for that exact span.
+      fromInstant: scale.toInstant(r.x0),
+      toInstant: scale.toInstant(r.x1),
+    }))
     .filter((b) => b.left >= -10 && b.left <= width + 10)
 
   return (
     <Panel position="bottom-center" className="time-ruler">
-      {breaks.map((b, i) => (
-        <div key={`break-${i}`} className="time-break" style={{ left: b.left }} title="Empty span collapsed">
-          ⁓
-        </div>
-      ))}
+      {breaks.map((b, i) =>
+        onFillGap ? (
+          <button
+            key={`break-${i}`}
+            type="button"
+            className="time-break time-break-fill"
+            style={{ left: b.left }}
+            title="Fill this empty span"
+            onClick={() => onFillGap(b.fromInstant, b.toInstant)}
+          >
+            ⁓
+          </button>
+        ) : (
+          <div key={`break-${i}`} className="time-break" style={{ left: b.left }} title="Empty span collapsed">
+            ⁓
+          </div>
+        ),
+      )}
       {ticks.map((t) => (
         <div key={t.year} className="time-tick" style={{ left: t.left }}>
           <span className="time-tick-mark" />

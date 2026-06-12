@@ -2735,6 +2735,23 @@ body {
   pointer-events: none;
 }
 
+/* Owner-only variant: the collapsed-gap marker doubles as a "fill this empty
+   span" affordance (NEXT.5 Tier 2 — the collapse-mode counterpart of the dashed
+   gap-invitation ghost shown in linear mode). */
+.time-break-fill {
+  pointer-events: auto;
+  cursor: pointer;
+  gap: 2px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  transition: color 0.15s ease;
+}
+.time-break-fill:hover {
+  color: var(--color-accent-primary);
+}
+
 /* ── Connect guide ──────────────────────────────────────────────────────── */
 
 .home-connect-token {

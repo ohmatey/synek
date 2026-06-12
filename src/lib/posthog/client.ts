@@ -75,6 +75,10 @@ export type ClientEvent =
   // One event for every canvas "verb" (NEXT.5), keyed by `verb_id` + `surface` in
   // props, so copy-rates self-prioritize the catalogue (bet B5) in one query.
   | 'verb_prompt_copied'
+  // Impression for the Tier-2 canvas invitations (gap/lane/era ghosts), so
+  // `verb_prompt_copied` for fill-gap/extend-lane/populate-era has a denominator —
+  // copy-RATE, not just count (bet B5). Props carry per-variant counts.
+  | 'invitation_shown'
   | 'story_prompt_copied'
   | 'command_palette_used'
   | 'story_started'

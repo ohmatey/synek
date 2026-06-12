@@ -41,6 +41,7 @@ import {
 } from './useTimelineScale'
 import { formatInstant, eraTint } from '~/lib/domain/dates'
 import { findDeadZones } from '~/lib/domain/dead-zones'
+import { capture } from '~/lib/posthog/client'
 import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
 import { fillGapSpec, extendLaneSpec, populateEraSpec } from '~/lib/verbs'
 import { getGraph } from '~/lib/server/graph'
@@ -875,6 +876,28 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gnodes, gedges, pending, draft, selectedId, effectiveFocusIds, pxPerDay, collapseGaps, hiddenKinds, measuredVersion, timelineId, title, isOwner])
 
+  // Impression for the Tier-2 canvas invitations (gap/lane/era ghosts), so the
+  // fill-gap/extend-lane/populate-era copy events have a denominator — copy-RATE,
+  // not just count (bet B5). Keyed on the per-variant counts so it fires once per
+  // distinct invitation set per timeline (not every render), and again if the set
+  // changes as the graph builds (e.g. a gap gets filled and its ghost disappears).
+  const invitationCounts = useMemo(() => {
+    const c = { gap: 0, lane: 0, era: 0 }
+    for (const n of rfNodes) {
+      if (n.type !== 'invitation') continue
+      const v = (n.data as { variant?: 'gap' | 'lane' | 'era' }).variant
+      if (v) c[v] += 1
+    }
+    return c
+  }, [rfNodes])
+  const invitationSig = `${timelineId}:${invitationCounts.gap}:${invitationCounts.lane}:${invitationCounts.era}`
+  useEffect(() => {
+    const { gap, lane, era } = invitationCounts
+    if (gap + lane + era === 0) return
+    capture('invitation_shown', { timeline_id: timelineId, gap, lane, era })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invitationSig])
+
   // Layer the transient "new node" glow on top WITHOUT re-running lane packing
   // (a cheap shallow remap, vs. recomputing the whole layout in the memo above).
   const displayNodes = useMemo(
@@ -1044,7 +1067,30 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           <ViewportInit timelineId={timelineId} nodeCount={gnodes.length} />
           {cameraIds && <StoryCamera ids={cameraIds} dockW={panelW.detail + panelW.story} />}
           <FlyToCamera targetId={flyToId} onArrive={clearFlyTo} />
-          {(gnodes.length > 0 || pending.length > 0) && <TimeRuler scale={scale} />}
+          {(gnodes.length > 0 || pending.length > 0) && (
+            <TimeRuler
+              scale={scale}
+              // In collapse-gaps mode a dead zone is squeezed to a break marker
+              // instead of an open span — so the marker itself becomes the fill
+              // affordance (owner only), the collapse-mode twin of the gap ghost.
+              onFillGap={
+                isOwner
+                  ? (fromInstant, toInstant) => {
+                      const years = Math.max(
+                        1,
+                        Math.round((toInstant - fromInstant) / (365.25 * 86_400_000)),
+                      )
+                      setGapSpec(
+                        fillGapSpec(
+                          { fromInstant, toInstant, years },
+                          { timelineId, timelineTitle: title, surface: 'canvas_gap_collapsed' },
+                        ),
+                      )
+                    }
+                  : undefined
+              }
+            />
+          )}
           {!isLoading && gnodes.length === 0 && pending.length === 0 && (
             <Panel position="top-center">
               {isOwner ? (
