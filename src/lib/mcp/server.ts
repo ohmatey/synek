@@ -19,6 +19,7 @@ import { BASE_URL } from '~/lib/auth'
 import { opSchema, applyOps } from './ops'
 import { collectPatchWarnings, imageUrlWarnings } from './warnings'
 import { buildLayoutReport } from './layout-report'
+import { captureServer } from '~/lib/posthog/server'
 import type { Graph } from '~/lib/db/graph'
 
 const json = (data: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(data) }] })
@@ -49,6 +50,39 @@ function graphSummary(graph: Graph) {
 // The viewer URL a client hands back to the user so they can watch the canvas
 // build live. BASE_URL is the same origin the app + auth run on.
 const viewerUrl = (id: string) => `${BASE_URL}/timelines/${id}`
+
+// Per-tool analytics enrichment — cheap props derived mostly from the input args
+// (parse-free). For apply_patch we also read the already-computed graphSummary +
+// warnings out of the result text once, inside a try/catch so an analytics parse
+// error can never fail the tool call.
+function enrich(name: string, args: any, result: any): Record<string, unknown> {
+  if (name === 'apply_patch') {
+    const ops: any[] = Array.isArray(args?.ops) ? args.ops : []
+    const counts: Record<string, number> = {}
+    for (const op of ops) {
+      if (typeof op?.op === 'string') counts[`ops_${op.op}`] = (counts[`ops_${op.op}`] ?? 0) + 1
+    }
+    const extra: Record<string, unknown> = { ops_total: ops.length, ...counts }
+    try {
+      const payload = JSON.parse(result?.content?.[0]?.text ?? '{}')
+      if (payload.graphSummary) {
+        extra.nodes_total = payload.graphSummary.nodes
+        extra.edges_total = payload.graphSummary.edges
+      }
+      if (Array.isArray(payload.warnings)) extra.warnings = payload.warnings.length
+    } catch {
+      /* result shape changed — skip enrichment, never fail the tool */
+    }
+    return extra
+  }
+  if (name === 'write_story') {
+    return {
+      segments: Array.isArray(args?.segments) ? args.segments.length : 0,
+      cast: Array.isArray(args?.cast) ? args.cast.length : 0,
+    }
+  }
+  return {}
+}
 
 // One MCP server per request/connection, scoped to the OWNER behind the API key:
 // every tool only sees and mutates that user's timelines. Reads are exposed as
@@ -86,13 +120,44 @@ export function buildMcpServer(ownerId: string): McpServer {
     }
   }
 
-  server.registerTool(
+  // One analytics event per tool call, threaded through a single wrapper so it
+  // covers ALL tools across BOTH transports (HTTP + stdio both build via this
+  // factory). distinct_id = ownerId, the same Better Auth id the browser client
+  // uses, so client + server events land on one PostHog person. No-ops without a
+  // server key. `cb` is `any` to sidestep the SDK's generic ToolCallback overloads
+  // — the config/handler still type-check at each call site.
+  const register: typeof server.registerTool = (name, config, cb: any) =>
+    server.registerTool(name, config, (async (args: any, extra: any) => {
+      const t0 = performance.now()
+      try {
+        const result = await cb(args, extra)
+        captureServer(ownerId, 'mcp_tool_called', {
+          tool: name,
+          ok: true,
+          duration_ms: Math.round(performance.now() - t0),
+          ...(args?.timelineId ? { timeline_id: args.timelineId } : {}),
+          ...enrich(name, args, result),
+        })
+        return result
+      } catch (err) {
+        captureServer(ownerId, 'mcp_tool_called', {
+          tool: name,
+          ok: false,
+          duration_ms: Math.round(performance.now() - t0),
+          ...(args?.timelineId ? { timeline_id: args.timelineId } : {}),
+          error: err instanceof Error ? err.message : String(err),
+        })
+        throw err
+      }
+    }) as any)
+
+  register(
     'list_timelines',
     { title: 'List timelines', description: 'List your timelines (id + title), newest first.', inputSchema: {} },
     async () => json(listTimelines(ownerId).map((t) => ({ id: t.id, title: t.title }))),
   )
 
-  server.registerTool(
+  register(
     'create_timeline',
     {
       title: 'Create timeline',
@@ -105,7 +170,7 @@ export function buildMcpServer(ownerId: string): McpServer {
     },
   )
 
-  server.registerTool(
+  register(
     'get_timeline',
     {
       title: 'Get timeline graph',
@@ -124,7 +189,7 @@ export function buildMcpServer(ownerId: string): McpServer {
     },
   )
 
-  server.registerTool(
+  register(
     'query_timeline',
     {
       title: 'Query timeline nodes',
@@ -197,7 +262,7 @@ export function buildMcpServer(ownerId: string): McpServer {
     },
   )
 
-  server.registerTool(
+  register(
     'get_node',
     {
       title: 'Get one node in full',
@@ -244,7 +309,7 @@ export function buildMcpServer(ownerId: string): McpServer {
     },
   )
 
-  server.registerTool(
+  register(
     'get_layout_report',
     {
       title: 'Review the timeline\'s layout',
@@ -265,7 +330,7 @@ export function buildMcpServer(ownerId: string): McpServer {
     },
   )
 
-  server.registerTool(
+  register(
     'apply_patch',
     {
       title: 'Apply a batch of edits',
@@ -290,7 +355,7 @@ export function buildMcpServer(ownerId: string): McpServer {
     },
   )
 
-  server.registerTool(
+  register(
     'set_timeline_view',
     {
       title: 'Set timeline view defaults',
@@ -340,7 +405,7 @@ export function buildMcpServer(ownerId: string): McpServer {
       ),
   })
 
-  server.registerTool(
+  register(
     'write_story',
     {
       title: 'Write a story onto a moment',
@@ -453,7 +518,7 @@ export function buildMcpServer(ownerId: string): McpServer {
     },
   )
 
-  server.registerTool(
+  register(
     'undo',
     { title: 'Undo', description: 'Undo the most recent Patch on a timeline.', inputSchema: { timelineId: z.string() } },
     async ({ timelineId }) => {
@@ -462,7 +527,7 @@ export function buildMcpServer(ownerId: string): McpServer {
     },
   )
 
-  server.registerTool(
+  register(
     'redo',
     { title: 'Redo', description: 'Redo the most recently undone Patch on a timeline.', inputSchema: { timelineId: z.string() } },
     async ({ timelineId }) => {

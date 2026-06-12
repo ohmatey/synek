@@ -8,6 +8,7 @@ import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
 import { parseDate, formatInstant, formatInstantRange } from '~/lib/domain/dates'
 import { editNode, deleteNode } from '~/lib/server/nodes'
+import { capture } from '~/lib/posthog/client'
 import { fileToDataUrl } from '~/lib/files'
 import { NewStoryDialog } from './NewStoryDialog'
 import { ResizeHandle } from './ResizeHandle'
@@ -222,6 +223,7 @@ export function NodeDetailPanel({
         },
       })
       await refetch()
+      capture('node_edited', { timeline_id: timelineId, node_id: node.id })
       setIsEditing(false)
     } finally {
       setBusy(false)

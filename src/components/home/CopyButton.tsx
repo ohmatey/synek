@@ -8,6 +8,8 @@ interface CopyButtonProps extends Omit<React.ComponentProps<typeof Button>, 'onC
   /** When set, renders an icon + text button; otherwise an icon-only button. */
   label?: string
   copiedLabel?: string
+  /** Side effect fired after a successful copy (e.g. an analytics capture). */
+  onCopy?: () => void
 }
 
 /** Copies `text` to the clipboard; flips to a check + toast for 1.5s. */
@@ -17,6 +19,7 @@ export function CopyButton({
   copiedLabel = 'Copied',
   size = 'sm',
   variant = 'outline',
+  onCopy,
   ...rest
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
@@ -25,6 +28,7 @@ export function CopyButton({
     void navigator.clipboard?.writeText(text)
     setCopied(true)
     toast.success('Copied to clipboard')
+    onCopy?.()
     setTimeout(() => setCopied(false), 1500)
   }
 

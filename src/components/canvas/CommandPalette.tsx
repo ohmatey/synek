@@ -32,6 +32,7 @@ import {
 } from '~/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
+import { capture } from '~/lib/posthog/client'
 import { cn } from '~/lib/utils'
 import { formatInstant } from '~/lib/domain/dates'
 import { buildTalkToPrompt } from '~/lib/talk-to-prompt'
@@ -123,6 +124,11 @@ export function CommandPalette({
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // Engagement signal: the palette was opened (keyboard or click).
+  useEffect(() => {
+    if (open) capture('command_palette_used')
+  }, [open])
+
   // Chronological within each lane group; cmdk re-ranks by match score while a
   // query is typed, so this order only governs the unfiltered list.
   const groups = useMemo(() => {
@@ -189,6 +195,7 @@ export function CommandPalette({
       contextLabel: `Ask ${n.title} something, or set a focus (optional)`,
       contextPlaceholder: `e.g. their exile, a rivalry, founding a school — or a question for them`,
       contextHeading: `What the user wants ${n.title} to address or focus on:`,
+      analytics: { event: 'talk_to_prompt_copied', props: { timeline_id: timelineId, node_kind: kind } },
     }
   }
 
@@ -202,6 +209,7 @@ export function CommandPalette({
       contextLabel: 'Anything specific to focus on? (optional)',
       contextPlaceholder: 'e.g. add the Roman Stoics, focus on 200–100 BCE, fix the gaps after Seneca',
       contextHeading: 'Focus the improvements on what the user asked for:',
+      analytics: { event: 'improve_prompt_copied', props: { timeline_id: timelineId } },
     }
   }
 

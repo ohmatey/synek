@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ClientOnly, ThemeProvider, themeInitScript } from '@synek/ui'
 import { Toaster } from '~/components/ui/sonner'
 import { ThemeSync } from '~/components/ThemeSync'
+import { Analytics } from '~/components/Analytics'
 import '@xyflow/react/dist/style.css'
 import '../styles.css'
 
@@ -30,6 +31,10 @@ function RootComponent() {
         {/* Bridges the per-user saved theme onto the local provider once signed in. */}
         <ClientOnly>
           <ThemeSync />
+        </ClientOnly>
+        {/* Product analytics bootstrap (client-only; no-op without a key / when opted out). */}
+        <ClientOnly>
+          <Analytics />
         </ClientOnly>
         <RootDocument>
           <Outlet />

@@ -102,6 +102,8 @@ bun run verify:mcp   # data-layer check of the apply_patch → Patch → undo/re
 - `BETTER_AUTH_SECRET` — set a real secret outside local dev (`openssl rand -base64 32`)
 - `BETTER_AUTH_URL` — auth base URL (default `http://localhost:3001`)
 - `SYNEK_API_KEY` — the bearer token your MCP client sends; mint with `bun run issue:key`. Used by the stdio server.
+- `VITE_POSTHOG_KEY` / `VITE_POSTHOG_HOST` — **optional** PostHog browser analytics (canvas/home engagement). Blank = disabled. Host defaults to US cloud. Capture is gated on the key being present **and** the per-user opt-out in `/account` (opt-out, default ON). Helper: `src/lib/posthog/client.ts`; bootstrap: `src/components/Analytics.tsx`.
+- `POSTHOG_API_KEY` / `POSTHOG_HOST` — **optional** PostHog server analytics for the MCP layer (one `mcp_tool_called` event per tool call, enriched for `apply_patch`/`write_story`). Blank = disabled (operator-gated by key presence). Helper: `src/lib/posthog/server.ts`; wired via a `register` wrapper in `src/lib/mcp/server.ts`, flushed in `mcp/http.ts` (per request) and `mcp/stdio.ts` (on shutdown).
 
 ## Current status
 

@@ -48,6 +48,8 @@
     "cmdk": "^1.1.1",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.17.0",
+    "posthog-js": "^1.386.4",
+    "posthog-node": "^5.36.17",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "sonner": "^2.0.7",

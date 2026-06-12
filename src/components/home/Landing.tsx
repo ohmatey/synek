@@ -58,7 +58,7 @@ const FEATURES = [
   {
     icon: Database,
     title: 'Local-first, your data',
-    body: 'SQLite on your machine. No hosted model, no telemetry. The canvas is yours to keep.',
+    body: 'SQLite on your machine. No hosted model. Optional, anonymous usage analytics — off with one switch.',
     tint: 'text-success',
   },
   {

@@ -4,6 +4,7 @@ import { cn } from '~/lib/utils'
 import type { GraphNode, PovType, StoryDTO } from '~/lib/domain/types'
 import { CopyButton } from '~/components/home/CopyButton'
 import { buildContinueStoryPrompt } from '~/lib/story-prompt'
+import { capture } from '~/lib/posthog/client'
 import { useSpeechSupported, useStoryNarration, warmUpSpeech } from './useStoryNarration'
 import { ResizeHandle } from './ResizeHandle'
 
@@ -107,6 +108,15 @@ export function StoryReader({
   const beat = beats[safeIndex]
   // The stepped player is live only between the cover and the end panel.
   const playing = started && !ended
+
+  // Engagement KPIs: a reader pressed Play (story_started), and reached the end
+  // panel past the last beat (story_completed). Effects fire once per transition.
+  useEffect(() => {
+    if (started) capture('story_started', { timeline_id: timelineId, story_id: story.id })
+  }, [started])
+  useEffect(() => {
+    if (ended) capture('story_completed', { timeline_id: timelineId, story_id: story.id, beats: count })
+  }, [ended])
 
   // Focus the panel on mount so keyboard nav + Esc work without a click first —
   // and again when playback starts: clicking the cover's Play unmounts that
@@ -441,6 +451,7 @@ export function StoryReader({
               copiedLabel="Copied — paste into Claude"
               variant="default"
               className="w-full"
+              onCopy={() => capture('story_prompt_copied', { timeline_id: timelineId, mode: 'continue' })}
             />
             <button type="button" className="sv-replay" onClick={replay}>
               <RotateCcw aria-hidden />

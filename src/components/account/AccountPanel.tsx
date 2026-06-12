@@ -5,7 +5,9 @@ import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
+import { Switch } from '~/components/ui/switch'
 import { authClient, signOut, useSession } from '~/lib/auth/client'
+import { optedOut, setOptOut } from '~/lib/posthog/client'
 
 // Account settings: avatar + identity, an editable display name, and sign-out.
 // Email is read-only (it's the login identifier for the single local user).
@@ -18,6 +20,10 @@ export function AccountPanel() {
   const [name, setName] = useState(user?.name ?? '')
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
+  // Analytics opt-out (default ON). Read from localStorage after mount to avoid an
+  // SSR/client hydration mismatch.
+  const [analyticsOn, setAnalyticsOn] = useState(true)
+  useEffect(() => setAnalyticsOn(!optedOut()), [])
 
   // Keep the field in sync when the session resolves/refreshes.
   useEffect(() => setName(user?.name ?? ''), [user?.name])
@@ -108,6 +114,33 @@ export function AccountPanel() {
               )}
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Privacy</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <label
+            htmlFor="analytics-opt-in"
+            className="flex cursor-pointer items-start justify-between gap-4"
+          >
+            <span className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium">Product analytics</span>
+              <span className="text-xs text-muted-foreground">
+                Anonymous usage analytics — helps improve Synek. On by default; switch off anytime.
+              </span>
+            </span>
+            <Switch
+              id="analytics-opt-in"
+              checked={analyticsOn}
+              onCheckedChange={(on) => {
+                setAnalyticsOn(on)
+                setOptOut(!on)
+              }}
+            />
+          </label>
         </CardContent>
       </Card>
 

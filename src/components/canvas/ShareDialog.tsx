@@ -13,6 +13,7 @@ import {
 import { Separator } from '~/components/ui/separator'
 import { cn } from '~/lib/utils'
 import { CopyButton } from '~/components/home/CopyButton'
+import { capture } from '~/lib/posthog/client'
 import { setTimelineVisibility } from '~/lib/server/timelines'
 import { slugify, toJSON, toMarkdown, toSVG } from '~/lib/domain/export'
 import type { TimelineGraph } from '~/lib/domain/types'
@@ -113,6 +114,7 @@ export function ShareDialog({
       const next = !pub
       await setTimelineVisibility({ data: { id: timelineId, isPublic: next } })
       setPub(next)
+      capture('share_toggled', { timeline_id: timelineId, public: next })
       void qc.invalidateQueries({ queryKey: ['graph', timelineId] })
       void qc.invalidateQueries({ queryKey: ['timelines'] })
     } finally {
@@ -125,6 +127,7 @@ export function ShareDialog({
     else if (format === 'markdown') download(`${slug}.md`, toMarkdown(graph), 'text/markdown')
     else if (format === 'svg') download(`${slug}.svg`, toSVG(graph), 'image/svg+xml')
     else if (format === 'png') downloadPng(toSVG(graph), `${slug}.png`)
+    capture('export_performed', { timeline_id: timelineId, format })
   }
 
   return (

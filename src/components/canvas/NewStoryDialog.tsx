@@ -12,6 +12,7 @@ import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { CopyButton } from '~/components/home/CopyButton'
 import { buildStoryPrompt } from '~/lib/story-prompt'
+import { capture } from '~/lib/posthog/client'
 import { cn } from '~/lib/utils'
 
 // "New Story" surface for the AppBar Stories menu. The app holds no AI, so it can't
@@ -243,6 +244,7 @@ export function NewStoryDialog({
           disabled={!anchor}
           variant="default"
           className="w-full"
+          onCopy={() => capture('story_prompt_copied', { timeline_id: timelineId, mode: 'new' })}
         />
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <BookOpen aria-hidden="true" className="size-3.5" />

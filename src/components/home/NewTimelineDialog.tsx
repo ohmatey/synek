@@ -15,6 +15,7 @@ import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { createTimeline } from '~/lib/server/timelines'
 import { buildTimelinePrompt } from '~/lib/timeline-prompt'
+import { capture } from '~/lib/posthog/client'
 import { CopyButton } from './CopyButton'
 
 // "New timeline" surface for the workspace home. The app holds no AI, so creating a
@@ -54,6 +55,7 @@ export function NewTimelineDialog({
       const row = await createTimeline({ data: { title: t } })
       await qc.invalidateQueries({ queryKey: ['timelines'] })
       setCreated({ id: row.id, title: row.title })
+      capture('timeline_created', { timeline_id: row.id })
     } finally {
       setBusy(false)
     }
@@ -138,6 +140,7 @@ export function NewTimelineDialog({
               copiedLabel="Prompt copied — paste into Claude"
               variant="default"
               className="w-full"
+              onCopy={() => capture('build_prompt_copied', { timeline_id: created.id })}
             />
             <Button
               type="button"

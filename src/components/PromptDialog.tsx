@@ -9,6 +9,7 @@ import {
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { CopyButton } from '~/components/home/CopyButton'
+import { capture, type ClientEvent } from '~/lib/posthog/client'
 
 export type PromptParam = { label: string; value: string }
 
@@ -33,6 +34,8 @@ export type PromptSpec = {
   contextPlaceholder?: string
   /** How the typed context is introduced in the copied prompt. */
   contextHeading?: string
+  /** Optional analytics event fired when the user copies this prompt. */
+  analytics?: { event: ClientEvent; props?: Record<string, unknown> }
 }
 
 const DEFAULT_HINT =
@@ -130,6 +133,7 @@ export function PromptDialog({
               copiedLabel="Copied — paste into Claude"
               variant="default"
               className="w-full"
+              onCopy={spec.analytics ? () => capture(spec.analytics!.event, spec.analytics!.props) : undefined}
             />
             <p className="text-xs text-muted-foreground">{spec.hint ?? DEFAULT_HINT}</p>
           </>
