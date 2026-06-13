@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-13T15:36:57.000Z",
+  "updatedAt": "2026-06-13T16:00:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -776,7 +776,7 @@
         "description": "Wire the docked story reader's per-beat focus into the globe so playing a story flies the globe to where each beat happened and SKIPS the time cursor to when. The reader already renders over the globe (TimelineCanvas.tsx:1207) but its activeBeat/beatFocusId only drive the React-Flow StoryCamera (TimelineCanvas.tsx:1114) — the globe runs an independent clock and ignores the story. Refs: docs/product/prd/globe-stories.md §GS1.\n\n### Scope\n- New additive optional GlobeLens props: `storyFocus?: { id, lat, lng, instant } | null` (the current beat's focus node + its instant) and `storyMode?: boolean` (a reader is open over the globe).\n- In TimelineCanvas, derive both from the EXISTING state: `focusNode` (the resolved beat-focus GraphNode, TimelineCanvas.tsx:500) when it carries lat/lng (fall back to the moment node, then null) → storyFocus; `reading` → storyMode. Pass into the GlobeLens render branch (TimelineCanvas.tsx:1150–1169).\n- In GlobeLens, on a `storyFocus?.id` change (effect): set rotation target to [storyFocus.lng, storyFocus.lat] and zoom target to a story-zoom constant (~1.8×); ease both via the GS2 shared ease (runs with playback paused). SKIP the cursor: setCursorInstant(storyFocus.instant) + xRef.current = scale.toX(instant) → the scrubber thumb (bound to scale.toX(cursorInstant), GlobeLens.tsx:321–323) jumps to the beat. Markers appear/halo off cursorInstant already (GlobeLens.tsx:277–289), so the right things light up for free.\n- On story end, ease back out to frame the story's focus set (fit-all).\n- While storyMode: suppress the globe's own togglePlay autoplay (the reader's Play is the transport); the scrubber stays a progress readout; manual scrub still works (detaches, like userRotated).\n- Reduced-motion: SNAP rotation/zoom/cursor to the beat target (no animated spin) — consistent with the reader's reduced-motion mode + the global reset.\n- Off-map beat (OQ-S1, resolved: hold camera, still skip time — no fly-to-null).\n- State that must survive a beat step / nodes prop change: cursorInstant/playing/userRotated/rAF stay local (GLOBE v1 §6 rule).\n\n### Done when\nWith the globe open + a story playing, each beat eases rotation+zoom to the beat's focus coords and the scrubber thumb JUMPS to that beat's instant; story end eases back to frame the cast; an off-map beat holds the camera but still advances the cursor; reduced-motion snaps; no schema/MCP change; typecheck + build green; verify:globe + globe e2e unregressed.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-106"
         ]
@@ -793,10 +793,10 @@
     {
       "data": {
         "title": "Implement GLOBE-S GS3 — floating entity cards above markers (decluttered)",
-        "description": "Show 'what they are' on the globe: a compact card (type glyph + title, theme-accented) above markers, replacing the lone selected-marker `<text>` label (GlobeLens.tsx:368–372). The hard part is clutter — never label every marker at once. Refs: docs/product/prd/globe-stories.md §GS3.\n\n### Scope\n- Replace the single `selected && <text>` label with a `<GlobeLabels>` layer. Extend each entry in the `markers` memo (GlobeLens.tsx:268–294) with a `labelPriority`.\n- Always-on labels: selected, active-span, and the current story-beat focus (GS1) — few + meaningful.\n- Hover/keyboard-focus: any marker shows its full card (`hoveredId` local state; pointer-enter/leave on the marker `<g>`).\n- Zoom-gated reveal: as GS2 zoom increases, show more cards via a greedy screen-space de-overlap (show a label only if no higher-priority shown label sits within N px). Priority: selected > active > story-focus > larger `size` > earlier.\n- Back-hemisphere markers (already culled, GlobeLens.tsx:278) and not-yet-appeared markers (GlobeLens.tsx:277) get no card.\n- Card render: prefer `<foreignObject>` (real DOM → CSS theming, the type glyph as an icon, ellipsis) with a plain SVG `<rect>`+`<text>` fallback for Safari quirks (Wren/Kael to pick). Type glyph reuses the canvas node icon mapping (person/org/place/work/event/period) so the language matches.\n\n### Done when\nMarkers show floating type+title cards — always for selected/active/story-focus, on hover for any, zoom-gated for the rest with NO visible overlap on a dense (~50-node) globe; back-face + not-yet-appeared markers show none; typecheck + build green; verify:globe + globe e2e unregressed.",
+        "description": "Show 'what they are' on the globe: a compact card (type glyph + title, theme-accented) above markers, replacing the lone selected-marker `<text>` label (GlobeLens.tsx:368–372). The hard part is clutter — never label every marker at once. Refs: docs/product/prd/globe-stories.md §GS3.\n\n### Scope\n- Replace the single `selected && <text>` label with a `<GlobeLabels>` layer. Extend each entry in the `markers` memo (GlobeLens.tsx:268–294) with a `labelPriority`.\n- Always-on labels: selected, active-span, and the current story-beat focus (GS1) — few + meaningful.\n- Hover/keyboard-focus: any marker shows its full card (`hoveredId` local state; pointer-enter/leave on the marker `<g>`).\n- Zoom-gated reveal: as GS2 zoom increases, show more cards via a greedy screen-space de-overlap (show a label only if no higher-priority shown label sits within N px). Priority: selected > active > story-focus > larger `size` > earlier.\n- Back-hemisphere markers (already culled, GlobeLens.tsx:278) and not-yet-appeared markers (GlobeLens.tsx:277) get no card.\n- Card render: prefer `<foreignObject>` (real DOM → CSS theming, the type glyph as an icon, ellipsis) with a plain SVG `<rect>`+`<text>` fallback for Safari quirks (Wren/Kael to pick). Type glyph reuses the canvas node icon mapping (person/org/place/work/event/period) so the language matches.\n\n### Done when\nMarkers show floating type+title cards — always for selected/active/story-focus, on hover for any, zoom-gated for the rest with NO visible overlap on a dense (~50-node) globe; back-face + not-yet-appeared markers show none; typecheck + build green; verify:globe + globe e2e unregressed.\n\n### Done 2026-06-13\nShipped (build + e2e verified; uncommitted). A foreignObject card layer (type glyph from the canvas/⌘K icon map + title, theme-accented, pointer-events:none) replaces the lone selected `<text>`. Declutter: always-on for selected/story-focus/active + the hovered marker; the rest revealed by a greedy screen-space de-overlap (LABEL_GAP_X/Y) sorted larger/earlier-first — zoom-gating falls out for free (markers reproject as the GS2 zoom grows). The PRIMARY card keeps the globe-marker-label hook (singular for the GS1 tests). OQ-S3: de-overlap is the cap. e2e: a cards+axis test added; globe 11/11 green. PRD §GS3 marked shipped.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-106",
           "local-107"
@@ -814,10 +814,10 @@
     {
       "data": {
         "title": "Implement GLOBE-S GS4 — era band above the globe scrubber",
-        "description": "Show era time periods on the timeline: a labeled, tinted ribbon above the globe's scrubber, segmented by the timeline's era spans, with the current era highlighted as the cursor/story moves. Founder confirmed 2026-06-12: 'era is period' → the band is sourced from `type === 'period'` span nodes (resolves OQ-S4). Refs: docs/product/prd/globe-stories.md §GS4.\n\n### Scope\n- Source: filter gnodes to `type === 'period'` spans (each has startInstant + endInstant).\n- Layout: a band ABOVE the existing scrubber (GlobeLens.tsx:386–396), in the SAME x-space: `left = scale.toX(start)/maxX`, `width = (scale.toX(end)-scale.toX(start))/maxX` — identical math to the collapsedRanges hatch marks (GlobeLens.tsx:387–393), so gap collapse is honored for free. Greedy row-assignment for overlaps, ≤2 rows (more → '+n').\n- Active era: highlight segments where start ≤ cursorInstant ≤ end.\n- Color: tint segments with `--color-accent-era` (the era token decoupled from influence purple — see the canvas node design-language); labels truncate, full name on hover/title.\n- Optional secondary: a globe corner-chip naming the current era ('Now: Hellenistic period, 323–31 BCE').\n- v1 scopes the band to the GLOBE SCRUBBER only; the same band over the canvas TimeRuler (TimelineCanvas.tsx:1117) is a deferred fast-follow.\n\n### Done when\nAn era band sits above the scrubber: period spans laid out in the scrubber's x-space (gap collapse honored), labeled + accent-era-tinted, the current era highlighted as the cursor/story moves; typecheck + build green; verify:globe + globe e2e unregressed.",
+        "description": "Show era time periods on the timeline: a labeled, tinted ribbon above the globe's scrubber, segmented by the timeline's era spans, with the current era highlighted as the cursor/story moves. Founder confirmed 2026-06-12: 'era is period' → the band is sourced from `type === 'period'` span nodes (resolves OQ-S4). Refs: docs/product/prd/globe-stories.md §GS4.\n\n### Scope\n- Source: filter gnodes to `type === 'period'` spans (each has startInstant + endInstant).\n- Layout: a band ABOVE the existing scrubber (GlobeLens.tsx:386–396), in the SAME x-space: `left = scale.toX(start)/maxX`, `width = (scale.toX(end)-scale.toX(start))/maxX` — identical math to the collapsedRanges hatch marks (GlobeLens.tsx:387–393), so gap collapse is honored for free. Greedy row-assignment for overlaps, ≤2 rows (more → '+n').\n- Active era: highlight segments where start ≤ cursorInstant ≤ end.\n- Color: tint segments with `--color-accent-era` (the era token decoupled from influence purple — see the canvas node design-language); labels truncate, full name on hover/title.\n- Optional secondary: a globe corner-chip naming the current era ('Now: Hellenistic period, 323–31 BCE').\n- v1 scopes the band to the GLOBE SCRUBBER only; the same band over the canvas TimeRuler (TimelineCanvas.tsx:1117) is a deferred fast-follow.\n\n### Done when\nAn era band sits above the scrubber: period spans laid out in the scrubber's x-space (gap collapse honored), labeled + accent-era-tinted, the current era highlighted as the cursor/story moves; typecheck + build green; verify:globe + globe e2e unregressed.\n\n### Done 2026-06-13 (expanded per founder)\nShipped (build + e2e verified; uncommitted). The era ribbon (type==='period' spans, greedy ≤2 rows, --color-accent-era tint, active-era highlight) PLUS the founder's extra ask: the scrubber's flexible middle became a DATED timeline — the track now carries year ticks and a year-label axis below it (TimeRuler's nice-step algorithm in the scrubber's percentage space, gap-collapse honored, BCE-aware). The exact-cursor globe-date readout stays. OQ-S4: era=period. Corner-chip skipped (the active-segment highlight conveys it). e2e: dated-axis + era-ribbon tests added; globe 11/11 green. PRD §GS4 marked shipped.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-90"
         ]
@@ -864,6 +864,24 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-113",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Add an auto-play toggle to the story reader",
+        "description": "Give the docked story reader a toggle to turn timed auto-advance on/off. Default ON preserves the Reels/Stories slideshow; off makes the reader fully manual (step with taps/arrows), identical to reduced-motion. Mirrors the existing read-aloud (`speak`) toggle. Pure front-end — no app/MCP/schema/migration.\n\n### What landed (uncommitted)\n- `StoryReader.tsx` — `Timer`/`TimerOff` header button (`data-testid=\"autoplay-toggle\"`, aria 'Turn auto-play off/on'), before the read-aloud button; new `autoPlay`/`onAutoPlayChange` props.\n- `useTimelineScale.ts` — `ScalePref.autoPlay` (default ON) added to the per-timeline pref (load + save).\n- `TimelineCanvas.tsx` — `autoPlayStories` state lifted, reset on timeline switch, persisted, threaded into StoryReader + CanvasSettings.\n- `CanvasSettings.tsx` — 'Auto-play stories' Switch row (`data-testid=\"autoplay-stories-toggle\"`) above 'Read stories aloud'.\n\n### Mechanic\nOne derived gate: `autoAdvance = autoPlay && !reduced`; `speechDrivesAdvance = autoAdvance && speak && supported`; `timerDrivesAdvance = autoAdvance && !speechDrivesAdvance`. The active progress segment animates (`is-active`) only when `timerDrivesAdvance`, else renders static (`is-current`). When auto-play is off but narration is on, each beat is still read aloud but does NOT step — `narrationAdvance` guards `goNext` on `autoPlay`. One advance source at a time.\n\n### Verified\ntypecheck clean · prod build compiles · e2e/story-reader.spec.ts 7/7 (incl. a new motion-enabled test: toggle off → segment static + stays on beat 1 + manual step works → re-enable resumes) · e2e/stories-view.spec.ts 5/5.\n\n### Not done\nNot committed. No PostHog event for the toggle (consistent with `speak`, which has none). Not scoped into v0.1.0 (local-70, draft).",
+        "horizon": "now",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-118",
         "dirty": true,
         "etag": null,
         "syncedAt": null
@@ -1161,6 +1179,20 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-117",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Wrap — story reader auto-play toggle shipped (local-118)",
+        "body": "Founder ran /sal wrap after 'update stories to have a toggle auto play'. One-item session.\n\nShipped uncommitted (local-118): auto-play toggle on the docked story reader — Timer/TimerOff header button + ScalePref.autoPlay (default ON) + 'Auto-play stories' CanvasSettings row. Off = fully manual (timerDrivesAdvance gate; narration reads each beat but doesn't step). Mirrors the read-aloud (speak) toggle; pure front-end, no app/MCP/schema/migration. Verified: typecheck clean, prod build, e2e story-reader 7/7 (new toggle test) + stories-view 5/5.\n\nMCP offline → staged into .sector137/state.json: issue local-118 (completed) + this note, both dirty. Housekeeping this pass: flipped local-107 (GLOBE-S GS1) open→completed — GS1 shipped + e2e-verified (GS2/3/4 already completed); it was stale-open.\n\nSYNC HAZARD still open: DUPLICATE localId local-117 — two notes share it (the LATER.3 telemetry wrap AND the GS2 globe-zoom wrap); a concurrent /sal session collided. Left as-is for a deliberate renumber — reconcile via mcp__sector137__sync_state when the MCP returns (with all dirty entries). NOT scoped into v0.1.0 (local-70, still draft)."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-119",
         "dirty": true,
         "etag": null,
         "syncedAt": null

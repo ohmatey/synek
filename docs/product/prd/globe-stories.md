@@ -1,7 +1,7 @@
 ---
 phase: GLOBE-S
 title: "Globe Story Mode — tell the story on the map, the timeline skips along"
-status: "GS1+GS2 shipped (2026-06-13); GS3–GS4 proposed"
+status: "GS1–GS4 shipped (2026-06-13)"
 era: "Story Layer (the pivot)"
 updated: 2026-06-12
 roadmap: NEXT (after GLOBE v1 + S3; parallel-safe with S3)
@@ -248,6 +248,18 @@ priority — fold into existing capture seam).
 
 ## GS3 — Floating entity cards above markers
 
+> **Shipped 2026-06-13.** The lone selected-marker `<text>` is replaced by a
+> `<foreignObject>` card layer (type glyph from the canvas/⌘K icon language + title,
+> theme-accented, `pointer-events:none` so it never blocks a marker click). Declutter:
+> always-on for selected/story-focus/active and the hovered marker; the rest are
+> revealed by a greedy screen-space de-overlap (`LABEL_GAP_X/Y`) over markers sorted
+> larger/earlier-first. **Zoom-gating falls out for free** — markers reproject as the
+> GS2 zoom grows, so a fixed gap admits more cards the further you zoom in. Back-face
+> and not-yet-appeared markers are already excluded (they're not in `markers`). The
+> PRIMARY card's title keeps the legacy `globe-marker-label` hook so it stays singular
+> for tests. **OQ-S3 resolved:** de-overlap is the cap (no hard count). Verified:
+> typecheck + build + globe e2e (a cards/axis test added). Live confirm owed via local-62.
+
 ### Experience
 
 Each plotted marker can show a small floating label above it — a type glyph (person / org /
@@ -294,6 +306,19 @@ zoom-gate makes "fit" the natural throttle.
 ---
 
 ## GS4 — Era / period band
+
+> **Shipped 2026-06-13 — expanded per the founder ("make the play row a timeline
+> showing dates, like the slider").** The scrubber's flexible middle became a small
+> **dated timeline** (`.globe-timeline` column): (1) an **era ribbon** of `type==='period'`
+> spans, greedy-packed into ≤2 rows, `--color-accent-era`-tinted, active-era highlighted
+> as the cursor/story moves; (2) the scrub **track now carries year ticks**; (3) a
+> **year-label axis** sits below it. Ticks/labels use TimeRuler's "nice step" algorithm
+> but positioned in the scrubber's percentage space (`scale.toX(year)/maxX`), so gap
+> collapse is honored exactly like the thumb — BCE-aware. The exact-cursor `globe-date`
+> readout stays (ticks give context, the label gives the precise instant). **OQ-S4
+> resolved:** era = `period` spans. The optional globe corner-chip was skipped (the
+> active-segment highlight conveys the current era). Verified: typecheck + build +
+> globe e2e (dated-axis + era-ribbon tests added). Live confirm owed via local-62.
 
 ### Experience
 
@@ -392,11 +417,13 @@ story-focus + GS2's zoom-gate for its priority rules). Realistic shape: a single
 - [x] Wheel/trackpad-pinch zooms the globe (clamped); +/− control and ⌘K zoom in/out/reset work;
       manual zoom or drag suspends story-follow (recenter = reset-zoom control + re-arm on the next
       beat); story-follow resumes on the next beat. (Shipped 2026-06-13.)
-- [ ] Markers show floating type+title cards: always for selected/active/story-focus, on hover for
-      any, and zoom-gated for the rest without visible overlap on a dense (~50-node) globe.
-      Back-face and not-yet-appeared markers show no card.
-- [ ] An era band sits above the scrubber: `period` spans laid out in the same x-space (gap
+- [x] Markers show floating type+title cards: always for selected/active/story-focus, on hover for
+      any, and zoom-gated (via de-overlap as the GS2 zoom spreads markers) for the rest. Back-face
+      and not-yet-appeared markers show no card. (Shipped 2026-06-13.)
+- [x] An era band sits above the scrubber: `period` spans laid out in the same x-space (gap
       collapse honored), labeled + tinted, the current era highlighted as the cursor/story moves.
+      Plus the founder's extra: the track now carries year ticks + a year-label axis (the play row
+      reads as a dated timeline, not a bare slider). (Shipped 2026-06-13.)
 - [x] No schema migration; no MCP contract change; `typecheck` + `build` green; existing
       `verify:globe` + globe e2e still pass; the two already-shipped behaviors (drag-rotate,
       click→panel) are unregressed.
