@@ -1,0 +1,24 @@
+# Rebuilt inside the image — never ship the host's copies.
+node_modules
+dist
+.output
+.nitro
+.tanstack
+.vite
+
+# Local data + secrets must come from the mounted volume / runtime env, not the image.
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.local
+.env.production
+
+# Dev-only / VCS / test noise.
+.git
+.github
+test-results
+playwright-report
+e2e
+*.log
+.DS_Store
