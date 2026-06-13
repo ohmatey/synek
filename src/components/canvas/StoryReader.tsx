@@ -3,6 +3,7 @@ import { X, ChevronLeft, ChevronRight, Play, RotateCcw, Volume2, VolumeX, Timer,
 import { cn } from '~/lib/utils'
 import type { GraphNode, StoryDTO } from '~/lib/domain/types'
 import { POV_LABEL } from '~/lib/domain/story-labels'
+import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { CopyButton } from '~/components/home/CopyButton'
 import { buildContinueStoryPrompt } from '~/lib/story-prompt'
 import { capture } from '~/lib/posthog/client'
@@ -325,31 +326,41 @@ export function StoryReader({
           </span>
         </div>
         <div className="sv-head-actions">
-          <button
-            type="button"
-            className="sv-ctrl"
-            onClick={() => onAutoPlayChange(!autoPlay)}
-            aria-pressed={autoPlay}
-            title={autoPlay ? 'Auto-play on — beats advance on their own' : 'Auto-play off — advance beats yourself'}
-            aria-label={autoPlay ? 'Turn auto-play off' : 'Turn auto-play on'}
-            data-testid="autoplay-toggle"
-          >
-            {autoPlay ? <Timer aria-hidden /> : <TimerOff aria-hidden />}
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="sv-ctrl"
+                onClick={() => onAutoPlayChange(!autoPlay)}
+                aria-pressed={autoPlay}
+                aria-label={autoPlay ? 'Turn auto-play off' : 'Turn auto-play on'}
+                data-testid="autoplay-toggle"
+              >
+                {autoPlay ? <Timer aria-hidden /> : <TimerOff aria-hidden />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {autoPlay ? 'Auto-play on — beats advance on their own' : 'Auto-play off — advance beats yourself'}
+            </TooltipContent>
+          </Tooltip>
           {speechSupported && (
-            <button
-              type="button"
-              className="sv-ctrl"
-              onClick={() => {
-                warmUpSpeech()
-                onSpeakChange(!speak)
-              }}
-              aria-pressed={speak}
-              title={speak ? 'Mute narration' : 'Read aloud'}
-              aria-label={speak ? 'Mute narration' : 'Read story aloud'}
-            >
-              {speak ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="sv-ctrl"
+                  onClick={() => {
+                    warmUpSpeech()
+                    onSpeakChange(!speak)
+                  }}
+                  aria-pressed={speak}
+                  aria-label={speak ? 'Mute narration' : 'Read story aloud'}
+                >
+                  {speak ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{speak ? 'Mute narration' : 'Read aloud'}</TooltipContent>
+            </Tooltip>
           )}
           <button type="button" className="sv-ctrl" onClick={onClose} aria-label="Close story">
             <X aria-hidden />

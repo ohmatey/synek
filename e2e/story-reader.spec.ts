@@ -31,6 +31,21 @@ test('a moment with a story shows a teaser and a Play action', async ({ page }) 
   await expect(panel.getByRole('button', { name: 'Play story' })).toBeVisible()
 })
 
+test('the auto-play and narration controls reveal hover tooltips', async ({ page }) => {
+  const panel = await openDarwinPanel(page)
+  await panel.getByRole('button', { name: 'Play story' }).click()
+  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+  await expect(reader).toBeVisible()
+
+  // Auto-play is on by default → hovering its control shows the descriptive tooltip.
+  await reader.getByTestId('autoplay-toggle').hover()
+  await expect(page.getByRole('tooltip', { name: /Auto-play on/ })).toBeVisible()
+
+  // Narration is off by default → its control's tooltip invites reading aloud.
+  await reader.getByRole('button', { name: 'Read story aloud' }).hover()
+  await expect(page.getByRole('tooltip', { name: 'Read aloud' })).toBeVisible()
+})
+
 test('Play opens the docked reader beside the panel and tapping through advances the beats', async ({ page }) => {
   const panel = await openDarwinPanel(page)
   await panel.getByRole('button', { name: 'Play story' }).click()
