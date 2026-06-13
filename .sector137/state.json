@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-12T16:30:00.000Z",
+  "updatedAt": "2026-06-12T21:15:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -434,10 +434,10 @@
     {
       "data": {
         "title": "Implement GLOBE G1 — data contract: lat/lng on NodeMetadata + apply_patch + layout report",
-        "description": "The globe lens data foundation (no UI). Refs: docs/product/prd/globe-lens.md (Technical design §1, §2).\n\n### Scope\n- Add `lat?: number`/`lng?: number` to `NodeMetadata` (schema.ts) + `GraphNode` DTO (domain/types.ts). JSON metadata column → NO migration.\n- DTO flow: add lat/lng to the hand-mapped serializer in server/graph.ts:49 AND the query_timeline/get_node rows (server.ts:305,348) so the MCP client can read back what it located.\n- MCP ops (mcp/ops.ts): add `lat` (z.number().min(-90).max(90).optional()) + `lng` (min(-180).max(180)) to add_node AND update_node opSchema branches with describe() hints; merge into metadata assembly (additive, pair-guarded).\n- warnings.ts: lone-coordinate (lat without lng or vice versa) + null-island (0,0) per-patch warnings via coordinateWarnings(ops) wired into collectPatchWarnings. NO ocean/landmass check (deferred — needs server TopoJSON).\n- layout-report.ts: new `coordinates` section { total, located, coveragePct, hasLocationNoCoords, sample[12] } after nodeIndex build.\n- node-verb-prompts.ts: buildGlobeBackfillPrompt (so the backfill loop works before the globe renders).\n\n### Done when\napply_patch accepts+validates lat/lng; get_layout_report returns coordinates section; Patch undo restores coords for free (metadata snapshot); typecheck + build green; no migration.",
+        "description": "The globe lens data foundation (no UI). Refs: docs/product/prd/globe-lens.md (Technical design §1, §2).\n\n### Scope\n- Add `lat?: number`/`lng?: number` to `NodeMetadata` (schema.ts) + `GraphNode` DTO (domain/types.ts). JSON metadata column → NO migration.\n- DTO flow: add lat/lng to the hand-mapped serializer in server/graph.ts:49 AND the query_timeline/get_node rows (server.ts:305,348) so the MCP client can read back what it located.\n- MCP ops (mcp/ops.ts): add `lat` (z.number().min(-90).max(90).optional()) + `lng` (min(-180).max(180)) to add_node AND update_node opSchema branches with describe() hints; merge into metadata assembly (additive, pair-guarded).\n- warnings.ts: lone-coordinate (lat without lng or vice versa) + null-island (0,0) per-patch warnings via coordinateWarnings(ops) wired into collectPatchWarnings. NO ocean/landmass check (deferred — needs server TopoJSON).\n- layout-report.ts: new `coordinates` section { total, located, coveragePct, hasLocationNoCoords, sample[12] } after nodeIndex build.\n- node-verb-prompts.ts: buildGlobeBackfillPrompt (so the backfill loop works before the globe renders).\n\n### Done when\napply_patch accepts+validates lat/lng; get_layout_report returns coordinates section; Patch undo restores coords for free (metadata snapshot); typecheck + build green; no migration.\n\n### Done 2026-06-12\nShipped: lat/lng on NodeMetadata + GraphNode DTO (no migration), serializer (graph.ts) + query_timeline/get_node coords, ops.ts zod (.min/.max, .nullable clear) + pair-guarded merge, warnings.ts coordinateWarnings (lone + null-island), layout-report coordinates section, buildGlobeBackfillPrompt. verify:globe (22 asserts) + typecheck + build green.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": []
       },
       "meta": {
@@ -452,10 +452,10 @@
     {
       "data": {
         "title": "Implement GLOBE G1a — seed coordinates (Stoicism + Space Race + Roman Republic)",
-        "description": "The seed has ZERO location strings and zero coordinates (grep -c 'location:' scripts/seed.ts → 0), so the lens is invisible/un-demoable out of the box. Add `location` + `lat`/`lng` to the geo-locatable seed nodes so the globe renders on a fresh install and success metrics have a baseline. Refs: globe-lens.md Technical design §0/§8. Depends on G1 type.\n\n### Session note 2026-06-12 (G1a pre-work)\nG1a was attempted and is VERIFIED BLOCKED on local-88 (G1): no `lat`/`lng` exists in NodeMetadata (schema.ts:40-52 has `location` only), the GraphNode DTO (domain/types.ts), or the serializer (server/graph.ts:49). No code changed. Stoicism coordinates are researched and ready (city-level, anchored on the place most associated with the work; birthplace goes in the display string only):\n\n- The Stoa Poikile — \"Athens, Greece\" — 37.98, 23.72\n- Zeno of Citium — \"Athens, Greece (b. Citium, Cyprus)\" — 37.98, 23.72\n- Cleanthes — \"Athens, Greece\" — 37.98, 23.72\n- Chrysippus — \"Athens, Greece (b. Soli, Cilicia)\" — 37.98, 23.72\n- Panaetius — \"Rhodes, Greece\" — 36.44, 28.22\n- Posidonius — \"Rhodes, Greece (b. Apamea, Syria)\" — 36.44, 28.22\n- Seneca the Younger — \"Rome, Italy (b. Córdoba, Hispania)\" — 41.89, 12.48\n- Epictetus — \"Nicopolis, Epirus (taught there after exile)\" — 39.02, 20.73\n- Marcus Aurelius — \"Rome, Italy\" — 41.89, 12.48\n- Event: Zeno founds the Stoa — \"Athens, Greece\" — 37.98, 23.72\n- Event: Stoicism reaches Rome — \"Rome, Italy\" — 41.89, 12.48\n\nThe Athens cluster (5 markers) is honest data and exercises overlapping-marker handling. Once G1 lands: edit the Stoicism block of scripts/seed.ts, `bun run db:seed stoicism`, read a node back to confirm coordinates survive the round-trip.",
+        "description": "The seed has ZERO location strings and zero coordinates (grep -c 'location:' scripts/seed.ts → 0), so the lens is invisible/un-demoable out of the box. Add `location` + `lat`/`lng` to the geo-locatable seed nodes so the globe renders on a fresh install and success metrics have a baseline. Refs: globe-lens.md Technical design §0/§8. Depends on G1 type.\n\n### Session note 2026-06-12 (G1a pre-work)\nG1a was attempted and is VERIFIED BLOCKED on local-88 (G1): no `lat`/`lng` exists in NodeMetadata (schema.ts:40-52 has `location` only), the GraphNode DTO (domain/types.ts), or the serializer (server/graph.ts:49). No code changed. Stoicism coordinates are researched and ready (city-level, anchored on the place most associated with the work; birthplace goes in the display string only):\n\n- The Stoa Poikile — \"Athens, Greece\" — 37.98, 23.72\n- Zeno of Citium — \"Athens, Greece (b. Citium, Cyprus)\" — 37.98, 23.72\n- Cleanthes — \"Athens, Greece\" — 37.98, 23.72\n- Chrysippus — \"Athens, Greece (b. Soli, Cilicia)\" — 37.98, 23.72\n- Panaetius — \"Rhodes, Greece\" — 36.44, 28.22\n- Posidonius — \"Rhodes, Greece (b. Apamea, Syria)\" — 36.44, 28.22\n- Seneca the Younger — \"Rome, Italy (b. Córdoba, Hispania)\" — 41.89, 12.48\n- Epictetus — \"Nicopolis, Epirus (taught there after exile)\" — 39.02, 20.73\n- Marcus Aurelius — \"Rome, Italy\" — 41.89, 12.48\n- Event: Zeno founds the Stoa — \"Athens, Greece\" — 37.98, 23.72\n- Event: Stoicism reaches Rome — \"Rome, Italy\" — 41.89, 12.48\n\nThe Athens cluster (5 markers) is honest data and exercises overlapping-marker handling. Once G1 lands: edit the Stoicism block of scripts/seed.ts, `bun run db:seed stoicism`, read a node back to confirm coordinates survive the round-trip.\n\n### Done 2026-06-12\nShipped: 29 location+lat/lng triples across Stoicism (19, 100%), Space Race (5/6, 83% — Cold War left global), Roman Republic (5, 100%) — all clear the >=5/>=30% gate; Stoic spread Cyprus→Anatolia→Greece→Córdoba→Rome→Danube matches the PRD hero narrative.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-88"
         ]
@@ -472,10 +472,10 @@
     {
       "data": {
         "title": "Implement GLOBE G2 — globe lens component (d3-geo orthographic, markers, theme)",
-        "description": "GlobeLens.tsx in src/components/canvas/, client-only behind <ClientOnly>, lazy-imported. d3-geo geoOrthographic + geoPath + geoGraticule10 + geoDistance (back-face marker culling); country mesh from world-atlas countries-110m.json via topojson-client. SVG (not canvas) — hit-testing + CSS-var theming for free at 100s of nodes. Markers inherit .canvas-root theme vars (--color-accent-primary, --color-accent-era). Static (non-playing) view first. Deps: d3-geo ^3.1.1, topojson-client ^3.1.0, world-atlas ^2.0.2 + @types. Do NOT add three/globe.gl/d3 umbrella/geocoder. Refs: globe-lens.md Technical design §5, §7. Depends on G1.",
+        "description": "GlobeLens.tsx in src/components/canvas/, client-only behind <ClientOnly>, lazy-imported. d3-geo geoOrthographic + geoPath + geoGraticule10 + geoDistance (back-face marker culling); country mesh from world-atlas countries-110m.json via topojson-client. SVG (not canvas) — hit-testing + CSS-var theming for free at 100s of nodes. Markers inherit .canvas-root theme vars (--color-accent-primary, --color-accent-era). Static (non-playing) view first. Deps: d3-geo ^3.1.1, topojson-client ^3.1.0, world-atlas ^2.0.2 + @types. Do NOT add three/globe.gl/d3 umbrella/geocoder. Refs: globe-lens.md Technical design §5, §7. Depends on G1.\n\n### Done 2026-06-12\nShipped: GlobeLens.tsx (lazy + client-only, 51.6kB gzip chunk), d3-geo orthographic + world-atlas 110m TopoJSON, themed SVG markers, geoDistance back-face culling (proven headlessly).",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-88"
         ]
@@ -492,10 +492,10 @@
     {
       "data": {
         "title": "Implement GLOBE G3 — playback: scrubber, play/pause, non-linear time, spans",
-        "description": "Time cursor = cursorInstant (epoch-ms). Reuse makeTimeScale(instants, pxPerDay, collapseGaps:true) from useTimelineScale.ts — playback advances LINEARLY IN X-SPACE; cursorInstant = scale.toInstant(x) → density-uniform sweep (no new bucketer; OQ6 dissolved). rAF loop, 3-speed toggle (1×/2×/4×), drag-scrub, prefers-reduced-motion → default paused. Events appear at startInstant and stay; spans glow active / dim (~30%) after endInstant. BCE + year-precision: integer instants, formatInstant for labels (already BCE-aware). Auto-center rotation on active node, override on manual drag, resume on play (OQ3). Refs: globe-lens.md §4. Depends on G2.",
+        "description": "Time cursor = cursorInstant (epoch-ms). Reuse makeTimeScale(instants, pxPerDay, collapseGaps:true) from useTimelineScale.ts — playback advances LINEARLY IN X-SPACE; cursorInstant = scale.toInstant(x) → density-uniform sweep (no new bucketer; OQ6 dissolved). rAF loop, 3-speed toggle (1×/2×/4×), drag-scrub, prefers-reduced-motion → default paused. Events appear at startInstant and stay; spans glow active / dim (~30%) after endInstant. BCE + year-precision: integer instants, formatInstant for labels (already BCE-aware). Auto-center rotation on active node, override on manual drag, resume on play (OQ3). Refs: globe-lens.md §4. Depends on G2.\n\n### Done 2026-06-12\nShipped: makeTimeScale x-space playback (non-linear via collapseGaps), rAF loop, 3-speed, drag-scrub with collapsed-range hatches, BCE-aware date label, event/span appear+glow+dim, auto-center rotation w/ manual-drag override.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-90"
         ]
@@ -512,10 +512,10 @@
     {
       "data": {
         "title": "Implement GLOBE G4 — coverage gate + top-center view switcher + backfill prompt",
-        "description": "ViewSwitcher: a top-center floatChip ToggleGroup (Timeline | Globe) in the .top-bar, absolute-centered (left-1/2 -translate-x-1/2), driving lensView state in TimelineCanvas. Render ONLY when ≥1 coordinated node; coverage state (N=5/30% gate) in the Globe item tooltip when below threshold; NOT rendered at zero coords (top bar identical to today). Shows for public viewers (read-only nav). Coverage computed client-side from in-memory graph. Backfill: zero-coords → ⌘K 'Set up globe view' PromptSpec (globeBackfillSpec via buildGlobeBackfillPrompt) + NodeDetailPanel location-row affordance; below-threshold → coverage banner in the globe with copyable backfill prompt (PromptDialog). 'Switch to globe' (≥1 coord) is a plain CommandPalette NAV action, NOT a verbs.ts entry. Refs: globe-lens.md §Entry/exit, §Coverage gate, Technical design §3. Depends on G2, G3.",
+        "description": "ViewSwitcher: a top-center floatChip ToggleGroup (Timeline | Globe) in the .top-bar, absolute-centered (left-1/2 -translate-x-1/2), driving lensView state in TimelineCanvas. Render ONLY when ≥1 coordinated node; coverage state (N=5/30% gate) in the Globe item tooltip when below threshold; NOT rendered at zero coords (top bar identical to today). Shows for public viewers (read-only nav). Coverage computed client-side from in-memory graph. Backfill: zero-coords → ⌘K 'Set up globe view' PromptSpec (globeBackfillSpec via buildGlobeBackfillPrompt) + NodeDetailPanel location-row affordance; below-threshold → coverage banner in the globe with copyable backfill prompt (PromptDialog). 'Switch to globe' (≥1 coord) is a plain CommandPalette NAV action, NOT a verbs.ts entry. Refs: globe-lens.md §Entry/exit, §Coverage gate, Technical design §3. Depends on G2, G3.\n\n### Done 2026-06-12\nShipped: top-center ViewSwitcher (ToggleGroup, gated on coverage.hasAny, coverage tooltip below gate), ⌘K Switch-to-globe / Set-up-globe actions, backfill PromptDialog, NodeDetailPanel Add-to-globe row. Escape-to-exit added in review.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-90",
           "local-91"
@@ -533,10 +533,10 @@
     {
       "data": {
         "title": "Implement GLOBE G5 — click marker → NodeDetailPanel in its dock",
-        "description": "Marker onClick sets selectedId (existing TimelineCanvas state) → the existing NodeDetailPanel opens in its usual right dock, edit mode unchanged. Closing the panel does NOT change lensView (stays in globe). Globe reads --detail-panel-w to inset its right edge so it never sits under the dock. Refs: globe-lens.md §Exit, Technical design §3. Depends on G2, G3.",
+        "description": "Marker onClick sets selectedId (existing TimelineCanvas state) → the existing NodeDetailPanel opens in its usual right dock, edit mode unchanged. Closing the panel does NOT change lensView (stays in globe). Globe reads --detail-panel-w to inset its right edge so it never sits under the dock. Refs: globe-lens.md §Exit, Technical design §3. Depends on G2, G3.\n\n### Done 2026-06-12\nShipped: marker click → setSelectedId → existing NodeDetailPanel in its dock; globe insets right by --detail-panel-w; panel close keeps the globe.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-90",
           "local-91"
@@ -554,10 +554,10 @@
     {
       "data": {
         "title": "Implement GLOBE G6 — SSE hot-update verification in the globe lens",
-        "description": "Thin verification (near-zero build per Technical design §6): GlobeLens consumes the SAME ['graph', timelineId] query result the canvas does (passed as a prop, not its own fetch), so a live apply_patch refetch re-renders markers with no globe-specific code. The one rule: playback state (cursorInstant, playing, userRotated, rAF) lives in GlobeLens local state and must SURVIVE a nodes prop change — no remount, clamp cursor into the new extent if it grows. Verify a coordinate-adding patch lights a new marker mid-session without resetting playback. Refs: globe-lens.md §SSE. Depends on G2, G4, G5.",
+        "description": "Thin verification (near-zero build per Technical design §6): GlobeLens consumes the SAME ['graph', timelineId] query result the canvas does (passed as a prop, not its own fetch), so a live apply_patch refetch re-renders markers with no globe-specific code. The one rule: playback state (cursorInstant, playing, userRotated, rAF) lives in GlobeLens local state and must SURVIVE a nodes prop change — no remount, clamp cursor into the new extent if it grows. Verify a coordinate-adding patch lights a new marker mid-session without resetting playback. Refs: globe-lens.md §SSE. Depends on G2, G4, G5.\n\n### Done 2026-06-12\nVerified by construction + adversarial review: GlobeLens consumes the shared [graph,id] query (unkeyed), playback state local, cursor-clamp on extent shrink — live patches re-render markers with no remount. (Live in-browser confirm owed via local-62, per the preview-hydration limit.)",
         "horizon": "next",
         "type": "chore",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-90",
           "local-92",
@@ -576,10 +576,10 @@
     {
       "data": {
         "title": "Implement GLOBE G7 — PostHog analytics (6 client events)",
-        "description": "Wire 6 client events via posthog/client.ts capture seam: globe_lens_opened {timeline_id,node_count,coordinated_count,coverage_pct}, globe_playback_started {timeline_id,speed}, globe_scrubbed {timeline_id}, globe_marker_clicked {timeline_id,node_id,node_type}, globe_lens_closed {timeline_id,session_duration_ms,played}, globe_backfill_prompt_copied {timeline_id,uncoordinated_count}. Coordinate-adoption is the existing mcp_tool_called(apply_patch) with lat/lng — no new server event. Refs: globe-lens.md §Analytics. Depends on G4, G5.",
+        "description": "Wire 6 client events via posthog/client.ts capture seam: globe_lens_opened {timeline_id,node_count,coordinated_count,coverage_pct}, globe_playback_started {timeline_id,speed}, globe_scrubbed {timeline_id}, globe_marker_clicked {timeline_id,node_id,node_type}, globe_lens_closed {timeline_id,session_duration_ms,played}, globe_backfill_prompt_copied {timeline_id,uncoordinated_count}. Coordinate-adoption is the existing mcp_tool_called(apply_patch) with lat/lng — no new server event. Refs: globe-lens.md §Analytics. Depends on G4, G5.\n\n### Done 2026-06-12\nShipped: 6 client events (globe_lens_opened/playback_started/scrubbed/marker_clicked/lens_closed + globe_backfill_prompt_copied via the PromptSpec copy seam); props match the PRD §Analytics table.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-92",
           "local-93"
@@ -629,6 +629,203 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-97",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Self-host Docker image — single-user, SQLite-on-a-volume",
+        "description": "A portable container that runs the existing local-first Core on any box (VPS or cloud) with NO Postgres swap — distinct from local-18 (NEXT.4 Postgres + Compose), which stays the later scale-up. Founder chose the SQLite-on-volume path 2026-06-12 ('just give me the Dockerfile').\n\n### Built this session (working tree, build-verified)\n- `Dockerfile` — multi-stage `node:22-bookworm-slim` (NOT Bun: better-sqlite3 needs the Node ABI). Build stage: python3/make/g++ + `npm install` + `npm run build`. Runtime stage: no compilers, carries dist/ + drizzle/ + node_modules (incl. the compiled .node + tsx). `CMD npm start`, HEALTHCHECK on `/`, `VOLUME /data`.\n- `.dockerignore` — excludes node_modules/dist/*.db/.env so host data + secrets never bake into the image.\n- `package.json` `start` script (`tsx scripts/serve-build.ts`) — promotes the e2e prod server to the real entry; `docker:build`.\n- Migration-on-boot fix (src/lib/db/index.ts): the old `migrate(...)` used a source-relative `../../../drizzle` that does NOT resolve in the bundled `dist/server/server.js`, wrapped in a SILENT catch — i.e. a fresh prod DB could boot un-migrated and serve an empty schema. Now keys on `SYNEK_MIGRATIONS_DIR` (set to /app/drizzle in the image) → repo-relative → <cwd>/drizzle, validated against `meta/_journal.json`, and FAILS LOUD in production instead of swallowing.\n\n### Done when\n`docker build` green (verifying this session); `docker run -v synek-data:/data -e BETTER_AUTH_SECRET -e BETTER_AUTH_URL` boots, applies migrations to the mounted volume, serves the canvas + `/api/mcp` on the mapped port, and data survives a container recreate. Single writer only — one container, no concurrent stdio server, no horizontal scale.\n\n### Constraint\nManual node-image uploads are stored INLINE as base64 data URLs in node JSON (src/lib/files.ts), so no object storage is needed — but the SQLite file grows with media; factor into the volume size + backups (local-103).",
+        "horizon": "now",
+        "type": "feature",
+        "status": "in_progress",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-99",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Production secrets + public origin config (deploy-time)",
+        "description": "Required before ANY exposed instance. Currently BETTER_AUTH_SECRET falls back to a hardcoded dev string ('synek-local-dev-secret-change-me-0000000000', src/lib/auth/index.ts:24) — anyone who knows it can forge sessions. And BETTER_AUTH_URL defaults to http://localhost:3001; BASE_URL derives the auth cookie domain, the OAuth redirect, AND the MCP resource id (MCP_RESOURCE = `${BASE_URL}/api/mcp`), so a wrong value breaks the Claude-client connect flow.\n\n### Tasks\n- Generate + inject BETTER_AUTH_SECRET (`openssl rand -base64 32`) as a real runtime env / secret (never baked into the image).\n- Set BETTER_AUTH_URL to the real public HTTPS origin; confirm the plugin's `.mcp.json` endpoint matches MCP_RESOURCE.\n- Document the required runtime env set (DATABASE_URL=/data/..., BETTER_AUTH_SECRET, BETTER_AUTH_URL, PORT, optional POSTHOG_*).\n\n### Done when\nA fresh deploy with the production env signs in, mints a key, and connects an MCP client end-to-end over the public origin.",
+        "horizon": "next",
+        "type": "chore",
+        "status": "open",
+        "dependencies": [
+          "local-99"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-100",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "TLS termination + reverse proxy in front of the container",
+        "description": "OAuth (the mcp plugin's browser Authorize flow) and Better Auth's secure session cookies require HTTPS. The container serves plain HTTP on $PORT; put TLS in front.\n\n### Options (host chosen later — founder picked 'just the Dockerfile' for now)\n- VPS self-host: Caddy (automatic Let's Encrypt) or Traefik reverse-proxying to the container; cheapest, you own the cert.\n- Managed: a platform that terminates TLS (Fly.io / Render) — then BETTER_AUTH_URL is the platform https URL.\n\n### Done when\nThe public origin is HTTPS, the OAuth Authorize round-trip completes, and cookies are issued Secure.",
+        "horizon": "next",
+        "type": "chore",
+        "status": "open",
+        "dependencies": [
+          "local-99"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-101",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Harden open registration (rate-limit auth + abuse ceiling)",
+        "description": "SCOPE-GUARDRAIL MITIGATION. Founder chose 2026-06-12 to LEAVE SIGNUP OPEN on the publicly-hosted instance (against the CLAUDE.md local-first/no-multi-tenant guardrail, which lists teams/multi-tenant as deferred). Data stays isolated — every write RPC checks ownerId (server/patches.ts, server/nodes.ts) and reads go through canView=public-OR-owner — so a second account can't see the founder's timelines. The exposure is OPEN COMPUTE: anyone who finds the URL can self-register (signUp.email is wired in home/AuthForms.tsx) and use the server.\n\n### Tasks\n- Enable Better Auth rate limiting on the auth endpoints (sign-up / sign-in) to blunt automated abuse.\n- Decide + implement a registration ceiling: email verification, an invite/allowlist, or a hard account cap — so open != unbounded.\n- Optional: a per-account usage ceiling (timeline/node count or apply_patch rate) so one account can't exhaust the box.\n\n### Note\nIf the founder reverts to single-user, flipping signup to invite-only is a one-file change in auth/index.ts (emailAndPassword/disable open registration) — this issue then narrows to just rate-limiting.\n\n### Done when\nAutomated signup floods are throttled and there is a defined cap on who/how-many can register.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-99"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-102",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Backups for the SQLite volume (Litestream)",
+        "description": "The whole product state is one SQLite file on the mounted volume. A lost/corrupted volume = total data loss. Litestream streams the WAL to object storage (S3/B2/R2) for point-in-time durability and pairs cleanly with the single-instance, single-writer model.\n\n### Tasks\n- Run Litestream as a sidecar (or in the container entrypoint) replicating $DATABASE_URL to a bucket.\n- Write a restore runbook (litestream restore on a fresh volume) and test it.\n- Set a retention policy; size the volume for inline base64 image growth (see local-99 constraint).\n\n### Done when\nA simulated volume loss is recovered from object storage with no more than the configured RPO of data lost.",
+        "horizon": "next",
+        "type": "chore",
+        "status": "open",
+        "dependencies": [
+          "local-99"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-103",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Globe: multi-site pins for diffuse nodes",
+        "description": "Follow-on to the placeless semantics shipped 2026-06-12 (geoScope: global|diffuse|unknown on NodeMetadata — mutually exclusive with lat/lng; three-bucket coverage in get_layout_report + globe-coverage.ts; placeless caption channel in GlobeLens; place-it-or-mark-it backfill prompt).\n\nA geoScope:\"diffuse\" node (e.g. \"The Axial Age\" — Greece · India · China · Judea; \"The Gospels are written\" — four contested cities) is currently narrated as a caption only. The most truthful AND most cinematic render is several linked pins lighting up simultaneously.\n\n### Tasks\n- Add optional sites: [{ lat, lng, label? }] to NodeMetadata, valid only alongside geoScope:\"diffuse\" (apply_patch zod + ops merge + warnings for misuse).\n- GlobeLens renders a diffuse node as its set of linked markers (shared halo/accent, one click target -> NodeDetailPanel), appearing together at startInstant.\n- Coverage semantics: a diffuse node WITH sites counts as located (it plots); without sites it stays placeless.\n- Backfill prompt: offer sites as the richer alternative to a bare diffuse verdict.\n\n### Done when\nA diffuse node with sites plots all its pins during play-through and the layout report counts it as located.",
+        "horizon": "later",
+        "type": "feature",
+        "status": "open",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-104",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE-S GS2 — zoom the globe (wheel + pinch + controls + ⌘K) with a shared rAF ease",
+        "description": "Globe Story Mode primitive #1. The globe has NO zoom today — projection scale is fixed at `(Math.min(viewW, size.h)/2) * 0.92` (GlobeLens.tsx:255). Add a clamped zoom and a reusable camera ease that GS1 (story-driven globe) leans on. Refs: docs/product/prd/globe-stories.md §GS2.\n\n### Scope\n- Add `zoom` state (multiplier, default 1) to GlobeLens; projection scale becomes `… * 0.92 * zoom`. Clamp `zoom ∈ [1, ~6]` (1 = whole sphere fits; upper bound a UX call).\n- Wheel: `onWheel` on the globe SVG, preventDefault, `zoom *= exp(-deltaY*k)`, clamp. Trackpad pinch arrives as wheel+ctrlKey — same handler, larger k. (No touch/two-finger — desktop-targeted per the guardrail.)\n- Controls: a +/− zoom control group (bottom-left, mirroring React Flow's Controls) + ⌘K NAV actions 'Globe: zoom in / out / reset'.\n- Factor the rotation-ease lerp currently living INSIDE the play rAF loop (GlobeLens.tsx:170–177) into an always-available rAF ease that runs whenever there's a pending rotation OR zoom target — so button/⌘K zooms glide AND a beat step (GS1) can animate the camera with playback paused. Raw wheel can apply immediately (no ease).\n- A manual zoom (like a manual drag, GlobeLens.tsx:232) sets `userRotatedRef` (the 'user took over' flag) so an in-progress story-follow doesn't yank the camera mid-gesture.\n- Optional: `globe_zoomed { timeline_id, via }` analytics via the existing capture seam (low priority).\n\n### Done when\nWheel + trackpad-pinch zoom the globe within clamp; +/− control and ⌘K zoom in/out/reset work; zoom + drag both glide via the shared ease and both suspend story-follow; typecheck + build green; verify:globe + globe e2e unregressed; drag-rotate + click→panel unchanged.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-90"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-106",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE-S GS1 — story-driven globe: beats rotate + zoom + skip the cursor (the headline)",
+        "description": "Wire the docked story reader's per-beat focus into the globe so playing a story flies the globe to where each beat happened and SKIPS the time cursor to when. The reader already renders over the globe (TimelineCanvas.tsx:1207) but its activeBeat/beatFocusId only drive the React-Flow StoryCamera (TimelineCanvas.tsx:1114) — the globe runs an independent clock and ignores the story. Refs: docs/product/prd/globe-stories.md §GS1.\n\n### Scope\n- New additive optional GlobeLens props: `storyFocus?: { id, lat, lng, instant } | null` (the current beat's focus node + its instant) and `storyMode?: boolean` (a reader is open over the globe).\n- In TimelineCanvas, derive both from the EXISTING state: `focusNode` (the resolved beat-focus GraphNode, TimelineCanvas.tsx:500) when it carries lat/lng (fall back to the moment node, then null) → storyFocus; `reading` → storyMode. Pass into the GlobeLens render branch (TimelineCanvas.tsx:1150–1169).\n- In GlobeLens, on a `storyFocus?.id` change (effect): set rotation target to [storyFocus.lng, storyFocus.lat] and zoom target to a story-zoom constant (~1.8×); ease both via the GS2 shared ease (runs with playback paused). SKIP the cursor: setCursorInstant(storyFocus.instant) + xRef.current = scale.toX(instant) → the scrubber thumb (bound to scale.toX(cursorInstant), GlobeLens.tsx:321–323) jumps to the beat. Markers appear/halo off cursorInstant already (GlobeLens.tsx:277–289), so the right things light up for free.\n- On story end, ease back out to frame the story's focus set (fit-all).\n- While storyMode: suppress the globe's own togglePlay autoplay (the reader's Play is the transport); the scrubber stays a progress readout; manual scrub still works (detaches, like userRotated).\n- Reduced-motion: SNAP rotation/zoom/cursor to the beat target (no animated spin) — consistent with the reader's reduced-motion mode + the global reset.\n- Off-map beat (OQ-S1, resolved: hold camera, still skip time — no fly-to-null).\n- State that must survive a beat step / nodes prop change: cursorInstant/playing/userRotated/rAF stay local (GLOBE v1 §6 rule).\n\n### Done when\nWith the globe open + a story playing, each beat eases rotation+zoom to the beat's focus coords and the scrubber thumb JUMPS to that beat's instant; story end eases back to frame the cast; an off-map beat holds the camera but still advances the cursor; reduced-motion snaps; no schema/MCP change; typecheck + build green; verify:globe + globe e2e unregressed.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-106"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-107",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE-S GS3 — floating entity cards above markers (decluttered)",
+        "description": "Show 'what they are' on the globe: a compact card (type glyph + title, theme-accented) above markers, replacing the lone selected-marker `<text>` label (GlobeLens.tsx:368–372). The hard part is clutter — never label every marker at once. Refs: docs/product/prd/globe-stories.md §GS3.\n\n### Scope\n- Replace the single `selected && <text>` label with a `<GlobeLabels>` layer. Extend each entry in the `markers` memo (GlobeLens.tsx:268–294) with a `labelPriority`.\n- Always-on labels: selected, active-span, and the current story-beat focus (GS1) — few + meaningful.\n- Hover/keyboard-focus: any marker shows its full card (`hoveredId` local state; pointer-enter/leave on the marker `<g>`).\n- Zoom-gated reveal: as GS2 zoom increases, show more cards via a greedy screen-space de-overlap (show a label only if no higher-priority shown label sits within N px). Priority: selected > active > story-focus > larger `size` > earlier.\n- Back-hemisphere markers (already culled, GlobeLens.tsx:278) and not-yet-appeared markers (GlobeLens.tsx:277) get no card.\n- Card render: prefer `<foreignObject>` (real DOM → CSS theming, the type glyph as an icon, ellipsis) with a plain SVG `<rect>`+`<text>` fallback for Safari quirks (Wren/Kael to pick). Type glyph reuses the canvas node icon mapping (person/org/place/work/event/period) so the language matches.\n\n### Done when\nMarkers show floating type+title cards — always for selected/active/story-focus, on hover for any, zoom-gated for the rest with NO visible overlap on a dense (~50-node) globe; back-face + not-yet-appeared markers show none; typecheck + build green; verify:globe + globe e2e unregressed.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-106",
+          "local-107"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-108",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement GLOBE-S GS4 — era band above the globe scrubber",
+        "description": "Show era time periods on the timeline: a labeled, tinted ribbon above the globe's scrubber, segmented by the timeline's era spans, with the current era highlighted as the cursor/story moves. Founder confirmed 2026-06-12: 'era is period' → the band is sourced from `type === 'period'` span nodes (resolves OQ-S4). Refs: docs/product/prd/globe-stories.md §GS4.\n\n### Scope\n- Source: filter gnodes to `type === 'period'` spans (each has startInstant + endInstant).\n- Layout: a band ABOVE the existing scrubber (GlobeLens.tsx:386–396), in the SAME x-space: `left = scale.toX(start)/maxX`, `width = (scale.toX(end)-scale.toX(start))/maxX` — identical math to the collapsedRanges hatch marks (GlobeLens.tsx:387–393), so gap collapse is honored for free. Greedy row-assignment for overlaps, ≤2 rows (more → '+n').\n- Active era: highlight segments where start ≤ cursorInstant ≤ end.\n- Color: tint segments with `--color-accent-era` (the era token decoupled from influence purple — see the canvas node design-language); labels truncate, full name on hover/title.\n- Optional secondary: a globe corner-chip naming the current era ('Now: Hellenistic period, 323–31 BCE').\n- v1 scopes the band to the GLOBE SCRUBBER only; the same band over the canvas TimeRuler (TimelineCanvas.tsx:1117) is a deferred fast-follow.\n\n### Done when\nAn era band sits above the scrubber: period spans laid out in the scrubber's x-space (gap collapse honored), labeled + accent-era-tinted, the current era highlighted as the cursor/story moves; typecheck + build green; verify:globe + globe e2e unregressed.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-90"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-109",
         "dirty": true,
         "etag": null,
         "syncedAt": null
@@ -800,6 +997,48 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-98",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Self-host / cloud prep — Dockerfile built + prep issues staged (offline) — 2026-06-12",
+        "body": "Founder asked what's needed to self-host + cloud-host Synek. Surfaced the scope-guardrail tension first: deploying the EXISTING single-user Core to a remote box adds no product surface and does NOT trip the guardrail; becoming multi-tenant SaaS (open signup, teams, billing) DOES. Founder made two explicit calls: (a) LEAVE SIGNUP OPEN on the public instance (knowingly against the guardrail — registered as dissent, mitigated by local-102), and (b) 'just give me the Dockerfile' = SQLite-on-a-volume image now, host chosen later (distinct from local-18's Postgres path, which stays the scale-up).\n\n### Built this session (working tree)\nDockerfile (multi-stage node:22, NOT Bun — better-sqlite3 Node ABI), .dockerignore, package.json `start`/`docker:build` scripts, and a migration-on-boot fix in src/lib/db/index.ts (the bundled `dist/server/server.js` couldn't resolve the source-relative `../../../drizzle` and the failure was silently caught → risk of booting an un-migrated prod DB; now keyed on SYNEK_MIGRATIONS_DIR + journal check + fails LOUD in production). typecheck + `vite build` green. DOCKER VERIFIED this session (OrbStack): image builds (662MB), container boots in ~5s serving HTTP / -> 200, POST /api/mcp -> 401 (guard wired), all 18 migrations applied to the mounted volume with full schema, 0 boot errors, and a probe row + sentinel file SURVIVED a container destroy+recreate on the same volume (redeploy-safe). Test container/volume/image torn down after.\n\n### Staged issues\nlocal-99 (image, in_progress — artifacts built), local-100 (prod secrets + public origin — the hardcoded BETTER_AUTH_SECRET fallback is a forge-anyone hole), local-101 (TLS/reverse proxy), local-102 (harden open registration — rate-limit + cap, the open-signup mitigation), local-103 (Litestream backups for the SQLite volume). All depend on local-99. Routing: platform work → Rook; the migration-bundling fix was the Kael-flavoured landmine, already handled.\n\n### Notes\nManual node images are stored inline as base64 data URLs (src/lib/files.ts) → no object storage needed, but the SQLite file grows with media (volume sizing + backups). Pre-existing duplicate localId local-77 still flagged for sync-time dedup. Reconcile with mcp__sector137__sync_state when the MCP returns."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-104",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "GLOBE lens shipped (build-verified) — 2026-06-12",
+        "body": "Built the globe lens (G1–G7 + G1a, local-88..95, all completed) from docs/product/prd/globe-lens.md. Watch-history-on-a-map: orthographic d3-geo globe, play-through with non-linear (collapseGaps) time, coverage-gated top-center ViewSwitcher. lat/lng are additive NodeMetadata (no migration); MCP-client-supplied (no geocoding); get_layout_report gained a coordinates section + buildGlobeBackfillPrompt for the backfill loop. Verified: typecheck + build (GlobeLens 51.6kB gzip lazy chunk) + verify:globe (22 asserts) + e2e 32/32. Adversarial review (6 lenses) found + FIXED: back-face marker cull was dead code (clipAngle only clips geoPath stream, not scalar projection — now geoDistance>π/2, proven headlessly; the review’s suggested center sign was backwards), Escape-to-exit was missing, scrubber thumb on degenerate ≤1px extent, and a setState-updater analytics capture. Also fixed a PRE-EXISTING flaky home.spec (unscoped \"New timeline\" locator hit the empty-state CTA under load — scoped to .first()). OWED: the live in-browser prod pass (preview cannot hydrate the TanStack Start dev server — folds into local-62). [[strata-timeline-themes]] [[strata-mcp-texture-and-query-tools]]"
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-105",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Globe Story Mode PRD + 4 issues staged (offline) — 2026-06-12",
+        "body": "Founder asked for a spec to tell stories IN the globe view (timeline skips along) + 4 extras. Wrote docs/product/prd/globe-stories.md (GLOBE-S) and staged local-106..109. KEY PUSHBACK: 2 of the 5 asks were ALREADY SHIPPED in GLOBE v1 and were NOT re-issued — mouse drag-rotation (onGlobePointerDown, GlobeLens.tsx:232) and click-marker→same NodeDetailPanel (onMarkerClick→setSelectedId, GlobeLens.tsx:296 / TimelineCanvas.tsx:1159). Net-new: GS2 zoom (local-106; no projection.scale() state today — fixed *0.92), GS1 story-driven globe (local-107, the headline — the reader already renders over the globe at TimelineCanvas.tsx:1207 but beatFocusId only drives the React-Flow StoryCamera at :1114, never the globe's independent clock; fix = storyFocus/storyMode props that ease rotation+zoom to the beat's coords AND skip cursorInstant → scrubber jumps), GS3 floating entity cards (local-108, decluttered — today only the selected marker has a label, GlobeLens.tsx:368), GS4 era band above the scrubber (local-109). Founder confirmed 'era is period' → GS4 sources type==='period' spans (resolves PRD OQ-S4). Sequencing: GS2→GS1→GS3, GS4 parallel. Dep chain: GS2/GS4 on local-90 (shipped globe component); GS1 on GS2; GS3 on GS2+GS1. ID note: local-105 was taken by the globe-lens wrap NOTE, so issues start at local-106; pre-existing duplicate local-77 + local-104(issue/note) still flagged for sync-time dedup. Release v0.1.0 (local-70) still draft — these are NEXT, not scoped into it. Reconcile with mcp__sector137__sync_state when the MCP returns. [[strata-globe-lens]] [[strata-globe-story-mode]]"
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-110",
         "dirty": true,
         "etag": null,
         "syncedAt": null
