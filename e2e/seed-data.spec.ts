@@ -16,6 +16,7 @@ type Expected = {
   orgs: number // org entities → .sf-entity-org (each with a .sf-logo)
   persons: number // person entities → .sf-person (each with a portrait)
   cites: number // nodes carrying a citation badge → .sf-cite
+  images: number // nodes carrying a seed image → img[commons] (≤ nodeCount; some events are imageless)
   sample: string[] // representative node titles that must be visible
 }
 
@@ -23,28 +24,30 @@ const TIMELINES: Expected[] = [
   {
     id: 'observability',
     title: 'Observability tooling',
-    nodeCount: 9,
-    edgeCount: 4,
+    nodeCount: 10,
+    edgeCount: 5,
     periodEdges: 1,
     periods: 1,
-    events: 6,
+    events: 7,
     orgs: 2,
     persons: 0,
-    cites: 1,
-    sample: ['Cloud-native era', 'New Relic', 'Datadog', 'Prometheus released', 'Loki launched', 'Tempo launched', 'Cortex 1.0'],
+    cites: 2,
+    images: 10,
+    sample: ['Cloud-native era', 'Google publishes Dapper', 'New Relic', 'Datadog', 'Prometheus released', 'Loki launched', 'Cortex 1.0'],
   },
   {
     id: 'deep-learning',
     title: 'The rise of deep learning',
-    nodeCount: 8,
-    edgeCount: 6,
+    nodeCount: 10,
+    edgeCount: 7,
     periodEdges: 1,
     periods: 2,
-    events: 6,
-    orgs: 0,
+    events: 7,
+    orgs: 1,
     persons: 0,
     cites: 2,
-    sample: ['Second AI winter', 'Foundation-model era', 'AlexNet wins ImageNet', 'Attention Is All You Need', 'GPT released', 'BERT released'],
+    images: 9, // every node but AlphaGo carries a seed image
+    sample: ['Second AI winter', 'Foundation-model era', 'AlexNet wins ImageNet', 'DeepMind founded', 'AlphaGo defeats Lee Sedol', 'Attention Is All You Need'],
   },
   {
     id: 'space-race',
@@ -57,20 +60,22 @@ const TIMELINES: Expected[] = [
     orgs: 1,
     persons: 0,
     cites: 1,
+    images: 6,
     sample: ['Cold War', 'Apollo program', 'Sputnik 1', 'Gagarin orbits Earth', 'Apollo 11 Moon landing', 'NASA'],
   },
   {
     id: 'roman-republic',
     title: 'Fall of the Roman Republic',
-    nodeCount: 5,
-    edgeCount: 4,
+    nodeCount: 8,
+    edgeCount: 8,
     periodEdges: 1,
     periods: 1,
-    events: 3,
+    events: 6,
     orgs: 0,
     persons: 1,
     cites: 0,
-    sample: ['Roman Republic', 'Julius Caesar', 'Caesar crosses the Rubicon', 'Assassination of Caesar', 'Augustus becomes emperor'],
+    images: 5, // Alesia / Pharsalus / Alexandria are imageless event pills
+    sample: ['Roman Republic', 'Julius Caesar', 'Siege of Alesia', 'Battle of Pharsalus', 'Caesar in Alexandria', 'Assassination of Caesar'],
   },
   {
     id: 'figures',
@@ -83,6 +88,7 @@ const TIMELINES: Expected[] = [
     orgs: 0,
     persons: 6,
     cites: 0,
+    images: 6,
     sample: ['Leonardo da Vinci', 'Isaac Newton', 'Charles Darwin', 'Ada Lovelace', 'Marie Curie', 'Albert Einstein'],
   },
 ]
@@ -112,9 +118,10 @@ for (const tl of TIMELINES) {
     await expect(page.locator('.sf-logo')).toHaveCount(tl.orgs)
     await expect(page.locator('.sf-person-portrait')).toHaveCount(tl.persons)
 
-    // Every node carries exactly one seed image, all resolving to a Wikimedia
-    // Commons URL (the seed renders remote — see scripts/seed-images.ts).
-    await expect(page.locator('img[src*="commons.wikimedia.org"]')).toHaveCount(tl.nodeCount)
+    // Each imaged node carries one seed image, all resolving to a Wikimedia Commons
+    // URL (the seed renders remote — see scripts/seed-images.ts). Some event nodes
+    // are deliberately imageless (e.g. battles), so this tracks `images`, not nodeCount.
+    await expect(page.locator('img[src*="commons.wikimedia.org"]')).toHaveCount(tl.images)
 
     // Representative nodes are visible.
     for (const title of tl.sample) {

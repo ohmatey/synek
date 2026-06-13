@@ -99,6 +99,8 @@ export function CanvasSettings({
   onAutoRefresh,
   speak,
   onSpeak,
+  autoPlay,
+  onAutoPlay,
   kindCounts,
   hiddenKinds,
   onToggleKind,
@@ -119,6 +121,8 @@ export function CanvasSettings({
   onAutoRefresh: (next: boolean) => void
   speak: boolean
   onSpeak: (next: boolean) => void
+  autoPlay: boolean
+  onAutoPlay: (next: boolean) => void
   kindCounts: Map<string, number>
   hiddenKinds: Set<string>
   onToggleKind: (token: string) => void
@@ -177,7 +181,7 @@ export function CanvasSettings({
     setSaving(true)
     try {
       await setTimelineView({ data: { id: timelineId, view: { pxPerDay, collapseGaps } } })
-      saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh, speak, chosen: true })
+      saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh, speak, autoPlay, chosen: true })
       toast.success('Saved as this timeline’s default scale')
     } catch {
       toast.error('Couldn’t save the default')
@@ -351,8 +355,8 @@ export function CanvasSettings({
             </div>
           )}
 
-          {/* Toggles — live updates + (when supported) narration. Both are plain
-              switch rows; the narration config only appears once it's enabled. */}
+          {/* Toggles — live updates + story auto-play + (when supported) narration.
+              Plain switch rows; the narration config only appears once it's enabled. */}
           <div className="flex flex-col">
             <label className="flex cursor-pointer items-center justify-between gap-3 py-1.5 text-sm">
               <span
@@ -366,6 +370,21 @@ export function CanvasSettings({
                 onCheckedChange={onAutoRefresh}
                 data-testid="auto-refresh-toggle"
                 aria-label="Live updates"
+              />
+            </label>
+
+            <label className="flex cursor-pointer items-center justify-between gap-3 py-1.5 text-sm">
+              <span
+                className="flex-1"
+                title="Story beats advance on their own (Reels-style); off makes the reader fully manual"
+              >
+                Auto-play stories
+              </span>
+              <Switch
+                checked={autoPlay}
+                onCheckedChange={onAutoPlay}
+                data-testid="autoplay-stories-toggle"
+                aria-label="Auto-play stories"
               />
             </label>
 

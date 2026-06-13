@@ -34,6 +34,8 @@ First read the `building-timelines` skill — it has the exact op shapes, the cl
    ```
    (Use the user's configured host/port if non-default.) Then offer a next step — expand a specific era, add more people, or correct anything that looks off (you can `undo` or `apply_patch` edits).
 
+6. **If the topic is ongoing, offer to keep it alive.** When the timeline is a *live* subject — a competitive landscape, model/product releases, funding/acquisitions, an active research field — it will keep moving after you build it. Offer a **keeper routine**: *"This one will keep moving — want me to set up a routine so it stays current?"* and hand off to **`/synek:watch <title>`** (the `watch` skill). Skip this for finished history (Stoicism, the Roman Republic).
+
 ## Quality bar
 
 A row of bare-titled gray boxes is a failure even if every op succeeded. Every entity has a subtype and a summary; dates are real and honestly imprecise; edges are few and meaningful; sources are cited. Make it something the user wants to screenshot.

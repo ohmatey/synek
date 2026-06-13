@@ -27,6 +27,7 @@ import {
   RELIABILITY,
   STORY_ARTIFACT_REL,
   type CitationSourceType,
+  type GeoScope,
   type NodeImage,
   type NodeSize,
   type NodeSubtype,
@@ -49,6 +50,17 @@ export type NodeMetadata = {
   // Where this happened — a plain display string ("Golgotha, Jerusalem").
   // Display-only; no geocoding (a map lens can interpret it later).
   location?: string
+  // Optional geo coordinates for `location` (decimal degrees) — the globe lens
+  // plots them; the display string is independent. MCP-client-supplied (no
+  // geocoding). lat ∈ [-90, 90] (negative = South), lng ∈ [-180, 180]
+  // (negative = West). Absent → the node has no point on the globe.
+  lat?: number
+  lng?: number
+  // Explicit "cannot be pinned" marker, mutually exclusive with lat/lng —
+  // records that the node was reviewed and has no single place ('global' /
+  // 'diffuse' / 'unknown'). Coverage math counts these as resolved, so the
+  // globe backfill loop converges instead of re-litigating them forever.
+  geoScope?: GeoScope
 }
 export type EdgeMetadata = Record<string, unknown>
 

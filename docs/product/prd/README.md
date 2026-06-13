@@ -32,8 +32,11 @@ Once a timeline is dense, getting *to* a moment matters as much as building it.
 | Track | Title | The one-line promise | Status |
 |---|---|---|---|
 | [NAV](canvas-command-palette.md) | In-canvas search + ⌘K | Press ⌘K, type a name, land on it. | built (2026-06-11)* |
+| [STORIES](stories-view.md) | Stories view | A tab beside Timeline + Globe that lists every story and plays it by itself. | built (2026-06-13) |
 
 \* **NAV built** — `cmdk` palette over the in-memory graph; selecting a result pans/centers the camera and opens the node. Client-only (no schema/RPC/Patch). Typecheck + build green; live in-browser pass owed. Forward-links to **S2.5** (artifact recall) as its next result source.
+
+**STORIES built** — a first-class lens (`?view=stories`) listing every story chronologically + a copy-prompt empty state; clicking opens the reader's cover docked right, Play raises the timeline as the stage, and the reader is **decoupled** from the entity panel (a story runs by itself; tapping a cast member opens an entity beside it without ending the story). Replaces the old `StoriesMenu` toolbar popover. One-column data add (`StoryDTO.momentId`, `StoryListItem.coverImage`), no migration.
 
 ### Expansion layer (grow the map)
 

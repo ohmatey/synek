@@ -28,7 +28,10 @@ test('creating a timeline opens it (after login)', async ({ page }) => {
 
   // Creation now lives behind a "New timeline" dialog (home redesign a302e99):
   // open it, name the timeline, create it, then open the freshly-made canvas.
-  await page.getByRole('button', { name: 'New timeline' }).click()
+  // Use the toolbar button (first in DOM): while the timelines list is still
+  // loading, the empty-state card renders a second "New timeline" button, so an
+  // unscoped locator hits a strict-mode violation under load. Both open the dialog.
+  await page.getByRole('button', { name: 'New timeline' }).first().click()
   // Scope to the open dialog by role only — its accessible name flips from
   // "New timeline" to "… is ready" after the create step, so don't pin the name.
   const dialog = page.getByRole('dialog')

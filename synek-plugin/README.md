@@ -10,10 +10,11 @@ Synek is single-user and local-first: it runs on your machine, stores everything
 
 | Component | What it does |
 |---|---|
-| **MCP server** (`.mcp.json`) | Auto-connects Claude Code to your local Synek server at `http://localhost:3001/api/mcp` over HTTP, authenticated via **OAuth** (one browser "Authorize" click — no token to paste). Exposes `list_timelines`, `create_timeline`, `get_timeline`, `apply_patch`, `undo`, `redo`. |
+| **MCP server** (`.mcp.json`) | Auto-connects Claude Code to your local Synek server at `http://localhost:3001/api/mcp` over HTTP, authenticated via **OAuth** (one browser "Authorize" click — no token to paste). Exposes `list_timelines`, `create_timeline`, `get_timeline`, `query_timeline`, `get_node`, `get_layout_report`, `apply_patch`, `register_artifact`, `search_artifacts`, `undo`, `redo` (and more). |
 | `/synek:map <topic>` | The hero command. Creates a timeline, researches the topic, and builds it in one atomic Patch, then hands back the canvas link. |
+| `/synek:watch <timeline>` | Keep an *ongoing* timeline current — competitors, model releases, funding/acquisitions, novel research. Runs a keeper pass now (adds **only what's new**, one Patch), then offers to make it recurring in Claude Code or any client. |
 | `/synek:setup` | Health check. Verifies the server is reachable and you're authorized; walks you through fixing whatever's broken. |
-| `building-timelines` skill | Passive knowledge Claude loads automatically when working with Synek — the atomic-Patch contract, exact op shapes, the closed edge-`kind` set, `ref` aliasing, and the heuristics that make a timeline rich instead of a row of gray boxes. |
+| `building-timelines` skill | Passive knowledge Claude loads automatically when working with Synek — the atomic-Patch contract, exact op shapes, the closed edge-`kind` set, `ref` aliasing, the heuristics that make a timeline rich instead of a row of gray boxes, and when to offer a keeper routine. |
 
 ## Prerequisites
 
@@ -55,7 +56,19 @@ No `SYNEK_API_KEY` is needed for the plugin — auth is OAuth. (A `synek_…` AP
 
 - **Local-first by design.** The connection is plain `http://localhost` (loopback to your own machine) — that's correct here, not a security gap. There's a local login (email/password) and API keys you manage in-app, but no cloud endpoint and no hosted/team mode.
 - **One writer at a time.** This plugin uses the **HTTP** transport so the running viewer and the MCP server stay in one process (which is what makes live canvas updates work). Don't also run the standalone stdio MCP server against the same database.
-- **Out of scope** (matches Synek's core guardrail): hosted/cloud instances, teams/workspaces, billing, public sharing, scheduled/background updates, third-party integrations. One person, one local instance, one Claude Code session.
+- **Out of scope** (matches Synek's core guardrail): hosted/cloud instances, teams/workspaces, billing, public sharing, third-party integrations, and any **in-app** agent / background scheduler / signal-ingestion service. One person, one local instance. Note `/synek:watch` does **not** add a scheduler to the app — Synek stays a pure viewer + MCP server; keeping a timeline current is a routine **you** run from *your* client (on-demand, or via your own OS cron), which is the same inversion the whole product is built on.
+
+## Keeping a timeline alive (`/synek:watch`)
+
+Some timelines are finished history; others are *alive* — a competitive landscape, the run of frontier model releases, an ongoing field. `/synek:watch <timeline>` is the **keeper**: it reads what's already on the timeline, searches for what's happened since, and adds **only the genuinely new** developments as one undoable Patch (each cited) — then offers to make it recurring.
+
+Because Synek runs on your machine (`localhost`), the recurring options are honest about reach:
+
+- **On-demand** — run `/synek:watch <timeline>` whenever you want a refresh. Always works, zero setup.
+- **Recurring, local** — an OS scheduler (`cron`/`launchd`) running headless Claude Code on your machine, or `/loop` in an open session. It's local, so it reaches your local server.
+- **Recurring, cloud routine** — only viable once the server is reachable from the cloud (a future hosted Synek). A scheduled *cloud* agent can't reach `localhost`, so don't point one at a purely-local server.
+
+The routine is just a saved prompt (a scope brief + the keeper steps), so the same recipe works in Claude Code or any MCP client.
 - **No portraits via MCP.** `apply_patch` sets `subtype` (so a person card is *ready* for a portrait) and `citations`, but image uploads happen in the canvas's detail panel.
 
 ## License

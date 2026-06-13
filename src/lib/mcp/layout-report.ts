@@ -146,9 +146,35 @@ export async function buildLayoutReport(
       ...(n.endInstant != null ? { end: formatInstant(n.endInstant, n.precision) } : {}),
       ...(n.metadata?.lane ? { lane: n.metadata.lane } : {}),
       ...(n.metadata?.location ? { location: n.metadata.location } : {}),
+      ...(n.metadata?.lat != null && n.metadata?.lng != null
+        ? { coords: [n.metadata.lat, n.metadata.lng] as [number, number] }
+        : {}),
+      ...(n.metadata?.geoScope ? { geoScope: n.metadata.geoScope } : {}),
       ...(momentsWithStories.has(n.id) ? { hasStory: true } : {}),
       ...(n.metadata?.images?.length ? { hasImage: true } : {}),
     }))
+
+  // --- coordinates: globe-lens coverage + the backfill target ----------------
+  // Nodes plot on the globe only with BOTH lat and lng. Three buckets, not two:
+  // located (has coords), placeless (reviewed — `geoScope` says it CANNOT be
+  // pinned: global/diffuse/unknown), and unset (nobody has decided yet). Only
+  // unset nodes are backfill targets; placeless ones are resolved, so coverage
+  // is computed over placeable nodes and a backfill pass converges to 100%
+  // instead of re-litigating the unpinnable forever.
+  const isLocated = (n: NodeRow) => n.metadata?.lat != null && n.metadata?.lng != null
+  const located = nodes.filter(isLocated)
+  const placeless = nodes.filter((n) => !isLocated(n) && n.metadata?.geoScope)
+  const placelessByScope: Record<string, number> = {}
+  for (const n of placeless) {
+    const scope = n.metadata!.geoScope!
+    placelessByScope[scope] = (placelessByScope[scope] ?? 0) + 1
+  }
+  // Unset, location-bearing first — those are the cheapest wins (the place is
+  // already known as a string; it just needs resolving or marking placeless).
+  const unset = nodes
+    .filter((n) => !isLocated(n) && !n.metadata?.geoScope)
+    .sort((a, b) => Number(Boolean(b.metadata?.location)) - Number(Boolean(a.metadata?.location)))
+  const placeable = nodes.length - placeless.length
 
   return {
     totals: { nodes: nodes.length, edges: edges.length, byType, edgesByKind: byKind },
@@ -166,6 +192,24 @@ export async function buildLayoutReport(
       fragments,
     },
     eras,
+    coordinates: {
+      total: nodes.length,
+      located: located.length,
+      // Reviewed-and-unpinnable (geoScope) — resolved, NOT backfill targets.
+      placeless: { count: placeless.length, byScope: placelessByScope },
+      unset: unset.length,
+      // Coverage over PLACEABLE nodes (total − placeless): 100% means the globe
+      // pass is done — every node is either pinned or marked placeless.
+      coveragePct: placeable > 0 ? Math.round((located.length / placeable) * 100) : nodes.length ? 100 : 0,
+      hasLocationNoCoords: unset.filter((n) => n.metadata?.location).length,
+      // The backfill target — up to 12 undecided nodes (place-bearing first).
+      // For each: supply lat/lng, or set geoScope if it cannot be pinned.
+      sample: unset.slice(0, 12).map((n) => ({
+        id: n.id,
+        title: n.title,
+        location: n.metadata?.location ?? null,
+      })),
+    },
     stories: {
       total: storyList.length,
       momentsWithStories: momentsWithStories.size,

@@ -205,6 +205,7 @@ function hydrateStory(story: typeof stories.$inferSelect): StoryDTO {
   }
   return {
     id: story.id,
+    momentId: story.momentId,
     title: story.title,
     hook: story.hook,
     povType: story.povType,
@@ -271,6 +272,9 @@ const STORY_LIST_COLUMNS = {
   depthTier: stories.depthTier,
   povType: stories.povType,
   estimatedMinutes: stories.estimatedMinutes,
+  // Cover art for the Stories-view card (the only list consumer that renders it;
+  // the AppBar dropdown ignores it). JSON column → StoryImage | null.
+  coverImage: stories.coverImage,
 } as const
 
 // All stories on a timeline, in chronological moment order — backs the AppBar's

@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -43,7 +45,10 @@ import { formatInstant, eraTint } from '~/lib/domain/dates'
 import { findDeadZones } from '~/lib/domain/dead-zones'
 import { capture } from '~/lib/posthog/client'
 import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
-import { fillGapSpec, extendLaneSpec, populateEraSpec } from '~/lib/verbs'
+import { fillGapSpec, extendLaneSpec, populateEraSpec, globeBackfillSpec } from '~/lib/verbs'
+import { ViewSwitcher, type CanvasView } from './ViewSwitcher'
+import { globeCoverage } from './globe-coverage'
+import type { GlobeControls } from './GlobeLens'
 import { getGraph } from '~/lib/server/graph'
 import { getStoriesForMomentFn, getStoryByIdFn } from '~/lib/server/stories'
 import { useTimelineStream } from './useTimelineStream'
@@ -59,7 +64,7 @@ import { TimeRuler } from './TimeRuler'
 import { CanvasSettings } from './CanvasSettings'
 import { McpStatusChip } from './McpStatusChip'
 import { CanvasEmpty } from './CanvasEmpty'
-import { StoriesMenu } from './StoriesMenu'
+import { StoriesView } from './StoriesView'
 import { useBuildStream } from './build-stream'
 import {
   loadPanelWidths,
@@ -193,17 +198,69 @@ const EDGE_STYLE: Record<EdgeKind, { color: string; width: number; dash?: string
   competed_with: { color: 'var(--color-success)', width: 1.5, dash: '2 5' },
 }
 
+// Lazy + code-split: d3-geo + the world TopoJSON (~60-75kB gzip) load only when the
+// user first switches to the globe lens, never on the initial canvas paint or SSR.
+const GlobeLens = lazy(() => import('./GlobeLens'))
+
 export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const { resolvedTheme } = useTheme()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // ── URL-backed canvas state ──────────────────────────────────────────────
+  // view / active node / open story live in the URL search params (see the route's
+  // validateSearch) so the canvas is deep-linkable, shareable, and reload-stable —
+  // the MCP client can hand back a precise link. The URL is the single source of
+  // truth; these expose a useState-compatible [value, setter] so call sites are
+  // unchanged. Setters resolve against the freshest params (navigate's updater
+  // form) and `replace`, so selecting nodes doesn't spam browser history; a value
+  // at its default is dropped from the URL. A node/story id that isn't in the live
+  // graph yet (an MCP build still streaming) simply resolves to nothing-selected.
+  const search = useSearch({ from: '/timelines/$id' })
+  const navigate = useNavigate({ from: '/timelines/$id' })
+  const selectedId = search.node ?? null
+  const setSelectedId = useCallback<Dispatch<SetStateAction<string | null>>>(
+    (action) =>
+      navigate({
+        replace: true,
+        search: (prev) => {
+          const next = typeof action === 'function' ? action(prev.node ?? null) : action
+          return { ...prev, node: next ?? undefined }
+        },
+      }),
+    [navigate],
+  )
+  const selectedStoryId = search.story ?? null
+  const setSelectedStoryId = useCallback<Dispatch<SetStateAction<string | null>>>(
+    (action) =>
+      navigate({
+        replace: true,
+        search: (prev) => {
+          const next = typeof action === 'function' ? action(prev.story ?? null) : action
+          return { ...prev, story: next ?? undefined }
+        },
+      }),
+    [navigate],
+  )
+  const lensView: CanvasView = search.view ?? 'timeline'
+  const setLensView = useCallback<Dispatch<SetStateAction<CanvasView>>>(
+    (action) =>
+      navigate({
+        replace: true,
+        search: (prev) => {
+          const cur: CanvasView = prev.view ?? 'timeline'
+          const next = typeof action === 'function' ? action(cur) : action
+          return { ...prev, view: next === 'timeline' ? undefined : next }
+        },
+      }),
+    [navigate],
+  )
   // A node chosen from the ⌘K palette to fly the camera to (one-shot; cleared
   // by FlyToCamera once it has framed the node).
   const [flyToId, setFlyToId] = useState<string | null>(null)
+  // GS2: the lazy GlobeLens registers its imperative zoom handle here while mounted,
+  // so ⌘K "Globe: zoom in/out/reset" can drive it. Null when the globe isn't open.
+  const globeControlsRef = useRef<GlobeControls | null>(null)
   // The fill-this-gap prompt shown in the shared PromptDialog (null = closed),
   // opened by clicking a dashed gap-invitation ghost on the canvas (NEXT.5 Tier 2).
   const [gapSpec, setGapSpec] = useState<PromptSpec | null>(null)
-  // A moment can hold several stories; this is the one the docked reader plays.
-  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null)
   // While true the docked StoryReader is open beside the panel; activeBeat tracks
   // the beat it's on (drives the per-beat camera + which entity the panel shows; -1
   // = on the cover, so the moment stays framed).
@@ -222,24 +279,35 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const resizeDetail = useCallback((next: number) => setPanelW((w) => ({ ...w, detail: clampDetail(next) })), [])
   const resizeStory = useCallback((next: number) => setPanelW((w) => ({ ...w, story: clampStory(next) })), [])
   const commitPanelW = useCallback(() => savePanelWidths(panelWRef.current), [])
-  // A story that should auto-open in the reader (set by the AppBar Stories menu).
-  // Consumed once it loads with beats, then cleared. Mirrored in a ref so the
-  // selection-change effect below can see a pending autoplay without taking it
-  // as a dependency — picking a story also CHANGES the selection, and that
-  // effect must not clobber the story id it was set together with.
-  const [autoPlay, setAutoPlay] = useState<{ momentId: string; storyId: string } | null>(null)
-  const autoPlayRef = useRef<{ momentId: string; storyId: string } | null>(null)
-  const playStory = useCallback((momentId: string, storyId: string) => {
-    autoPlayRef.current = { momentId, storyId }
-    setSelectedId(momentId)
-    setSelectedStoryId(storyId)
-    setAutoPlay({ momentId, storyId })
-  }, [])
-  // Selecting a node always drops any open reader first.
-  const selectNode = useCallback((id: string) => {
+  // The view to restore when the reader closes — captured when a story opens, so
+  // closing a story opened from the Stories list returns to the list, while one
+  // opened from a node panel stays on the timeline. A ref (read at close time).
+  const storyReturnViewRef = useRef<CanvasView>('timeline')
+  // Open a story's cover in the docked reader (from the Stories list or a node
+  // panel). DECOUPLED from selection: it sets ONLY the story — the moment is NOT
+  // selected and no entity panel opens. Pressing Play raises the timeline as the
+  // stage (StoryReader onStart) and the camera tours the beats via readingStory.momentId.
+  const openStory = useCallback(
+    (storyId: string) => {
+      storyReturnViewRef.current = search.view ?? 'timeline'
+      setSelectedStoryId(storyId)
+      setActiveBeat(-1)
+      setStoryPaused(false)
+      setReading(true)
+    },
+    [search.view, setSelectedStoryId],
+  )
+  // Close the reader and restore the view the story was opened from.
+  const closeReader = useCallback(() => {
     setReading(false)
-    setSelectedId(id)
-  }, [])
+    setSelectedStoryId(null)
+    setActiveBeat(-1)
+    setStoryPaused(false)
+    setLensView(storyReturnViewRef.current)
+  }, [setSelectedStoryId, setLensView])
+  // Open an entity panel for a node (canvas / ⌘K / cast-chip click). DECOUPLED:
+  // this never closes an open story — opening an entity is an optional side-trip.
+  const selectNode = useCallback((id: string) => setSelectedId(id), [setSelectedId])
   // Horizontal time density (px/day) + gap-collapsing — the axis scale,
   // independent of camera zoom. Seeded from the per-timeline saved preference.
   const initialPref = useRef(loadScalePref(timelineId)).current
@@ -261,6 +329,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const [autoRefresh, setAutoRefresh] = useState(initialPref?.autoRefresh ?? true)
   // Read-aloud story narration (Web Speech API) — opt-in, off by default.
   const [speakStories, setSpeakStories] = useState(initialPref?.speak ?? false)
+  // Timed auto-advance for the story reader (the Reels/Stories slideshow) — on by
+  // default; off makes the reader fully manual. Lifted so it persists per-timeline.
+  const [autoPlayStories, setAutoPlayStories] = useState(initialPref?.autoPlay ?? true)
 
   // Near-real-time stream (SSE). While the stream is healthy it drives freshness
   // (refetch on each frame) and pollingInterval stays false; if it drops, the hook
@@ -308,6 +379,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     setCollapseGaps(pref?.collapseGaps ?? false)
     setAutoRefresh(pref?.autoRefresh ?? true)
     setSpeakStories(pref?.speak ?? false)
+    setAutoPlayStories(pref?.autoPlay ?? true)
     scaleChosen.current = pref?.chosen ?? false
     measuredRef.current = new Map() // sizes belong to the previous timeline's nodes
     setPreviewTheme(null) // a theme preview belongs to the previous timeline
@@ -319,8 +391,15 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // Persist the scale per timeline (local-first; no DB). Runs on mount too, so
   // the pref's mere existence means nothing — `chosen` carries the user intent.
   useEffect(() => {
-    saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh, speak: speakStories, chosen: scaleChosen.current })
-  }, [timelineId, pxPerDay, collapseGaps, autoRefresh, speakStories])
+    saveScalePref(timelineId, {
+      pxPerDay,
+      collapseGaps,
+      autoRefresh,
+      speak: speakStories,
+      autoPlay: autoPlayStories,
+      chosen: scaleChosen.current,
+    })
+  }, [timelineId, pxPerDay, collapseGaps, autoRefresh, speakStories, autoPlayStories])
 
   // Measured DOM size per node id — the layout's second pass. Estimates place
   // nodes on first paint; once React Flow measures the real cards, lanes re-pack
@@ -374,41 +453,13 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   })
   const readingStory = readingStoryData ?? null // undefined while loading → treat as none
 
-  // A new selection drops any open reader + its chosen story — unless that story
-  // was picked together with the selection (AppBar autoplay): nulling it here
-  // would disable the story query and the autoplay below could never fire.
+  // Reset the canvas-side playback transport when the open story changes. Selecting
+  // a node no longer touches the reader (stories are decoupled from selection); the
+  // reader itself re-keys on the story id, so its internal cover/beat state resets too.
   useEffect(() => {
-    setReading(false)
-    if (autoPlayRef.current?.momentId !== selectedId) {
-      autoPlayRef.current = null
-      setSelectedStoryId(null)
-    }
     setActiveBeat(-1)
     setStoryPaused(false)
-  }, [selectedId])
-  // Auto-play from the AppBar Stories menu: once the picked story loads with beats,
-  // open the reader and consume the one-shot signal.
-  useEffect(() => {
-    if (
-      autoPlay &&
-      autoPlay.momentId === selectedId &&
-      autoPlay.storyId === selectedStoryId &&
-      readingStory &&
-      readingStory.beats.length > 0
-    ) {
-      setActiveBeat(-1)
-      setStoryPaused(false)
-      setReading(true)
-      autoPlayRef.current = null
-      setAutoPlay(null)
-    }
-  }, [autoPlay, selectedId, selectedStoryId, readingStory])
-  const startReading = useCallback((storyId: string) => {
-    setSelectedStoryId(storyId)
-    setActiveBeat(-1)
-    setStoryPaused(false)
-    setReading(true)
-  }, [])
+  }, [selectedStoryId])
 
   // getGraph returns a discriminated result: an `ok` payload (with the graph +
   // access flags), or notFound/forbidden. Non-owners get a read-only canvas.
@@ -418,6 +469,32 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const isOwner = graph?.isOwner ?? false
   const isPublic = graph?.isPublic ?? false
   const title = graph?.title ?? 'Untitled timeline'
+  // Globe-lens coverage: gates the backfill prompt + the in-globe coverage banner.
+  // The view switcher itself is always shown (the Globe segment is a permanent
+  // fixture); coverage only decides what clicking Globe does.
+  const globeCov = useMemo(() => globeCoverage(gnodes), [gnodes])
+  // Clicking the Globe segment: if any node is located, switch to the globe (the
+  // in-globe coverage banner nudges when it's below the gate). With NO located
+  // nodes, don't show an empty globe — open the backfill prompt so the user can
+  // ask their MCP client to add coordinates (same spec as ⌘K "Set up globe view").
+  // Clicking Globe ALWAYS enters the globe — with no coordinates it shows an
+  // empty state whose primary action ("Create a globe") opens the setup prompt,
+  // rather than interrupting the switch with a dialog.
+  const switchToGlobe = useCallback(() => setLensView('globe'), [])
+  // Escape exits the globe back to the timeline (PRD §Exit). Let an open dialog
+  // (⌘K, a prompt) or a focused text field consume Escape first.
+  useEffect(() => {
+    if (lensView !== 'globe') return
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      const el = document.activeElement as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      if (document.querySelector('[role="dialog"]')) return
+      setLensView('timeline')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lensView])
   // The timeline's saved theme (live: an MCP set_timeline_theme lands via the
   // same SSE → refetch path as everything else). The editor's preview wins
   // while it's open; saving/cancelling hands back to server truth.
@@ -433,48 +510,69 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const selectedNode = selectedId ? (gnodes.find((n) => n.id === selectedId) ?? null) : null
   const nodeById = useMemo(() => new Map(gnodes.map((n) => [n.id, n])), [gnodes])
 
-  // Story lens + per-beat focus — only while READING (selecting a moment just opens
-  // its panel; pressing Play starts the story). While reading we ring the moment +
-  // its whole cast (every beat's focus + related nodes) and dim the rest, reusing
-  // the build-stream lens machinery (rf-focused/rf-dimmed + the lens bar). The active
-  // beat's focusNodeId additionally drives the camera and which entity the detail
-  // panel shows beside the story — it "follows the beat"; beats with no focus fall
-  // back to the moment.
+  // The story's anchor moment — its node id, taken from the LOADED story (not the
+  // canvas selection, which is now decoupled: a story plays by itself and may have
+  // no node selected). Drives the lens, the camera, and the reader's title.
+  const storyMomentId = reading && readingStory ? readingStory.momentId : null
+  const storyMomentTitle =
+    (storyMomentId ? nodeById.get(storyMomentId)?.title : null) ?? readingStory?.title ?? ''
+  // Story lens + per-beat focus — only while READING. We ring the moment + its whole
+  // cast (every beat's focus + related nodes) and dim the rest, reusing the
+  // build-stream lens machinery (rf-focused/rf-dimmed + the lens bar). The active
+  // beat's focusNodeId additionally drives the camera; the detail panel does NOT
+  // follow the beat (decoupled) — it opens only when the user taps an entity.
   const storyFocusIds = useMemo(() => {
-    if (!reading || !selectedId || !readingStory) return null
-    const ids = new Set<string>([selectedId])
+    if (!reading || !readingStory) return null
+    const ids = new Set<string>([readingStory.momentId])
     for (const b of readingStory.beats) {
       if (b.focusNodeId) ids.add(b.focusNodeId)
       for (const id of b.relatedNodeIds) ids.add(id)
     }
     return [...ids]
-  }, [reading, selectedId, readingStory])
+  }, [reading, readingStory])
   // activeBeat is -1 on the cover → no beat focus (frame the moment).
   const activeBeatData =
     reading && readingStory && activeBeat >= 0
       ? readingStory.beats[Math.min(activeBeat, readingStory.beats.length - 1)]
       : null
   // The entity this beat spotlights: an explicit focusNodeId, else its first related
-  // node. BOTH the camera and the detail panel follow it, so the right panel tracks
-  // whatever the current beat is about; a beat that names nothing falls back to the
-  // moment (the story's originator). Guard self / dangling ids.
+  // node — the camera frames it (a beat that names nothing falls back to the moment).
+  // Guard self / dangling ids.
   const rawBeatFocus = activeBeatData
     ? (activeBeatData.focusNodeId ?? activeBeatData.relatedNodeIds[0] ?? null)
     : null
-  const beatFocusId = rawBeatFocus && rawBeatFocus !== selectedId && nodeById.has(rawBeatFocus) ? rawBeatFocus : null
-  const focusNode = beatFocusId ? (nodeById.get(beatFocusId) ?? null) : null
-  // The panel follows the beat's focus while reading, else shows the moment.
-  const displayNode = focusNode ?? selectedNode
-  // Camera only moves while reading; frame the focus (else the moment). Selecting a
-  // node never pans the canvas.
-  const cameraIds = reading && selectedId ? [beatFocusId ?? selectedId] : null
+  const beatFocusId =
+    rawBeatFocus && rawBeatFocus !== storyMomentId && nodeById.has(rawBeatFocus) ? rawBeatFocus : null
+  // The detail panel shows ONLY the entity the user explicitly opened (a cast chip /
+  // related-node tap or a canvas click) — it never auto-follows the beat.
+  const displayNode = selectedNode
+  // Camera only moves while reading; frame the beat's focus, else the moment.
+  const cameraIds = reading && storyMomentId ? [beatFocusId ?? storyMomentId] : null
+  // GS1 (globe story mode): the same node the timeline camera frames — the beat's
+  // focus, else the moment — carrying its coords (lat/lng may be null = an off-map
+  // beat) and instant, drives the globe when the lens is up. The globe's StoryCamera
+  // twin; null when not reading. Passing it while on the timeline view is harmless
+  // (GlobeLens isn't mounted).
+  const storyFocusNodeId = reading && storyMomentId ? (beatFocusId ?? storyMomentId) : null
+  const storyFocus = useMemo(() => {
+    if (!storyFocusNodeId) return null
+    const n = nodeById.get(storyFocusNodeId)
+    if (!n) return null
+    return { id: n.id, lat: n.lat, lng: n.lng, instant: n.startInstant }
+  }, [storyFocusNodeId, nodeById])
   // A story lens wins over the build-stream lens while reading.
   const effectiveFocusIds = storyFocusIds ?? focusIds
-  // A deleted moment (gone from live data) tears the reader down too.
+  // A deleted story (its row gone — e.g. the moment was deleted, cascading the story)
+  // tears the reader down. readingStoryData === null = "loaded, not found"; undefined
+  // = still loading, so don't tear down mid-load.
   useEffect(() => {
-    if (!selectedNode && reading) setReading(false)
-  }, [selectedNode, reading])
-  const noopDraft = useCallback(() => {}, [])
+    if (reading && selectedStoryId && readingStoryData === null) closeReader()
+  }, [reading, selectedStoryId, readingStoryData, closeReader])
+  // Navigation signal for bet B3 ("stories make it a product"): fires when the
+  // Stories lens is opened, the denominator for story plays from this entry point.
+  useEffect(() => {
+    if (lensView === 'stories') capture('story_view_opened', { timeline_id: timelineId })
+  }, [lensView, timelineId])
 
   // Per-kind visibility filter — session-only (a returning user shouldn't find
   // nodes "missing"). Node counts feed the filter chips.
@@ -962,6 +1060,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       >
         <div className="top-bar">
           <AppBar timelineId={timelineId} title={title} isOwner={isOwner} isPublic={isPublic} />
+          {/* Top-center lens toggle — always shown; clicking Globe with no located
+              nodes opens the setup prompt instead of switching (switchToGlobe). */}
+          <ViewSwitcher
+            view={lensView}
+            onChange={setLensView}
+            onSwitchToGlobe={switchToGlobe}
+            coverage={globeCov}
+          />
           <div className="canvas-toolbar">
             {gnodes.length > 0 && (
               <CommandPalette
@@ -970,19 +1076,23 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 timelineId={timelineId}
                 timelineTitle={title}
                 selectedNode={selectedNode}
+                onSwitchToGlobe={() => setLensView('globe')}
+                globeSetupSpec={null}
+                globeZoom={
+                  lensView === 'globe'
+                    ? {
+                        in: () => globeControlsRef.current?.zoomIn(),
+                        out: () => globeControlsRef.current?.zoomOut(),
+                        reset: () => globeControlsRef.current?.zoomReset(),
+                      }
+                    : null
+                }
               />
             )}
             {isOwner && <McpStatusChip />}
             {isOwner && <HistoryControls timelineId={timelineId} />}
-            {(isOwner || gnodes.some((n) => n.hasStory)) && (
-              <StoriesMenu
-                timelineId={timelineId}
-                storyVersion={storyVersion ?? ''}
-                canCreate={isOwner}
-                nodes={gnodes.map((n) => ({ id: n.id, title: n.title, type: n.type }))}
-                onPlay={playStory}
-              />
-            )}
+            {/* Stories moved out of the toolbar into the "Stories" view (a sibling of
+                Timeline + Globe in the ViewSwitcher) — see StoriesView. */}
             {(gnodes.length > 0 || pending.length > 0) && (
               <CanvasSettings
                 timelineId={timelineId}
@@ -998,6 +1108,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 onAutoRefresh={setAutoRefresh}
                 speak={speakStories}
                 onSpeak={setSpeakStories}
+                autoPlay={autoPlayStories}
+                onAutoPlay={setAutoPlayStories}
                 kindCounts={kindCounts}
                 hiddenKinds={hiddenKinds}
                 onToggleKind={toggleKind}
@@ -1018,7 +1130,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         </div>
         {/* The lens-bar is build-stream chrome only; while a story plays the
             docked reader carries its own transport, so no bar up top. */}
-        {lensSize > 0 && !reading && (
+        {lensView === 'timeline' && lensSize > 0 && !reading && (
           <div className="lens-bar">
             <span>{`Lens · ${lensSize} node${lensSize === 1 ? '' : 's'}`}</span>
             <button type="button" onClick={() => setFocusIds([])} title="Clear lens">
@@ -1026,6 +1138,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             </button>
           </div>
         )}
+        {lensView === 'timeline' ? (
         <ReactFlow
           // Remount only when switching timelines; within one, nodes keep their
           // identity (diffed by id) so position changes glide instead of snapping.
@@ -1065,7 +1178,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           )}
           <Controls showInteractive={false} />
           <ViewportInit timelineId={timelineId} nodeCount={gnodes.length} />
-          {cameraIds && <StoryCamera ids={cameraIds} dockW={panelW.detail + panelW.story} />}
+          {cameraIds && (
+            <StoryCamera ids={cameraIds} dockW={(displayNode ? panelW.detail : 0) + panelW.story} />
+          )}
           <FlyToCamera targetId={flyToId} onArrive={clearFlyTo} />
           {(gnodes.length > 0 || pending.length > 0) && (
             <TimeRuler
@@ -1101,51 +1216,95 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             </Panel>
           )}
         </ReactFlow>
+        ) : lensView === 'globe' ? (
+          <Suspense fallback={<div className="canvas-loading">Loading globe…</div>}>
+            <GlobeLens
+              nodes={gnodes}
+              pxPerDay={pxPerDay}
+              collapseGaps={collapseGaps}
+              selectedId={selectedId}
+              // Clear BOTH right docks: the detail portrait and, in story mode, the
+              // story reader (mirrors the canvas StoryCamera's dockW).
+              rightInset={(displayNode ? panelW.detail : 0) + (reading ? panelW.story : 0)}
+              timelineId={timelineId}
+              storyMode={reading}
+              storyFocus={storyFocus}
+              controlsRef={globeControlsRef}
+              onMarkerClick={setSelectedId}
+              onBackfill={() =>
+                setGapSpec(
+                  globeBackfillSpec(
+                    { timelineId, timelineTitle: title, surface: 'globe_banner' },
+                    globeCov.uncoordinated,
+                  ),
+                )
+              }
+            />
+          </Suspense>
+        ) : (
+          <StoriesView
+            timelineId={timelineId}
+            storyVersion={storyVersion ?? ''}
+            canCreate={isOwner}
+            nodes={gnodes.map((n) => ({ id: n.id, title: n.title, type: n.type }))}
+            openStoryId={selectedStoryId}
+            onOpenStory={openStory}
+          />
+        )}
         {displayNode ? (
           <NodeDetailPanel
-            // Re-key on the displayed node so it remounts (fresh state) when the
-            // reader steps to a beat that focuses a different entity.
+            // Re-key on the node so it remounts (fresh state) when the user opens a
+            // different entity (a cast chip / related-node tap / canvas click).
             key={displayNode.id}
             node={displayNode}
             edges={gedges}
             nodes={gnodes}
             timelineId={timelineId}
-            // While reading, the panel is the story-mode portrait of the beat's
-            // focus (no relations/stories/citations, no editing).
+            // The panel is the entity the user explicitly opened — full detail, even
+            // mid-story (a deliberate side-trip, not the beat's auto-portrait).
             readOnly={!isOwner}
-            mode={reading ? 'story' : 'default'}
-            storyLabel={selectedNode?.title}
-            // The story list only shows on the moment when not reading (the docked
-            // reader is the story surface while reading).
-            stories={reading ? undefined : stories}
-            onClose={() => {
-              setSelectedId(null)
-              setReading(false)
-            }}
+            stories={stories}
+            // Closing the entity keeps any open story playing (decoupled).
+            onClose={() => setSelectedId(null)}
             onSelectNode={selectNode}
-            // A preview panel must not emit drafts (it shows a different node than
-            // the selected moment); the onDraft-change cleanup clears any stale one.
-            onDraft={reading ? noopDraft : handleDraft}
-            onPlayStory={startReading}
+            onDraft={handleDraft}
+            onPlayStory={openStory}
+            onAddToGlobe={() =>
+              setGapSpec(
+                globeBackfillSpec({ timelineId, timelineTitle: title, surface: 'node_panel' }, globeCov.uncoordinated),
+              )
+            }
             width={panelW.detail}
             onResize={resizeDetail}
             onCommitResize={commitPanelW}
           />
         ) : null}
-        {reading && readingStory && selectedNode ? (
+        {reading && readingStory ? (
           <StoryReader
             // Re-key on the story so switching stories resets the reader (cover, beat 0).
             key={readingStory.id}
             story={readingStory}
-            momentTitle={selectedNode.title}
-            momentId={selectedNode.id}
+            // Moment label/id come from the story itself — the reader is decoupled
+            // from canvas selection (no node need be selected to play a story).
+            momentTitle={storyMomentTitle}
+            momentId={readingStory.momentId}
             timelineId={timelineId}
             nodeById={nodeById}
+            // No entity panel open → dock flush at the right edge (data-solo).
+            solo={!displayNode}
             paused={storyPaused}
             onPausedChange={setStoryPaused}
             speak={speakStories}
             onSpeakChange={setSpeakStories}
-            onClose={() => setReading(false)}
+            autoPlay={autoPlayStories}
+            onAutoPlayChange={setAutoPlayStories}
+            onClose={closeReader}
+            // Play raises the timeline as the story's stage — but only from the
+            // Stories list. A story opened on the timeline stays there; one opened on
+            // the globe keeps the globe as its stage (GS1 story mode).
+            onStart={() => {
+              if (lensView === 'stories') setLensView('timeline')
+            }}
             onSelectNode={selectNode}
             onBeatChange={setActiveBeat}
             width={panelW.story}

@@ -212,12 +212,15 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
 // auto-saved ambiently on every open, and only an explicit choice should win
 // over the timeline's saved default view (setTimelineView / MCP set_timeline_view).
 // `speak` drives the story reader's read-aloud narration (Web Speech API);
-// default off — narration is opt-in.
+// default off — narration is opt-in. `autoPlay` drives the reader's timed
+// auto-advance (the Reels/Stories slideshow); default ON — turning it off makes
+// the reader fully manual (step with taps/arrows), like reduced-motion.
 export type ScalePref = {
   pxPerDay: number
   collapseGaps: boolean
   autoRefresh: boolean
   speak: boolean
+  autoPlay: boolean
   chosen?: boolean
 }
 
@@ -235,6 +238,7 @@ export function loadScalePref(timelineId: string): ScalePref | null {
       collapseGaps: !!parsed.collapseGaps,
       autoRefresh: parsed.autoRefresh !== false,
       speak: !!parsed.speak,
+      autoPlay: parsed.autoPlay !== false,
       chosen: !!parsed.chosen,
     }
   } catch {

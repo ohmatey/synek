@@ -292,12 +292,14 @@ Proposed additions:
 
 ---
 
-## Open questions
+## Resolved decisions
 
-- **OQ1: `people` rows — create-on-demand vs require existence.** When `write_story` is called with a `primaryPersonId` that is a node id but has no corresponding `people` row, should the handler create a minimal `people` row automatically (name from node title, `isHistorical = true`)? Or should it warn and skip? Lean: create-on-demand with a warning — this is the least friction path given the `people` table is currently empty. The warning tells Claude a `people` row was auto-created; it can enrich it later if needed.
-- **OQ2: Person picker scope.** Should the person picker in "Add a perspective" include only `subtype === 'person'` entity nodes, or all entity nodes? Lean: all entity nodes (orgs and places have perspectives too), with `subtype === 'person'` surfaced first.
-- **OQ3: De-duplication UX.** The prompt passes existing POV summaries to Claude, but there is no in-app enforcement that prevents two identical stories from landing. Is a warning from `write_story` if two stories share an identical `primaryPersonId` enough, or should we block it? Lean: warn only (store all; the switcher shows all); Claude's use of the de-dup context in the prompt is the primary guard.
-- **OQ4: Person thread — cross-timeline?** The thread query currently scopes to the current timeline's stories. Should it show stories from all timelines where this person appears? Lean: current timeline only in S3 (the person panel is always in a timeline context); cross-timeline is a future "person explorer" feature.
+All four open questions were resolved by the founder on 2026-06-12. They are now committed scope, not pending.
+
+- **D1: `people` rows — create-on-demand + warning.** When `write_story` receives a `primaryPersonId` (or node-backed cast member) with no corresponding `people` row, the handler **auto-creates a minimal `people` row** (name from node title, `isHistorical = true`) and returns a **warning** so Claude knows the row was synthesized and can enrich it later. It never skips or blocks. This is the least-friction path given the `people` table is currently empty. (Implemented in S3.1.)
+- **D2: Person picker scope — people only for v1, but keep the anchor extensible.** The "Add a perspective" picker is scoped to **`subtype === 'person'` entity nodes** for v1 (plus name/role freetext). The perspective *anchor* must not be hard-coded to people, though: design the cast/POV plumbing so a perspective can later be anchored to an org, a place, or a work — and to richer "**person in era about work**" framings — as an *addition*, not a rewrite. v1 ships person-only; the abstraction stays open from S3 onward. (Affects S3.3b; future work captured in the backlog — "extensible perspective anchors".)
+- **D3: De-duplication — warn only, never block.** `write_story` **warns** if a new story shares a `primaryPersonId` with an existing story on the same moment, but always stores it (the switcher shows all). Claude's use of the existing-POV de-dup context in the copy-prompt is the primary guard; the app never blocks a write (legitimate rewrites must stay possible). (Implemented in S3.2.)
+- **D4: Person thread — current timeline only in S3.** The "Perspectives" thread query scopes to the **current timeline's** stories (the person panel is always opened in a timeline context). Aggregating a person's stories across *all* timelines is the future **"person explorer"** — out of scope for S3, captured in the backlog.
 
 ---
 
@@ -310,7 +312,7 @@ Each item maps to one Sal issue. All are horizon `next`.
 | S3.1 | **`story_people` join table + migration + `StorySnapshot` extension** | Schema: new table + migration; `writeStory` writes `story_people` rows for node-backed cast members + `primaryPersonId`; `StorySnapshot` captures them for undo; data-layer test | — |
 | S3.2 | **`write_story` `primaryPersonId` input field + `buildTalkToPoVPrompt` builder** | Add `primaryPersonId` to `write_story` Zod schema; write `buildTalkToPoVPrompt` (passes existing POVs + epistemic constraint + artifact instruction); wire into `PromptSpec` shape | S3.1 |
 | S3.3a | **POV switcher in the docked reader** | Chip strip in `StoryReader` header when ≥2 stories; chip label from `primaryPersonId → people.displayName` (fallback to story title); selecting a chip swaps rendered story | S3.1, S3.2 |
-| S3.3b | **"Add a perspective" button + person picker** | Button in reader header; inline person picker (entity nodes filtered to person subtype-first + name/role freetext); opens `PromptDialog` with `buildTalkToPoVPrompt`; analytics event `add_perspective_opened` + `verb_prompt_copied (add-pov)` | S3.2, S3.3a |
+| S3.3b | **"Add a perspective" button + person picker** | Button in reader header; inline person picker scoped to **`subtype === 'person'` entity nodes** + name/role freetext (D2 — person-only v1); opens `PromptDialog` with `buildTalkToPoVPrompt`; analytics event `add_perspective_opened` + `verb_prompt_copied (add-pov)`. **Keep the anchor type-open** (don't hard-code person into the cast/POV plumbing — see backlog "extensible perspective anchors") | S3.2, S3.3a |
 | S3.3c | **Person thread in `NodeDetailPanel`** | "Perspectives" section on entity/person nodes; query via `story_people` for protagonist/voiced rows; each entry links to moment + opens reader on that story; composite labeling | S3.1, S3.3a |
 
 ---
@@ -320,3 +322,4 @@ Each item maps to one Sal issue. All are horizon `next`.
 | Date | Change | Author |
 |---|---|---|
 | 2026-06-12 | Full rewrite from 2026-06-11 draft. Removed all in-app generation architecture (no `generate_story_pov_v1`, no `generations` rows, no S1 generation service). Encoded MCP inversion as the load-bearing constraint throughout. Audited `write_story`, `stories.cast`, `people`, `story_people` (not in schema — new table scope), `verbs.ts`, `talk-to-prompt.ts` against source. Recorded S3.4 as fully shipped. Added phased breakdown and verified done-when criteria. | Margot |
+| 2026-06-12 | Resolved OQ1–OQ4 per founder (now D1–D4). OQ2 narrowed to person-only v1 with an extensible-anchor design note (S3.3b); OQ4 cross-timeline "person explorer" and OQ2's non-person anchors moved to the backlog (`later`). | Sal |

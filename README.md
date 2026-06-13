@@ -4,7 +4,7 @@
 
 Synek is a living timeline you build *by talking to Claude*. Ask about something — the Stoics, the space race, the rise of deep learning — and Claude fills a visual canvas with the people, events, and eras involved, laid out along time and connected by how they influenced each other. It's a calm, permanent place for the things you're learning and researching.
 
-Synek runs **entirely on your own computer**. Your timelines live in a single file on your machine — no cloud, no account in someone else's database, no telemetry. Synek has no AI of its own; the intelligence comes from **your** Claude (Claude Code or Claude Desktop), which you connect in a couple of clicks.
+Synek runs **entirely on your own computer**. Your timelines live in a single file on your machine — no cloud, no account in someone else's database, and nothing leaves your machine unless you explicitly turn it on. Synek has no AI of its own; the intelligence comes from **your** Claude (Claude Code or Claude Desktop), which you connect in a couple of clicks.
 
 > *Synek — from the Greek* synecheia*, "continuity."*
 
@@ -93,7 +93,8 @@ Claude creates the people, events, and eras; positions everything by date; draws
 ## Your data is yours
 
 - Everything lives in a single file on your computer (`local.db` by default).
-- There's a simple local login (email + password) so only you can manage your timelines and keys — but it's all on **your** machine. Nothing is sent anywhere.
+- There's a simple local login (email + password) so only you can manage your timelines and keys — but it's all on **your** machine.
+- **Nothing is sent anywhere by default.** Optional analytics (PostHog) and an optional self-hoster heartbeat are both **off unless you set keys/flags** for them. The heartbeat — when you opt in with `SYNEK_TELEMETRY=1` — sends a single anonymous ping per startup (a hashed install id, the app version, and which database you use), and **never** any timeline content. See `.env.example`.
 - Want a clean slate? Delete `local.db` and run `bun run setup` again.
 
 ---

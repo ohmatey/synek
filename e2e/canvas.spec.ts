@@ -29,8 +29,8 @@ test('period connections are hidden until an endpoint is selected', async ({ pag
   await expect(page.getByText('Julius Caesar')).toBeVisible()
 
   const edges = page.locator('.react-flow__edge')
-  // 4 edges total; the one touching the "Roman Republic" period is hidden.
-  await expect(edges).toHaveCount(3)
+  // 8 edges total; the one touching the "Roman Republic" period is hidden by default.
+  await expect(edges).toHaveCount(7)
 
   // Select nodes by dispatching the click on the node element directly — React Flow
   // can place nodes outside the viewport, so a real .click() (which scrolls) is
@@ -40,11 +40,11 @@ test('period connections are hidden until an endpoint is selected', async ({ pag
 
   // Selecting an endpoint of the period edge (the Rubicon event) reveals it.
   await node('Caesar crosses the Rubicon').dispatchEvent('click')
-  await expect(edges).toHaveCount(4)
+  await expect(edges).toHaveCount(8)
 
   // Selecting an unrelated node hides the period edge again.
   await node('Augustus becomes emperor').dispatchEvent('click')
-  await expect(edges).toHaveCount(3)
+  await expect(edges).toHaveCount(7)
 })
 
 test('time-scale compress pulls nodes closer horizontally', async ({ page }) => {

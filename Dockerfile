@@ -20,6 +20,15 @@
 # BETTER_AUTH_URL MUST be the real public origin (it drives the auth cookie, the
 # OAuth redirect, and the MCP resource id). Terminate TLS in front (Caddy/Traefik/
 # platform) — OAuth + secure cookies need HTTPS.
+#
+# Opt-in self-hoster telemetry (LATER.3): the PUBLISHED image bakes the project's
+# own PostHog *ingest* key (phc_…, public/write-only by design) via the build arg
+# below, so an operator who opts IN at run time sends ONE anonymous heartbeat
+# (install_id hash, version, db_backend) per boot — never any graph content. The
+# opt-in flag is NOT baked, so a default image still sends nothing. Operators
+# consent at run time:  -e SYNEK_TELEMETRY=1
+#   docker build --build-arg SYNEK_TELEMETRY_KEY=phc_xxx -t synek .   # publisher
+#   docker run ... -e SYNEK_TELEMETRY=1 synek                          # operator opts in
 
 # ---- build stage: full toolchain, compile native deps, produce dist/ ----
 FROM node:22-bookworm-slim AS build
@@ -42,10 +51,16 @@ RUN npm run build
 # ---- runtime stage: no compilers, just the built app + node_modules ----
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
+# Project-owned PostHog ingest key for the opt-in heartbeat (blank = an image that
+# never phones home). Public/write-only key — safe to bake. Override at build:
+# --build-arg SYNEK_TELEMETRY_KEY=phc_xxx
+ARG SYNEK_TELEMETRY_KEY=
 ENV NODE_ENV=production \
     PORT=3001 \
     DATABASE_URL=/data/synek.db \
-    SYNEK_MIGRATIONS_DIR=/app/drizzle
+    SYNEK_MIGRATIONS_DIR=/app/drizzle \
+    SYNEK_TELEMETRY_KEY=$SYNEK_TELEMETRY_KEY \
+    SYNEK_TELEMETRY_HOST=https://us.i.posthog.com
 
 # Whole tree carried over: dist/, drizzle/ (migrations applied on boot), node_modules
 # (incl. the Node-ABI better-sqlite3 binary + tsx), scripts/serve-build.ts. No *.db

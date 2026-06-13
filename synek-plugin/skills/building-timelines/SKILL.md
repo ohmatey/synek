@@ -122,3 +122,11 @@ http://localhost:3001/timelines/<timelineId>
 ## Reading before writing
 
 To edit an existing timeline, call `get_timeline` first to get current node/edge **ids** — `update_*`/`delete_*` and edges between existing nodes need real ids (ref aliases only resolve to nodes created in the *same* batch). `get_timeline` returns each node's `metadata` (including its `lane`), so you can see which swimlane a node is already in before re-tagging. `list_timelines` shows what exists. `undo` / `redo` step the per-timeline history if a batch wasn't what the user wanted.
+
+## Living timelines — offer to keep ongoing ones current
+
+Some timelines are *finished* (the history of Stoicism). Others are **alive** — a competitive landscape, the run of frontier model releases, an ongoing research field. A live timeline wants to *stay current* as the world changes.
+
+There's no agent inside Synek, so "living" isn't an app feature — it's a **keeper routine** the user runs from their MCP client: periodically look for what's happened since last time and add *only the new developments* as one Patch. When you've just built or are editing a clearly **ongoing** topic (competitors, model/product releases, funding/acquisitions, an active field), proactively offer it: *"This one will keep moving — want me to set up a keeper routine so it stays current?"* and point to **`/synek:watch <timeline>`** (the `watch` skill), which runs a keeper pass now and can make it recurring.
+
+The one thing that makes a keeper correct: **read before you write, then add only what's new.** Call `get_layout_report` (compact node index + latest dates + source registry) or `get_timeline` first, search only for developments *after* the latest node, and drop anything already present — match the real-world event, not the exact title wording. Each run is one dated `apply_patch` (`summary: "Keeper run <date> — +N …"`), every addition cited; "nothing new since <date>" is a valid run. Never invent a date or citation to look productive. Full procedure lives in the `watch` skill.

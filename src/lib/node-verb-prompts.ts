@@ -122,3 +122,28 @@ export function buildPopulateEraPrompt(input: {
     `short verbatim quote). Keep it faithful to what actually happened.`
   )
 }
+
+// GLOBE BACKFILL — resolve every undecided node: pin it (lat/lng) or mark it
+// placeless (geoScope), so one pass converges the timeline to "done". Drives
+// apply_patch (update_node). Timeline-level; surfaced in ⌘K and the globe's
+// coverage banner (docs/product/prd/globe-lens.md).
+export function buildGlobeBackfillPrompt(input: { timelineId: string; title: string }): string {
+  return (
+    `Using the Synek MCP tools, give every node on this timeline a globe verdict: map coordinates where it ` +
+    `happened, or an explicit "cannot be pinned" marker.\n` +
+    `- timelineId: ${input.timelineId}\n` +
+    `- timeline: "${input.title}"\n` +
+    `First call get_layout_report and read its \`coordinates\` section — it counts located / placeless / unset ` +
+    `nodes and samples the undecided ones. Then, in a single apply_patch, resolve each undecided node ONE of ` +
+    `two ways:\n` +
+    `1. It happened somewhere → update_node with \`lat\` and \`lng\` (decimal degrees — negative is South/West; ` +
+    `city-level precision is plenty) and a \`location\` display string if it has none. Use the real, ` +
+    `historically-correct place (a person's main seat of activity, where an event occurred, an organization's ` +
+    `home) — never guess (0, 0).\n` +
+    `2. It genuinely has no single place → update_node with \`geoScope\`: "global" (happened everywhere — a ` +
+    `worldwide era), "diffuse" (several real sites, no honest single anchor), or "unknown" (the place is lost ` +
+    `to history). Add a \`location\` string for texture where it helps ("Greece · India · China · Judea"). ` +
+    `Placeless is an answer, not a gap — never pin a node to a place it doesn't belong just to fill the map.\n` +
+    `Every node gets a verdict; keep each one faithful to where things actually happened.`
+  )
+}

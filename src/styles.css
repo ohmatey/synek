@@ -798,6 +798,636 @@ body {
   gap: 6px;
 }
 
+/* "Add to globe" nudge in the detail dateline (owner, node has a place but no coords) */
+.detail-add-to-globe {
+  color: var(--color-accent-primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+.detail-add-to-globe:hover {
+  text-decoration: underline;
+}
+
+/* ── Globe lens: top-center view switcher ───────────────────────────────── */
+.view-switcher {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 3px;
+}
+.view-switch-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  transition:
+    background-color 120ms,
+    color 120ms;
+}
+.view-switch-btn:hover {
+  color: var(--foreground);
+}
+.view-switch-btn[data-active] {
+  background: var(--color-accent-primary);
+  color: var(--primary-foreground, #fff);
+}
+
+/* ── Stories lens: the browsable list + empty state (StoriesView.tsx) ─────────
+   A sibling of the timeline + globe surfaces — fills the canvas pane (under the
+   top-bar z8, beside the docked reader z6) and scrolls. The list is a centered
+   reading column so it stays comfortable even when the reader docks on the right. */
+.stories-view {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow-y: auto;
+  /* Clear the top bar + the centered view switcher (top:12, h:32). */
+  padding: 72px 24px 28px;
+  background: var(--xy-background-color, var(--color-bg-base));
+}
+.stories-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 640px;
+  margin: 0 auto 12px;
+}
+.stories-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-fg-primary);
+}
+.stories-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-fg-muted);
+  background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent);
+}
+.stories-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-fg-primary);
+  background: color-mix(in oklab, var(--color-fg-primary) 6%, transparent);
+  transition: background-color 120ms;
+}
+.stories-new-btn:hover {
+  background: color-mix(in oklab, var(--color-fg-primary) 12%, transparent);
+}
+.stories-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 640px;
+  margin: 0 auto;
+  list-style: none;
+  padding: 0;
+}
+.story-list-card {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--color-bg-surface) 60%, transparent);
+  cursor: pointer;
+  transition:
+    border-color 120ms,
+    background-color 120ms;
+}
+.story-list-card:hover,
+.story-list-card:focus-visible {
+  border-color: color-mix(in oklab, var(--color-fg-primary) 20%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 92%, transparent);
+  outline: none;
+}
+.story-list-card[data-open] {
+  border-color: color-mix(in oklab, var(--color-fg-primary) 32%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 96%, transparent);
+}
+.story-list-card.is-skeleton {
+  height: 88px;
+  cursor: default;
+  background: color-mix(in oklab, var(--color-fg-primary) 5%, transparent);
+  border-color: transparent;
+  animation: sf-pending-pulse 1.4s ease-in-out infinite;
+}
+.story-card-thumb {
+  flex-shrink: 0;
+  width: 48px;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent);
+}
+.story-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.story-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+.story-card-titlerow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.story-card-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-fg-primary);
+}
+.story-card-tier {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--color-story-soft);
+  color: var(--color-accent-story);
+}
+.story-card-hook {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--color-fg-muted);
+}
+.story-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--color-fg-muted);
+}
+.story-card-moment {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.story-card-chip::before {
+  content: '·';
+  margin-right: 8px;
+  color: color-mix(in oklab, var(--color-fg-muted) 60%, transparent);
+}
+.story-card-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--color-accent-story);
+}
+.stories-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+}
+.stories-empty-icon {
+  width: 36px;
+  height: 36px;
+  color: var(--color-border-default);
+}
+.stories-empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-fg-primary);
+}
+.stories-empty-body {
+  max-width: 380px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--color-fg-muted);
+}
+.stories-empty-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary-foreground, #fff);
+  background: var(--color-accent-primary);
+  cursor: pointer;
+  transition: filter 120ms;
+}
+.stories-empty-cta:hover {
+  filter: brightness(1.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-list-card.is-skeleton {
+    animation: none;
+  }
+}
+
+/* ── Globe lens: the globe surface ──────────────────────────────────────── */
+.globe-lens {
+  position: absolute;
+  inset: 0;
+  z-index: 1; /* under the docked panel (6) and the top-bar (8) */
+  overflow: hidden;
+  background: var(--xy-background-color, var(--color-bg-base));
+}
+.globe-atmosphere {
+  pointer-events: none;
+}
+/* The empty-state CTA floats in the upper third; the globe arcs up from the bottom
+   edge behind it. Pointer-events pass through to the globe (drag to spin) except the
+   button, so the planet stays interactive under the copy. */
+.globe-empty {
+  position: absolute;
+  top: 24%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 30rem;
+  padding: 0 1.5rem;
+  text-align: center;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+.globe-empty-icon {
+  color: var(--color-border-default);
+  margin-bottom: 2px;
+}
+.globe-empty-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.globe-empty-btn {
+  pointer-events: auto;
+  margin-top: 6px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  background: var(--color-accent-primary);
+  color: var(--primary-foreground, #fff);
+  box-shadow: 0 6px 20px -6px var(--color-accent-primary);
+  transition: filter 120ms;
+}
+.globe-empty-btn:hover {
+  filter: brightness(1.08);
+}
+.globe-svg {
+  display: block;
+  touch-action: none;
+}
+.globe-sphere {
+  fill: var(--color-bg-elevated, #1a1d24);
+  stroke: var(--color-border-default);
+  stroke-width: 1;
+}
+.globe-graticule {
+  fill: none;
+  stroke: var(--color-border-faint);
+  stroke-width: 0.5;
+  opacity: 0.5;
+}
+.globe-land {
+  fill: var(--color-bg-surface);
+  stroke: var(--color-border-subtle);
+  stroke-width: 0.5;
+}
+.globe-marker-halo {
+  fill: var(--color-accent-era);
+  opacity: 0.18;
+  pointer-events: none;
+}
+.globe-marker-dot {
+  fill: var(--color-accent-primary);
+  stroke: var(--color-bg-base);
+  stroke-width: 1;
+  transition:
+    fill 150ms,
+    opacity 150ms;
+}
+.globe-marker-dot[data-state='active'] {
+  fill: var(--color-accent-era);
+}
+.globe-marker-dot[data-state='past'] {
+  opacity: 0.45;
+}
+.globe-marker-dot[data-selected] {
+  stroke: var(--color-accent-primary);
+  stroke-width: 2;
+}
+/* GS3 floating entity cards — a chip (type glyph + title) above a decluttered marker.
+   foreignObject hosts real DOM so the chip auto-hugs its text + ellipsizes; it's
+   pointer-events:none so it never blocks a marker click (hover lives on the marker).
+   `.globe-marker-label` survives as an identity hook on the PRIMARY card's title. */
+.globe-label-fo {
+  overflow: visible;
+  pointer-events: none;
+}
+.globe-label {
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  background: var(--color-bg-overlay, rgba(10, 12, 16, 0.82));
+  backdrop-filter: blur(6px);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.globe-label[data-primary] {
+  border-color: var(--color-accent-primary);
+}
+.globe-label-icon {
+  flex: 0 0 auto;
+  color: var(--color-accent-primary);
+}
+.globe-label-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 132px;
+}
+
+/* ── Globe lens: coverage banner + scrubber transport ───────────────────── */
+.globe-coverage-banner,
+.globe-scrubber {
+  position: absolute;
+  z-index: 3;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-overlay, rgba(10, 12, 16, 0.72));
+  backdrop-filter: blur(8px);
+}
+.globe-coverage-banner {
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--foreground);
+}
+.globe-coverage-banner button {
+  color: var(--color-accent-primary);
+  font-weight: 600;
+}
+.globe-scrubber {
+  bottom: 16px;
+  left: 16px;
+  /* right is set inline to clear the open detail dock */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-radius: 12px;
+}
+/* The narrative caption for placeless nodes — what's "happening" with no pin
+   (a worldwide era, a many-sited movement, a place lost to history). Sits just
+   above the scrubber so it reads as part of the playback narration. */
+.globe-placeless-caption {
+  position: absolute;
+  bottom: 64px;
+  left: 16px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 340px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 10px;
+  background: var(--color-bg-overlay, rgba(10, 12, 16, 0.72));
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+.globe-placeless-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.globe-placeless-where {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.globe-scrubber-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--foreground);
+}
+.globe-scrubber-btn:hover {
+  background: var(--color-bg-elevated);
+}
+.globe-track {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border-subtle);
+  cursor: pointer;
+  touch-action: none;
+}
+.globe-track-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--color-accent-primary);
+  pointer-events: none;
+}
+.globe-collapsed {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: repeating-linear-gradient(45deg, var(--color-border-faint) 0 2px, transparent 2px 4px);
+  pointer-events: none;
+}
+.globe-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: var(--color-accent-primary);
+  box-shadow: 0 0 0 3px var(--color-bg-overlay, rgba(10, 12, 16, 0.72));
+  pointer-events: none;
+}
+/* GS4: the scrubber's flexible middle is a small dated timeline — an era ribbon, the
+   scrub track (with year ticks), and a year-label axis, stacked in one x-space. */
+.globe-timeline {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.globe-axis-tick {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--color-border-default);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.globe-axis {
+  position: relative;
+  height: 13px;
+}
+.globe-axis-label {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+.globe-era-band {
+  position: relative;
+  width: 100%;
+}
+.globe-era-seg {
+  position: absolute;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--color-accent-era) 22%, transparent);
+  overflow: hidden;
+  pointer-events: none;
+}
+.globe-era-seg[data-active] {
+  background: color-mix(in oklab, var(--color-accent-era) 42%, transparent);
+  outline: 1px solid color-mix(in oklab, var(--color-accent-era) 60%, transparent);
+}
+.globe-era-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--foreground);
+}
+.globe-date {
+  min-width: 84px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+.globe-speed {
+  display: flex;
+  gap: 2px;
+}
+.globe-speed-btn {
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.globe-speed-btn[data-active] {
+  background: var(--color-accent-primary);
+  color: var(--primary-foreground, #fff);
+}
+/* GS2 zoom control — a vertical +/−/reset stack at the left edge, clear of the
+   bottom scrubber + placeless caption. Same overlay treatment as the scrubber. */
+.globe-zoom {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  background: var(--color-bg-overlay, rgba(10, 12, 16, 0.72));
+  backdrop-filter: blur(8px);
+}
+.globe-zoom-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--foreground);
+}
+.globe-zoom-btn:hover:not(:disabled) {
+  background: var(--color-bg-elevated);
+}
+.globe-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* Citation badge on nodes */
 .sf-cite {
   display: inline-flex;
@@ -1830,9 +2460,17 @@ body {
   box-shadow: var(--shadow-overlay);
   backdrop-filter: blur(8px);
   animation: dock-slide-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  /* Slides left to make room when the user opens an entity panel mid-story, and
+     back to the right edge (data-solo) when they close it. */
+  transition: right 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .story-reader:focus {
   outline: none;
+}
+/* Decoupled stories run with no entity panel by default — the reader docks flush
+   at the right edge. With a panel open it returns to its left-of-panel slot above. */
+.story-reader[data-solo] {
+  right: 16px;
 }
 
 /* Container-relative overrides — the .sv-* base assumes a full viewport. */
@@ -1877,6 +2515,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .story-reader {
     animation: none;
+    transition: none;
   }
 }
 

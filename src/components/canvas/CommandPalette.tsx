@@ -3,6 +3,7 @@ import {
   BookOpen,
   Box,
   Building2,
+  Globe,
   Layers,
   Lightbulb,
   ListFilter,
@@ -13,6 +14,8 @@ import {
   Sparkles,
   User,
   Zap,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import {
   CommandDialog,
@@ -80,6 +83,9 @@ export function CommandPalette({
   timelineId,
   timelineTitle,
   selectedNode,
+  onSwitchToGlobe,
+  globeSetupSpec,
+  globeZoom,
 }: {
   nodes: GraphNode[]
   onSelect: (id: string) => void
@@ -87,6 +93,13 @@ export function CommandPalette({
   timelineTitle: string
   // The node currently open in the detail panel, if any — its verbs lead the list.
   selectedNode?: GraphNode | null
+  // Globe lens: a direct "switch to globe" view action when the timeline has located
+  // nodes, OR a "set up globe view" backfill prompt when it has none. Exactly one is set.
+  onSwitchToGlobe?: () => void
+  globeSetupSpec?: PromptSpec | null
+  // GS2: present only while the globe lens is open — surfaces "Globe: zoom in/out/reset"
+  // as ⌘K actions that drive the mounted GlobeLens via its imperative handle.
+  globeZoom?: { in: () => void; out: () => void; reset: () => void } | null
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -172,11 +185,16 @@ export function CommandPalette({
     })
   const categories = useMemo(
     () => [
-      // +2 = the timeline-level actions (Improve, Theme); the rest are per-node.
-      { key: 'actions', label: 'Verbs', count: selectedVerbs.length + 2 + talkToEntities.length },
+      // +2 = the timeline-level actions (Improve, Theme); +3 = the globe zoom actions
+      // when the lens is open; the rest are per-node.
+      {
+        key: 'actions',
+        label: 'Verbs',
+        count: selectedVerbs.length + 2 + talkToEntities.length + (globeZoom ? 3 : 0),
+      },
       ...groups.map((g) => ({ key: g.type as string, label: g.label, count: g.items.length })),
     ],
-    [groups, selectedVerbs, talkToEntities],
+    [groups, selectedVerbs, talkToEntities, globeZoom],
   )
 
   function navigate(id: string) {
@@ -316,6 +334,66 @@ export function CommandPalette({
                 <Palette className="text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate">Theme this timeline…</span>
               </CommandItem>
+              {onSwitchToGlobe && (
+                <CommandItem
+                  value="action:globe"
+                  keywords={['globe', 'map', 'geography', 'world', 'spatial', 'location', 'view']}
+                  onSelect={() => {
+                    setOpen(false)
+                    onSwitchToGlobe()
+                  }}
+                >
+                  <Globe className="text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">Switch to globe view…</span>
+                </CommandItem>
+              )}
+              {globeSetupSpec && (
+                <CommandItem
+                  value="action:globe-setup"
+                  keywords={['globe', 'map', 'locations', 'coordinates', 'geography', 'setup']}
+                  onSelect={() => runAction(globeSetupSpec)}
+                >
+                  <Globe className="text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">Set up globe view…</span>
+                </CommandItem>
+              )}
+              {globeZoom && (
+                <>
+                  <CommandItem
+                    value="action:globe-zoom-in"
+                    keywords={['globe', 'zoom', 'in', 'closer', 'magnify', 'scale']}
+                    onSelect={() => {
+                      setOpen(false)
+                      globeZoom.in()
+                    }}
+                  >
+                    <ZoomIn className="text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">Globe: zoom in</span>
+                  </CommandItem>
+                  <CommandItem
+                    value="action:globe-zoom-out"
+                    keywords={['globe', 'zoom', 'out', 'wider', 'farther', 'scale']}
+                    onSelect={() => {
+                      setOpen(false)
+                      globeZoom.out()
+                    }}
+                  >
+                    <ZoomOut className="text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">Globe: zoom out</span>
+                  </CommandItem>
+                  <CommandItem
+                    value="action:globe-zoom-reset"
+                    keywords={['globe', 'zoom', 'reset', 'fit', 'whole', 'default']}
+                    onSelect={() => {
+                      setOpen(false)
+                      globeZoom.reset()
+                    }}
+                  >
+                    <Globe className="text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">Globe: reset zoom</span>
+                  </CommandItem>
+                </>
+              )}
               {talkToEntities.map((n) => (
                 <CommandItem
                   key={`talk:${n.id}`}

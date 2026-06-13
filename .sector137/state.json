@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-12T21:15:00.000Z",
+  "updatedAt": "2026-06-13T15:36:57.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -341,11 +341,11 @@
     },
     {
       "data": {
-        "title": "Implement LATER.3 — telemetry opt-in (self-hoster count)",
-        "description": "Fully opt-in telemetry; would also upgrade lovable-gate measurement from self-report. Roadmap 2.6.",
-        "horizon": "later",
+        "title": "Implement LATER.3 — opt-in self-hoster telemetry (heartbeat phone-home)",
+        "description": "Founder greenlit 2026-06-13 (chose 'build now' over park/defer/kill in /sal triage), ahead of the LATER.3 gate. Placed in NEXT (not NOW) so it does NOT displace the demo (local-61) + live in-browser pass (local-62), which remain the critical path — bump to NOW on request.\n\n### What this is (and is NOT)\nA FULLY OPT-IN phone-home so the PROJECT can count self-hosted installs. This is a DIFFERENT channel from the shipped PostHog analytics:\n- Shipped PostHog (posthog/client.ts + server.ts) = the OPERATOR's own engagement data, sent to whoever sets VITE_POSTHOG_KEY / POSTHOG_API_KEY. A fresh install with no key sends the project NOTHING — so it yields zero count of independent self-hosters.\n- This item = a heartbeat to a PROJECT-owned sink so independent self-hosters are countable. Default OFF; never fires without explicit opt-in.\n\n### Resolved architecture (Option A — low-infra, reuses posthog-node)\n- Sink: a PROJECT-owned PostHog INGEST key (phc_..., the public write-only kind ALREADY shipped to browsers via VITE_POSTHOG_KEY — baking it into the image is consistent with PostHog's model, NOT a secret leak). New env SYNEK_TELEMETRY_KEY (project default can be baked at build), distinct from the operator's POSTHOG_API_KEY.\n- Opt-in: new env SYNEK_TELEMETRY (default OFF). Heartbeat fires ONLY when truthy. Env flag, not a first-run dark pattern — the honest shape for a CLI/Docker product.\n- Event: one `self_host_heartbeat`, distinctId = a persisted random install id (a settings/meta row in the DB, generated once on the data volume). Properties { version, db_backend (sqlite|pg), first_seen_at }. NO graph content, NO user PII, NO timeline ids.\n- Cadence: fire once per server boot (counts active installs over time). Optional daily re-ping later.\n- Wire: emit from the server boot path (src/lib/db/index.ts boot or scripts/serve-build.ts) reusing posthog/server.ts captureServer + the existing flush/shutdown plumbing.\n\n### One decision for Kael to ratify (step 1, NON-blocking)\nConfirm Option A (project PostHog ingest key) vs Option B (a dedicated minimal ingest endpoint the project owns). Recommended: A. Residual risk of A = a bad actor extracting the public key and inflating the count with fake heartbeats — acceptable for a vanity self-hoster metric; mitigate with a tight property schema. B removes that risk but is new infra to run. Pick A unless count integrity is load-bearing.\n\n### Privacy / positioning\nThe 'no telemetry' landing copy was already removed when PostHog landed. Add a short, EXACT privacy note (README + landing): what the heartbeat contains, that it is opt-in/default-off, and the one env flag to enable it.\n\n### Acceptance criteria\n- Default install (no SYNEK_TELEMETRY) sends ZERO bytes to the project sink — verified.\n- With SYNEK_TELEMETRY=1, exactly one self_host_heartbeat fires per boot with { install_id, version, db_backend } and no PII/graph data.\n- install_id persists across container/volume recreate (lives on the data volume) and is stable per install.\n- A verify script (verify:telemetry) asserts opt-out (no key/flag = no client) and the payload shape, mirroring verify:mcp's data-layer style.\n- Privacy note documents the exact payload.\n\n### Refs\ndocs/product/roadmap.md (LATER.3 / 2.6); reuses src/lib/posthog/server.ts; ships naturally inside the self-host image (local-99) but works on any install. Was the LATER.3 placeholder; fleshed into a build spec in place 2026-06-13.\n\n### Done 2026-06-13 (build-verified; live pass owed via local-62)\nShipped: src/lib/telemetry/heartbeat.ts — opt-in gate (SYNEK_TELEMETRY truthy AND SYNEK_TELEMETRY_KEY present, else silent), anonymous payload { install_id = domain-separated sha256(BETTER_AUTH_SECRET), version, db_backend }, one self_host_heartbeat via posthog-node (flushAt:1 + shutdown), fire-and-forget, never throws. Wired at the prod boot seam scripts/serve-build.ts (.listen -> void sendHeartbeat()) so it fires once per server boot, NOT on dev/seed/stdio. Dockerfile bakes the project ingest key via ARG/ENV SYNEK_TELEMETRY_KEY (public write-only phc_ key; the opt-in FLAG is NOT baked, so a default image is silent until the operator runs with -e SYNEK_TELEMETRY=1). .env.example documented; README 'no telemetry' claim corrected to the honest 'nothing leaves your machine unless you turn it on' + a telemetry bullet. DEVIATION from the spec's 'persisted random install id on the data volume': used a DERIVED sha256(secret) id instead — zero migration, no second DB connection at the boot seam, identical for sqlite/pg; caveat = rotating BETTER_AUTH_SECRET reads as a new install (acceptable for a vanity count, undercount-only). Verified: verify:telemetry (13 asserts) + typecheck + build green; boot smoke test serves HTTP 200 with telemetry OFF. Deferred within item: the lovable-gate self-report upgrade (gate local-63 stays self-report).",
+        "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": []
       },
       "meta": {
@@ -637,10 +637,10 @@
     {
       "data": {
         "title": "Self-host Docker image — single-user, SQLite-on-a-volume",
-        "description": "A portable container that runs the existing local-first Core on any box (VPS or cloud) with NO Postgres swap — distinct from local-18 (NEXT.4 Postgres + Compose), which stays the later scale-up. Founder chose the SQLite-on-volume path 2026-06-12 ('just give me the Dockerfile').\n\n### Built this session (working tree, build-verified)\n- `Dockerfile` — multi-stage `node:22-bookworm-slim` (NOT Bun: better-sqlite3 needs the Node ABI). Build stage: python3/make/g++ + `npm install` + `npm run build`. Runtime stage: no compilers, carries dist/ + drizzle/ + node_modules (incl. the compiled .node + tsx). `CMD npm start`, HEALTHCHECK on `/`, `VOLUME /data`.\n- `.dockerignore` — excludes node_modules/dist/*.db/.env so host data + secrets never bake into the image.\n- `package.json` `start` script (`tsx scripts/serve-build.ts`) — promotes the e2e prod server to the real entry; `docker:build`.\n- Migration-on-boot fix (src/lib/db/index.ts): the old `migrate(...)` used a source-relative `../../../drizzle` that does NOT resolve in the bundled `dist/server/server.js`, wrapped in a SILENT catch — i.e. a fresh prod DB could boot un-migrated and serve an empty schema. Now keys on `SYNEK_MIGRATIONS_DIR` (set to /app/drizzle in the image) → repo-relative → <cwd>/drizzle, validated against `meta/_journal.json`, and FAILS LOUD in production instead of swallowing.\n\n### Done when\n`docker build` green (verifying this session); `docker run -v synek-data:/data -e BETTER_AUTH_SECRET -e BETTER_AUTH_URL` boots, applies migrations to the mounted volume, serves the canvas + `/api/mcp` on the mapped port, and data survives a container recreate. Single writer only — one container, no concurrent stdio server, no horizontal scale.\n\n### Constraint\nManual node-image uploads are stored INLINE as base64 data URLs in node JSON (src/lib/files.ts), so no object storage is needed — but the SQLite file grows with media; factor into the volume size + backups (local-103).",
+        "description": "A portable container that runs the existing local-first Core on any box (VPS or cloud) with NO Postgres swap — distinct from local-18 (NEXT.4 Postgres + Compose), which stays the later scale-up. Founder chose the SQLite-on-volume path 2026-06-12 ('just give me the Dockerfile').\n\n### Built this session (working tree, build-verified)\n- `Dockerfile` — multi-stage `node:22-bookworm-slim` (NOT Bun: better-sqlite3 needs the Node ABI). Build stage: python3/make/g++ + `npm install` + `npm run build`. Runtime stage: no compilers, carries dist/ + drizzle/ + node_modules (incl. the compiled .node + tsx). `CMD npm start`, HEALTHCHECK on `/`, `VOLUME /data`.\n- `.dockerignore` — excludes node_modules/dist/*.db/.env so host data + secrets never bake into the image.\n- `package.json` `start` script (`tsx scripts/serve-build.ts`) — promotes the e2e prod server to the real entry; `docker:build`.\n- Migration-on-boot fix (src/lib/db/index.ts): the old `migrate(...)` used a source-relative `../../../drizzle` that does NOT resolve in the bundled `dist/server/server.js`, wrapped in a SILENT catch — i.e. a fresh prod DB could boot un-migrated and serve an empty schema. Now keys on `SYNEK_MIGRATIONS_DIR` (set to /app/drizzle in the image) → repo-relative → <cwd>/drizzle, validated against `meta/_journal.json`, and FAILS LOUD in production instead of swallowing.\n\n### Done when\n`docker build` green (verifying this session); `docker run -v synek-data:/data -e BETTER_AUTH_SECRET -e BETTER_AUTH_URL` boots, applies migrations to the mounted volume, serves the canvas + `/api/mcp` on the mapped port, and data survives a container recreate. Single writer only — one container, no concurrent stdio server, no horizontal scale.\n\n### Constraint\nManual node-image uploads are stored INLINE as base64 data URLs in node JSON (src/lib/files.ts), so no object storage is needed — but the SQLite file grows with media; factor into the volume size + backups (local-103).\n\n### Done 2026-06-13\nClosed by the founder; verified on main. Image + migrate-on-boot fix committed in a6bf42a: Dockerfile (multi-stage node:22, tsx via scripts/serve-build.ts, VOLUME /data, healthcheck), .dockerignore, and the SYNEK_MIGRATIONS_DIR fail-loud migration fix in src/lib/db/index.ts are all present. DOCKER VERIFIED (note local-104): builds, boots ~5s, 18 migrations applied to the mounted volume, /api/mcp -> 401, data survives a container recreate. Image done; the remaining self-host work is the deploy chain local-100/101/102/103 -> Rook.",
         "horizon": "now",
         "type": "feature",
-        "status": "in_progress",
+        "status": "completed",
         "dependencies": []
       },
       "meta": {
@@ -753,10 +753,10 @@
     {
       "data": {
         "title": "Implement GLOBE-S GS2 — zoom the globe (wheel + pinch + controls + ⌘K) with a shared rAF ease",
-        "description": "Globe Story Mode primitive #1. The globe has NO zoom today — projection scale is fixed at `(Math.min(viewW, size.h)/2) * 0.92` (GlobeLens.tsx:255). Add a clamped zoom and a reusable camera ease that GS1 (story-driven globe) leans on. Refs: docs/product/prd/globe-stories.md §GS2.\n\n### Scope\n- Add `zoom` state (multiplier, default 1) to GlobeLens; projection scale becomes `… * 0.92 * zoom`. Clamp `zoom ∈ [1, ~6]` (1 = whole sphere fits; upper bound a UX call).\n- Wheel: `onWheel` on the globe SVG, preventDefault, `zoom *= exp(-deltaY*k)`, clamp. Trackpad pinch arrives as wheel+ctrlKey — same handler, larger k. (No touch/two-finger — desktop-targeted per the guardrail.)\n- Controls: a +/− zoom control group (bottom-left, mirroring React Flow's Controls) + ⌘K NAV actions 'Globe: zoom in / out / reset'.\n- Factor the rotation-ease lerp currently living INSIDE the play rAF loop (GlobeLens.tsx:170–177) into an always-available rAF ease that runs whenever there's a pending rotation OR zoom target — so button/⌘K zooms glide AND a beat step (GS1) can animate the camera with playback paused. Raw wheel can apply immediately (no ease).\n- A manual zoom (like a manual drag, GlobeLens.tsx:232) sets `userRotatedRef` (the 'user took over' flag) so an in-progress story-follow doesn't yank the camera mid-gesture.\n- Optional: `globe_zoomed { timeline_id, via }` analytics via the existing capture seam (low priority).\n\n### Done when\nWheel + trackpad-pinch zoom the globe within clamp; +/− control and ⌘K zoom in/out/reset work; zoom + drag both glide via the shared ease and both suspend story-follow; typecheck + build green; verify:globe + globe e2e unregressed; drag-rotate + click→panel unchanged.",
+        "description": "Globe Story Mode primitive #1. The globe has NO zoom today — projection scale is fixed at `(Math.min(viewW, size.h)/2) * 0.92` (GlobeLens.tsx:255). Add a clamped zoom and a reusable camera ease that GS1 (story-driven globe) leans on. Refs: docs/product/prd/globe-stories.md §GS2.\n\n### Scope\n- Add `zoom` state (multiplier, default 1) to GlobeLens; projection scale becomes `… * 0.92 * zoom`. Clamp `zoom ∈ [1, ~6]` (1 = whole sphere fits; upper bound a UX call).\n- Wheel: `onWheel` on the globe SVG, preventDefault, `zoom *= exp(-deltaY*k)`, clamp. Trackpad pinch arrives as wheel+ctrlKey — same handler, larger k. (No touch/two-finger — desktop-targeted per the guardrail.)\n- Controls: a +/− zoom control group (bottom-left, mirroring React Flow's Controls) + ⌘K NAV actions 'Globe: zoom in / out / reset'.\n- Factor the rotation-ease lerp currently living INSIDE the play rAF loop (GlobeLens.tsx:170–177) into an always-available rAF ease that runs whenever there's a pending rotation OR zoom target — so button/⌘K zooms glide AND a beat step (GS1) can animate the camera with playback paused. Raw wheel can apply immediately (no ease).\n- A manual zoom (like a manual drag, GlobeLens.tsx:232) sets `userRotatedRef` (the 'user took over' flag) so an in-progress story-follow doesn't yank the camera mid-gesture.\n- Optional: `globe_zoomed { timeline_id, via }` analytics via the existing capture seam (low priority).\n\n### Done when\nWheel + trackpad-pinch zoom the globe within clamp; +/− control and ⌘K zoom in/out/reset work; zoom + drag both glide via the shared ease and both suspend story-follow; typecheck + build green; verify:globe + globe e2e unregressed; drag-rotate + click→panel unchanged.\n\n### Done 2026-06-13\nShipped (build + e2e verified; uncommitted). Clamped zoom [1,6] on GlobeLens: a non-passive wheel listener (passive:false — React onWheel is passive; trackpad pinch via ctrlKey, coarser k), a left-center +/−/reset control group, and ⌘K 'Globe: zoom in/out/reset' via an imperative controlsRef handle the lazy lens registers into (TimelineCanvas.globeControlsRef → CommandPalette.globeZoom, gated on lensView==='globe'). The GS1 per-beat ease was generalized into ONE shared camera ease (easeCameraTo → nonce-driven rAF) that all programmatic moves funnel through; raw wheel/drag bypass it (immediate + cancelEase). Manual zoom flags userRotatedRef (re-arms next beat via the cursor-skip effect). Reduced-motion snaps. OQ-S2 resolved: zoom-to-center for v1. New globe_zoomed {timeline_id, via} analytics (wheel debounced 400ms). Verified: typecheck + build + verify:globe + e2e 41/41 (added a zoom clamp/enable test; GS1 + canvas/palette unregressed). PRD §GS2 marked shipped. NOTE: local-107 (GS1) is still status:open here but GS1 is verifiably shipped (PRD §GS1 + the 'story plays on the globe' e2e) — flag for sync-time reconciliation.",
         "horizon": "next",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "local-90"
         ]
@@ -830,10 +830,90 @@
         "etag": null,
         "syncedAt": null
       }
+    },
+    {
+      "data": {
+        "title": "Implement STORY-CTX SC1 — cross-lens story context previews (display)",
+        "description": "Show the contextual axis the active lens isn't showing while reading a story: Timeline view → a mini-globe (WHERE), Globe view → a time-strip (WHEN). Front-end only — NO schema/migration/MCP change. Refs: docs/product/prd/story-context-previews.md (Phase 1 / SC1).\n\n### Multi-reference model\nA beat references many nodes (`{focusNodeId} ∪ relatedNodeIds`), each with its own place + instant. The preview plots the WHOLE referenced set (via the existing `nodeById` prop), not one subject: a PIN per located node + a MARKER per referenced node, focus highlighted, rest muted. Cap a busy beat ~6 pins (focus + nearest) + \"+k more\".\n\n### Placement — 40px peek row\nA slim 40px context row at the foot of the beat stage (beats only, not cover/end). Resting: 24px globe glyph + primary place + `+N places` (Timeline) / multi-marker strip + the beat's period on the right (Globe). Hover/tap in Timeline view rises the full 140px globe popover (all located pins, focus highlighted) — zero layout cost, no reflow.\n\n### Components + wire\n- New: `StoryContextPreview` (peek row), `MiniGlobe` (140px static, array of {lat,lng,focus} pins, framed to centroid, ~150ms fade between beats), `MiniTimeStrip` (linear over cast span, marker per ref, period via formatInstant/formatInstantRange).\n- Wire `lensView` (+ `isOwner`) from TimelineCanvas → StoryReader (the one new prop).\n- Extract shared `coordsToRotation(lat,lng) => [-lng,-lat]` (GS1/local-107 reuses it).\n- REQUIRED companion fix: GlobeLens under-insets while reading → `rightInset = reading ? panelW.detail + panelW.story + 32 : displayNode ? panelW.detail : 0` (TimelineCanvas.tsx:1201). Ship-blocking for Globe-view reading.\n\n### Degradation (per node)\nLocated → pinned + counted. Placeless → GEO_SCOPE_LABELS caption (no pin). All-unlocated beat → focus scope label / \"No place set\" + owner-only \"Ask Claude to add one\". The strip always works (every node has an instant).\n\n### Analytics\nstory_context_preview_shown { timeline_id, story_id, beat_index, preview_type, located_count, ref_count }; story_context_backfill_opened { timeline_id, node_id }. (_clicked is SC2.)\n\n### Done when\nTimeline reading: foot row shows primary + +N; peek renders all located pins framed to centroid; placeless→scope label, all-unset→\"No place set\" + nudge. Globe reading: marker per ref + the beat's period on the right. Cover/end: no preview. coordsToRotation extracted; GlobeLens inset fix in. No schema/migration/MCP change; typecheck + build green; verified on the seeded (coordinated) Stoicism timeline.\n\n### Follow-on\nSC2 (portal tap: tap preview → switch lens pre-focused on the beat, snap-to-target via GlobeLens focusRotation; NOT GS1-gated) is the staged fast-follow, depends on this.",
+        "horizon": "now",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "local-90"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-111",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Add /synek:watch keeper-routine skill to the Claude plugin (client-side Living Timelines)",
+        "description": "Deliver the Watcher value (keep a timeline current — competitors, model releases, novel research) as a Claude Code plugin skill, NOT in-app. Zero app code / schema / migration — pure plugin. This is the client-side expression of the in-app L (local-50), which stays deferred (LATER.2, gated on demo + lovable core). The app stays a pure viewer + MCP server; the keeper is a routine the user runs from their own client over the existing MCP surface (get_layout_report/query_timeline/apply_patch/register_artifact + WebSearch). Inspired by the founder's directive off the L task.\n\n### What landed (uncommitted)\n- New skill `synek-plugin/skills/watch/SKILL.md` — `/synek:watch <timeline>`. Part 1 runs a keeper pass now (identify timeline → get_layout_report dedup baseline + latest-date watermark → WebSearch the gap → diff/skip-existing → ONE dated apply_patch, each node cited → register_artifact → honest report incl. 'nothing new' and 'unverified' rules, never invent). Part 2 makes it recurring with the honest localhost-vs-cloud constraint table (on-demand · local cron/launchd/loop · cloud routine only when server is cloud-reachable) + a portable routine-recipe prompt that works in any MCP client.\n- `building-timelines/SKILL.md` — new 'Living timelines' awareness section: when to proactively offer a keeper, the read-before-write/dedup contract, points to /synek:watch.\n- `map/SKILL.md` — step 6: after building an ONGOING topic, offer the routine.\n- `README.md` — watch row in the box table, MCP tool list refreshed (query_timeline/get_layout_report/register_artifact/search_artifacts), reconciled the 'scheduled/background updates out of scope' bullet (app adds no scheduler; user drives the routine), new 'Keeping a timeline alive' section.\n- `.claude-plugin/marketplace.json` — description + keywords (watcher, routine).\n\n### Scope verdict\nOn the safe side of the CLAUDE.md guardrail: the deferred item is the in-APP agent/scheduler/ingestion service; this adds none of that. Honest constraint baked in: a scheduled CLOUD agent can't reach a localhost server, so recurring-against-local = OS cron / loop / on-demand; true cloud routines wait for hosted Synek (forward-compat noted, not built).\n\n### Not done\nNo automated eval case added under synek-plugin/evals (manual review only). Plugin not reinstalled/round-trip-tested in a live Claude Code session this pass. Logs the analyst-pull signal for B6 (decision log candidate).",
+        "horizon": "now",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-113",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "tasks": [],
   "notes": [
+    {
+      "data": {
+        "title": "Session wrap — LATER.3 opt-in telemetry shipped — 2026-06-13",
+        "body": "One-item session: cleared LATER.3 (local-19) end to end. Flow: triage (note local-115) found it NOT done — the shipped PostHog is a different, operator-keyed channel that counts zero independent self-hosters; Sal recommended PARK, founder overrode -> BUILD. Built + verified (note local-116): src/lib/telemetry/heartbeat.ts, scripts/verify-telemetry.ts (+ verify:telemetry, 13 asserts), serve-build.ts boot seam, Dockerfile ARG/ENV SYNEK_TELEMETRY_KEY, .env.example, README honesty fix. Registered self_host_heartbeat to B1 instrumentation (product-strategy.md) + decision-log line. Roadmap LATER.3 -> BUILT. local-19 -> completed. Verified: verify:telemetry + typecheck + build + boot-smoke (HTTP 200, telemetry OFF) all green.\n\nOWED / NEXT: (1) real PostHog phc_ ingest key baked at deploy (--build-arg SYNEK_TELEMETRY_KEY) so a heartbeat actually lands — code is inert without it; (2) live in-browser pass (local-62), shared by all recent items; (3) sync_state when the sector137 MCP returns to reconcile local-19/-115/-116/-117 (all dirty, offline).\n\nGIT HYGIENE: telemetry-only files (heartbeat.ts, verify-telemetry.ts, Dockerfile, .env.example, README.md, decision-log.md, product-strategy.md, serve-build.ts) are cleanly separable, BUT package.json + docs/product/roadmap.md + .sector137/state.json were ALREADY modified pre-session (globe/theme working tree) — co-mingled, like the local-82 situation. No commit made (working tree holds it); founder to stage the telemetry slice."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-117",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "LATER.3 telemetry BUILT (opt-in self-hoster heartbeat) — 2026-06-13",
+        "body": "Founder confirmed Option A (PostHog) — built same session, no Kael round-trip. local-19 -> completed. Files: NEW src/lib/telemetry/heartbeat.ts (telemetryEnabled/heartbeatPayload/sendHeartbeat; opt-in gate SYNEK_TELEMETRY + SYNEK_TELEMETRY_KEY, anonymous { install_id, version, db_backend }, posthog-node one-shot, never throws); NEW scripts/verify-telemetry.ts (13 asserts, network-free) + package.json verify:telemetry; scripts/serve-build.ts boot seam (void sendHeartbeat() in .listen — fires once per prod boot, not dev/seed/stdio); Dockerfile ARG/ENV SYNEK_TELEMETRY_KEY (bakes project ingest key; opt-in flag NOT baked); .env.example block; README 'no telemetry' -> honest 'nothing leaves your machine unless you turn it on' + telemetry bullet; docs/product/roadmap.md LATER.3 reconciled to BUILT. KEY DESIGN CALL: derived install_id = domain-separated sha256(BETTER_AUTH_SECRET) instead of a DB-persisted random id — dropped the planned app_meta migration + a second better-sqlite3 connection at the boot seam; sqlite/pg-uniform; caveat secret-rotation = new install (undercount-only, fine for a vanity metric). De-risked my own 'key leak' worry: PostHog phc_ ingest keys are public/write-only by design (client.ts already ships one to browsers), residual risk is only count-inflation. Verified: verify:telemetry + typecheck + build green; serve-build boot smoke = HTTP 200 with telemetry OFF. Live in-browser pass still owed via local-62 (consistent with all recent items). NOT done: a real end-to-end POST to a live PostHog project (needs the founder's real phc_ key at deploy) — the contract + gating are proven without it."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-116",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "LATER.3 telemetry triaged + greenlit for build — 2026-06-13",
+        "body": "Founder asked to 'clear' LATER.3 (local-19). Triage verdict: NOT done and not started — the shipped PostHog analytics are a DIFFERENT channel (operator-keyed, opt-OUT, the operator's own data; a fresh install phones the project nothing), so they produce zero self-hoster count. Sal recommended PARK (the lovable gate local-63 is deliberately self-report / 'no silent telemetry', so this is on the critical path to nothing, and it's the first true vendor phone-home — brushes the local-first guardrail). Founder overrode and chose BUILD NOW. local-19 retitled + fleshed into a full build spec in place (not a duplicate): Option A architecture (project-owned PostHog ingest key — public write-only, NOT a secret leak — reusing posthog/server.ts), SYNEK_TELEMETRY env opt-in default OFF, one self_host_heartbeat { install_id, version, db_backend }, no PII/graph data, persisted install id on the data volume, verify:telemetry. Horizon set to NEXT (not NOW) so it doesn't displace the demo (local-61) + live pass (local-62); bump on request. One open decision routed to Kael (non-blocking): project ingest key (A, recommended) vs dedicated endpoint (B). No app code written this session — spec handoff only."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-115",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
     {
       "data": {
         "title": "Project init (offline) — 2026-06-12",
@@ -1039,6 +1119,48 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-110",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "STORY-CTX SC1 staged (NOW, offline) — 2026-06-13",
+        "body": "Founder ran /sal build for cross-lens story context previews after refining the PRD this session, then chose Stage + pull to NOW.\n\nStaged local-111 (STORY-CTX SC1, horizon NOW — pulled ahead of the NEXT globe-stories work) into the offline queue (sector137 MCP unavailable this session). Front-end only, no schema/MCP change.\n\nKEY REDESIGN folded into the PRD this session: previews are MULTI-REFERENCE — a beat plots its whole referenced set ({focusNodeId} ∪ relatedNodeIds), a pin per located node + a marker per referenced node, focus highlighted; 40px peek-row placement (founder vetoed a 150px band → the 140px globe peeks up as a popover); SC2 portal = snap-to-target, NOT GS1-gated. Required companion: the GlobeLens inset fix (rightInset reading=detail+story+32, TimelineCanvas.tsx:1201) + the shared coordsToRotation helper (GS1/local-107 reuses it).\n\nPRD: docs/product/prd/story-context-previews.md (SC1 + SC2 phased). v0.1.0 (local-70) still draft — local-111 NOT scoped into it (NOW feature, separate from the demo release). Pre-existing duplicate localIds (local-77 x2, local-104 issue+note) still flagged for sync-time dedup. Reconcile with mcp__sector137__sync_state when the MCP returns."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-112",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Wrap — keeper-routine plugin skill (/synek:watch) shipped (local-113)",
+        "body": "Founder ran /sal off the L — Living Timelines task: 'update the claude plugin to have a skill to create and run routines … keep up with competitors, technology advancements, novel research related to the timeline.'\n\nGuardrail call (surfaced, not blocked): the deferred item (D.2 / L local-50) is the in-APP agent + scheduler + signal-ingestion service. The founder's framing pushes all of that into the user's own client, so the build is plugin-ONLY — zero app code, schema, or migration. That's the purest form of the inversion thesis ('the app holds no AI; intelligence comes from the user's MCP client'), so it sits on the safe side of the line and delivers Watcher value without touching the L gate. In-app L stays deferred.\n\nShipped uncommitted (local-113): new `synek-plugin/skills/watch/SKILL.md` (/synek:watch — run-now keeper pass + make-recurring), awareness woven into building-timelines (offer-a-keeper + read-before-write/dedup contract) and map (step 6 offer), README + marketplace.json updated. Load-bearing design: read-before-write dedup via get_layout_report (compact node index + latest-date watermark), one dated apply_patch per run, cite-or-mark-unverified (never invent), and an HONEST localhost-vs-cloud-cron constraint (cloud agents can't reach localhost → recurring-local = OS cron/loop/on-demand; cloud routines wait for hosted Synek).\n\nB6 signal: this is analyst-pull (the Watcher persona) arriving as inbound founder demand while the enthusiast core is still pre-gate — worth a decision-log line per the persona-sequencing bet. NOT scoped into v0.1.0 (local-70 demo release). Not committed, no eval case, not live-tested in a Claude Code session. Reconcile dirty entries (local-113/114 + the pre-existing local-77 x2 / local-104 dup) via mcp__sector137__sync_state when the MCP returns."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-114",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "GS2 globe zoom shipped + local-99 closed (offline) — 2026-06-13",
+        "body": "Founder ran /sal: 'I closed local-99 — check + finish it' and 'add and build: roadmap zoom'.\n\n(1) local-99 (self-host Docker image) verified done-on-main and flipped in_progress→completed: Dockerfile + .dockerignore + scripts/serve-build.ts + the SYNEK_MIGRATIONS_DIR fail-loud migration fix (src/lib/db/index.ts) are committed (a6bf42a) and docker-verified (note local-104). Remaining self-host work is the deploy chain local-100/101/102/103 → Rook.\n\n(2) 'roadmap zoom' read as GS2 — interactive globe zoom (local-106, the next unblocked Globe-Stories item; confirmed by code + PRD: a GS1-only zoom slice already existed, interactive wheel/pinch was deferred). BUILT + verified (typecheck + build + verify:globe + e2e 41/41 — added a zoom clamp/enable test; GS1 + canvas/palette unregressed): clamped zoom [1,6] via a non-passive wheel listener (passive:false; trackpad pinch via ctrlKey), a left-center +/−/reset control, and ⌘K 'Globe: zoom in/out/reset' through an imperative controlsRef handle (TimelineCanvas.globeControlsRef → CommandPalette.globeZoom, gated on lensView==='globe'). The GS1 per-beat ease was generalized into ONE shared camera ease (easeCameraTo → nonce rAF) all programmatic moves funnel through; raw wheel/drag bypass it (immediate + cancelEase). New globe_zoomed {timeline_id,via} analytics. local-106 → completed; PRD globe-stories.md §GS2 marked shipped; memory [[strata-globe-story-mode]] updated. Uncommitted working tree (not committed — a concurrent /sal session was writing state.json this session).\n\nSync-time reconciliation flags: local-107 (GS1) is status:open but GS1 is verifiably shipped (PRD §GS1 + the 'story plays on the globe' e2e) — flip on next sync; pre-existing dup localIds (local-77 x2, local-104 issue+note); the concurrent session added local-113..116 — watch for merge/dup."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-117",
         "dirty": true,
         "etag": null,
         "syncedAt": null

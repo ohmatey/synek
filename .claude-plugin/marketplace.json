@@ -12,9 +12,9 @@
     {
       "name": "synek",
       "source": "./synek-plugin",
-      "description": "Talk to Claude on the left, watch your Synek timeline build itself on the right. Bundles the local MCP connection plus the know-how to build good timelines, with /synek:map and /synek:setup.",
+      "description": "Talk to Claude on the left, watch your Synek timeline build itself on the right. Bundles the local MCP connection plus the know-how to build good timelines, with /synek:map, /synek:watch (keep ongoing timelines current), and /synek:setup.",
       "version": "0.1.0",
-      "keywords": ["timeline", "knowledge-canvas", "mcp", "history"]
+      "keywords": ["timeline", "knowledge-canvas", "mcp", "history", "watcher", "routine"]
     }
   ]
 }

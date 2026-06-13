@@ -141,7 +141,7 @@ export function buildMcpServer(ownerId: string): McpServer {
         'MUTATE the graph ONLY via apply_patch — one call = one undoable Patch holding a batch of ops. ' +
         'Within a batch, set `ref` on an add_node and reuse that alias as an edge endpoint to wire edges to nodes created in the same call. ' +
         'Give nodes a FACE, not a bare box: when you know a real, web-accessible image for a node (a Wikimedia portrait for a person, an official logo for an org, public-domain art for an era/event), pass it in the add_node/update_node `images` field as a URL. Set each image\'s `aspect` to "portrait" for tall subjects (a standing person, a headshot) or "landscape" for wide ones (scenes, logos) so it is framed correctly. Synek stores and renders it; it does not generate images. ' +
-        'Give nodes a PLACE too: set `location` ("Golgotha, Jerusalem") where it adds texture. ' +
+        'Give nodes a PLACE too: set `location` ("Golgotha, Jerusalem") where it adds texture, and when you know where it happened also pass `lat`/`lng` (decimal degrees, city-level precision is plenty) — those coordinates plot the node on the globe lens, which the user can play through to watch history move across the map. When a node genuinely CANNOT be pinned, say so explicitly with `geoScope` instead of skipping it: "global" (happened everywhere — a worldwide era), "diffuse" (several real sites, no single anchor), or "unknown" (the place is lost to history) — the globe narrates these as captions, coverage counts them as resolved, and NEVER guess coordinates as a substitute. get_layout_report returns a `coordinates` section (located / placeless / unset counts + a sample of the undecided nodes) so you can resolve them — pin or mark, every node gets a verdict — in one apply_patch. ' +
         'CITE with links: every citation takes a `url` — add a stable public link wherever one exists (and never invent one); title-only is fine for print sources. apply_patch verifies the links you pass and warns on dead ones. ' +
         'undo / redo step the per-timeline history. ' +
         'After building (or reshaping) a timeline, call set_timeline_view to pick the default zoom (pxPerDay) and gap collapsing so the canvas opens readable — heed the density warnings apply_patch returns. ' +
@@ -250,7 +250,7 @@ export function buildMcpServer(ownerId: string): McpServer {
       title: 'Query timeline nodes',
       description:
         'Context-cheap read: filter a timeline\'s nodes and get COMPACT rows ({ id, title, type, start, end?, lane?, ' +
-        'location?, hasStory? }) instead of the full graph. Use this (not get_timeline) for mid-build lookups — ' +
+        'location?, coords?, geoScope?, hasStory? }) instead of the full graph. Use this (not get_timeline) for mid-build lookups — ' +
         'finding a node id, listing a lane, checking an era. Pass full:true to include summaries + citations for ' +
         'the matched rows only. Filters combine with AND.',
       inputSchema: {
@@ -303,6 +303,10 @@ export function buildMcpServer(ownerId: string): McpServer {
           ...(n.endInstant != null ? { end: formatInstant(n.endInstant, n.precision) } : {}),
           ...(n.metadata?.lane ? { lane: n.metadata.lane } : {}),
           ...(n.metadata?.location ? { location: n.metadata.location } : {}),
+          ...(n.metadata?.lat != null && n.metadata?.lng != null
+            ? { coords: [n.metadata.lat, n.metadata.lng] }
+            : {}),
+          ...(n.metadata?.geoScope ? { geoScope: n.metadata.geoScope } : {}),
           ...(storyDepth.has(n.id) ? { hasStory: true } : {}),
           ...(full
             ? {
@@ -346,6 +350,9 @@ export function buildMcpServer(ownerId: string): McpServer {
         precision: node.precision,
         lane: node.metadata?.lane ?? null,
         location: node.metadata?.location ?? null,
+        lat: node.metadata?.lat ?? null,
+        lng: node.metadata?.lng ?? null,
+        geoScope: node.metadata?.geoScope ?? null,
         citations: node.metadata?.citations ?? [],
         images: node.metadata?.images ?? [],
         edges: graph.edges
@@ -372,9 +379,10 @@ export function buildMcpServer(ownerId: string): McpServer {
         'A compact whole-graph shape review — the canvas\'s view of the build, sized for an agent to reason over ' +
         '(get_timeline is the full data dump; this is the X-ray). Returns lane health (counts, density, ' +
         'near-duplicate lane names, fragments), axis span + dead zones, era coverage (nodes + stories per period), ' +
-        'story coverage, the deduplicated source registry, the same advisories apply_patch computes, and a ' +
-        'one-line-per-node index. Call it after a multi-patch build or reshape, then ACT on what it shows: merge ' +
-        'drifted lanes, re-anchor outliers, fill story-poor eras, balance thin sourcing.',
+        'story coverage, globe coordinates (located / placeless / unset counts + undecided-node sample), the ' +
+        'deduplicated source registry, the same advisories apply_patch computes, and a one-line-per-node index. ' +
+        'Call it after a multi-patch build or reshape, then ACT on what it shows: merge drifted lanes, re-anchor ' +
+        'outliers, fill story-poor eras, balance thin sourcing, resolve undecided coordinates (pin or mark placeless).',
       inputSchema: { timelineId: z.string() },
     },
     async ({ timelineId }) => {

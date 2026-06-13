@@ -241,6 +241,51 @@ function outlierWarnings(nodes: NodeRow[]): string[] {
   return warnings
 }
 
+// --- coordinates (checked for THIS batch's ops only) -----------------------
+//
+// The globe lens plots a node only when it carries BOTH lat and lng. Two cheap,
+// batch-scoped, false-positive-free checks: a brand-new node given exactly one
+// coordinate (it can't be plotted), and the classic "null island" (0, 0) that
+// usually means a geocoding lookup failed. Range is already a hard zod error,
+// so it never reaches here. No ocean/landmass check in v1 (that needs the
+// server to carry the world TopoJSON — deferred).
+function coordinateWarnings(ops: Op[]): string[] {
+  const warnings: string[] = []
+  for (const op of ops) {
+    if (op.op !== 'add_node' && op.op !== 'update_node') continue
+    const { lat, lng } = op
+    const label = op.op === 'add_node' ? `"${op.title}"` : op.title ? `"${op.title}"` : `node ${op.id}`
+    // Coordinates and the placeless marker contradict each other within one op —
+    // the coordinates were kept and geoScope was ignored.
+    if (op.geoScope != null && (lat != null || lng != null)) {
+      warnings.push(
+        `${label}: both coordinates and geoScope "${op.geoScope}" were supplied — they are mutually exclusive ` +
+          '(a node is either pinned or placeless). The coordinates were kept and geoScope was ignored; ' +
+          'if the node really cannot be pinned, re-send geoScope with lat/lng null.',
+      )
+    }
+    if (lat === 0 && lng === 0) {
+      warnings.push(
+        `${label}: coordinates (0, 0) look like a geocoding failure ("null island" in the Gulf of Guinea) — ` +
+          'double-check the lat/lng for this place',
+      )
+      continue
+    }
+    // A NEW node needs both coordinates to land on the globe; a lone one is dropped.
+    if (op.op === 'add_node') {
+      const hasLat = lat != null
+      const hasLng = lng != null
+      if (hasLat !== hasLng) {
+        warnings.push(
+          `${label}: only ${hasLat ? 'lat' : 'lng'} was supplied — the globe needs BOTH lat and lng to plot a ` +
+            'node, so this coordinate will not place it. Supply the matching value.',
+        )
+      }
+    }
+  }
+  return warnings
+}
+
 // --- entry point ------------------------------------------------------------
 
 export async function collectPatchWarnings(
@@ -252,6 +297,7 @@ export async function collectPatchWarnings(
   const warnings = [
     ...(await imageWarnings(ops)),
     ...(await citationWarnings(ops)),
+    ...coordinateWarnings(ops),
     ...laneDensityWarnings(graph.nodes, pxPerDay),
     ...outlierWarnings(graph.nodes),
   ]

@@ -2,6 +2,7 @@ import http from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { sendHeartbeat } from '../src/lib/telemetry/heartbeat'
 
 // Minimal production server for e2e: serves the built client assets statically
 // and falls back to the TanStack Start fetch handler (SSR + server fns + /api/*).
@@ -77,4 +78,10 @@ http
       res.end(String((e as Error)?.stack ?? e))
     }
   })
-  .listen(PORT, () => console.log(`serve-build listening on http://localhost:${PORT}`))
+  .listen(PORT, () => {
+    console.log(`serve-build listening on http://localhost:${PORT}`)
+    // Opt-IN self-hoster heartbeat (LATER.3). No-op unless SYNEK_TELEMETRY is set
+    // AND a project key is present; never throws. This is the prod/Docker entry, so
+    // it fires once per server boot — not on dev, seeds, or the stdio MCP process.
+    void sendHeartbeat()
+  })

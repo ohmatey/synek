@@ -18,6 +18,23 @@ export type NodeSize = (typeof NODE_SIZES)[number]
 export const NODE_SUBTYPES = ['person', 'org', 'place', 'work'] as const
 export type NodeSubtype = (typeof NODE_SUBTYPES)[number]
 
+// Why a node carries NO lat/lng — the explicit "cannot be pinned" marker,
+// mutually exclusive with coordinates. 'global' = happened everywhere (a
+// worldwide era); 'diffuse' = several real sites with no honest single anchor
+// (the four Gospels); 'unknown' = the place is genuinely lost to history.
+// Distinguishes "reviewed, deliberately unpinned" from "not yet located", so
+// coverage math converges and backfill prompts stop re-litigating the node.
+export const GEO_SCOPES = ['global', 'diffuse', 'unknown'] as const
+export type GeoScope = (typeof GEO_SCOPES)[number]
+
+// Reader-facing copy for each scope — shown wherever a located node would show
+// its place (detail-panel location row, globe captions).
+export const GEO_SCOPE_LABELS: Record<GeoScope, string> = {
+  global: 'Worldwide — no single place',
+  diffuse: 'Several places — no single anchor',
+  unknown: 'Location unknown',
+}
+
 // How an image is framed when presented: `landscape` (horizontal, wider than
 // tall) or `portrait` (vertical, taller than wide). Drives the crop ratio on the
 // canvas card and in the detail panel's hero strip. Absent → landscape.
@@ -99,6 +116,13 @@ export type GraphNode = {
   // Where this happened — a plain display string ("Golgotha, Jerusalem"); no
   // geocoding. Shown in the detail panel's dateline.
   location: string | null
+  // Optional geo coordinates for `location` (decimal degrees); null when unset.
+  // The globe lens plots nodes that carry both. MCP-client-supplied.
+  lat: number | null
+  lng: number | null
+  // Explicit placeless marker (mutually exclusive with lat/lng): the node was
+  // reviewed and cannot be pinned. Null = either located or not yet reviewed.
+  geoScope: GeoScope | null
   // True when a story has been written onto this moment (drives the depth badge);
   // `storyDepth` carries its tier when present. Written via the MCP write_story
   // tool, separate from the graph Patch stack.
@@ -251,6 +275,10 @@ export type StoryBeat = {
 
 export type StoryDTO = {
   id: string
+  // The moment (node id) this story is anchored to. The reader uses it as the
+  // story's camera/title anchor, so playback is decoupled from canvas selection
+  // (a story runs by itself; opening an entity is a separate, explicit gesture).
+  momentId: string
   title: string
   hook: string | null
   povType: PovType
@@ -279,4 +307,6 @@ export type StoryListItem = {
   povType: PovType
   estimatedMinutes: number | null
   beatCount: number
+  // Cover art for the story card in the Stories view (null = text-only card).
+  coverImage: StoryImage | null
 }

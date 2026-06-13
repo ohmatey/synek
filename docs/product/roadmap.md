@@ -307,9 +307,17 @@ Maps to: L roadmap items (`#local-50` through `#local-55`). Depends on S2 (artif
 - L.5 — Agent personas: Historian (deepen/correct a past timeline) · Watcher (keep an ongoing one current)
 - L.6 — Agent dashboard: status, run history, proposal review, budget/cost
 
-### LATER.3 — Telemetry opt-in
+### LATER.3 — Telemetry opt-in — 🟢 BUILT (greenlit ahead of gate 2026-06-13; build-verified, live pass owed via `#local-62`)
 
-Maps to: 2.6 (`#local-19`, planned). Self-hoster count; fully opt-in.
+Maps to: 2.6 (`#local-19`). Self-hoster count; **fully opt-in, default OFF**.
+
+Founder greenlit this ahead of the LATER gate (chose *build* over *park* in a `/sal` triage). It is a **separate channel** from the operator-keyed PostHog analytics already shipped: those send the *operator's own* engagement data to *their* key, so a fresh install tells the project nothing. This sends a single anonymous **`self_host_heartbeat`** per server boot to a **project-owned** PostHog ingest key (baked into the published Docker image), so active self-hosted installs are countable.
+
+- **Opt-in:** `SYNEK_TELEMETRY=1` (default OFF) **and** a `SYNEK_TELEMETRY_KEY` present — both required, else silent.
+- **Payload:** `{ install_id (one-way hash of BETTER_AUTH_SECRET — no PII), version, db_backend }`. Never any graph content.
+- Wired at the prod boot seam (`scripts/serve-build.ts`); fires once per boot, not on dev/seed/stdio. Module: `src/lib/telemetry/heartbeat.ts`; contract test `bun run verify:telemetry`. The README "no telemetry" copy was corrected to "nothing leaves your machine unless you turn it on."
+
+Deferred within this item: the secondary "upgrade lovable-gate measurement from self-report" goal — the gate (`#local-63`) stays deliberate self-report for now.
 
 ---
 

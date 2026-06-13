@@ -10,6 +10,7 @@ import {
   buildFillGapPrompt,
   buildExtendLanePrompt,
   buildPopulateEraPrompt,
+  buildGlobeBackfillPrompt,
 } from '~/lib/node-verb-prompts'
 import { formatInstant } from '~/lib/domain/dates'
 import type { DeadZone } from '~/lib/domain/dead-zones'
@@ -226,6 +227,27 @@ export function themeTimelineSpec(ctx: VerbContext): PromptSpec {
     contextPlaceholder: 'e.g. weathered parchment and bronze; neon noir; Bauhaus poster',
     contextHeading: 'Shape the theme around what the user asked for:',
     analytics: { event: 'verb_prompt_copied', props },
+  }
+}
+
+// GLOBE BACKFILL — ask the connected Claude to add lat/lng to the timeline's
+// place-bearing nodes so the globe lens can plot them. Timeline-level; surfaced in
+// ⌘K ("Set up globe view") and the globe's coverage banner. Fires the globe-specific
+// `globe_backfill_prompt_copied` event (the PRD's named metric), not verb_prompt_copied.
+export function globeBackfillSpec(ctx: VerbContext, uncoordinatedCount?: number): PromptSpec {
+  const props: Record<string, unknown> = { timeline_id: ctx.timelineId }
+  if (ctx.surface) props.surface = ctx.surface
+  if (uncoordinatedCount != null) props.uncoordinated_count = uncoordinatedCount
+  return {
+    title: 'Set up the globe view',
+    description:
+      'Ask your connected Claude to give every node a globe verdict — map coordinates (lat/lng) where it happened, or a "no single place" marker — so the globe is complete and honest.',
+    params: ctx.timelineTitle ? [{ label: 'Timeline', value: ctx.timelineTitle }] : undefined,
+    prompt: buildGlobeBackfillPrompt({ timelineId: ctx.timelineId, title: ctx.timelineTitle ?? '' }),
+    contextLabel: 'Anything specific about places? (optional)',
+    contextPlaceholder: 'e.g. use birthplaces for the philosophers, launch sites for the missions',
+    contextHeading: 'Focus the coordinates on what the user asked for:',
+    analytics: { event: 'globe_backfill_prompt_copied', props },
   }
 }
 

@@ -95,7 +95,7 @@ test('selecting a moment does not start the story; Play opens the docked reader,
   await expect(page.getByRole('dialog', { name: 'Node details' })).toBeVisible()
 })
 
-test('a focus beat switches the entity panel to the focused entity (dialog follows the beat)', async ({ page }) => {
+test('the detail panel does NOT auto-follow the beat; the canvas rings the focus (decoupled)', async ({ page }) => {
   const panel = await openDarwinPanel(page)
   await panel.getByRole('button', { name: 'Play story' }).click()
   const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
@@ -104,57 +104,19 @@ test('a focus beat switches the entity panel to the focused entity (dialog follo
   await reader.getByRole('button', { name: 'Play story' }).click()
 
   const detail = page.getByRole('dialog', { name: 'Node details' })
-  // Beat 1 has no focus → the panel previews the moment (Darwin).
+  // The panel shows the entity the user opened (Darwin) and STAYS there.
   await expect(detail.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
 
-  // Beat 2 focuses Newton → the panel switches to him and the canvas rings him.
+  // Beat 2 focuses Newton → the canvas rings him, but the panel does NOT switch
+  // (stories are decoupled from the entity panel; opening an entity is explicit).
   await reader.getByRole('button', { name: 'Next beat' }).click()
   await expect(reader.getByText('2 / 4')).toBeVisible()
-  await expect(detail.getByRole('heading', { name: 'Isaac Newton' })).toBeVisible()
   await expect(page.locator('.react-flow__node.rf-focused', { hasText: 'Isaac Newton' })).toBeVisible()
-
-  // Beat 4 has no explicit focus but references Einstein → the panel follows the
-  // first related node too (panel tracks the same target the camera frames).
-  await reader.getByRole('button', { name: 'Next beat' }).click() // 3/4 (no focus → moment)
-  await expect(reader.getByText('3 / 4')).toBeVisible()
   await expect(detail.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
-  await reader.getByRole('button', { name: 'Next beat' }).click() // 4/4 (related Einstein)
-  await expect(reader.getByText('4 / 4')).toBeVisible()
-  await expect(detail.getByRole('heading', { name: 'Albert Einstein' })).toBeVisible()
-
-  // Stepping back to beat 1 returns the panel to the moment.
-  await reader.getByRole('button', { name: 'Previous beat' }).click() // 3/4
-  await reader.getByRole('button', { name: 'Previous beat' }).click() // 2/4
-  await reader.getByRole('button', { name: 'Previous beat' }).click() // 1/4
-  await expect(reader.getByText('1 / 4')).toBeVisible()
-  await expect(detail.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
+  await expect(detail.getByRole('heading', { name: 'Isaac Newton' })).toHaveCount(0)
 })
 
-test('the AppBar Stories list shows preview cards and plays one', async ({ page }) => {
-  await page.goto('/timelines/figures')
-
-  // The toolbar surfaces a Stories control (figures has exactly one story).
-  const trigger = page.getByRole('button', { name: /Stories/ })
-  await expect(trigger).toBeVisible()
-  await trigger.click()
-
-  // The popover lists the story as a slim preview card — title + hook + Play
-  // (entity/beat-count chrome was deliberately dropped from this list).
-  const card = page.getByRole('button', { name: /The long wait before Origin/ })
-  await expect(card).toBeVisible()
-  await expect(card).toContainText('Two decades between the idea and the book.')
-  await expect(card).toContainText('Play')
-
-  // Picking it opens the moment and the docked reader on the story's cover.
-  await card.click()
-  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
-  await expect(reader).toBeVisible()
-  await reader.getByRole('button', { name: 'Play story' }).click()
-  await expect(reader.getByText(/filled notebook after notebook/)).toBeVisible()
-  await expect(reader.getByText('1 / 4')).toBeVisible()
-})
-
-test('a story beat links to a related moment and navigates there', async ({ page }) => {
+test('tapping a beat’s related link opens that entity beside the reader without ending the story', async ({ page }) => {
   const panel = await openDarwinPanel(page)
   await panel.getByRole('button', { name: 'Play story' }).click()
   const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
@@ -167,9 +129,10 @@ test('a story beat links to a related moment and navigates there', async ({ page
   const link = reader.getByRole('button', { name: '→ Isaac Newton' })
   await expect(link).toBeVisible()
 
-  // Tapping it closes the reader and selects Newton (his panel opens).
+  // Tapping it opens Newton's panel BESIDE the reader — the story keeps playing
+  // (decoupled: an entity is an optional side-trip, not an exit).
   await link.click()
-  await expect(reader).toBeHidden()
+  await expect(reader).toBeVisible()
   const newtonPanel = page.getByRole('dialog', { name: 'Node details' })
   await expect(newtonPanel.getByRole('heading', { name: 'Isaac Newton' })).toBeVisible()
 })
@@ -198,5 +161,33 @@ test.describe('with motion enabled', () => {
     // Esc closes it (handled by the reader's keydown).
     await page.keyboard.press('Escape')
     await expect(reader).toBeHidden()
+  })
+
+  test('auto-play can be toggled off so the reader stays put and waits for input', async ({ page }) => {
+    const panel = await openDarwinPanel(page)
+    await panel.getByRole('button', { name: 'Play story' }).click()
+    const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+    await expect(reader).toBeVisible()
+    await reader.getByRole('button', { name: 'Play story' }).click()
+
+    // Auto-play is on by default → beat 1's progress segment animates (is-active).
+    const seg1 = reader.locator('.sv-seg').nth(0).locator('.sv-seg-fill')
+    await expect(seg1).toHaveClass(/is-active/)
+
+    // Turn auto-play off → the segment goes static (is-current) and the timer stops.
+    await reader.getByRole('button', { name: 'Turn auto-play off' }).click()
+    await expect(seg1).toHaveClass(/is-current/)
+    await expect(seg1).not.toHaveClass(/is-active/)
+    // It waits for input — still on beat 1 after a beat's worth of time would pass.
+    await page.waitForTimeout(1200)
+    await expect(reader.getByText('1 / 4')).toBeVisible()
+
+    // Manual stepping still advances while auto-play is off.
+    await reader.getByRole('button', { name: 'Next beat' }).click()
+    await expect(reader.getByText('2 / 4')).toBeVisible()
+
+    // Toggling auto-play back on resumes the timed slideshow on the current beat.
+    await reader.getByRole('button', { name: 'Turn auto-play on' }).click()
+    await expect(reader.locator('.sv-seg').nth(1).locator('.sv-seg-fill')).toHaveClass(/is-active/)
   })
 })

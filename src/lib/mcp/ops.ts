@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { parseDate } from '~/lib/domain/dates'
 import type { PatchBuilder, NodePatch, EdgePatch } from '~/lib/db/patches'
 import type { NodeMetadata } from '~/lib/db/schema'
-import type { NodeImage, Precision } from '~/lib/domain/types'
+import { GEO_SCOPES, type NodeImage, type Precision } from '~/lib/domain/types'
 
 // Transport-agnostic graph-edit logic. Lifted out of the old AI-SDK `tools.ts`
 // so the SAME op semantics back the MCP server. A batch of ops runs through one
@@ -50,6 +50,17 @@ const laneHint =
 const locationHint =
   'Where this happened, as a plain display string ("Golgotha, Jerusalem", "Down House, Kent"). ' +
   'Shown in the node\'s detail panel — adds place texture; no geocoding.'
+const latHint =
+  'Latitude in decimal degrees (−90..90, negative = South). Plotted on the globe lens. ' +
+  'Supply alongside `location` when you know where this happened; city-level precision is plenty. Pair with `lng`.'
+const lngHint =
+  'Longitude in decimal degrees (−180..180, negative = West). Pair with `lat` — supply both or neither.'
+const geoScopeHint =
+  'Explicit "cannot be pinned" marker — set INSTEAD of lat/lng when this node genuinely has no single place: ' +
+  '"global" (happened everywhere — a worldwide era), "diffuse" (several real sites, no honest single anchor), ' +
+  '"unknown" (the place is lost to history). Records the decision so coverage math and backfill prompts treat ' +
+  'the node as resolved instead of still-missing. Never guess coordinates as a substitute — placeless is an ' +
+  'answer, not a gap. Mutually exclusive with lat/lng (setting it clears any coordinates).'
 const imageInput = z.object({
   url: z
     .string()
@@ -99,6 +110,9 @@ export const opSchema = z.discriminatedUnion('op', [
     subtype: subtypeEnum.optional().describe(subtypeHint),
     lane: z.string().optional().describe(laneHint),
     location: z.string().optional().describe(locationHint),
+    lat: z.number().min(-90).max(90).optional().describe(latHint),
+    lng: z.number().min(-180).max(180).optional().describe(lngHint),
+    geoScope: z.enum(GEO_SCOPES).optional().describe(geoScopeHint),
     images: z.array(imageInput).optional().describe(imagesHint),
   }),
   z.object({
@@ -117,6 +131,9 @@ export const opSchema = z.discriminatedUnion('op', [
     subtype: subtypeEnum.optional().describe(subtypeHint),
     lane: z.string().optional().describe(laneHint + ' Pass "" to clear the lane.'),
     location: z.string().optional().describe(locationHint + ' Pass "" to clear it.'),
+    lat: z.number().min(-90).max(90).nullable().optional().describe(latHint + ' Pass null to clear coordinates.'),
+    lng: z.number().min(-180).max(180).nullable().optional().describe(lngHint + ' Pass null to clear coordinates.'),
+    geoScope: z.enum(GEO_SCOPES).nullable().optional().describe(geoScopeHint + ' Pass null to clear it.'),
     images: z.array(imageInput).optional().describe(imagesHint),
   }),
   z.object({
@@ -161,12 +178,24 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
         const end = op.end ? parseDate(op.end) : null
         const images = op.images?.length ? normalizeImages(op.images) : undefined
         const metadata: NodeMetadata | null =
-          op.citations?.length || op.subtype || op.lane || op.location || images
+          op.citations?.length ||
+          op.subtype ||
+          op.lane ||
+          op.location ||
+          op.lat != null ||
+          op.lng != null ||
+          op.geoScope ||
+          images
             ? {
                 ...(op.citations?.length ? { citations: op.citations } : {}),
                 ...(op.subtype ? { subtype: op.subtype } : {}),
                 ...(op.lane ? { lane: op.lane } : {}),
                 ...(op.location ? { location: op.location } : {}),
+                ...(op.lat != null ? { lat: op.lat } : {}),
+                ...(op.lng != null ? { lng: op.lng } : {}),
+                // Mutually exclusive with coordinates — coords win when one op
+                // contradicts itself (coordinateWarnings flags it).
+                ...(op.geoScope && op.lat == null && op.lng == null ? { geoScope: op.geoScope } : {}),
                 ...(images ? { images } : {}),
               }
             : null
@@ -198,7 +227,16 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
         if (op.end) np.endInstant = parseDate(op.end).instant
         if (op.precision) np.precision = op.precision
         // Merge metadata so existing images/color/size aren't clobbered.
-        if (op.citations || op.subtype || op.lane !== undefined || op.location !== undefined || op.images) {
+        if (
+          op.citations ||
+          op.subtype ||
+          op.lane !== undefined ||
+          op.location !== undefined ||
+          op.lat !== undefined ||
+          op.lng !== undefined ||
+          op.geoScope !== undefined ||
+          op.images
+        ) {
           const prior = (builder.getNode(id)?.metadata ?? {}) as NodeMetadata
           const merged: NodeMetadata = {
             ...prior,
@@ -216,6 +254,35 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
           if (op.location !== undefined) {
             if (op.location === '') delete merged.location
             else merged.location = op.location
+          }
+          // lat/lng === null clears the coordinate; a number sets it. They pair —
+          // a lone coordinate is flagged by coordinateWarnings, not blocked here.
+          // Setting a coordinate also clears geoScope: a pin and "cannot be
+          // pinned" never coexist on a node.
+          if (op.lat !== undefined) {
+            if (op.lat === null) delete merged.lat
+            else {
+              merged.lat = op.lat
+              delete merged.geoScope
+            }
+          }
+          if (op.lng !== undefined) {
+            if (op.lng === null) delete merged.lng
+            else {
+              merged.lng = op.lng
+              delete merged.geoScope
+            }
+          }
+          // geoScope === null clears it; a value sets it AND clears any pin.
+          // When one op contradicts itself (coords + geoScope), coords win —
+          // coordinateWarnings tells the client.
+          if (op.geoScope !== undefined) {
+            if (op.geoScope === null) delete merged.geoScope
+            else if (op.lat == null && op.lng == null) {
+              merged.geoScope = op.geoScope
+              delete merged.lat
+              delete merged.lng
+            }
           }
           np.metadata = merged
         }

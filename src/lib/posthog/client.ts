@@ -81,11 +81,33 @@ export type ClientEvent =
   | 'invitation_shown'
   | 'story_prompt_copied'
   | 'command_palette_used'
+  // Stories lens (docs/product/prd/stories-view.md). Navigation signal for bet B3:
+  // `story_view_opened { timeline_id }` is the denominator for story plays that
+  // enter from the Stories list (vs. a node panel). Plays/completions still ride
+  // `story_started`/`story_completed` from the reader.
+  | 'story_view_opened'
   | 'story_started'
   | 'story_completed'
   | 'node_edited'
   | 'export_performed'
   | 'share_toggled'
+  // Globe lens (docs/product/prd/globe-lens.md). The hero is `globe_playback_started`
+  // over `globe_lens_opened` (did opening the lens lead to playing). Props (untyped at
+  // the call site, documented here):
+  //   globe_lens_opened       { timeline_id, node_count, coordinated_count, coverage_pct }
+  //   globe_playback_started  { timeline_id, speed }
+  //   globe_scrubbed          { timeline_id }
+  //   globe_marker_clicked    { timeline_id, node_id, node_type }
+  //   globe_lens_closed       { timeline_id, session_duration_ms, played }
+  //   globe_backfill_prompt_copied { timeline_id, uncoordinated_count?, surface? }  (fired via the PromptSpec copy seam)
+  //   globe_zoomed            { timeline_id, via: 'wheel' | 'button' }  (GS2; debounced per wheel gesture)
+  | 'globe_lens_opened'
+  | 'globe_playback_started'
+  | 'globe_scrubbed'
+  | 'globe_marker_clicked'
+  | 'globe_lens_closed'
+  | 'globe_backfill_prompt_copied'
+  | 'globe_zoomed'
 
 /** Typed, gated capture. Safe to call from anywhere — no-ops until init + opt-in. */
 export function capture(event: ClientEvent | '$pageview', props?: Record<string, unknown>): void {

@@ -14,7 +14,7 @@ import { fileToDataUrl } from '~/lib/files'
 import { NewStoryDialog } from './NewStoryDialog'
 import { NodeVerbBar } from './NodeVerbBar'
 import { ResizeHandle } from './ResizeHandle'
-import { IMAGE_ASPECTS, NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
+import { GEO_SCOPE_LABELS, IMAGE_ASPECTS, NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
 import type { GraphNode, GraphEdge, CanvasCitation, ImageAspect, NodeImage, NodeSize, NodeSubtype, Precision, EdgeKind, PovType, StoryListItem } from '~/lib/domain/types'
 import type { NodeDraft } from './types'
 
@@ -85,6 +85,7 @@ export function NodeDetailPanel({
   onSelectNode,
   onDraft,
   onPlayStory,
+  onAddToGlobe,
   width,
   onResize,
   onCommitResize,
@@ -109,6 +110,9 @@ export function NodeDetailPanel({
   // Open the docked story reader beside this panel on a specific story (only
   // meaningful on the moment).
   onPlayStory?: (storyId: string) => void
+  // Owner-only nudge shown on a node that has a `location` string but no map
+  // coordinates: opens the globe backfill prompt so the connected Claude can add them.
+  onAddToGlobe?: () => void
   // Resizable width (px), owned by the canvas so the story reader can dock to
   // its left edge. Omit to leave the CSS default and hide the drag handle.
   width?: number
@@ -490,10 +494,25 @@ export function NodeDetailPanel({
             </>
           )}
           {dateline}
-          {node.location && (
+          {node.location ? (
             <>
               <span className="detail-dateline-sep"> · </span>
               <span>{node.location}</span>
+            </>
+          ) : node.geoScope ? (
+            // Reviewed-and-unpinnable: explain the absence of a place instead of
+            // rendering nothing ("Worldwide — no single place" / "Location unknown").
+            <>
+              <span className="detail-dateline-sep"> · </span>
+              <span>{GEO_SCOPE_LABELS[node.geoScope]}</span>
+            </>
+          ) : null}
+          {canEdit && onAddToGlobe && node.location && (node.lat == null || node.lng == null) && !node.geoScope && (
+            <>
+              <span className="detail-dateline-sep"> · </span>
+              <button type="button" className="detail-add-to-globe" onClick={onAddToGlobe}>
+                Add to globe →
+              </button>
             </>
           )}
         </p>
