@@ -54,10 +54,10 @@ async function main() {
 
   // === sources + artifacts CRUD ============================================
   console.log('CRUD — source + artifact round-trip')
-  const src = createSource({ title: 'Vindolanda Tablets', author: 'Bowman & Thomas', year: 1994, sourceType: 'archive' })
+  const src = createSource({ ownerId, title: 'Vindolanda Tablets', author: 'Bowman & Thomas', year: 1994, sourceType: 'archive' })
   assert(!!src.id && src.title === 'Vindolanda Tablets', 'source created')
 
-  const a1 = createArtifact({
+  const a1 = createArtifact({ ownerId,
     title: 'Tablet 291',
     artifactType: 'letter',
     transcript: 'a Roman letter inviting Sulpicia to a birthday',
@@ -67,44 +67,44 @@ async function main() {
     dateInstant: -59011200000,
     datePrecision: 'year',
   })
-  const got = getArtifactById(a1.id)
+  const got = getArtifactById(a1.id, ownerId)
   assert(!!got && got.title === 'Tablet 291' && got.sourceId === src.id, 'artifact round-trips with sourceId')
   assert(got!.reliability === 'primary' && got!.sourceType === 'primary', 'reliability + genre sourceType both stored')
 
-  const a2 = createArtifact({ title: 'Census Record', artifactType: 'record', transcript: 'a Roman census of the colony', reliability: 'secondary' })
+  const a2 = createArtifact({ ownerId, title: 'Census Record', artifactType: 'record', transcript: 'a Roman census of the colony', reliability: 'secondary' })
 
   // === FTS5: insert reflected in MATCH =====================================
   console.log('FTS5 — insert/update/delete reflected in search')
-  assert(searchArtifacts({ query: 'birthday' }).some((r) => r.id === a1.id), 'insert trigger indexed a1 (transcript term)')
-  assert(searchArtifacts({ query: 'census' }).some((r) => r.id === a2.id), 'insert trigger indexed a2')
+  assert(searchArtifacts({ ownerId, query: 'birthday' }).some((r) => r.id === a1.id), 'insert trigger indexed a1 (transcript term)')
+  assert(searchArtifacts({ ownerId, query: 'census' }).some((r) => r.id === a2.id), 'insert trigger indexed a2')
 
   // update → re-MATCH (AFTER UPDATE trigger reindexes)
-  updateArtifact(a1.id, { transcript: 'a Roman letter mentioning Zenodotus the scribe' })
-  assert(searchArtifacts({ query: 'Zenodotus' }).some((r) => r.id === a1.id), 'update trigger reindexed the new term')
-  assert(!searchArtifacts({ query: 'birthday' }).some((r) => r.id === a1.id), 'update trigger evicted the old term')
+  updateArtifact(a1.id, { transcript: 'a Roman letter mentioning Zenodotus the scribe' }, ownerId)
+  assert(searchArtifacts({ ownerId, query: 'Zenodotus' }).some((r) => r.id === a1.id), 'update trigger reindexed the new term')
+  assert(!searchArtifacts({ ownerId, query: 'birthday' }).some((r) => r.id === a1.id), 'update trigger evicted the old term')
 
   // delete → gone from FTS (AFTER DELETE trigger)
-  deleteArtifact(a2.id)
-  assert(searchArtifacts({ query: 'census' }).length === 0, 'delete trigger evicted a2 from the index')
+  deleteArtifact(a2.id, ownerId)
+  assert(searchArtifacts({ ownerId, query: 'census' }).length === 0, 'delete trigger evicted a2 from the index')
 
   // === filters + ranking + snippet + opaque score ==========================
   console.log('search — filters, snippet, opaque score')
-  const a3 = createArtifact({ title: 'Roman Coin', artifactType: 'object', transcript: 'a Roman bronze coin', reliability: 'tertiary' })
-  const roman = searchArtifacts({ query: 'Roman' })
+  const a3 = createArtifact({ ownerId, title: 'Roman Coin', artifactType: 'object', transcript: 'a Roman bronze coin', reliability: 'tertiary' })
+  const roman = searchArtifacts({ ownerId, query: 'Roman' })
   assert(roman.length >= 2 && roman.every((r) => 'score' in r), 'Roman matches multiple, each carries a score')
   assert(roman.every((r) => !('rank' in r) && !('bm25' in r)), 'no backend key (rank/bm25) leaks — score is opaque')
   assert(roman.every((r, i) => i === 0 || roman[i - 1]!.score >= r.score), 'results sorted by score, higher is better')
   assert(roman.some((r) => r.snippet.length > 0), 'snippet() populated')
 
-  assert(searchArtifacts({ query: 'Roman', types: ['letter'] }).every((r) => r.artifactType === 'letter'), 'type filter narrows')
-  assert(searchArtifacts({ query: 'Roman', reliability: ['tertiary'] }).every((r) => r.id === a3.id), 'reliability filter narrows')
+  assert(searchArtifacts({ ownerId, query: 'Roman', types: ['letter'] }).every((r) => r.artifactType === 'letter'), 'type filter narrows')
+  assert(searchArtifacts({ ownerId, query: 'Roman', reliability: ['tertiary'] }).every((r) => r.id === a3.id), 'reliability filter narrows')
 
   // MATCH sanitization — punctuation/operators must not throw, real terms survive
   assert(
-    searchArtifacts({ query: 'Roman?! ("bronze")' }).some((r) => r.id === a3.id),
+    searchArtifacts({ ownerId, query: 'Roman?! ("bronze")' }).some((r) => r.id === a3.id),
     'punctuation stripped, real terms (Roman + bronze) still match a3',
   )
-  assert(searchArtifacts({ query: '-- ( ) !! :*' }).length === 0, 'all-punctuation query returns [] without throwing')
+  assert(searchArtifacts({ ownerId, query: '-- ( ) !! :*' }).length === 0, 'all-punctuation query returns [] without throwing')
 
   // === moment link + timeline scope ========================================
   console.log('moment link + timelineId scope')
@@ -112,20 +112,21 @@ async function main() {
   linkMomentArtifact(moment, a1.id)
   assert(listArtifactsForMoment(moment).some((a) => a.id === a1.id), 'listArtifactsForMoment returns the linked artifact')
 
-  const scoped = searchArtifacts({ query: 'Roman', timelineId: TL })
+  const scoped = searchArtifacts({ ownerId, query: 'Roman', timelineId: TL })
   assert(scoped.some((r) => r.id === a1.id), 'timeline-scoped search includes the linked artifact')
   assert(!scoped.some((r) => r.id === a3.id), 'timeline-scoped search excludes an UNlinked artifact')
-  assert(searchArtifacts({ query: 'Roman' }).some((r) => r.id === a3.id), 'unscoped search still includes it')
+  assert(searchArtifacts({ ownerId, query: 'Roman' }).some((r) => r.id === a3.id), 'unscoped search still includes it')
 
   // === registerArtifact orchestration (source + artifact + moment in one txn)
   console.log('registerArtifact — source + artifact + moment link in one transaction')
   const reg = registerArtifact({
+    ownerId,
     artifact: { title: 'Altar Inscription', artifactType: 'inscription', transcript: 'a Roman dedication to Mithras' },
     source: { title: 'Corpus Inscriptionum', sourceType: 'book' },
     momentId: moment,
   })
   assert(!!reg.artifactId && !!reg.sourceId, 'registerArtifact returns artifact + source ids')
-  assert(getArtifactById(reg.artifactId)!.sourceId === reg.sourceId, 'artifact wired to the new source')
+  assert(getArtifactById(reg.artifactId, ownerId)!.sourceId === reg.sourceId, 'artifact wired to the new source')
   assert(listArtifactsForMoment(moment).some((a) => a.id === reg.artifactId), 'registered artifact linked to the moment')
 
   console.log('\nS2.1 artifacts data layer + FTS5 ✓')

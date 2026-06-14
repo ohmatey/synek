@@ -142,8 +142,6 @@ export function resolveThemeVars(theme: TimelineTheme | null, scheme: ColorSchem
     vars['--xy-background-color'] = bg // :root alias — the canvas pane wash
     // Pattern dots/lines nudge toward the opposite polarity of the wash.
     vars['--xy-background-pattern-color'] = luminance(bg) > 0.5 ? rgba('#14171e', 0.1) : rgba('#f4f5f7', 0.08)
-    vars['--ruler-fade-strong'] = rgba(bg, 0.92) // time-ruler fade (styles.css hook)
-    vars['--ruler-fade-clear'] = rgba(bg, 0)
   }
 
   const fontKey = theme.font?.display

@@ -28,6 +28,11 @@ export const redoPatch = createServerFn({ method: 'POST' })
     return historyState(timelineId)
   })
 
+// History exposes per-timeline state, so it's owner-only too — the same guard as
+// undo/redo (multi-tenant: a non-owner must not read another user's history).
 export const getHistory = createServerFn({ method: 'GET' })
   .inputValidator((timelineId: string) => timelineId)
-  .handler(({ data: timelineId }) => historyState(timelineId))
+  .handler(async ({ data: timelineId }) => {
+    await assertOwnsTimeline(timelineId)
+    return historyState(timelineId)
+  })

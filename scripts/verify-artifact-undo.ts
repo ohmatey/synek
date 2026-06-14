@@ -68,8 +68,8 @@ async function main() {
   // === join writes + hydrate merge =========================================
   console.log('write_story v2 — segment_citations + story_artifacts + hydrate merge')
   const m = addMoment('Vindolanda')
-  const a1 = registerArtifact({ artifact: { title: 'Tablet 291', artifactType: 'letter', transcript: 'birthday invitation' }, momentId: m }).artifactId
-  const a2 = registerArtifact({ artifact: { title: 'Tablet 343', artifactType: 'letter', transcript: 'a request for supplies' } }).artifactId
+  const a1 = registerArtifact({ ownerId, artifact: { title: 'Tablet 291', artifactType: 'letter', transcript: 'birthday invitation' }, momentId: m }).artifactId
+  const a2 = registerArtifact({ ownerId, artifact: { title: 'Tablet 343', artifactType: 'letter', transcript: 'a request for supplies' } }).artifactId
   assert(momentArts(m) === 1, 'registerArtifact linked a1 to the moment (moment_artifacts)')
 
   const { storyId } = writeStory(
@@ -98,7 +98,7 @@ async function main() {
   deleteMoment(m)
   assert(getStoryForMoment(m) === null, 'delete cascades the story away')
   assert(segCites(storyId) === 0 && storyArts(storyId) === 0 && momentArts(m) === 0, 'all join rows cascaded away')
-  assert(!!getArtifactById(a1) && !!getArtifactById(a2), 'the artifacts THEMSELVES survive (only joins cascaded)')
+  assert(!!getArtifactById(a1, ownerId) && !!getArtifactById(a2, ownerId), 'the artifacts THEMSELVES survive (only joins cascaded)')
 
   assert(undo(TL), 'undo of the delete succeeds')
   assert(getStoryForMoment(m)?.beats.length === 1, 'undo restores the story')
@@ -115,13 +115,13 @@ async function main() {
   // === Case B: undo the CREATING patch → redo restores joins ===============
   console.log('\nCase B — undo the patch that created the moment → redo restores its joins')
   const b = addMoment('Bremenium')
-  const a3 = registerArtifact({ artifact: { title: 'Altar of Mithras', artifactType: 'inscription', transcript: 'a dedication' }, momentId: b }).artifactId
+  const a3 = registerArtifact({ ownerId, artifact: { title: 'Altar of Mithras', artifactType: 'inscription', transcript: 'a dedication' }, momentId: b }).artifactId
   const { storyId: sb } = writeStory(b, { title: 'The dedication' }, [{ bodyText: 'He carved it.', artifactCitations: [{ artifactId: a3 }] }])
   assert(segCites(sb) === 1 && momentArts(b) === 1, 'story + joins present on the new moment')
 
   assert(undo(TL), 'undo of the creating patch')
   assert(getStoryForMoment(b) === null && momentArts(b) === 0, 'undo removes the node and cascades story + moment_artifacts')
-  assert(!!getArtifactById(a3), 'the artifact survives the create-undo')
+  assert(!!getArtifactById(a3, ownerId), 'the artifact survives the create-undo')
 
   assert(redo(TL), 'redo re-creates the moment')
   assert(getStoryForMoment(b)?.beats.length === 1 && segCites(sb) === 1 && momentArts(b) === 1, 'redo restores node + story + all joins')

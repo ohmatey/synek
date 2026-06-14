@@ -42,7 +42,9 @@ Then connect — **one click, no token:**
 
 | Env var | Purpose | Default |
 |---|---|---|
-| `SYNEK_MCP_URL` | Override the MCP endpoint if Synek runs on a non-default host/port. | `http://localhost:3001/api/mcp` |
+| `SYNEK_MCP_URL` | Override the MCP endpoint if Synek runs on a non-default host/port — **including a hosted Synek** (point it at `https://your-host/api/mcp` and re-authenticate via `/mcp`). | `http://localhost:3001/api/mcp` |
+
+> **Local or hosted, same plugin.** The plugin talks to whatever Synek `SYNEK_MCP_URL` points at — your local server or a hosted one. (A hosted Synek can also run prompts itself via its own in-app **Run** button when the operator configures an agent key; the plugin path stays available either way.)
 
 No `SYNEK_API_KEY` is needed for the plugin — auth is OAuth. (A `synek_…` API key still works as a fallback if you add an `Authorization: Bearer` header to the `synek` server in `.mcp.json`; it's mainly for the Claude Desktop / stdio path.)
 

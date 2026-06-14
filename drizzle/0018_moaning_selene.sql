@@ -1,0 +1,1 @@
+ALTER TABLE `story_segments` ADD `widget` text;

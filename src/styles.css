@@ -1428,6 +1428,74 @@ body {
   cursor: not-allowed;
 }
 
+/* ── Timeline scroller ──────────────────────────────────────────────────────
+   The timeline view's bottom transport + left zoom controls. They reuse the
+   globe scrubber's atoms (.globe-track / -axis / -era* / -zoom-btn / -date) for
+   an identical look; only the two outer boxes + the draggable view-window are
+   timeline-specific. Rendered as React Flow <Panel>s (z-index 5, above the
+   graph) — the compound selectors carry enough specificity to override the base
+   .react-flow__panel position rules. */
+.react-flow__panel.tl-zoom.left.center {
+  margin: 0;
+  left: 16px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  background: var(--color-bg-overlay, rgba(10, 12, 16, 0.72));
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.react-flow__panel.tl-scrubber.bottom.left {
+  margin: 0;
+  bottom: 16px;
+  left: 16px;
+  /* right is set inline to clear the open detail/story docks */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  background: var(--color-bg-overlay, rgba(10, 12, 16, 0.72));
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+/* The draggable view-window — the slice of the timeline currently on screen.
+   Taller than the 6px track it rides so it reads as a grabbable scrollbar thumb. */
+.tl-window {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 16px;
+  min-width: 8px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--color-accent-primary) 24%, transparent);
+  border: 1px solid var(--color-accent-primary);
+  cursor: grab;
+}
+.tl-window:active {
+  cursor: grabbing;
+}
+/* Owner-only: a collapsed empty span doubles as a fill-this-gap button. It rides
+   on .globe-collapsed (hatch + positioning), which is pointer-events:none — so
+   re-enable interaction and strip the button chrome here. */
+.tl-collapsed-fill {
+  padding: 0;
+  border: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.tl-collapsed-fill:hover {
+  outline: 1px solid var(--color-accent-primary);
+  border-radius: 2px;
+}
+
 /* Citation badge on nodes */
 .sf-cite {
   display: inline-flex;
@@ -3295,102 +3363,6 @@ body {
   text-decoration: underline;
 }
 
-/* Zoom-synced date ruler */
-.react-flow__panel.time-ruler {
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: 0;
-  width: 100%;
-  height: 24px;
-  pointer-events: none;
-  border-top: 1px solid var(--color-border-subtle);
-  /* Fade up from the base surface so ruler labels stay legible over canvas
-     content. Per-theme literals on purpose: a token wrapped in color-mix() gets
-     statically inlined to the dark value at build time (lightningcss), which
-     would leave a dark band over the light canvas. rgb values mirror
-     --color-bg-base (#08090c dark / #fafbfc light). A per-timeline theme with a
-     canvasBg overrides via --ruler-fade-* (JS-derived, resolveTimelineTheme). */
-  background: linear-gradient(
-    to top,
-    var(--ruler-fade-strong, rgba(8, 9, 12, 0.92)),
-    var(--ruler-fade-clear, rgba(8, 9, 12, 0))
-  );
-}
-
-[data-theme='light'] .react-flow__panel.time-ruler {
-  background: linear-gradient(
-    to top,
-    var(--ruler-fade-strong, rgba(250, 251, 252, 0.94)),
-    var(--ruler-fade-clear, rgba(250, 251, 252, 0))
-  );
-}
-
-.time-tick {
-  position: absolute;
-  bottom: 0;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.time-tick-mark {
-  width: 1px;
-  height: 6px;
-  background: var(--color-border-default);
-}
-
-.time-tick-label {
-  margin-top: 2px;
-  font-size: 10px;
-  color: var(--color-fg-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/* Light mode: muted on the pale ruler band is only ~4.6:1 at 10px — bump to
-   secondary (~9:1). Dark keeps muted (already ~6.7:1 on the near-black band). */
-[data-theme='light'] .time-tick-label,
-[data-theme='light'] .time-break {
-  color: var(--color-fg-secondary);
-}
-
-/* Lift the zoom controls above the ruler. */
-.react-flow__controls {
-  bottom: 32px;
-}
-
-/* Break marker over a collapsed empty span on the ruler. */
-.time-break {
-  position: absolute;
-  bottom: 0;
-  transform: translateX(-50%);
-  height: 24px;
-  display: flex;
-  align-items: center;
-  color: var(--color-fg-muted);
-  font-size: 13px;
-  pointer-events: none;
-}
-
-/* Owner-only variant: the collapsed-gap marker doubles as a "fill this empty
-   span" affordance (NEXT.5 Tier 2 — the collapse-mode counterpart of the dashed
-   gap-invitation ghost shown in linear mode). */
-.time-break-fill {
-  pointer-events: auto;
-  cursor: pointer;
-  gap: 2px;
-  padding: 0 6px;
-  border: 0;
-  background: transparent;
-  border-radius: 999px;
-  transition: color 0.15s ease;
-}
-.time-break-fill:hover {
-  color: var(--color-accent-primary);
-}
-
 /* ── Connect guide ──────────────────────────────────────────────────────── */
 
 .home-connect-token {
@@ -3801,3 +3773,540 @@ body {
     animation: lp-grad-pan 6s linear infinite;
   }
 }
+
+/* ==========================================================================
+   Public shareable story page (/s/$slug) — a mobile-first, full-screen Reels
+   reader with live widget panels. Prefix: .psr-* (reader), .wg-* (widgets).
+   ========================================================================== */
+.public-story {
+  min-height: 100dvh;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, color-mix(in oklab, var(--color-accent-story) 10%, transparent), transparent 60%),
+    var(--color-bg-base);
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  color: var(--color-fg-primary);
+}
+.public-story-missing {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  background: var(--color-bg-base);
+  color: var(--color-fg-primary);
+}
+.public-story-missing h1 {
+  font-size: 22px;
+  font-weight: 650;
+}
+.public-story-missing p {
+  color: color-mix(in oklab, var(--color-fg-primary) 64%, transparent);
+}
+
+.psr {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  height: 100dvh;
+  outline: none;
+}
+@media (min-width: 600px) {
+  .psr {
+    height: min(900px, calc(100dvh - 48px));
+    margin: auto;
+  }
+}
+.psr-frame {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+}
+@media (min-width: 600px) {
+  .psr-frame {
+    border-radius: 22px;
+    box-shadow: var(--shadow-overlay), 0 30px 80px -40px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Segmented progress */
+.psr-progress {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  gap: 4px;
+}
+.psr-seg {
+  flex: 1 1 0;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-fg-primary) 22%, transparent);
+  overflow: hidden;
+}
+.psr-seg-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--color-accent-story);
+}
+.psr-seg-fill.is-done {
+  width: 100%;
+}
+.psr-seg-fill.is-active {
+  width: 0;
+  animation-name: psr-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.psr-seg-fill.is-current {
+  width: 100%;
+  background: color-mix(in oklab, var(--color-accent-story) 65%, transparent);
+}
+@keyframes psr-fill {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+/* Chrome */
+.psr-head {
+  position: absolute;
+  top: calc(max(10px, env(safe-area-inset-top)) + 14px);
+  left: 14px;
+  right: 14px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.psr-head-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+.psr-brand {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-fg-primary);
+  text-decoration: none;
+}
+.psr-sep { color: color-mix(in oklab, var(--color-fg-primary) 40%, transparent); }
+.psr-timeline {
+  color: color-mix(in oklab, var(--color-fg-primary) 66%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.psr-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.psr-updated {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: color-mix(in oklab, var(--color-fg-primary) 60%, transparent);
+  padding-right: 4px;
+  white-space: nowrap;
+}
+.psr-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-accent-era, #2f9389);
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-accent-era, #2f9389) 70%, transparent);
+  animation: psr-pulse 2.4s ease-out infinite;
+}
+@keyframes psr-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-accent-era, #2f9389) 60%, transparent); }
+  70% { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.psr-ctrl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent);
+  color: var(--color-fg-primary);
+  cursor: pointer;
+}
+.psr-ctrl:hover { background: color-mix(in oklab, var(--color-fg-primary) 14%, transparent); }
+.psr-ctrl[aria-pressed='true'] { color: var(--color-accent-story); }
+.psr-ctrl svg { width: 16px; height: 16px; }
+
+.psr-update-pill {
+  position: absolute;
+  top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--color-accent-era, #2f9389) 50%, transparent);
+  background: color-mix(in oklab, var(--color-accent-era, #2f9389) 18%, var(--color-bg-surface));
+  color: var(--color-fg-primary);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  box-shadow: var(--shadow-overlay);
+}
+
+/* Tap zones (behind content) */
+.psr-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+}
+.psr-zone-prev { left: 0; width: 22%; }
+.psr-zone-next { right: 0; width: 22%; }
+
+/* The beat stage — scrollable reading column */
+.psr-stage {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 76px 22px 64px;
+  display: flex;
+  flex-direction: column;
+}
+.psr-bleed {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.psr-bleed img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.5;
+  filter: saturate(0.92);
+}
+.psr-bleed::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--color-bg-surface) 50%, transparent), var(--color-bg-surface) 92%);
+}
+.psr-beat {
+  position: relative;
+  z-index: 1;
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.psr-img {
+  margin: 0;
+  border-radius: var(--radius-md, 12px);
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+}
+.psr-img img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 46dvh;
+  object-fit: cover;
+}
+.psr-img.is-portrait img { max-height: 56dvh; object-fit: contain; }
+.psr-img figcaption {
+  font-size: 11px;
+  padding: 6px 10px;
+  color: color-mix(in oklab, var(--color-fg-primary) 60%, transparent);
+  background: color-mix(in oklab, var(--color-fg-primary) 5%, transparent);
+}
+.psr-setting {
+  font-size: 12.5px;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  color: color-mix(in oklab, var(--color-fg-primary) 62%, transparent);
+}
+.psr-text {
+  font-size: 17px;
+  line-height: 1.62;
+  font-family: var(--font-display, inherit);
+}
+.psr-beat-dialogue .psr-text { font-style: italic; }
+.psr-mentions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.psr-mention {
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-accent-primary) 12%, transparent);
+  color: color-mix(in oklab, var(--color-fg-primary) 82%, transparent);
+}
+.psr-cites {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--color-border-default);
+  padding-top: 12px;
+}
+.psr-cite { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.psr-cite-title { font-weight: 600; }
+.psr-cite-quote { color: color-mix(in oklab, var(--color-fg-primary) 66%, transparent); font-style: italic; }
+.psr-cite-link { color: var(--color-accent-primary); width: fit-content; }
+
+/* Footer nav */
+.psr-foot {
+  position: absolute;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 14px;
+  right: 14px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.psr-edge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-default);
+  background: color-mix(in oklab, var(--color-bg-surface) 80%, transparent);
+  color: var(--color-fg-primary);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.psr-edge:disabled { opacity: 0.35; cursor: default; }
+.psr-edge svg { width: 18px; height: 18px; }
+.psr-count {
+  font-size: 12px;
+  color: color-mix(in oklab, var(--color-fg-primary) 64%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cover + end panels */
+.psr-cover,
+.psr-end {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: 78px 24px 70px;
+  text-align: center;
+}
+.psr-cover-art {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 320px;
+  border-radius: var(--radius-lg, 16px);
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+  box-shadow: var(--shadow-overlay);
+}
+.psr-cover-art img { display: block; width: 100%; height: auto; max-height: 40dvh; object-fit: cover; }
+.psr-cover-art.is-portrait img { max-height: 48dvh; object-fit: contain; }
+.psr-cover-body { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.psr-title {
+  font-size: 25px;
+  line-height: 1.2;
+  font-weight: 680;
+  font-family: var(--font-display, inherit);
+}
+.psr-hook { font-size: 15px; color: color-mix(in oklab, var(--color-fg-primary) 72%, transparent); line-height: 1.5; }
+.psr-cast { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.psr-cast-chip {
+  font-size: 12px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-default);
+  background: color-mix(in oklab, var(--color-fg-primary) 5%, transparent);
+}
+.psr-meta { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.psr-chip {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent);
+  color: color-mix(in oklab, var(--color-fg-primary) 70%, transparent);
+}
+.psr-chip.is-deep { background: color-mix(in oklab, var(--color-accent-story) 22%, transparent); color: var(--color-fg-primary); }
+.psr-play,
+.psr-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-accent-story);
+  color: var(--primary-foreground, #fff);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  width: fit-content;
+  margin-inline: auto;
+}
+.psr-play svg { width: 18px; height: 18px; }
+.psr-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: color-mix(in oklab, var(--color-fg-primary) 55%, transparent);
+}
+.psr-end-title { font-size: 24px; font-weight: 680; font-family: var(--font-display, inherit); }
+.psr-end-note { font-size: 15px; line-height: 1.55; color: color-mix(in oklab, var(--color-fg-primary) 74%, transparent); }
+.psr-cta { background: var(--color-accent-primary); color: #fff; }
+.psr-end-actions { display: flex; gap: 10px; justify-content: center; margin-top: 4px; }
+.psr-replay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-fg-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .psr-live-dot { animation: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Beat widgets (.wg-*) — live mini timeline / globe / entity card
+   -------------------------------------------------------------------------- */
+.wg { display: flex; flex-direction: column; gap: 6px; }
+.wg-caption {
+  font-size: 12px;
+  text-align: center;
+  color: color-mix(in oklab, var(--color-fg-primary) 60%, transparent);
+}
+
+/* Entity card */
+.wg-entity {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border-radius: var(--radius-md, 12px);
+  border: 1px solid var(--color-border-default);
+  background: color-mix(in oklab, var(--color-fg-primary) 4%, transparent);
+  text-align: left;
+}
+.wg-entity-frame {
+  flex: 0 0 auto;
+  width: 92px;
+  height: 92px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+  background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent);
+  display: grid;
+  place-items: center;
+}
+.wg-entity-frame.is-portrait { width: 84px; height: 112px; }
+.wg-entity-frame img { width: 100%; height: 100%; object-fit: cover; }
+.wg-entity-placeholder { color: color-mix(in oklab, var(--color-fg-primary) 45%, transparent); }
+.wg-entity-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.wg-entity-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in oklab, var(--color-fg-primary) 55%, transparent);
+}
+.wg-entity-title { font-size: 16px; font-weight: 650; line-height: 1.2; }
+.wg-entity-dateline { font-size: 12px; color: color-mix(in oklab, var(--color-fg-primary) 64%, transparent); font-variant-numeric: tabular-nums; }
+.wg-entity-place {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: color-mix(in oklab, var(--color-fg-primary) 60%, transparent);
+}
+.wg-entity-summary {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: color-mix(in oklab, var(--color-fg-primary) 74%, transparent);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Timeline strip */
+.wg-timeline {
+  border-radius: var(--radius-md, 12px);
+  border: 1px solid var(--color-border-default);
+  background: color-mix(in oklab, var(--color-fg-primary) 4%, transparent);
+  padding: 6px 8px;
+}
+.wg-timeline-svg { display: block; width: 100%; height: auto; }
+.wg-tl-axis { stroke: color-mix(in oklab, var(--color-fg-primary) 28%, transparent); stroke-width: 1.5; }
+.wg-tl-bar { fill: color-mix(in oklab, var(--color-accent-era, #2f9389) 45%, transparent); }
+.wg-tl-bar[data-focus] { fill: color-mix(in oklab, var(--color-accent-era, #2f9389) 75%, transparent); }
+.wg-tl-dot { fill: color-mix(in oklab, var(--color-fg-primary) 55%, transparent); }
+.wg-tl-dot[data-focus] { fill: var(--color-accent-story); stroke: var(--color-bg-surface); stroke-width: 2; }
+.wg-tl-stem { stroke: color-mix(in oklab, var(--color-accent-story) 60%, transparent); stroke-width: 1; stroke-dasharray: 2 2; }
+.wg-tl-label { fill: var(--color-fg-primary); font-size: 12px; font-weight: 600; }
+.wg-tl-year { fill: color-mix(in oklab, var(--color-fg-primary) 55%, transparent); font-size: 10.5px; }
+
+/* Globe mini */
+.wg-globe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.wg-globe-svg { width: 100%; max-width: 260px; height: auto; }
+.wg-globe-skeleton {
+  width: 240px;
+  height: 240px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-fg-primary) 7%, transparent);
+}
+.wg-globe-sphere { fill: color-mix(in oklab, var(--color-accent-primary) 16%, var(--color-bg-base)); stroke: color-mix(in oklab, var(--color-fg-primary) 18%, transparent); }
+.wg-globe-grat { fill: none; stroke: color-mix(in oklab, var(--color-fg-primary) 12%, transparent); stroke-width: 0.5; }
+.wg-globe-land { fill: color-mix(in oklab, var(--color-fg-primary) 26%, transparent); stroke: none; }
+.wg-globe-pin { fill: var(--color-accent-primary); }
+.wg-globe-pin[data-focus] { fill: var(--color-accent-story); }
+.wg-globe-halo { fill: color-mix(in oklab, var(--color-accent-story) 30%, transparent); }
+.wg-globe-caption { font-size: 12px; color: color-mix(in oklab, var(--color-fg-primary) 64%, transparent); }

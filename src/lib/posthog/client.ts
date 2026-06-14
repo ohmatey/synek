@@ -75,6 +75,10 @@ export type ClientEvent =
   // One event for every canvas "verb" (NEXT.5), keyed by `verb_id` + `surface` in
   // props, so copy-rates self-prioritize the catalogue (bet B5) in one query.
   | 'verb_prompt_copied'
+  // The progressive-enhancement twin of verb_prompt_copied: the user RAN the same
+  // prompt in-app (the OpenRouter agent) instead of copying it into their own
+  // Claude. Props mirror the copy event (verb_id, surface, …) + { model, ok }.
+  | 'verb_prompt_run'
   // Impression for the Tier-2 canvas invitations (gap/lane/era ghosts), so
   // `verb_prompt_copied` for fill-gap/extend-lane/populate-era has a denominator —
   // copy-RATE, not just count (bet B5). Props carry per-variant counts.
@@ -88,6 +92,11 @@ export type ClientEvent =
   | 'story_view_opened'
   | 'story_started'
   | 'story_completed'
+  // Sharable stories (bet: sharing drives acquisition). `story_shared` fires when an
+  // owner publishes a story's public /s/$slug link from the reader; `public_story_opened`
+  // when the public page itself is played. Props documented at the call sites.
+  | 'story_shared'
+  | 'public_story_opened'
   | 'node_edited'
   | 'export_performed'
   | 'share_toggled'

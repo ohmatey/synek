@@ -252,6 +252,30 @@ export type StoryBeatCitation = CanvasCitation & {
   imageUrl?: string | null
 }
 
+// --- Per-beat live widget (sharable stories) ------------------------------
+// A small, read-only render of the timeline, the globe, or a single entity
+// card embedded INTO a story beat — the panel's hero visual when there is no
+// (or alongside an) image. References nodes by id (soft refs, like focusNodeId),
+// resolved at READ time so a widget stays LIVE as the underlying graph changes
+// (a public story tracking a competitor updates the moment its nodes do).
+// `layout` reuses the beat-image treatment vocabulary.
+export const STORY_WIDGET_KINDS = ['timeline', 'globe', 'entity'] as const
+export type StoryWidgetKind = (typeof STORY_WIDGET_KINDS)[number]
+
+export type StoryBeatWidget = {
+  kind: StoryWidgetKind
+  // The nodes the widget renders: a `timeline` strip plots these by date, a
+  // `globe` pins the located ones, an `entity` card uses the first id.
+  nodeIds: string[]
+  // The node to spotlight — highlighted on the strip, centered on the globe.
+  // Implied by nodeIds[0] for an entity widget; optional for the others.
+  focusNodeId?: string
+  // How the widget sits in the panel (same treatment vocab as a beat image).
+  layout?: StoryImageLayout
+  // Optional one-line caption shown under the widget.
+  caption?: string
+}
+
 // Client-serializable story payload for the node-detail playback reader (plain
 // primitives only — the RPC serializer rejects Date/unknown). A story is an
 // ordered list of beats (segments) attached to a moment/node.
@@ -271,10 +295,16 @@ export type StoryBeat = {
   // Optional art for this beat; `layout` picks its reader treatment
   // (full/inset-left/inset-right/bleed). Null → text-only beat.
   image: StoryImage | null
+  // Optional LIVE widget for this beat (a mini timeline / globe / entity card),
+  // resolved from node ids at read time. Null → no widget. The sharable public
+  // reader renders these as the panel's hero visual.
+  widget: StoryBeatWidget | null
 }
 
 export type StoryDTO = {
   id: string
+  // URL-safe public handle (unique). Backs the sharable /s/$slug page.
+  slug: string
   // The moment (node id) this story is anchored to. The reader uses it as the
   // story's camera/title anchor, so playback is decoupled from canvas selection
   // (a story runs by itself; opening an entity is a separate, explicit gesture).
@@ -292,6 +322,21 @@ export type StoryDTO = {
   beats: StoryBeat[]
 }
 
+// The payload the public, no-auth /s/$slug share page loads (SSR). Carries the
+// story plus the lightweight nodes its cast / beat-focus / widgets reference
+// (resolved at read time so the page stays live), the timeline's theme for a
+// branded artifact, the axis scale a timeline widget reads, and `updatedAt` for
+// the "updated X ago" live stamp. Gated on the timeline being public.
+export type PublicStoryDTO = {
+  story: StoryDTO
+  timelineId: string
+  timelineTitle: string
+  theme: TimelineTheme | null
+  viewSettings: TimelineViewSettings | null
+  updatedAt: number
+  nodes: GraphNode[]
+}
+
 // One entry in a story list — the AppBar's "Stories" dropdown (every story on a
 // timeline, chronological) and the entity panel's per-moment list (a moment can
 // hold several). Carries the moment it sits on so picking one opens + plays it;
@@ -301,6 +346,8 @@ export type StoryListItem = {
   momentId: string
   momentTitle: string
   storyId: string
+  // URL-safe public handle (unique) — lets a list row build its share link.
+  slug: string
   title: string
   hook: string | null
   depthTier: DepthTier

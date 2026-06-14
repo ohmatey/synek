@@ -16,7 +16,7 @@ import { Textarea } from '~/components/ui/textarea'
 import { createTimeline } from '~/lib/server/timelines'
 import { buildTimelinePrompt } from '~/lib/timeline-prompt'
 import { capture } from '~/lib/posthog/client'
-import { CopyButton } from './CopyButton'
+import { PromptActions } from '~/components/PromptActions'
 
 // "New timeline" surface for the workspace home. The app holds no AI, so creating a
 // timeline is two beats: (1) name it — we create the empty timeline immediately —
@@ -134,13 +134,14 @@ export function NewTimelineDialog({
               {prompt}
             </pre>
 
-            <CopyButton
-              text={prompt}
-              label="Copy build prompt"
+            <PromptActions
+              prompt={prompt}
+              timelineId={created.id}
+              resetKey={created.id}
+              copyLabel="Copy build prompt"
               copiedLabel="Prompt copied — paste into Claude"
-              variant="default"
-              className="w-full"
               onCopy={() => capture('build_prompt_copied', { timeline_id: created.id })}
+              runAnalyticsProps={{ timeline_id: created.id, verb_id: 'build-timeline' }}
             />
             <Button
               type="button"

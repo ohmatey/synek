@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { loadGraph, getTimelineMeta, canView } from '~/lib/db/graph'
+import { loadGraph, getTimelineMeta, canView, nodeRowToGraphNode } from '~/lib/db/graph'
 import { storyDepthByMoment, storyVersionForMoments } from '~/lib/db/stories'
 import { getCurrentUser } from '~/lib/auth/session'
 import type { TimelineGraphResult } from '~/lib/domain/types'
@@ -33,23 +33,8 @@ export const getGraph = createServerFn({ method: 'GET' })
       storyVersion,
       title: meta.title,
       nodes: nodes.map((n) => ({
-        id: n.id,
-        type: n.type,
-        title: n.title,
-        summary: n.summary,
-        startInstant: n.startInstant,
-        endInstant: n.endInstant,
-        precision: n.precision,
-        citations: n.metadata?.citations ?? [],
-        images: n.metadata?.images ?? [],
-        size: n.metadata?.size ?? 'medium',
-        color: n.metadata?.color ?? null,
-        subtype: n.metadata?.subtype ?? null,
-        lane: n.metadata?.lane ?? null,
-        location: n.metadata?.location ?? null,
-        lat: n.metadata?.lat ?? null,
-        lng: n.metadata?.lng ?? null,
-        geoScope: n.metadata?.geoScope ?? null,
+        ...nodeRowToGraphNode(n),
+        // The canvas badge needs the per-moment story depth the bare mapper omits.
         hasStory: depthByMoment.has(n.id),
         storyDepth: depthByMoment.get(n.id) ?? null,
       })),

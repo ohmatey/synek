@@ -108,6 +108,40 @@ test('collapse gaps compresses empty spans and persists per timeline', async ({ 
   await expect(page.getByTestId('time-scale-collapse-gaps')).toHaveAttribute('aria-pressed', 'true')
 })
 
+// The timeline view carries the same bottom transport + left zoom controls as
+// the globe lens, adapted to scroll the canvas: a dated overview with an era
+// ribbon and a draggable window marking the on-screen slice; a +/−/fit zoom
+// stack at the left-center. roman-republic has a `period` span (era ribbon) and
+// BCE dates (axis labels).
+test('timeline view shows the bottom scroller and left zoom controls', async ({ page }) => {
+  await page.goto('/timelines/roman-republic')
+  await expect(page.getByText('Julius Caesar')).toBeVisible()
+  await page.waitForTimeout(700) // initial fitView settles
+
+  // The bottom scroller: a year axis, an era ribbon, and the view-window.
+  const scrubber = page.locator('.tl-scrubber')
+  await expect(scrubber).toBeVisible()
+  await expect(page.locator('.tl-window')).toBeAttached()
+  expect(await page.locator('.tl-scrubber .globe-axis-label').count()).toBeGreaterThan(0)
+  expect(await page.locator('.tl-scrubber .globe-era-seg').count()).toBeGreaterThan(0)
+
+  // The left-center zoom stack (same style as the globe's GS2 control).
+  const zoom = page.locator('.tl-zoom')
+  await expect(zoom).toBeVisible()
+  await expect(zoom.getByRole('button', { name: 'Zoom in' })).toBeVisible()
+  await expect(zoom.getByRole('button', { name: 'Zoom out' })).toBeVisible()
+  await expect(zoom.getByRole('button', { name: 'Fit timeline' })).toBeVisible()
+
+  // Zooming in narrows the view-window (less of the timeline is on screen) — the
+  // scroller and the camera zoom are wired to the same viewport.
+  const before = (await page.locator('.tl-window').boundingBox())!.width
+  await zoom.getByRole('button', { name: 'Zoom in' }).click()
+  await zoom.getByRole('button', { name: 'Zoom in' }).click()
+  await page.waitForTimeout(500)
+  const after = (await page.locator('.tl-window').boundingBox())!.width
+  expect(after).toBeLessThan(before)
+})
+
 // Owner chrome regression: the account menu floats at the FAR RIGHT of the top
 // bar, the share control sits just left of it, the MCP status is a bare dot (no
 // "MCP ready" label), and the old "Fit view" button is gone. Requires a session

@@ -7,7 +7,6 @@ import {
   ReactFlowProvider,
   Background,
   BackgroundVariant,
-  Controls,
   Panel,
   MarkerType,
   Position,
@@ -60,7 +59,7 @@ import { NodeDetailPanel } from './NodeDetailPanel'
 import { centerOnNodes } from './cameraFocus'
 import { CommandPalette } from './CommandPalette'
 import { StoryReader } from './StoryReader'
-import { TimeRuler } from './TimeRuler'
+import { TimelineScrubber, TimelineZoomControls } from './TimelineScroller'
 import { CanvasSettings } from './CanvasSettings'
 import { McpStatusChip } from './McpStatusChip'
 import { CanvasEmpty } from './CanvasEmpty'
@@ -1176,15 +1175,20 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
               variant={texture === 'grid' ? BackgroundVariant.Lines : BackgroundVariant.Dots}
             />
           )}
-          <Controls showInteractive={false} />
+          <TimelineZoomControls />
           <ViewportInit timelineId={timelineId} nodeCount={gnodes.length} />
           {cameraIds && (
             <StoryCamera ids={cameraIds} dockW={(displayNode ? panelW.detail : 0) + panelW.story} />
           )}
           <FlyToCamera targetId={flyToId} onArrive={clearFlyTo} />
-          {(gnodes.length > 0 || pending.length > 0) && (
-            <TimeRuler
+          {gnodes.length > 0 && (
+            <TimelineScrubber
+              nodes={gnodes}
               scale={scale}
+              timelineId={timelineId}
+              // Clear the right docks (detail portrait + story reader) just like
+              // the globe scrubber, so the bar never slides under them.
+              rightInset={(displayNode ? panelW.detail : 0) + (reading ? panelW.story : 0)}
               // In collapse-gaps mode a dead zone is squeezed to a break marker
               // instead of an open span — so the marker itself becomes the fill
               // affordance (owner only), the collapse-mode twin of the gap ghost.
@@ -1307,6 +1311,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             }}
             onSelectNode={selectNode}
             onBeatChange={setActiveBeat}
+            canShare={isOwner}
             width={panelW.story}
             onResize={resizeStory}
             onCommitResize={commitPanelW}

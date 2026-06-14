@@ -10,6 +10,7 @@ import type { ArtifactType, CitationSourceType, Precision, Reliability, SourceTy
 // write_story transaction (see stories.ts); moment_artifacts is written here.
 
 export type NewSource = {
+  ownerId?: string | null
   title: string
   author?: string | null
   year?: number | null
@@ -19,6 +20,7 @@ export type NewSource = {
 }
 
 export type NewArtifact = {
+  ownerId?: string | null
   title: string
   artifactType: ArtifactType
   dateInstant?: number | null
@@ -37,6 +39,7 @@ export function createSource(input: NewSource): SourceRow {
   return db
     .insert(sources)
     .values({
+      ownerId: input.ownerId ?? null,
       title: input.title,
       author: input.author ?? null,
       year: input.year ?? null,
@@ -52,6 +55,7 @@ export function createArtifact(input: NewArtifact): ArtifactRow {
   return db
     .insert(artifacts)
     .values({
+      ownerId: input.ownerId ?? null,
       title: input.title,
       artifactType: input.artifactType,
       dateInstant: input.dateInstant ?? null,
@@ -69,26 +73,38 @@ export function createArtifact(input: NewArtifact): ArtifactRow {
     .get()
 }
 
-// Curation edit. Returns the updated row (the FTS5 AFTER UPDATE trigger keeps the
-// index in lockstep). Partial — only the provided fields change.
-export function updateArtifact(id: string, patch: Partial<NewArtifact>): ArtifactRow | null {
-  const row = db.update(artifacts).set({ ...patch, updatedAt: new Date() }).where(eq(artifacts.id, id)).returning().get()
+// Curation edit, owner-scoped. Returns the updated row (the FTS5 AFTER UPDATE
+// trigger keeps the index in lockstep). Partial — only the provided fields change;
+// `ownerId` is never reassigned via patch.
+export function updateArtifact(id: string, patch: Partial<NewArtifact>, ownerId: string): ArtifactRow | null {
+  const { ownerId: _ignore, ...fields } = patch
+  const row = db
+    .update(artifacts)
+    .set({ ...fields, updatedAt: new Date() })
+    .where(and(eq(artifacts.id, id), eq(artifacts.ownerId, ownerId)))
+    .returning()
+    .get()
   return row ?? null
 }
 
-export function deleteArtifact(id: string): boolean {
-  return db.delete(artifacts).where(eq(artifacts.id, id)).run().changes > 0
+export function deleteArtifact(id: string, ownerId: string): boolean {
+  return db.delete(artifacts).where(and(eq(artifacts.id, id), eq(artifacts.ownerId, ownerId))).run().changes > 0
 }
 
-export function getArtifactById(id: string): ArtifactRow | null {
-  return db.select().from(artifacts).where(eq(artifacts.id, id)).get() ?? null
+export function getArtifactById(id: string, ownerId: string): ArtifactRow | null {
+  return db.select().from(artifacts).where(and(eq(artifacts.id, id), eq(artifacts.ownerId, ownerId))).get() ?? null
 }
 
-// Which of the given artifact ids actually exist — lets write_story drop unknown
-// `artifactId` refs to a warning instead of throwing an FK error mid-transaction.
-export function existingArtifactIds(ids: string[]): Set<string> {
+// Which of the given artifact ids exist AND belong to this owner — lets write_story
+// drop unknown / cross-tenant `artifactId` refs to a warning instead of throwing an
+// FK error or citing another user's artifact.
+export function existingArtifactIds(ids: string[], ownerId: string): Set<string> {
   if (!ids.length) return new Set()
-  const rows = db.select({ id: artifacts.id }).from(artifacts).where(inArray(artifacts.id, ids)).all()
+  const rows = db
+    .select({ id: artifacts.id })
+    .from(artifacts)
+    .where(and(inArray(artifacts.id, ids), eq(artifacts.ownerId, ownerId)))
+    .all()
   return new Set(rows.map((r) => r.id))
 }
 
@@ -163,6 +179,7 @@ export function listArtifactsForMoment(momentId: string): ArtifactRow[] {
 // artifact, and an optional link to a moment. The MCP `register_artifact` tool is
 // a thin wrapper over this.
 export function registerArtifact(input: {
+  ownerId: string
   artifact: NewArtifact
   source?: NewSource
   momentId?: string | null
@@ -175,6 +192,7 @@ export function registerArtifact(input: {
       sourceId = tx
         .insert(sources)
         .values({
+          ownerId: input.ownerId,
           title: input.source.title,
           author: input.source.author ?? null,
           year: input.source.year ?? null,
@@ -188,6 +206,7 @@ export function registerArtifact(input: {
     artifactId = tx
       .insert(artifacts)
       .values({
+        ownerId: input.ownerId,
         title: input.artifact.title,
         artifactType: input.artifact.artifactType,
         dateInstant: input.artifact.dateInstant ?? null,
@@ -233,6 +252,10 @@ export type ArtifactSearchRow = {
 
 export type SearchArtifactsParams = {
   query: string
+  // Owner scope — ALWAYS applied (multi-tenant: a search never crosses tenants,
+  // even when no timelineId narrows it). Standalone (unlinked) artifacts are still
+  // findable, but only by their owner.
+  ownerId: string
   timelineId?: string
   types?: ArtifactType[]
   reliability?: Reliability[]
@@ -262,8 +285,8 @@ export function searchArtifacts(params: SearchArtifactsParams): ArtifactSearchRo
   if (!match) return []
   const limit = Math.min(Math.max(params.limit ?? 10, 1), 50)
 
-  const where: string[] = ['artifacts_fts MATCH ?']
-  const args: unknown[] = [match]
+  const where: string[] = ['artifacts_fts MATCH ?', 'a.owner_id = ?']
+  const args: unknown[] = [match, params.ownerId]
 
   if (params.types?.length) {
     where.push(`a.artifact_type IN (${params.types.map(() => '?').join(', ')})`)

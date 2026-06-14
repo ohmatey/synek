@@ -9,6 +9,7 @@ import { buildContinueStoryPrompt } from '~/lib/story-prompt'
 import { capture } from '~/lib/posthog/client'
 import { useSpeechSupported, useStoryNarration, warmUpSpeech } from './useStoryNarration'
 import { ResizeHandle } from './ResizeHandle'
+import { ShareStoryButton } from '~/components/public/ShareStoryButton'
 
 // Reels/Stories-style playback, DOCKED beside the entity dialog (not full-screen).
 // One beat fills the panel at a time; segmented progress bars across the top
@@ -59,6 +60,7 @@ export function StoryReader({
   onStart,
   onSelectNode,
   onBeatChange,
+  canShare,
   solo,
   width,
   onResize,
@@ -94,6 +96,9 @@ export function StoryReader({
   // Report the active beat index as the reader steps; the canvas maps it to a
   // camera pan. Stable.
   onBeatChange: (index: number) => void
+  // Owner-only: show the Share control (publishes the timeline + copies the public
+  // /s/$slug link). Hidden for non-owner viewers — they share via the public page.
+  canShare?: boolean
   // No entity panel is open beside the reader → dock flush at the right edge
   // (data-solo); with one open the reader slides to its left.
   solo?: boolean
@@ -360,6 +365,14 @@ export function StoryReader({
                 </button>
               </TooltipTrigger>
               <TooltipContent>{speak ? 'Mute narration' : 'Read aloud'}</TooltipContent>
+            </Tooltip>
+          )}
+          {canShare && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <ShareStoryButton storyId={story.id} />
+              </TooltipTrigger>
+              <TooltipContent>Share — make this story public</TooltipContent>
             </Tooltip>
           )}
           <button type="button" className="sv-ctrl" onClick={onClose} aria-label="Close story">

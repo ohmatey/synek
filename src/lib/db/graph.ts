@@ -1,7 +1,7 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from './index'
 import { timelines, nodes, edges, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
-import type { TimelineTheme, TimelineViewSettings } from '~/lib/domain/types'
+import type { GraphNode, TimelineTheme, TimelineViewSettings } from '~/lib/domain/types'
 
 export type Graph = { nodes: NodeRow[]; edges: EdgeRow[] }
 
@@ -107,4 +107,43 @@ export function loadGraph(timelineId: string): Graph {
     nodes: db.select().from(nodes).where(eq(nodes.timelineId, timelineId)).all(),
     edges: db.select().from(edges).where(eq(edges.timelineId, timelineId)).all(),
   }
+}
+
+// A stored node row → the serializable client GraphNode DTO. The single mapper
+// for the canvas RPC (getGraph) and the public story loader, so they never drift.
+// `hasStory`/`storyDepth` default off — callers that drive the depth badge override
+// them from a stories query.
+export function nodeRowToGraphNode(n: NodeRow): GraphNode {
+  return {
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    summary: n.summary,
+    startInstant: n.startInstant,
+    endInstant: n.endInstant,
+    precision: n.precision,
+    citations: n.metadata?.citations ?? [],
+    images: n.metadata?.images ?? [],
+    size: n.metadata?.size ?? 'medium',
+    color: n.metadata?.color ?? null,
+    subtype: n.metadata?.subtype ?? null,
+    lane: n.metadata?.lane ?? null,
+    location: n.metadata?.location ?? null,
+    lat: n.metadata?.lat ?? null,
+    lng: n.metadata?.lng ?? null,
+    geoScope: n.metadata?.geoScope ?? null,
+    hasStory: false,
+    storyDepth: null,
+  }
+}
+
+// The subset of a timeline's nodes named by `ids` (the nodes a public story's
+// cast / focus / widgets reference) — so the share page ships only what it renders.
+export function nodesByIds(timelineId: string, ids: string[]): NodeRow[] {
+  if (ids.length === 0) return []
+  return db
+    .select()
+    .from(nodes)
+    .where(and(eq(nodes.timelineId, timelineId), inArray(nodes.id, ids)))
+    .all()
 }

@@ -8,7 +8,7 @@ import {
 } from '~/components/ui/dialog'
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
-import { CopyButton } from '~/components/home/CopyButton'
+import { PromptActions } from '~/components/PromptActions'
 import { capture, type ClientEvent } from '~/lib/posthog/client'
 
 export type PromptParam = { label: string; value: string }
@@ -24,8 +24,13 @@ export type PromptSpec = {
   description: string
   /** The filled-in inputs this prompt carries, shown as labeled rows. */
   params?: PromptParam[]
-  /** The base prompt text; the user's context (if any) is appended on copy. */
+  /** The base prompt text; the user's context (if any) is appended on copy/run. */
   prompt: string
+  /**
+   * The timeline this prompt acts on. Required for the in-app "Run" path (the
+   * agent needs a target); copy-only prompts can omit it.
+   */
+  timelineId?: string
   /** Footnote under the action; defaults to the paste-into-Claude note. */
   hint?: string
   /** Label for the free-text context field. */
@@ -55,12 +60,10 @@ export function composePrompt(spec: PromptSpec, context: string): string {
 
 // A shared dialog that displays a PromptSpec and lets the user append context.
 //
-// SEAM — the inversion lives here. Today Synek holds no model, so the primary
-// action is "copy the prompt" (the user's own Claude runs it), and the context
-// field is just appended to the copied text. When Synek is hosted, THIS component
-// is the single swap point: the copy button becomes a "Run" that POSTs the spec
-// PLUS the typed context to the generation API. Callers depend only on PromptSpec,
-// so that swap stays local to this file.
+// SEAM — the inversion lives here, now progressively enhanced. The action footer
+// (PromptActions) is "Copy prompt" with no agent configured (the user's own Claude
+// runs it — the local-first default), and gains a primary "Run" when an agent IS
+// configured AND the spec carries a timelineId. Callers depend only on PromptSpec.
 export function PromptDialog({
   open,
   onOpenChange,
@@ -122,20 +125,20 @@ export function PromptDialog({
               />
               <p className="text-xs text-muted-foreground">
                 {hasContext
-                  ? 'Added to the end of the prompt when you copy.'
+                  ? 'Added to the end of the prompt when you run or copy.'
                   : 'Optional — add a question or focus, like talking to a chat assistant.'}
               </p>
             </div>
 
-            <CopyButton
-              text={fullPrompt}
-              label="Copy prompt"
-              copiedLabel="Copied — paste into Claude"
-              variant="default"
-              className="w-full"
+            <PromptActions
+              prompt={fullPrompt}
+              timelineId={spec.timelineId}
+              resetKey={spec}
+              copyLabel="Copy prompt"
               onCopy={spec.analytics ? () => capture(spec.analytics!.event, spec.analytics!.props) : undefined}
+              runAnalyticsProps={spec.analytics?.props}
+              hint={spec.hint ?? DEFAULT_HINT}
             />
-            <p className="text-xs text-muted-foreground">{spec.hint ?? DEFAULT_HINT}</p>
           </>
         )}
       </DialogContent>

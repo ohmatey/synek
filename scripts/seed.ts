@@ -342,6 +342,8 @@ const SEEDS: Seeder[] = [
         zeno,
         {
           title: 'From a shipwreck to the throne',
+          // Pinned so the sharable /s/$slug demo + e2e have a stable URL.
+          slug: 'from-shipwreck-to-throne',
           hook: 'How a Cypriot merchant’s lost cargo became an emperor’s creed.',
           depthTier: 'deep',
           estimatedMinutes: 4,
@@ -349,6 +351,16 @@ const SEEDS: Seeder[] = [
             'Attica 06-13 Athens 22 View from Acropolis Hill - Museum of Ancient Agora.jpg',
             'The Athenian Agora, where the Stoa stood',
           ),
+          // The lineage, as a tappable cast — each chip flies the canvas/globe to
+          // that philosopher's node (node-backed cast → navigateTo).
+          cast: [
+            { nodeId: zeno, role: 'Founder' },
+            { nodeId: cleanthes, role: 'Second head of the Stoa' },
+            { nodeId: chrysippus, role: 'The great systematizer' },
+            { nodeId: posidonius, role: 'Polymath of the Middle Stoa' },
+            { nodeId: seneca, role: 'The Roman Stoic' },
+            { nodeId: marcus, role: 'Philosopher-emperor' },
+          ],
         },
         [
           {
@@ -357,36 +369,58 @@ const SEEDS: Seeder[] = [
             kind: 'narration',
             settingNote: 'A bookshop off the Athenian Agora, c. 312 BCE',
             focusNodeId: zeno,
+            image: storyImg('Paolo Monti - Servizio fotografico (Napoli, 1969) - BEIC 6353768.jpg', 'Bust of Zeno of Citium', { layout: 'inset-left', aspect: 'portrait' }),
+            // entity widget — the place it all began.
+            widget: { kind: 'entity', nodeIds: [porch], caption: 'Where it began: the “Painted Porch.”' },
           },
           {
             bodyText:
               'His successor Cleanthes was a water-carrier who hauled buckets by night to pay for study by day. From Assos on the Anatolian coast he came to Athens and kept the school alive on stubbornness and a Hymn to Zeus.',
             kind: 'narration',
             focusNodeId: cleanthes,
+            image: storyImg('Cleanthes from L. Annaei Senecae philosophi Opera, 1605, title page detail.png', 'Engraved portrait of Cleanthes', { layout: 'inset-right', aspect: 'portrait' }),
+            // globe widget — the lineage's birthplaces ringing the Mediterranean.
+            widget: {
+              kind: 'globe',
+              nodeIds: [zeno, cleanthes, chrysippus, posidonius, seneca, marcus],
+              focusNodeId: cleanthes,
+              caption: 'From Cyprus to Rome — the Stoa crossed the ancient world.',
+            },
           },
           {
             bodyText:
               'Then came Chrysippus of Soli in Cilicia, a long-distance runner turned logician, who welded Stoic logic, physics, and ethics into a single system. “If Chrysippus had not existed,” they said, “neither would the Stoa.”',
             kind: 'narration',
             focusNodeId: chrysippus,
+            image: storyImg('Chrysippos BM 1846.jpg', 'Bust of Chrysippus, British Museum', { layout: 'inset-left', aspect: 'portrait' }),
           },
           {
             bodyText:
               'From Syria came Posidonius, who settled on Rhodes and measured the world — tides, the sun, the size of the Earth — arguing one reason ran through all of it. A young Roman named Cicero crossed the sea to hear him.',
             kind: 'narration',
             focusNodeId: posidonius,
+            image: storyImg('Posidonio, replica augustea (23 ac.-14 dc ca) da originale del 100-50 ac. ca. 6142.JPG', 'Bust of Posidonius, Naples', { layout: 'inset-right', aspect: 'portrait' }),
           },
           {
             bodyText:
               'The school reached Rome through men like Seneca, born in Córdoba in Hispania, who tutored an emperor, grew immensely rich, and wrote letters on how to live and die well — then was ordered by Nero to do exactly the latter.',
             kind: 'narration',
             focusNodeId: seneca,
+            image: storyImg('Duble herma of Socrates and Seneca Antikensammlung Berlin 07.jpg', 'Double herm of Socrates and Seneca, Berlin', { layout: 'full' }),
           },
           {
             bodyText:
               'It ended on a frozen frontier. Marcus Aurelius, master of the known world, wrote private notes to himself by lamplight on the Danube — reminders to be just, to expect ingratitude, to remember he would die. We call them the Meditations.',
             kind: 'narration',
             focusNodeId: marcus,
+            image: storyImg('Marcus Aurelius. De seipso, seu vita sua (Xylander, 1558).jpg', 'The Meditations — 1558 title page', { layout: 'bleed' }),
+            // timeline widget — the three Stoas across five centuries.
+            widget: {
+              kind: 'timeline',
+              nodeIds: [earlyStoa, middleStoa, romanStoa],
+              focusNodeId: romanStoa,
+              caption: 'Three Stoas across five centuries.',
+            },
           },
         ],
       )
@@ -486,6 +520,13 @@ const SEEDS: Seeder[] = [
           depthTier: 'deep',
           estimatedMinutes: 3,
           coverImage: storyImg('Grafana dashboard.png', 'A monitoring dashboard'),
+          cast: [
+            { nodeId: dapper, role: 'The founding paper' },
+            { nodeId: newRelic, role: 'Commercial APM' },
+            { nodeId: prometheus, role: 'Open metrics' },
+            { nodeId: grafana, role: 'The single pane of glass' },
+            { nodeId: otel, role: 'The open standard' },
+          ],
         },
         [
           {
@@ -494,30 +535,35 @@ const SEEDS: Seeder[] = [
             kind: 'narration',
             settingNote: 'Mountain View, California',
             focusNodeId: dapper,
+            image: storyImg('Google 2015 logo.svg', 'Google', { layout: 'inset-left' }),
           },
           {
             bodyText:
               'The first answers were commercial. New Relic in San Francisco and Datadog in New York turned application monitoring into a business — dashboards you rented, agents you installed, a bill that grew with your traffic.',
             kind: 'narration',
             focusNodeId: newRelic,
+            image: storyImg('New Relic logo.svg', 'New Relic', { layout: 'inset-right' }),
           },
           {
             bodyText:
               'Then SoundCloud, a music-streaming startup in Berlin, open-sourced Prometheus: metrics you owned, scraped from your own services. It became the default heartbeat of the cloud-native world.',
             kind: 'narration',
             focusNodeId: prometheus,
+            image: storyImg('Prometheus software logo.svg', 'Prometheus', { layout: 'inset-left' }),
           },
           {
             bodyText:
               'In Stockholm, Grafana turned all those numbers into something you could see — one pane of glass over metrics, logs, and traces, whoever produced them. Loki and Tempo followed, the same year, the same building.',
             kind: 'narration',
             focusNodeId: grafana,
+            image: storyImg('Grafana logo.svg', 'Grafana', { layout: 'inset-right' }),
           },
           {
             bodyText:
               'The last step had no address. OpenTelemetry merged the rival tracing standards into one open specification — vendor-neutral, owned by everyone and no one. The thing that watches the whole world stopped belonging to any single place.',
             kind: 'narration',
             focusNodeId: otel,
+            image: storyImg('Opentelemetry-logo.svg', 'OpenTelemetry', { layout: 'full' }),
           },
         ],
       )
@@ -619,6 +665,13 @@ const SEEDS: Seeder[] = [
           depthTier: 'deep',
           estimatedMinutes: 4,
           coverImage: storyImg('AlexNet block diagram.svg', 'The AlexNet architecture'),
+          cast: [
+            { nodeId: alexnet, role: 'The breakthrough' },
+            { nodeId: deepmind, role: 'The London lab' },
+            { nodeId: alphago, role: 'The match that stunned the world' },
+            { nodeId: transformer, role: 'The architecture' },
+            { nodeId: gpt, role: 'The scale-up' },
+          ],
         },
         [
           {
@@ -626,6 +679,7 @@ const SEEDS: Seeder[] = [
               'For years, “neural network” was a phrase that ended careers. Funding froze, papers were rejected, and a stubborn few kept working on an idea everyone else had written off. They called it the AI winter.',
             kind: 'narration',
             focusNodeId: winter,
+            image: storyImg('Artificial neural network.svg', 'A neural network', { layout: 'bleed' }),
           },
           {
             bodyText:
@@ -633,12 +687,14 @@ const SEEDS: Seeder[] = [
             kind: 'narration',
             settingNote: 'University of Toronto',
             focusNodeId: alexnet,
+            image: storyImg('Geoffrey Hinton at UBC.jpg', 'Geoffrey Hinton', { layout: 'inset-left', aspect: 'portrait' }),
           },
           {
             bodyText:
               'In London, a small lab named DeepMind was betting on a different idea: agents that learn by playing. Acquired by Google in 2014, it kept its name and its nerve.',
             kind: 'narration',
             focusNodeId: deepmind,
+            image: storyImg('Google 2015 logo.svg', 'DeepMind (Google)', { layout: 'inset-right' }),
           },
           {
             bodyText:
@@ -652,12 +708,14 @@ const SEEDS: Seeder[] = [
               'Back in the Bay Area, a 2017 Google paper threw out recurrence entirely: “Attention Is All You Need.” The transformer it described would become the engine under almost everything that followed.',
             kind: 'narration',
             focusNodeId: transformer,
+            image: storyImg('Transformer, full architecture.png', 'The transformer architecture', { layout: 'inset-left', aspect: 'portrait' }),
           },
           {
             bodyText:
               'A year later an OpenAI lab in San Francisco scaled that engine up and called it GPT. The winter was a long time ago now.',
             kind: 'narration',
             focusNodeId: gpt,
+            image: storyImg('OpenAI Logo.svg', 'OpenAI', { layout: 'inset-right' }),
           },
         ],
       )
@@ -736,6 +794,13 @@ const SEEDS: Seeder[] = [
           depthTier: 'deep',
           estimatedMinutes: 3,
           coverImage: storyImg('Aldrin Apollo 11 original.jpg', 'Buzz Aldrin on the Moon', { aspect: 'portrait' }),
+          cast: [
+            { nodeId: sputnik, role: 'First satellite' },
+            { nodeId: gagarin, role: 'First human in orbit' },
+            { nodeId: apollo, role: 'The program' },
+            { nodeId: moon, role: 'The landing' },
+            { nodeId: nasa, role: 'The agency' },
+          ],
         },
         [
           {
@@ -744,12 +809,14 @@ const SEEDS: Seeder[] = [
             kind: 'narration',
             settingNote: 'Baikonur Cosmodrome, Kazakhstan',
             focusNodeId: sputnik,
+            image: storyImg('Sputnik asm.jpg', 'Sputnik 1 replica', { layout: 'inset-left' }),
           },
           {
             bodyText:
               'Four years later, from the same launch site, Yuri Gagarin became the first human in orbit. “Poyekhali!” — “Let’s go!” — and ninety minutes later he had circled the entire Earth.',
             kind: 'narration',
             focusNodeId: gagarin,
+            image: storyImg('Yuri Gagarin (1961) - Restoration.jpg', 'Yuri Gagarin, 1961', { layout: 'inset-right', aspect: 'portrait' }),
           },
           {
             bodyText:
@@ -757,12 +824,14 @@ const SEEDS: Seeder[] = [
             kind: 'narration',
             settingNote: 'Kennedy Space Center, Florida',
             focusNodeId: apollo,
+            image: storyImg('Apollo 11 insignia.png', 'Apollo 11 mission insignia', { layout: 'inset-left' }),
           },
           {
             bodyText:
               'On 20 July 1969 a fragile lander set down in the Sea of Tranquility and a human being stepped onto another world. Six hundred million people watched the grainy feed at once.',
             kind: 'narration',
             focusNodeId: moon,
+            image: storyImg('Aldrin Apollo 11 original.jpg', 'Buzz Aldrin on the Moon', { layout: 'bleed' }),
             citations: [{ title: 'NASA — Apollo 11', url: 'https://www.nasa.gov/mission/apollo-11/' }],
           },
           {
@@ -770,6 +839,7 @@ const SEEDS: Seeder[] = [
               'None of it was an accident. From Washington, NASA marshaled 400,000 people and a sliver of the federal budget toward a single sentence: before this decade is out, land a man on the Moon and return him safely to the Earth.',
             kind: 'narration',
             focusNodeId: nasa,
+            image: storyImg('NASA logo.svg', 'NASA', { layout: 'full' }),
           },
         ],
       )
@@ -856,6 +926,7 @@ const SEEDS: Seeder[] = [
           depthTier: 'deep',
           estimatedMinutes: 4,
           coverImage: storyImg('Vincenzo Camuccini - La morte di Cesare.jpg', 'The Death of Caesar'),
+          cast: [{ nodeId: caesar, role: 'Dictator for life' }],
         },
         [
           {
@@ -864,6 +935,7 @@ const SEEDS: Seeder[] = [
             kind: 'narration',
             settingNote: 'Alesia, in what is now Burgundy',
             focusNodeId: alesia,
+            image: storyImg('Gaius Iulius Caesar (Vatican Museum).jpg', 'Bust of Julius Caesar', { layout: 'inset-left', aspect: 'portrait' }),
           },
           {
             bodyText:
@@ -889,6 +961,7 @@ const SEEDS: Seeder[] = [
               'Back in Rome, master of the world, he was named dictator for life. On the Ides of March, 44 BCE, sixty senators surrounded him at the foot of Pompey’s statue. The Republic did not survive him.',
             kind: 'narration',
             focusNodeId: ides,
+            image: storyImg('Vincenzo Camuccini - La morte di Cesare.jpg', 'The Death of Caesar (Camuccini)', { layout: 'bleed' }),
           },
         ],
       )
@@ -964,6 +1037,12 @@ const SEEDS: Seeder[] = [
           hook: 'Two decades between the idea and the book.',
           depthTier: 'deep',
           estimatedMinutes: 3,
+          coverImage: storyImg('Charles Darwin seated crop.jpg', 'Charles Darwin', { aspect: 'portrait' }),
+          cast: [
+            { nodeId: darwin, role: 'The naturalist' },
+            { nodeId: newton, role: 'The model he admired' },
+            { nodeId: einstein, role: 'The legacy' },
+          ],
         },
         [
           {
@@ -971,6 +1050,7 @@ const SEEDS: Seeder[] = [
               'Returning from the Beagle in 1836, Darwin filled notebook after notebook with a dangerous idea: that species were not fixed, but descended, with modification, from common ancestors.',
             kind: 'narration',
             settingNote: 'Down House, Kent — a study lined with specimens',
+            focusNodeId: darwin,
           },
           {
             bodyText:
@@ -985,6 +1065,7 @@ const SEEDS: Seeder[] = [
             bodyText:
               'For twenty years he hesitated — gathering evidence, breeding pigeons, dreading the reaction. Only when Alfred Russel Wallace mailed him the same theory did he finally publish, in 1859.',
             kind: 'narration',
+            focusNodeId: darwin,
             citations: [
               {
                 title: 'On the Origin of Species (1859)',
@@ -1012,6 +1093,12 @@ const SEEDS: Seeder[] = [
           depthTier: 'deep',
           estimatedMinutes: 3,
           coverImage: storyImg('Francesco Melzi - Portrait of Leonardo - WGA14795.jpg', 'Portrait of Leonardo da Vinci', { aspect: 'portrait' }),
+          cast: [
+            { nodeId: leonardo, role: 'Florence — the observer' },
+            { nodeId: newton, role: 'England — the laws' },
+            { nodeId: curie, role: 'Paris — the restless atom' },
+            { nodeId: einstein, role: 'Princeton — the last fixed thing' },
+          ],
         },
         [
           {
@@ -1019,24 +1106,28 @@ const SEEDS: Seeder[] = [
               'In Florence, Leonardo filled notebooks with water, flight, and anatomy — observation as a way of life, centuries before anyone called it science. He left almost nothing finished and almost nothing unquestioned.',
             kind: 'narration',
             focusNodeId: leonardo,
+            image: storyImg('Francesco Melzi - Portrait of Leonardo - WGA14795.jpg', 'Leonardo da Vinci', { layout: 'inset-left', aspect: 'portrait' }),
           },
           {
             bodyText:
               'In England, Isaac Newton did what Leonardo only sketched: he wrote the laws down. One mathematics for falling apples and orbiting moons. For two centuries it looked like the final word.',
             kind: 'narration',
             focusNodeId: newton,
+            image: storyImg('GodfreyKneller-IsaacNewton-1689.jpg', 'Isaac Newton', { layout: 'inset-right', aspect: 'portrait' }),
           },
           {
             bodyText:
               'In Paris, Marie Curie pulled new elements from tons of ore and a new force from the atom — radioactivity — showing that even Newton’s solid matter had a restless interior no one had suspected.',
             kind: 'narration',
             focusNodeId: curie,
+            image: storyImg('Marie Curie c. 1920s.jpg', 'Marie Curie', { layout: 'inset-left', aspect: 'portrait' }),
           },
           {
             bodyText:
               'And in Princeton, Albert Einstein bent the last fixed thing of all — time — and the final word turned out to be a question after all. The revolution that began in a Florentine notebook had crossed an ocean and four hundred years.',
             kind: 'narration',
             focusNodeId: einstein,
+            image: storyImg('Einstein 1921 by F Schmutzer - restoration.jpg', 'Albert Einstein, 1921', { layout: 'inset-right', aspect: 'portrait' }),
           },
         ],
       )

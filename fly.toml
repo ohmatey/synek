@@ -1,0 +1,44 @@
+# Fly.io deploy for hosted Synek (Phase 2). SQLite single-instance: ONE machine,
+# pinned to a persistent volume. Do NOT scale beyond 1 — two processes on one
+# SQLite file corrupt it, and the live-canvas SSE bus is in-process (single
+# instance only). Secrets are set with `flyctl secrets set` (never committed) — see
+# docs/engineering/deploy-fly.md. Rename `app` before first deploy.
+
+app = "synek"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Non-secret runtime config. Secrets (BETTER_AUTH_SECRET, BETTER_AUTH_URL,
+# SYNEK_SECRETS_KEY, RESEND_API_KEY, SYNEK_EMAIL_FROM) come from `flyctl secrets`.
+# OPENROUTER_API_KEY is intentionally UNSET — the hosted agent is per-user BYO key.
+[env]
+  PORT = "3001"
+  DATABASE_URL = "/data/synek.db"
+  SYNEK_MIGRATIONS_DIR = "/app/drizzle"
+
+# The SQLite file lives on a Fly Volume. Create it once: `flyctl volumes create
+# synek_data --size 1 --region iad` (one volume → one machine).
+[mounts]
+  source = "synek_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  # SQLite single-writer: keep exactly one machine alive, never auto-scale out.
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "get"
+    path = "/"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -7,10 +7,12 @@ import type {
   PovType,
   SegmentKind,
   StoryBeatCitation,
+  StoryBeatWidget,
   StoryCastMember,
   StoryDTO,
   StoryImage,
   StoryListItem,
+  StoryStatus,
 } from '~/lib/domain/types'
 
 // The story layer hangs off `nodes.id` (a "moment"). Stories are deliberately NOT
@@ -32,6 +34,7 @@ export type NewStorySegment = {
   citations?: Citation[]
   artifactCitations?: { artifactId: string; excerptUsed?: string | null }[]
   image?: StoryImage | null
+  widget?: StoryBeatWidget | null
 }
 
 export type NewStory = {
@@ -42,6 +45,10 @@ export type NewStory = {
   estimatedMinutes?: number | null
   coverImage?: StoryImage | null
   cast?: StoryCastMember[]
+  // Optional explicit public slug (seeds/tests pin a deterministic share URL).
+  // Applied only on CREATE; an update never rewrites an existing story's slug so
+  // a shared /s/$slug link stays stable. Must be globally unique.
+  slug?: string
 }
 
 // The timeline a moment (node) belongs to, or null if the node doesn't exist.
@@ -99,7 +106,7 @@ export function writeStory(
         .insert(stories)
         .values({
           momentId,
-          slug: `${slugify(meta.title)}-${crypto.randomUUID().slice(0, 8)}`,
+          slug: meta.slug ?? `${slugify(meta.title)}-${crypto.randomUUID().slice(0, 8)}`,
           title: meta.title,
           hook: meta.hook ?? null,
           povType: meta.povType ?? 'omniscient',
@@ -130,6 +137,7 @@ export function writeStory(
           focusNodeId: s.focusNodeId ?? null,
           citations: s.citations ?? null,
           image: s.image ?? null,
+          widget: s.widget ?? null,
         })
         .returning({ id: storySegments.id })
         .get()!
@@ -205,6 +213,7 @@ function hydrateStory(story: typeof stories.$inferSelect): StoryDTO {
   }
   return {
     id: story.id,
+    slug: story.slug,
     momentId: story.momentId,
     title: story.title,
     hook: story.hook,
@@ -224,6 +233,7 @@ function hydrateStory(story: typeof stories.$inferSelect): StoryDTO {
       // Single-home merge: inline one-offs + artifact-backed citations (Decision 8).
       citations: [...(s.citations ?? []), ...(artifactCitesBySeg.get(s.id) ?? [])],
       image: s.image ?? null,
+      widget: s.widget ?? null,
     })),
   }
 }
@@ -249,6 +259,33 @@ export function getStoryById(storyId: string): StoryDTO | null {
   return story ? hydrateStory(story) : null
 }
 
+// Resolve a story by its public slug → the DTO plus the moment + status +
+// updatedAt the share loader needs to gate and timestamp the page. The server fn
+// applies the visibility gate (timeline must be public); this is pure data access.
+export function getStoryBySlug(
+  slug: string,
+): { story: StoryDTO; momentId: string; status: StoryStatus; updatedAt: number } | null {
+  const row = db.select().from(stories).where(eq(stories.slug, slug)).get()
+  if (!row) return null
+  return { story: hydrateStory(row), momentId: row.momentId, status: row.status, updatedAt: row.updatedAt?.getTime() ?? 0 }
+}
+
+// Every node id a story references through its cast, per-beat focus/related links,
+// and widgets — so the public loader ships exactly the nodes the page will render.
+export function referencedNodeIds(story: StoryDTO): string[] {
+  const ids = new Set<string>()
+  for (const m of story.cast) if (m.nodeId) ids.add(m.nodeId)
+  for (const b of story.beats) {
+    if (b.focusNodeId) ids.add(b.focusNodeId)
+    for (const id of b.relatedNodeIds) ids.add(id)
+    if (b.widget) {
+      for (const id of b.widget.nodeIds) ids.add(id)
+      if (b.widget.focusNodeId) ids.add(b.widget.focusNodeId)
+    }
+  }
+  return [...ids]
+}
+
 // Attach per-story beat counts to a set of story rows in one grouped query.
 function withBeatCounts<T extends { storyId: string }>(rows: T[]): (T & { beatCount: number })[] {
   if (rows.length === 0) return []
@@ -267,6 +304,7 @@ const STORY_LIST_COLUMNS = {
   momentId: stories.momentId,
   momentTitle: nodes.title,
   storyId: stories.id,
+  slug: stories.slug,
   title: stories.title,
   hook: stories.hook,
   depthTier: stories.depthTier,

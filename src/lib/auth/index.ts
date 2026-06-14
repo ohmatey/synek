@@ -3,6 +3,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { bearer, mcp } from 'better-auth/plugins'
 import { db } from '~/lib/db'
 import * as schema from '~/lib/db/schema'
+import { sendEmail, verificationEmailTemplate, resetPasswordEmailTemplate } from './email'
 
 // Full Better Auth, single local user. Two credential paths to the MCP endpoint:
 //  1. The `mcp` plugin makes this app a loopback OAuth provider — Claude Code
@@ -23,7 +24,27 @@ export const auth = betterAuth({
   // Local-first default so the app runs without setup; set BETTER_AUTH_SECRET in prod.
   secret: process.env.BETTER_AUTH_SECRET || 'synek-local-dev-secret-change-me-0000000000',
   database: drizzleAdapter(db, { provider: 'sqlite', schema }),
-  emailAndPassword: { enabled: true },
+  emailAndPassword: {
+    enabled: true,
+    // Hosted v1: open signup. Don't BLOCK login on verification (avoids lockout if
+    // mail delivery is flaky) — we still send the verification mail + nudge, and a
+    // one-flag flip to true tightens it later.
+    requireEmailVerification: false,
+    // Self-serve password reset. The email link lands on /reset-password?token=…
+    // (redirectTo below); no-ops to a console warning if RESEND_API_KEY is unset.
+    sendResetPassword: async ({ user, url }) => {
+      const t = resetPasswordEmailTemplate(url)
+      await sendEmail({ to: user.email, subject: t.subject, html: t.html })
+    },
+  },
+  // Send a verification mail on signup (non-blocking — see requireEmailVerification).
+  emailVerification: {
+    sendOnSignUp: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      const t = verificationEmailTemplate(url)
+      await sendEmail({ to: user.email, subject: t.subject, html: t.html })
+    },
+  },
   // Long expiry so the minted token behaves like a stable API key.
   session: { expiresIn: YEAR_SECONDS, updateAge: YEAR_SECONDS },
   plugins: [

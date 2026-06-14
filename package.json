@@ -24,6 +24,7 @@
     "issue:key": "tsx scripts/issue-key.ts",
     "verify:mcp": "tsx scripts/verify-mcp-ops.ts",
     "verify:story": "DATABASE_URL=verify-story.db tsx scripts/verify-story.ts",
+    "verify:public-story": "DATABASE_URL=verify-public-story.db tsx scripts/verify-public-story.ts",
     "verify:story-undo": "DATABASE_URL=verify-story-undo.db tsx scripts/verify-story-undo.ts",
     "verify:multi-story": "DATABASE_URL=verify-multi-story.db tsx scripts/verify-multi-story.ts",
     "verify:artifacts": "DATABASE_URL=verify-artifacts.db tsx scripts/verify-artifacts.ts",
@@ -32,7 +33,9 @@
     "verify:theme": "DATABASE_URL=verify-theme.db tsx scripts/verify-theme.ts",
     "verify:globe": "DATABASE_URL=verify-globe.db tsx scripts/verify-globe.ts",
     "verify:seed-demo": "tsx scripts/verify-seed-demo.ts",
-    "verify:telemetry": "tsx scripts/verify-telemetry.ts"
+    "verify:telemetry": "tsx scripts/verify-telemetry.ts",
+    "verify:agent": "tsx scripts/verify-agent.ts",
+    "verify:isolation": "SYNEK_SECRETS_KEY=verify-isolation-master-key DATABASE_URL=verify-isolation.db tsx scripts/verify-isolation.ts"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",

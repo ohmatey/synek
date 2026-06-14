@@ -10,7 +10,7 @@ import {
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
-import { CopyButton } from '~/components/home/CopyButton'
+import { PromptActions } from '~/components/PromptActions'
 import { buildStoryPrompt } from '~/lib/story-prompt'
 import { capture } from '~/lib/posthog/client'
 import { cn } from '~/lib/utils'
@@ -237,18 +237,19 @@ export function NewStoryDialog({
           />
         </section>
 
-        <CopyButton
-          text={prompt}
-          label={anchor ? `Copy prompt for “${anchor.title}”` : 'Pick an entity first'}
+        <PromptActions
+          prompt={prompt}
+          timelineId={timelineId}
+          resetKey={open}
+          copyLabel={anchor ? `Copy prompt for “${anchor.title}”` : 'Pick an entity first'}
           copiedLabel="Prompt copied — paste into Claude"
           disabled={!anchor}
-          variant="default"
-          className="w-full"
           onCopy={() => capture('story_prompt_copied', { timeline_id: timelineId, mode: 'new' })}
+          runAnalyticsProps={{ timeline_id: timelineId, mode: 'new', verb_id: 'write-story' }}
         />
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <BookOpen aria-hidden="true" className="size-3.5" />
-          The story appears on the canvas as soon as Claude writes it — no refresh needed.
+          The story appears on the canvas as soon as it’s written — no refresh needed.
         </p>
       </DialogContent>
     </Dialog>

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-13T16:00:00.000Z",
+  "updatedAt": "2026-06-14T12:00:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -886,6 +886,44 @@
         "etag": null,
         "syncedAt": null
       }
+    },
+    {
+      "data": {
+        "title": "Implement Phase 1 — in-app agent runner (cloud-first, progressively enhanced)",
+        "description": "Posture shift (founder): cloud-first, fully functional self-hosted, progressively enhanced. The 'app holds no AI' guardrail becomes optional-by-default — an OPTIONAL, key-gated in-app agent. Phase 1 only (multi-tenant = Phase 2, billing = Phase 3, still deferred). Plan: /Users/ohmatey/.claude/plans/ok-that-makes-sense-fancy-valiant.md.\n\nDecisions (founder): in-process loop via OpenRouter (OpenAI-compatible, user picks the model); self-host BYO key unlocks Run; no key => unchanged copy-prompt.\n\n### Shipped (uncommitted)\n- Transport-agnostic tool registry `src/lib/mcp/registry.ts` (toolRegistry: {name,title,description,inputSchema Zod, handler(args,ctx)}; makeRequireOwned, ToolCtx). server.ts refactored to a thin adapter looping the registry (keeps the analytics `register` wrapper + json() envelope + instructions + resource mirror) — ZERO behavior change.\n- `src/lib/agent/`: config.ts (agentEnabled/defaultModel/agentBudgets, key-gated like posthog), system-prompt.ts (loads the synek-plugin building-timelines SKILL.md as doctrine; cwd+source candidates + inline fallback; Dockerfile already COPYs the plugin tree), runner.ts (plain-fetch OpenRouter function-calling loop, Zod->JSON-Schema via z.toJSONSchema draft-07, budget caps maxSteps 12 / maxTokens 120k / req 4096 / 60s abort; reuses applyOps+commitPatch => live SSE), pref.ts (client localStorage model pref).\n- `src/lib/server/agent.ts`: getAgentConfig (returns {enabled,defaultModel} only — never the key) + runAgent (gate-first, requireUser + ownership check, emits agent_run analytics).\n- UI seam: shared `src/components/PromptActions.tsx` (Run + Copy + result) consumed by PromptDialog (timelineId added to PromptSpec + threaded through all 11 verbs.ts builders), NewTimelineDialog, NewStoryDialog. `verb_prompt_run` ClientEvent added.\n- Env (.env.example): OPENROUTER_API_KEY + SYNEK_AGENT_MODEL + 4 budget vars. Docs: CLAUDE.md (no-AI line + scope guardrail + AI row + MCP registry note), decision-log, synek-plugin README hosted-pointer note. scripts/verify-agent.ts + verify:agent.\n\n### Verified\ntypecheck clean · verify:mcp green · verify:agent green in BOTH gate states (14 tools, all Zod->JSON-Schema incl. opSchema discriminated union, doctrine loads, gate flips with key + model override) · production build clean + client bundle has NO server-only leak (no better-sqlite3/OPENROUTER_API_KEY/registry — key stays server-side) · full e2e 49/49 green (registry refactor behavior-preserving over HTTP; all 3 dialogs render+function in default copy mode).\n\n### Not done / manual\nLive OpenRouter round-trip (Run -> live build) + the Run-button visual need a REAL key + a browser session — manual check (async user; repo ships no key). Uncommitted. Not multi-tenant. Editable-param templates, DB-backed user settings, a run queue: deferred.",
+        "horizon": "now",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-120",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement Phase 2 — multi-tenant hosted (per-user isolation)",
+        "description": "Founder Phase 2 decisions: per-user isolation only (teams deferred), SQLite single-instance on a managed PaaS (Fly.io), per-user BYO OpenRouter key (no operator cost => Phase 2 independent of billing), open signup + email (Resend). Plan: ~/.claude/plans/ok-that-makes-sense-fancy-valiant.md.\n\n### Shipped (uncommitted)\n- ISOLATION (A): artifact/source `ownerId` (migration 0019 + best-effort backfill) + owner-scoped corpus reads (searchArtifacts/existingArtifactIds/getArtifactById/update/delete) threaded from ctx.ownerId in registry handlers; `getHistory` server fn ownership fix. listArtifacts/getArtifactsForMoment already canView-gated; public stories resolve citations by FK so owner-scoping doesn't break /s/$slug. DECISION: no NOT-NULL rebuild on ownerId — owner-scoped reads are fail-closed (null-owner row never surfaces).\n- BYO KEY (B): `user_settings` table (migration 0019); `src/lib/crypto/secrets.ts` AES-256-GCM (SYNEK_SECRETS_KEY); `db/user-settings.ts` + `server/user-settings.ts` (get/set/clear key + model, requireUser-gated, key never returned); agent refactor — runner takes apiKey param, server/agent.ts resolveKey (user's decrypted key -> env fallback) + resolveModel, getAgentConfig now per-user (getCurrentUser, anon=disabled); `AgentKeyCard` in /api-keys; PromptActions drops localStorage pref (server is source of truth), pref.ts deleted.\n- AUTH+EMAIL (C, last turn): Resend sender `src/lib/auth/email.ts` + Better Auth sendVerificationEmail/sendResetPassword (requireEmailVerification:false), `/reset-password` route + ResetPasswordScreen (client method is requestPasswordReset in 1.6.11), AuthForms Forgot-password link + signup verify nudge.\n- DEPLOY (D): fly.toml (single machine + volume, no autoscale) + docs/engineering/deploy-fly.md runbook; seed already opt-in (serve-build never seeds). .env.example: SYNEK_SECRETS_KEY + RESEND_API_KEY + SYNEK_EMAIL_FROM. CLAUDE.md + decision-log updated.\n\n### Verified\ntypecheck + production build clean; client bundle NO secret/crypto leak (only the SYNEK_SECRETS_KEY env-var NAME as UI notice text); ALL verify:* green (mcp/story/story-undo/multi-story/artifacts/artifact-undo/search/theme/globe/agent/seed-demo/telemetry/public-story) + NEW verify:isolation (B reaches none of A's timelines/nodes/history/artifacts/key; key stored encrypted, decrypts, per-user isolated); e2e 54/54 (incl. concurrent public-story spec; signup triggers verification email no-op).\n\n### Manual / founder (like Phase 1)\nLive OpenRouter Run round-trip (real key); live email delivery + reset-password e2e (RESEND key + mailbox); the actual Fly deploy (Rook + founder Fly account + secrets). Uncommitted. Phase 3 (billing/metering) + teams still deferred.",
+        "horizon": "now",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": [
+          "local-120"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-123",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "tasks": [],
@@ -1193,6 +1231,34 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-119",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Wrap — Phase 1 in-app agent runner shipped (local-120)",
+        "body": "Founder directive (after the /synek:watch keeper skill): 'switch everything to be cloud focused but fully functional if self hosted and progressively enhances. Prompt dialog -> if env vars -> parameters dialog -> run it in cloud; users can also point their claude plugin to the hosted version.' Planned in plan mode (3 scoping questions answered: Phase 1 only · in-process loop via OpenRouter, user-set models · self-host BYO key unlocks Run). Plan approved. Plan file: ~/.claude/plans/ok-that-makes-sense-fancy-valiant.md.\n\nGuardrail framing surfaced (not blocked): this re-adds an in-app model — but OPTIONAL + key-gated, so the BYO-client inversion stays the default. It's the Hosting-horizon destination the roadmap already named, earlier than the gate. Founder owns the call.\n\nShipped uncommitted (local-120, full detail on the issue): tool-registry extraction (src/lib/mcp/registry.ts) shared by the MCP server AND a new in-process OpenRouter function-calling runner (src/lib/agent/); getAgentConfig/runAgent server fns; shared PromptActions Run/Copy footer wired into PromptDialog + the 2 bespoke dialogs; timelineId threaded through all 11 verb specs; env + docs (CLAUDE.md posture amendment + decision-log) + verify:agent.\n\nVerified: typecheck · verify:mcp · verify:agent (both gate states) · build + NO client-bundle key leak · e2e 49/49. The riskiest step (registry refactor) was isolated and proven behavior-preserving FIRST. Manual-only: the live OpenRouter round-trip + Run-button visual (needs a real key + browser; repo ships no key, user async).\n\nNEXT (Phase 2, deferred): multi-tenant hosting (per-tenant isolation across every graph query + signup + plugin->hosted-by-default). Phase 3: billing/metering. B6 analyst/Watcher pull now arriving via this + /synek:watch. NOT scoped into v0.1.0 (local-70). Reconcile all dirty entries (+ the pre-existing duplicate local-117) via mcp__sector137__sync_state when the MCP returns."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-121",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Wrap — story reader control tooltips shipped + committed (842996c)",
+        "body": "Founder ran /sal wrap after 'add hover tooltips to each auto play and speech buttons then commit'.\n\nShipped + COMMITTED this turn (842996c, on main): hover tooltips on the story reader's auto-play (Timer/TimerOff) and read-aloud (Volume2/VolumeX) header buttons — shared shadcn Tooltip (TooltipTrigger asChild + TooltipContent), descriptive copy moved out of the native `title`, aria-label kept so SR names + e2e selectors are unchanged. New e2e hover-tooltip test. Verified: typecheck clean, story-reader e2e 8/8.\n\nNB the auto-play feature itself (local-118) had already been swept into HEAD by a CONCURRENT /sal session's batch commits (80678d6 Stories view, 8a0aaaf GS3+GS4) — StoryReader autoplay + TimelineCanvas wiring + ScalePref.autoPlay + CanvasSettings + the auto-play e2e test all landed there. So 842996c adds ONLY the tooltip affordance (2 files: StoryReader.tsx + story-reader.spec.ts). The concurrent session is mid TimeRuler->TimelineScroller refactor (deleted TimeRuler.tsx, new TimelineScroller.tsx, TimelineCanvas/styles.css dirty) — left UNTOUCHED + uncommitted; my commit was scoped to exactly my 2 files to avoid bundling their WIP.\n\nSHARED-WORKING-TREE HAZARD: two /sal sessions editing the same tree concurrently; git status/HEAD shifted between commands this turn. State.json now shows GROWING duplicate-id collisions from the churn: local-77 x2, local-104 x2, local-117 x2 — all need a deliberate renumber during mcp__sector137__sync_state. Backups of my work saved to /tmp/autoplay-backup as insurance. NOT scoped into v0.1.0 (local-70, draft)."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-122",
         "dirty": true,
         "etag": null,
         "syncedAt": null

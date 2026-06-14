@@ -31,6 +31,7 @@ import {
   type NodeImage,
   type NodeSize,
   type NodeSubtype,
+  type StoryBeatWidget,
   type StoryCastMember,
   type StoryImage,
   type TimelineTheme,
@@ -113,6 +114,26 @@ export const apiKeys = sqliteTable(
 )
 
 export type ApiKeyRow = typeof apiKeys.$inferSelect
+
+// Per-user app settings (Phase 2, hosted multi-user). One row per user, upserted.
+// Holds the user's BYO OpenRouter key — ENCRYPTED at rest (AES-GCM via
+// lib/crypto/secrets.ts; the plaintext never leaves the server, never reaches the
+// client) — plus their chosen agent model. Self-host/local needs none of this
+// (the operator env key + default model still work).
+export const userSettings = sqliteTable('user_settings', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  // AES-GCM blob (v1:salt:iv:tag:ct), or null when the user hasn't set a key.
+  openRouterKeyEnc: text('openrouter_key_enc'),
+  // First chars of the raw key, for display only ("sk-or-v1-abc…"). Never the secret.
+  openRouterKeyPrefix: text('openrouter_key_prefix'),
+  // The user's chosen OpenRouter model slug; null → fall back to the env default.
+  agentModel: text('agent_model'),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+})
+
+export type UserSettingsRow = typeof userSettings.$inferSelect
 
 export const nodes = sqliteTable('nodes', {
   id: text('id').primaryKey().$defaultFn(newId),
@@ -283,6 +304,10 @@ export const storySegments = sqliteTable('story_segments', {
   // (full / inset-left / inset-right / bleed). Sourced like node images: a
   // real, web-accessible URL — never generated.
   image: text('image', { mode: 'json' }).$type<StoryImage>(),
+  // Optional LIVE widget for this beat — a mini timeline / globe / entity card
+  // referencing node ids, resolved at read time so it stays live as the graph
+  // changes. Renders as the panel's hero visual in the sharable public reader.
+  widget: text('widget', { mode: 'json' }).$type<StoryBeatWidget>(),
   speakerPersonId: text('speaker_person_id').references(() => people.id), // null in S1 (S4)
   generationId: text('generation_id').references(() => generations.id),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
@@ -298,6 +323,9 @@ export const storySegments = sqliteTable('story_segments', {
 // Bibliographic record (a book, an archive, a museum collection).
 export const sources = sqliteTable('sources', {
   id: text('id').primaryKey().$defaultFn(newId),
+  // Owner (Phase 2 multi-tenant). Nullable for migration safety; new rows always set
+  // it. Reads are owner-scoped (fail-closed: a null-owner row never surfaces).
+  ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   author: text('author'),
   // Publication year — a plain int, NOT a timeline instant. Sources are not plotted.
@@ -314,6 +342,10 @@ export const artifacts = sqliteTable(
   'artifacts',
   {
     id: text('id').primaryKey().$defaultFn(newId),
+    // Owner (Phase 2 multi-tenant). Nullable for migration safety; new rows always
+    // set it. Corpus reads (search, by-id, citation validation) filter by owner —
+    // fail-closed, so a null-owner row never leaks across tenants.
+    ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
     title: text('title').notNull(), // "Tablet 291: Claudia Severa's birthday invitation"
     artifactType: text('artifact_type', { enum: ARTIFACT_TYPES }).notNull(),
     // Domain time (instant + precision), BCE-safe — canvas-placeable via instantToX.
@@ -335,6 +367,7 @@ export const artifacts = sqliteTable(
   (t) => [
     index('artifacts_title_idx').on(t.title), // dedupe-by-title on curation/upsert
     index('artifacts_source_id_idx').on(t.sourceId),
+    index('artifacts_owner_id_idx').on(t.ownerId), // owner-scoped corpus search
   ],
 )
 

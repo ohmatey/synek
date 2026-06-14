@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '~/components/ui/button'
 import {
   Card,
@@ -45,6 +47,7 @@ export function AuthForms({
         setError(res.error.message || 'Authentication failed')
         return
       }
+      if (mode === 'signup') toast.success('Account created — check your email to verify your address.')
       await qc.invalidateQueries()
       onAuthed?.()
     } catch (err) {
@@ -120,6 +123,14 @@ export function AuthForms({
               onChange={(e) => setPassword(e.target.value)}
               autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             />
+            {mode === 'signin' && (
+              <Link
+                to="/reset-password"
+                className="self-end text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Forgot password?
+              </Link>
+            )}
           </div>
           <Button type="submit" disabled={busy} className="mt-1 w-full">
             {busy && <Loader2 className="animate-spin" />}
