@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-14T12:00:00.000Z",
+  "updatedAt": "2026-06-14T13:30:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -1259,6 +1259,20 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-122",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Wrap — cloud-first pivot SHIPPED + COMMITTED to main (cbf8d18)",
+        "body": "Multi-session arc, now committed. The founder drove a posture shift from local-first-only to cloud-first / fully-functional-self-hosted / progressively-enhanced, executed across two planned phases plus a client-side keeper skill.\n\nSHIPPED this arc:\n- local-113 — /synek:watch keeper-routine plugin skill (client-side Living Timelines; zero app code, in-app L stays deferred).\n- local-120 — Phase 1: optional key-gated in-app agent. Transport-agnostic tool registry (src/lib/mcp/registry.ts) shared by the MCP server (thin adapter, zero behavior change) + an in-process OpenRouter function-calling runner (src/lib/agent/); prompt dialogs get a Run (PromptActions) that streams to the canvas via existing SSE; key server-side only.\n- local-123 — Phase 2: multi-tenant hosted (per-user isolation). artifact/source ownerId (migration 0019 + backfill) + owner-scoped corpus reads + getHistory fix (fail-closed, no NOT-NULL rebuild); per-user BYO OpenRouter key (user_settings + AES-GCM lib/crypto/secrets.ts, SYNEK_SECRETS_KEY); open signup + email verification/reset via Resend (src/lib/auth/email.ts); fly.toml + deploy runbook. Seed already opt-in.\n\nVERIFIED before commit: typecheck + production build clean (no client secret leak), 14/14 verify:* incl. new verify:isolation + verify:agent, e2e 54/54.\n\nGIT: all uncommitted work (Phase 1 + Phase 2 + the concurrent sharable-stories/timeline-scroller/stories-view/autoplay that shared the tree) committed as cbf8d18 on branch feat/cloud-first-multi-tenant, then FAST-FORWARD merged to main; branch deleted; throwaway verify DBs cleaned. 65 files, +9436/-938. One commit was the only clean option (schema.ts/registry.ts/CLAUDE.md had intermingled changes from multiple features; interactive patch staging unavailable).\n\nMANUAL / FOUNDER follow-ups (need real keys/accounts, like every prior live path): live OpenRouter Run round-trip; live email delivery + reset-password (RESEND_API_KEY + mailbox); the actual Fly deploy (hand to infra-rook — fly.toml + docs/engineering/deploy-fly.md). Phase 3 (billing/metering) + teams still deferred.\n\nSAL STATE: sector137 MCP offline this whole arc → everything staged in .sector137/state.json (dirty). Reconcile via mcp__sector137__sync_state when the MCP returns. Pre-existing SYNC HAZARD still open: DUPLICATE localId local-117 (two notes) from an earlier concurrent collision — dedupe at sync time."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-124",
         "dirty": true,
         "etag": null,
         "syncedAt": null
