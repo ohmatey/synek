@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-14T13:30:00.000Z",
+  "updatedAt": "2026-06-15T14:43:48.144Z",
   "syncedAt": null,
   "issues": [
     {
@@ -1273,6 +1273,20 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-124",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Wrap — sharable stories slice 1 SHIPPED + seat-monetization model & finance system COMMITTED (47b9493)",
+        "body": "Two-arc session: (1) validated the sharing-drives-acquisition bet by BUILDING it, then (2) locked the money model and stood up the finance instrument. Both committed.\n\nSHIPPED + COMMITTED — Sharable Stories slice 1 (code committed earlier this session):\n- Public, no-auth /s/$slug mobile-first Reels page validating the sharing-drives-acquisition bet.\n- story_segments.widget JSON (migration 0018) -> live per-beat timeline/globe/entity widgets resolved from node ids; globe lazy d3-geo (own chunk).\n- getPublicStory gated on timeline.isPublic (sharing publishes the timeline); SSR OpenGraph (og:image=cover); owner ShareStoryButton (publishStoryShare); end-panel \"Make your own\" growth CTA; live \"Updated X ago\" stamp + 45s poll.\n- write_story gains per-beat widget; seed from-shipwreck-to-throne demos all 3 widgets. verify:public-story + e2e/public-story.spec (4 tests) + full e2e 54/54 + build green. Guardrail OVERRIDE: public sharing now in scope (founder). Slices 2-4 deferred: email digest, image-gen on add, realtime SSE.\n\nSHIPPED + COMMITTED — Seat monetization model + finance system (47b9493):\n- FOUNDER-LOCKED SEAT model, money NOT on tokens. Two SKUs: BYO dev seat (~zero COGS, bring own Claude/OpenRouter sub) + managed creator \"considerable\" seat (we provide inference, the can't-BYO wall IS the monetization; guardrail = fair-use cap, not a meter). OSS = pure distribution. Billing = Stripe per-seat FLAT. DO NOT build the NATS usage-billing pipeline -- SUPERSEDES the earlier NATS-for-billing ask.\n- Roadmap \"Monetization (M)\" section: measurement buckets M.1 activation funnel (watch the BYO key-connection drop-off above all) / M.2 retention / M.3 engagement / M.4 viral loop / M.5 your-side COGS / M.6 the Understand internal app.\n- understand-app PRD: event taxonomy + usage_ledger repurposed for product-intel + COGS (NOT billing).\n- CFO financial model docs/finance/synek-financial-model.xlsx: 8 tabs (Plan / Actuals / Variance-BvA / Live-Forecast / UnitEconomics / Dashboard), live formulas, 0 errors. Plan-vs-actuals + rolling reforecast. Placeholders illustrative: ~$156k ARR M24, 82% blended GM (BYO 93% / Managed 80%), CF+ ~month 18, -$258 cash trough (flagged as a TRIGGER).\n- Monthly-review operating system (finance-sable agent): docs/finance/README (cadence + 30-min close checklist), monthly-review-template, reviews/2026-06-baseline (month-0). docs/README index updated (finance row, owner Sable).\n\nOWED / NEXT:\n- Build M.1-M.4 capture() instrumentation + M.6 Understand admin app -- the measure-before-pricing prerequisite. Nothing in the model is honest until M.1 (BYO key-connection drop-off) reads a real number.\n- Founder decisions: fix the -$258 cash trough (cut founder draw / phase OpEx / buffer / grow faster); set the first real close date; replace the $20 placeholder CAC once acquisition starts.\n- finance-sable subagent dropped mid-run (socket closed after README+template); baseline review + docs index finished by hand to match its voice.\n\nSTATE NB for next sync: this state.json is at local-124 (cloud-first wrap). The stories-first pivot (memory: local-125..129, release v0.2.0) was never synced into this file. This wrap uses local-130 to avoid colliding with that earmarked range. Sharable-stories CODE, multi-tenant Phase 2, and the cloud-first arc were all already committed before this session (working tree was clean except the monetization/finance docs)."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-130",
         "dirty": true,
         "etag": null,
         "syncedAt": null
