@@ -9,6 +9,7 @@ import {
   setTimelineView as dbSetTimelineView,
   setTimelineTheme as dbSetTimelineTheme,
 } from '~/lib/db/graph'
+import { makeRequireOwnedProject } from '~/lib/db/projects'
 import { requireUser } from '~/lib/auth/session'
 import { timelineThemeSchema } from '~/lib/domain/theme'
 import type { TimelineRow } from '~/lib/db/schema'
@@ -20,22 +21,32 @@ const toSummary = (t: TimelineRow): TimelineSummary => ({
   description: t.description,
   createdAt: t.createdAt.getTime(),
   isPublic: t.isPublic,
+  projectId: t.projectId,
 })
 
 // All timeline RPCs are scoped to the signed-in user — you only see and manage
 // your own timelines. Create/rename/delete/visibility are owner-checked in the DB
 // layer (a non-owner's mutation no-ops).
 
-export const listTimelines = createServerFn({ method: 'GET' }).handler(async (): Promise<TimelineSummary[]> => {
-  const user = await requireUser()
-  return dbListTimelines(user.id).map(toSummary)
-})
+// Optionally narrow to one project (organizational filter WITHIN the owner —
+// own-scope is still the boundary); omit projectId for all the owner's timelines.
+export const listTimelines = createServerFn({ method: 'GET' })
+  .inputValidator((d?: { projectId?: string }) => z.object({ projectId: z.string().optional() }).optional().parse(d))
+  .handler(async ({ data }): Promise<TimelineSummary[]> => {
+    const user = await requireUser()
+    return dbListTimelines(user.id, data?.projectId).map(toSummary)
+  })
 
+// Create a timeline within a project: own-check the project when one is passed,
+// else the db layer resolves the owner's default project (write-path invariant).
 export const createTimeline = createServerFn({ method: 'POST' })
-  .inputValidator((d: { title: string }) => z.object({ title: z.string().trim().min(1).max(200) }).parse(d))
+  .inputValidator((d: { title: string; projectId?: string }) =>
+    z.object({ title: z.string().trim().min(1).max(200), projectId: z.string().optional() }).parse(d),
+  )
   .handler(async ({ data }): Promise<TimelineSummary> => {
     const user = await requireUser()
-    return toSummary(dbCreateTimeline(data.title, user.id))
+    if (data.projectId) makeRequireOwnedProject(user.id)(data.projectId)
+    return toSummary(dbCreateTimeline(data.title, user.id, data.projectId))
   })
 
 export const renameTimeline = createServerFn({ method: 'POST' })

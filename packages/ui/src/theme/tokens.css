@@ -55,6 +55,25 @@
   /* ─── Inverse-on-accent text (always white-ish) ─────────────── */
   --color-on-accent: #ffffff;
 
+  /* Ink for text/icons sitting ON the amber story-accent FILL. White on amber
+     fails WCAG AA in both themes (2.18:1 dark / 3.69:1 light); a constant warm
+     near-black clears it (8.49:1 dark / 5.02:1 light) and reads identically over
+     either theme's amber, so it is NOT redeclared per theme. */
+  --color-on-story: #1a1205;
+
+  /* Darker story-amber for small TEXT on a light surface — bright amber
+     (#b87716) is only 3.69:1 on white. This value clears ~6:1; the bright
+     accent stays for fills/icons. Dark theme keeps the bright amber (8.96:1 on
+     the card surface), so this is overridden lighter only under [data-theme]. */
+  --color-accent-story-text: #e0a458;
+
+  /* Active project-rail chip: brand-blue text on a faint blue tint. The plain
+     accent-primary text is only 3.88:1 on its 15% tint in dark — so dark uses a
+     brighter blue (#7aa2ff → 5.6:1 on the 22% tint). Light keeps a deep blue
+     (#1d4096 → 6.5:1). The fill is accent-primary at 22% over the page. */
+  --color-chip-active-fg: #7aa2ff;
+  --color-chip-active-tint: color-mix(in oklab, var(--color-accent-primary) 22%, transparent);
+
   /* ─── Radii ────────────────────────────────────────────────── */
   --radius-card: 12px;
   --radius-control: 8px;
@@ -111,6 +130,11 @@
   --color-danger-soft-bg: #fbe2e8;
 
   --color-on-accent: #ffffff;
+  /* --color-on-story stays the constant warm ink (clears AA on light amber too). */
+  /* Darker amber so small story-accent text clears AA on light surfaces (~6:1). */
+  --color-accent-story-text: #8a560f;
+  /* Light rail chip: deep blue text (the 22% tint inherits the light primary). */
+  --color-chip-active-fg: #1d4096;
 
   --shadow-panel: 0 8px 24px rgba(20, 25, 40, 0.08);
   --shadow-overlay: 0 12px 40px rgba(20, 25, 40, 0.16);

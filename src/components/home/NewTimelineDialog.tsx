@@ -26,9 +26,14 @@ import { PromptActions } from '~/components/PromptActions'
 export function NewTimelineDialog({
   open,
   onOpenChange,
+  projectId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  // Optional: create the timeline INSIDE this project (ADR 0002 D7 write path).
+  // Omitted → the db layer attaches it to the owner's default project. The cinematic
+  // home passes the active rail project so a new timeline lands where the creator is.
+  projectId?: string
 }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -52,7 +57,7 @@ export function NewTimelineDialog({
     const t = title.trim() || 'Untitled timeline'
     setBusy(true)
     try {
-      const row = await createTimeline({ data: { title: t } })
+      const row = await createTimeline({ data: { title: t, projectId } })
       await qc.invalidateQueries({ queryKey: ['timelines'] })
       setCreated({ id: row.id, title: row.title })
       capture('timeline_created', { timeline_id: row.id })

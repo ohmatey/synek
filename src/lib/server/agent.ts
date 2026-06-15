@@ -4,6 +4,7 @@ import { getTimelineMeta } from '~/lib/db/graph'
 import { getCurrentUser, requireUser } from '~/lib/auth/session'
 import { getUserSettingsRow } from '~/lib/db/user-settings'
 import { decryptSecret } from '~/lib/crypto/secrets'
+import { makeRequireOwnedProject } from '~/lib/db/projects'
 import { makeRequireOwned, type ToolCtx } from '~/lib/mcp/registry'
 import { openRouterKey, defaultModel } from '~/lib/agent/config'
 import { runAgentLoop, type AgentRunResult } from '~/lib/agent/runner'
@@ -59,7 +60,14 @@ export const runAgent = createServerFn({ method: 'POST' })
     const meta = getTimelineMeta(data.timelineId)
     if (!meta || meta.ownerId !== user.id) return FAIL('forbidden: not your timeline')
 
-    const ctx: ToolCtx = { ownerId: user.id, requireOwned: makeRequireOwned(user.id) }
+    // The run is anchored to one timeline, so its project is the session's active
+    // project: any create_timeline the agent makes during the run lands alongside it.
+    const ctx: ToolCtx = {
+      ownerId: user.id,
+      projectId: meta.projectId ?? undefined,
+      requireOwned: makeRequireOwned(user.id),
+      requireOwnedProject: makeRequireOwnedProject(user.id),
+    }
     const model = data.model?.trim() || resolveModel(user.id)
     const t0 = performance.now()
     const result = await runAgentLoop({ prompt: data.prompt, model, apiKey: key, ctx })

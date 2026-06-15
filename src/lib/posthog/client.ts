@@ -117,6 +117,20 @@ export type ClientEvent =
   | 'globe_lens_closed'
   | 'globe_backfill_prompt_copied'
   | 'globe_zoomed'
+  // Cinematic stories-first home (docs/product/prd/cinematic-home.md §8). The home
+  // becomes a measurable on-ramp into the reader (B3) + a new share entry point (B6).
+  //   home_hero_play_clicked    { project_id?, story_id }
+  //   home_story_card_clicked   { project_id?, story_id }
+  //   home_share_clicked        { project_id?, story_id, source: 'hero' | 'card' }
+  //   home_project_filter_selected { project_id }
+  //   home_move_to_project      { from_project_id?, to_project_id }
+  //   home_new_project_created  { project_id }
+  | 'home_hero_play_clicked'
+  | 'home_story_card_clicked'
+  | 'home_share_clicked'
+  | 'home_project_filter_selected'
+  | 'home_move_to_project'
+  | 'home_new_project_created'
 
 /** Typed, gated capture. Safe to call from anywhere — no-ops until init + opt-in. */
 export function capture(event: ClientEvent | '$pageview', props?: Record<string, unknown>): void {

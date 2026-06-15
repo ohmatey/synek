@@ -1,15 +1,19 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from './index'
 import { timelines, nodes, edges, type NodeRow, type EdgeRow, type TimelineRow } from './schema'
+import { ensureDefaultProject, getProjectMeta } from './projects'
 import type { GraphNode, TimelineTheme, TimelineViewSettings } from '~/lib/domain/types'
 
 export type Graph = { nodes: NodeRow[]; edges: EdgeRow[] }
 
 // Lightweight ownership/visibility view of a timeline (no graph payload).
+// `projectId` carries the container so theme inheritance (D5) can resolve the
+// project's theme at read time when the timeline has none of its own.
 export type TimelineMeta = {
   id: string
   title: string
   ownerId: string | null
+  projectId: string | null
   isPublic: boolean
   viewSettings: TimelineViewSettings | null
   theme: TimelineTheme | null
@@ -17,24 +21,40 @@ export type TimelineMeta = {
 
 // Create the timeline row if it doesn't exist yet, owned by `ownerId`. Used by the
 // MCP apply_patch path (build-as-you-go). Existing rows are left untouched.
-export function ensureTimeline(id: string, ownerId: string, title = 'Untitled timeline'): void {
-  db.insert(timelines).values({ id, title, ownerId }).onConflictDoNothing().run()
+// Always sets projectId so the "every timeline has a project" invariant holds at
+// the write path (D7) — resolve the owner's default project when none is given.
+export function ensureTimeline(id: string, ownerId: string, title = 'Untitled timeline', projectId?: string): void {
+  db.insert(timelines)
+    .values({ id, title, ownerId, projectId: projectId ?? ensureDefaultProject(ownerId) })
+    .onConflictDoNothing()
+    .run()
 }
 
 // --- timeline CRUD (multi-timeline, per-owner) ----------------------------
 
-// A single owner's timelines, newest first.
-export function listTimelines(ownerId: string): TimelineRow[] {
+// A single owner's timelines, newest first. Pass `projectId` to narrow to one
+// project (organizational filter WITHIN the owner — owner-scope is still the
+// security boundary); omit it to return all the owner's timelines (D10).
+export function listTimelines(ownerId: string, projectId?: string): TimelineRow[] {
   return db
     .select()
     .from(timelines)
-    .where(eq(timelines.ownerId, ownerId))
+    .where(
+      projectId ? and(eq(timelines.ownerId, ownerId), eq(timelines.projectId, projectId)) : eq(timelines.ownerId, ownerId),
+    )
     .orderBy(desc(timelines.createdAt))
     .all()
 }
 
-export function createTimeline(title: string, ownerId: string): TimelineRow {
-  return db.insert(timelines).values({ title, ownerId, isPublic: false }).returning().get()
+// Always sets projectId (D7 write-path invariant): resolve the owner's default
+// project when none is supplied. The caller is trusted to have own-checked the
+// project (server fn / MCP ctx) — this layer takes ids.
+export function createTimeline(title: string, ownerId: string, projectId?: string): TimelineRow {
+  return db
+    .insert(timelines)
+    .values({ title, ownerId, projectId: projectId ?? ensureDefaultProject(ownerId), isPublic: false })
+    .returning()
+    .get()
 }
 
 // Owner-scoped: a non-owner's call no-ops (0 rows matched).
@@ -49,6 +69,20 @@ export function renameTimeline(id: string, title: string, ownerId: string): void
 // Owner-scoped: a non-owner's call no-ops.
 export function deleteTimeline(id: string, ownerId: string): void {
   db.delete(timelines).where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId))).run()
+}
+
+// Owner-scoped reassignment of a timeline to a different project (the move-to-
+// project affordance, local-126). Sets timelines.project_id; a non-owner's call
+// no-ops (0 rows matched — the `ownerId` predicate). NOT a Patch (ADR 0002 D9 —
+// project membership is metadata, never on the undo stack). The caller MUST have
+// own-checked BOTH the timeline (this predicate) and the target project
+// (requireOwnedProject in the server fn) — this layer takes ids and trusts its
+// guarded caller, so it does NOT verify the target project's owner here.
+export function moveTimelineToProject(id: string, ownerId: string, projectId: string): void {
+  db.update(timelines)
+    .set({ projectId, updatedAt: new Date() })
+    .where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId)))
+    .run()
 }
 
 // Owner-scoped public toggle.
@@ -83,6 +117,7 @@ export function getTimelineMeta(id: string): TimelineMeta | null {
       id: timelines.id,
       title: timelines.title,
       ownerId: timelines.ownerId,
+      projectId: timelines.projectId,
       isPublic: timelines.isPublic,
       viewSettings: timelines.viewSettings,
       theme: timelines.theme,
@@ -91,6 +126,18 @@ export function getTimelineMeta(id: string): TimelineMeta | null {
     .where(eq(timelines.id, id))
     .get()
   return row ?? null
+}
+
+// Theme inheritance (ADR 0002 D5), resolved at READ time, drift-free: a timeline's
+// own theme wins; absent it, the project's theme; absent both, null (the canvas
+// applies the brand-default tokens). Inheritance is a fallback, NOT a write-time
+// copy — re-theming a project re-themes its non-overriding timelines automatically.
+// Fed to the renderer (getGraph + the MCP read tools); the raw timeline.theme stays
+// available on TimelineMeta for editing ("read the current theme to tweak it").
+export function resolveTimelineTheme(meta: TimelineMeta): TimelineTheme | null {
+  if (meta.theme) return meta.theme
+  if (meta.projectId) return getProjectMeta(meta.projectId)?.theme ?? null
+  return null
 }
 
 // True when `userId` may VIEW the timeline: it's public, or they own it.

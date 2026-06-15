@@ -151,7 +151,9 @@ test('owner canvas chrome: account far right, share to its left, mcp dot, no fit
   await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
-  await expect(page.getByText('Figures of science')).toBeVisible()
+  // The cinematic home's "Timelines" carousel heading is the stable signed-in
+  // marker (a bare "Figures of science" now matches the hero eyebrow + a card).
+  await expect(page.getByRole('heading', { name: 'Timelines' })).toBeVisible()
 
   await page.goto('/timelines/figures')
 
