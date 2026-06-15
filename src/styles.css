@@ -117,11 +117,13 @@ body {
 
 .app-shell {
   --chat-pane-width: 440px;
-  /* Right-side panels (chat, node detail, story reader) dock as columns within
-     these bounds: below the app bar / toolbar, above the bottom time ruler — so
-     the app bar never has to move out of their way. */
-  --dock-top: 56px;
-  --dock-bottom: 34px;
+  /* Right-side panels (chat, node detail, story reader) dock as floating cards
+     within these bounds: below the app bar / toolbar, above the now full-width
+     bottom timeline bar — so neither has to move out of their way. The insets
+     leave a matching ~24px breathing gap from the chrome at top and bottom (the
+     bottom bar reaches ~86px up, so its inset clears it plus the gap). */
+  --dock-top: 80px;
+  --dock-bottom: 108px;
   position: relative; /* positioning context for the floating chat overlay */
   display: flex;
   height: 100vh;
@@ -1578,7 +1580,7 @@ body {
   /* Docks as a column at the right edge of the canvas. */
   right: 16px;
   bottom: var(--dock-bottom);
-  z-index: 6;
+  z-index: 7; /* above the timeline scrubber bar (RF panel z5) and globe scrubber (z3) */
   width: var(--detail-panel-w, 340px);
   max-width: calc(100vw - 32px);
   display: flex;
@@ -2519,7 +2521,7 @@ body {
   right: calc(var(--detail-panel-w, 340px) + 32px);
   width: var(--story-reader-w, 380px);
   max-width: calc(100vw - 32px);
-  z-index: 6;
+  z-index: 7; /* above the timeline scrubber bar (RF panel z5) and globe scrubber (z3) */
   overflow: hidden;
   color: var(--color-fg-primary);
   background: color-mix(in oklab, var(--color-bg-surface) 96%, transparent);

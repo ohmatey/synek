@@ -72,15 +72,11 @@ export function TimelineScrubber({
   nodes,
   scale,
   timelineId,
-  rightInset,
   onFillGap,
 }: {
   nodes: GraphNode[]
   scale: TimeScale
   timelineId: string
-  // px the open detail/story docks occupy on the right — keeps the bar clear of
-  // them, exactly like the globe scrubber's inline `right`.
-  rightInset: number
   // Owner-only: a collapsed empty span becomes a "fill this gap" affordance (the
   // collapse-mode twin of the dashed gap-invitation ghost), receiving the gap's
   // bracketing instants. Mirrors the old TimeRuler break marker.
@@ -210,7 +206,7 @@ export function TimelineScrubber({
     <Panel
       position="bottom-left"
       className="tl-scrubber nopan nowheel nodrag"
-      style={{ right: rightInset + 16 }}
+      style={{ right: 16 }}
       aria-label="Timeline scroller"
     >
       <div className="globe-timeline">

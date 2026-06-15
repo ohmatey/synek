@@ -1186,9 +1186,6 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
               nodes={gnodes}
               scale={scale}
               timelineId={timelineId}
-              // Clear the right docks (detail portrait + story reader) just like
-              // the globe scrubber, so the bar never slides under them.
-              rightInset={(displayNode ? panelW.detail : 0) + (reading ? panelW.story : 0)}
               // In collapse-gaps mode a dead zone is squeezed to a break marker
               // instead of an open span — so the marker itself becomes the fill
               // affordance (owner only), the collapse-mode twin of the gap ghost.
