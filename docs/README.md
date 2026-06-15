@@ -1,6 +1,6 @@
 ---
 project: "Synek"
-updated: 2026-06-12
+updated: 2026-06-15
 ---
 
 # Synek — Documentation
@@ -13,6 +13,7 @@ Standardized docs structure (crew-managed, see `/docs-ops`). Migrated from the l
 - **Roadmap:** [product/roadmap.md](product/roadmap.md) — NOW / NEXT / LATER / Deferred; the offline source of truth Sal renders from `.sector137/state.json`.
 - **PRDs:** [product/prd/](product/prd/README.md) — the story layer (S1–S4), map (VIS), nav (NAV), connection (KEYS).
 - **ADRs:** [engineering/adr/](engineering/adr/README.md) — locked technical decisions; PRDs reference ADRs as the data-model source of truth.
+- **Finance:** [finance/](finance/README.md) — the financial model, the monthly-review cadence + template, and dated reviews (Sable). Latest: [2026-06 baseline](finance/reviews/2026-06-baseline.md).
 
 ## Domains
 
@@ -23,6 +24,7 @@ Standardized docs structure (crew-managed, see `/docs-ops`). Migrated from the l
 | [ux/](ux/) | Wren | Research, personas, design reviews (empty — seeded on first engagement) |
 | [project/](project/) | Sal + Mira | Pipeline state notes; work queue lives in `.sector137/state.json` |
 | [workflows/](workflows/) | Sal | Cross-cutting process docs, decision log |
+| [finance/](finance/) | Sable | Financial model (xlsx), monthly-review cadence + template, dated reviews |
 | [sales/](sales/) | Harlan | **Deferred** — scope guardrail: no GTM/pricing work until the core is undeniable |
 
 ## Conventions

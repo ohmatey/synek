@@ -339,11 +339,33 @@ Deferred within this item: the secondary "upgrade lovable-gate measurement from 
 
 ---
 
+## Monetization model + instrumentation (M) — measure before pricing
+
+> **Founder-locked model (2026-06-14).** Money is **not** made on tokens. Two SKUs over the same value-add (persistence + structure + visualization + publishing — the memory-and-output layer Claude/Codex can't give you):
+> - **BYO seat (devs/prosumers)** — bring your own Claude/Codex/OpenRouter subscription; pay a seat for access. **~Zero inference COGS** to us.
+> - **Managed seat (non-tech creators)** — we provide inference, bundled into a **considerable** subscription priced so COGS is a comfortable fraction. The "they can't BYO" wall **is** the monetization (convenience premium, no substitute). One CFO guardrail: a **fair-use cap** on this seat (a ceiling, not a billing meter) so a runaway user can't erode margin.
+> - **Open source = pure distribution.** Self-hosters/tinkerers spread it; zero revenue expectation. The money is the managed creator seat.
+>
+> **Discipline: you cannot price what you haven't measured.** Ship the instrumentation, run free, read the distribution, *then* set one seat price (seat pricing is value-based and forgiving — recoverable if wrong). The financial model (CFO spreadsheet) consumes these same metrics as its assumptions — measured numbers replace guesses over time. Spec: [understand-app.md](prd/understand-app.md). Queue ids TBD (Sal to assign).
+
+The five measurement buckets (priority order). Each is a PostHog funnel/cohort + (where quantitative) a row in the usage ledger:
+
+- [ ] **M.1 — Activation funnel** — `signup → key connected → first timeline → first story → first share`. **Watch the key-connection drop-off above all** — it's the single number that proves/kills the BYO-for-devs vs managed-for-creators split.
+- [ ] **M.2 — Retention cohorts** — D1/D7/D30 return, weekly-active, "created something this week." The lifeblood of seat SaaS (not usage). Churn is the model's most sensitive driver.
+- [ ] **M.3 — Engagement depth (value-add proxies)** — timelines created, stories written, stories shared, public-story opens, agent runs, widgets used. Reveals *which* features correlate with retention → that's what the seat is worth.
+- [ ] **M.4 — Viral loop (the GTM)** — `share → public open → signup attributed to a share`. The **viral coefficient** is the number that says whether the funnel compounds. Feeds new-signup growth in the model.
+- [ ] **M.5 — Your-side costs** — the bits we pay even under BYO: hosting, storage, image storage, bandwidth, plus managed-tier inference. So real (small) COGS behind each seat is known per user.
+- [ ] **M.6 — The "Understand" internal app** — a small **internal-only** admin surface (not a product), reading PostHog + a repurposed usage ledger. Three views: **(a)** per-user table (engagement × your-cost × stickiness × shares-driven), **(b)** retention cohort chart, **(c)** the share→open→signup funnel + the key-connection drop-off. This *is* the "pricing dashboard to first understand." Full spec: [understand-app.md](prd/understand-app.md).
+
+**NB — do NOT build the NATS billing pipeline.** Seat + BYO billing is Stripe per-seat (flat), no meters. The usage ledger here is for **product intelligence + fair-use + COGS visibility**, not billing. The NATS event stream stays a *later* concern (component extraction), not a billing dependency.
+
+---
+
 ## Deferred — parked (local-first / single-user; no money yet)
 
 Schema hooks exist where noted; no committed phase.
 
-- **D.1 — Cloud SaaS, hosted models, workspaces/teams/roles, billing** `#local-20` — the destination sketched in **Hosting horizon** above; includes the metered/billed image service that **N.4.5b** defers.
+- **D.1 — Cloud SaaS, hosted models, workspaces/teams/roles, billing** `#local-20` — the destination sketched in **Hosting horizon** above; includes the metered/billed image service that **N.4.5b** defers. **Update (2026-06-14):** monetization is now a **seat model** (see **Monetization (M)** above), NOT usage-billing — Stripe per-seat (flat), two SKUs (BYO seat / managed creator seat). Billing build still deferred until **M** instrumentation reads the distribution; managed inference COGS is bounded by a fair-use cap.
 - **D.2 — Proactive industry-mapping agent, scheduled jobs, signal ingestion, weekly briefings, integrations (Slack/Notion/etc.)** `#local-21`
   The local-first variant is specced as **L: Living Timelines** (LATER.2). This stub covers the cloud/hosted-cron and weekly-briefing variants that land only with a multi-user/SaaS posture.
 - **D.3 — Public read-only sharing, enterprise SSO/audit logs** `#local-22`
