@@ -1,10 +1,12 @@
 import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
 import {
   getMomentTimelineId,
   getStoryById,
   getStoryBySlug,
   getStoryForMoment,
   getStoriesForMoment,
+  listStoriesForHome,
   listStoriesForTimeline,
   referencedNodeIds,
 } from '~/lib/db/stories'
@@ -13,7 +15,7 @@ import { stories } from '~/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getTimelineMeta, canView, nodesByIds, nodeRowToGraphNode, setTimelinePublic } from '~/lib/db/graph'
 import { getCurrentUser, requireUser } from '~/lib/auth/session'
-import type { PublicStoryDTO, StoryDTO, StoryListItem } from '~/lib/domain/types'
+import type { HomeStoryCard, PublicStoryDTO, StoryDTO, StoryListItem } from '~/lib/domain/types'
 
 // Read the story attached to a moment, gated by the SAME visibility rule as the
 // graph (owner, or public) so a private timeline's story is never leaked. Returns
@@ -42,6 +44,20 @@ export const listStories = createServerFn({ method: 'GET' })
     const user = await getCurrentUser()
     if (!canView(meta, user?.id ?? null)) return []
     return listStoriesForTimeline(timelineId)
+  })
+
+// Every story the SIGNED-IN owner has across all their timelines (optionally
+// narrowed to one project) — backs the cinematic home's hero + "Your stories" row.
+// Owner-only (the home is the private dashboard): owner-scope is enforced in the db
+// query's timeline join, and an unowned/foreign `projectId` simply matches nothing
+// (degrades to empty, never leaks). Sorted newest-`updatedAt`-first.
+export const listHomeStories = createServerFn({ method: 'GET' })
+  .inputValidator((d?: { projectId?: string }) =>
+    z.object({ projectId: z.string().optional() }).optional().parse(d),
+  )
+  .handler(async ({ data }): Promise<HomeStoryCard[]> => {
+    const user = await requireUser()
+    return listStoriesForHome(user.id, data?.projectId)
   })
 
 // Every story attached to a single moment (for the entity panel's story list),

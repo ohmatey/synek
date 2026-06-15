@@ -1,9 +1,10 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from './index'
-import { stories, storySegments, storyArtifacts, segmentCitations, artifacts, nodes } from './schema'
+import { stories, storySegments, storyArtifacts, segmentCitations, artifacts, nodes, timelines } from './schema'
 import type { Citation } from './schema'
 import type {
   DepthTier,
+  HomeStoryCard,
   PovType,
   SegmentKind,
   StoryBeatCitation,
@@ -327,6 +328,52 @@ export function listStoriesForTimeline(timelineId: string): StoryListItem[] {
     .orderBy(asc(nodes.startInstant), asc(stories.createdAt))
     .all()
   return withBeatCounts(rows)
+}
+
+// Every story the OWNER has across ALL their timelines (optionally narrowed to one
+// project), newest-`updatedAt`-first — backs the cinematic home's hero + "Your
+// stories" row. Owner-scope is the security boundary (joined through the timeline's
+// ownerId); `projectId` is an organizational filter WITHIN the owner (D10), so a
+// foreign/unowned project simply matches nothing. One grouped beat-count follow-up
+// query keeps it free of N+1s. Returns [] when the owner has no stories in scope.
+export function listStoriesForHome(ownerId: string, projectId?: string): HomeStoryCard[] {
+  const rows = db
+    .select({
+      ...STORY_LIST_COLUMNS,
+      cast: stories.cast,
+      timelineId: timelines.id,
+      timelineTitle: timelines.title,
+      updatedAt: stories.updatedAt,
+    })
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
+    .where(
+      projectId
+        ? and(eq(timelines.ownerId, ownerId), eq(timelines.projectId, projectId))
+        : eq(timelines.ownerId, ownerId),
+    )
+    .orderBy(desc(stories.updatedAt))
+    .all()
+  // Resolve every node-backed cast member's display name in one batched node-title
+  // lookup (the home ships no cast nodes, so the hero chips need pre-resolved names).
+  const castNodeIds = new Set<string>()
+  for (const r of rows) for (const m of r.cast ?? []) if (m.nodeId) castNodeIds.add(m.nodeId)
+  const titleById = new Map<string, string>()
+  if (castNodeIds.size > 0)
+    for (const n of db
+      .select({ id: nodes.id, title: nodes.title })
+      .from(nodes)
+      .where(inArray(nodes.id, [...castNodeIds]))
+      .all())
+      titleById.set(n.id, n.title)
+  return withBeatCounts(rows).map(({ cast, updatedAt, ...rest }) => ({
+    ...rest,
+    updatedAt: updatedAt?.getTime() ?? 0,
+    castNames: (cast ?? [])
+      .map((m) => (m.nodeId ? titleById.get(m.nodeId) : m.name) ?? m.name ?? '')
+      .filter((s): s is string => Boolean(s)),
+  }))
 }
 
 // Every story attached to a single moment (newest first) — backs the entity

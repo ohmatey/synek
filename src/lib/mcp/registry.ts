@@ -5,9 +5,17 @@ import {
   listTimelines,
   loadGraph,
   getTimelineMeta,
+  resolveTimelineTheme,
   setTimelineView,
   setTimelineTheme,
 } from '~/lib/db/graph'
+import {
+  createProject,
+  listProjects,
+  getProjectMeta,
+  ensureDefaultProject,
+  makeRequireOwnedProject,
+} from '~/lib/db/projects'
 import { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay } from '~/lib/domain/types'
 import { PatchBuilder, commitPatch, undo, redo, historyState, maxAppliedSeq } from '~/lib/db/patches'
 import { writeStory, getMomentTimelineId, getStoriesForMoment, storyDepthByMoment } from '~/lib/db/stories'
@@ -37,11 +45,18 @@ import type { Graph } from '~/lib/db/graph'
 
 // The per-call context every tool handler receives. `ownerId` scopes all reads
 // and writes to one user's timelines; `requireOwned` is the shared id guard.
+// `projectId` is the OPTIONAL active project for a build session — an
+// ORGANIZATIONAL narrowing WITHIN the owner, never a second security boundary
+// (ownerId stays the only one). When absent, create_timeline falls back to the
+// owner's default project and list_timelines returns all the owner's timelines
+// (today's behavior preserved). `requireOwnedProject` is the project-level guard.
 // buildMcpServer (MCP transport) and the in-app agent runner both build this and
 // run the SAME handlers — one tool surface, two callers.
 export type ToolCtx = {
   ownerId: string
+  projectId?: string
   requireOwned: (timelineId: string) => void
+  requireOwnedProject?: (projectId: string) => void
 }
 
 // A transport-agnostic tool definition. Handlers return the RAW result object;
@@ -137,14 +152,76 @@ const storyWidgetInput = z.object({
   caption: z.string().optional().describe('Optional one-line caption shown under the widget.'),
 })
 
+// The viewer/home URL for a project — slug-addressable (D6).
+const projectUrl = (p: { slug: string }) => `${BASE_URL}/p/${p.slug}`
+
 // The shared tool surface. Order mirrors the original server.ts registration.
 export const toolRegistry: ToolDef[] = [
   {
+    name: 'create_project',
+    title: 'Create project',
+    description:
+      'Create a new PROJECT — the top-level container that holds many timelines, stories, and resources. ' +
+      'Returns its id, slug, title, and url. New timelines you create in this session land in a project; ' +
+      'create one first when starting a fresh body of work, then build timelines inside it (pass its id as ' +
+      '`projectId` to create_timeline, or rely on it being the active project).',
+    inputSchema: {
+      title: z.string(),
+      description: z.string().optional().describe('Optional one-line description of what this project covers.'),
+    },
+    handler: async ({ title, description }, { ownerId }) => {
+      const p = createProject(title, ownerId, { description: description ?? null })
+      return { id: p.id, slug: p.slug, title: p.title, url: projectUrl(p) }
+    },
+  },
+
+  {
+    name: 'list_projects',
+    title: 'List projects',
+    description: 'List your projects (id, slug, title, kind), newest first — the containers your timelines live in.',
+    inputSchema: {},
+    handler: async (_args, { ownerId }) =>
+      listProjects(ownerId).map((p) => ({ id: p.id, slug: p.slug, title: p.title, kind: p.kind })),
+  },
+
+  {
+    name: 'get_project',
+    title: 'Get one project',
+    description:
+      'One project\'s metadata (id, slug, title, description, kind, theme) plus the timelines it contains ' +
+      '(id + title, newest first). Use it to see what a project holds before building into it.',
+    inputSchema: { projectId: z.string() },
+    handler: async ({ projectId }, { ownerId, requireOwnedProject }) => {
+      ;(requireOwnedProject ?? makeRequireOwnedProject(ownerId))(projectId)
+      const meta = getProjectMeta(projectId)!
+      return {
+        id: meta.id,
+        slug: meta.slug,
+        title: meta.title,
+        kind: meta.kind,
+        theme: meta.theme ?? null,
+        timelines: listTimelines(ownerId, projectId).map((t) => ({ id: t.id, title: t.title })),
+      }
+    },
+  },
+
+  {
     name: 'list_timelines',
     title: 'List timelines',
-    description: 'List your timelines (id + title), newest first.',
-    inputSchema: {},
-    handler: async (_args, { ownerId }) => listTimelines(ownerId).map((t) => ({ id: t.id, title: t.title })),
+    description:
+      'List your timelines (id + title), newest first. Pass `projectId` to list only that project\'s timelines; ' +
+      'omit it for all your timelines (or the active project\'s, if this session has one).',
+    inputSchema: {
+      projectId: z
+        .string()
+        .optional()
+        .describe('Scope to one project\'s timelines. Omit for all your timelines (or the active project\'s).'),
+    },
+    handler: async ({ projectId }, { ownerId, projectId: activeProjectId, requireOwnedProject }) => {
+      const scope = projectId ?? activeProjectId
+      if (scope) (requireOwnedProject ?? makeRequireOwnedProject(ownerId))(scope)
+      return listTimelines(ownerId, scope).map((t) => ({ id: t.id, title: t.title }))
+    },
   },
 
   {
@@ -152,17 +229,25 @@ export const toolRegistry: ToolDef[] = [
     title: 'Create timeline',
     description:
       'Create a new empty timeline. Returns its id, title, and viewer url — share the url with the user. ' +
+      'It lands in the given `projectId` (or this session\'s active project, else your default project). ' +
       'Optionally pass `theme` to style it at birth (same shape as set_timeline_theme).',
     inputSchema: {
       title: z.string(),
+      projectId: z
+        .string()
+        .optional()
+        .describe('The project to create the timeline in. Omit to use the active / default project.'),
       theme: timelineThemeSchema.optional().describe('Optional initial theme — same shape as set_timeline_theme.'),
     },
-    handler: async ({ title, theme }, { ownerId }) => {
-      const t = createTimeline(title, ownerId)
+    handler: async ({ title, projectId, theme }, { ownerId, projectId: activeProjectId, requireOwnedProject }) => {
+      // Resolve the target project: explicit arg → session active → owner default.
+      const target = projectId ?? activeProjectId ?? ensureDefaultProject(ownerId)
+      ;(requireOwnedProject ?? makeRequireOwnedProject(ownerId))(target)
+      const t = createTimeline(title, ownerId, target)
       // No SSE emit needed: a brand-new timeline has no live viewers yet.
       if (theme) setTimelineTheme(t.id, ownerId, theme)
       const warnings = theme ? themeContrastWarnings(theme) : []
-      return { id: t.id, title: t.title, url: viewerUrl(t.id), ...(warnings.length ? { warnings } : {}) }
+      return { id: t.id, title: t.title, projectId: target, url: viewerUrl(t.id), ...(warnings.length ? { warnings } : {}) }
     },
   },
 
@@ -181,7 +266,8 @@ export const toolRegistry: ToolDef[] = [
       return {
         title: meta.title,
         viewSettings: meta.viewSettings ?? null,
-        theme: meta.theme ?? null,
+        // Effective theme: the timeline's own, else inherited from its project (D5).
+        theme: resolveTimelineTheme(meta),
         ...loadGraph(timelineId),
       }
     },
@@ -329,7 +415,8 @@ export const toolRegistry: ToolDef[] = [
         timelineId,
         loadGraph(timelineId),
         meta?.viewSettings ?? null,
-        meta?.theme ?? null,
+        // The report's theme view reflects inheritance (D5) — what the canvas renders.
+        meta ? resolveTimelineTheme(meta) : null,
       )
     },
   },

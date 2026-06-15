@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { loadGraph, getTimelineMeta, canView, nodeRowToGraphNode } from '~/lib/db/graph'
+import { loadGraph, getTimelineMeta, canView, nodeRowToGraphNode, resolveTimelineTheme } from '~/lib/db/graph'
 import { storyDepthByMoment, storyVersionForMoments } from '~/lib/db/stories'
 import { getCurrentUser } from '~/lib/auth/session'
 import type { TimelineGraphResult } from '~/lib/domain/types'
@@ -29,7 +29,8 @@ export const getGraph = createServerFn({ method: 'GET' })
       isOwner: user?.id != null && meta.ownerId === user.id,
       isPublic: meta.isPublic,
       viewSettings: meta.viewSettings ?? null,
-      theme: meta.theme ?? null,
+      // Theme inheritance (D5): the timeline's own theme, else its project's.
+      theme: resolveTimelineTheme(meta),
       storyVersion,
       title: meta.title,
       nodes: nodes.map((n) => ({

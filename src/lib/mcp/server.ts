@@ -1,5 +1,6 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { listTimelines, loadGraph, getTimelineTitle, getTimelineMeta } from '~/lib/db/graph'
+import { listTimelines, loadGraph, getTimelineTitle, getTimelineMeta, resolveTimelineTheme } from '~/lib/db/graph'
+import { makeRequireOwnedProject } from '~/lib/db/projects'
 import { captureServer } from '~/lib/posthog/server'
 import { toolRegistry, makeRequireOwned, type ToolCtx } from './registry'
 
@@ -70,7 +71,7 @@ function enrich(name: string, args: any, result: any): Record<string, unknown> {
 // resource. ALL writes go through apply_patch. The tool surface itself lives in
 // ./registry (shared with the in-app agent runner) — this factory only wraps each
 // handler for the MCP transport: analytics + the { content:[{text}] } envelope.
-export function buildMcpServer(ownerId: string): McpServer {
+export function buildMcpServer(ownerId: string, projectId?: string): McpServer {
   const server = new McpServer(
     { name: 'synek', version: '0.1.0' },
     {
@@ -97,7 +98,11 @@ export function buildMcpServer(ownerId: string): McpServer {
   )
 
   const requireOwned = makeRequireOwned(ownerId)
-  const ctx: ToolCtx = { ownerId, requireOwned }
+  const requireOwnedProject = makeRequireOwnedProject(ownerId)
+  // projectId is the OPTIONAL active project for this session — an org narrowing
+  // within the owner, never a security boundary. Absent → tools fall back to the
+  // owner's default project / full timeline list, so single-project users never notice.
+  const ctx: ToolCtx = { ownerId, projectId, requireOwned, requireOwnedProject }
 
   // One analytics event per tool call, threaded through a single wrapper so it
   // covers ALL tools across BOTH transports (HTTP + stdio both build via this
@@ -157,12 +162,14 @@ export function buildMcpServer(ownerId: string): McpServer {
     async (uri, { timelineId }) => {
       const id = String(timelineId)
       requireOwned(id)
+      const meta = getTimelineMeta(id)
       return {
         contents: [
           {
             uri: uri.href,
             mimeType: 'application/json',
-            text: JSON.stringify({ title: getTimelineTitle(id), theme: getTimelineMeta(id)?.theme ?? null, ...loadGraph(id) }),
+            // Effective theme: timeline's own, else inherited from its project (D5).
+            text: JSON.stringify({ title: getTimelineTitle(id), theme: meta ? resolveTimelineTheme(meta) : null, ...loadGraph(id) }),
           },
         ],
       }

@@ -8,18 +8,21 @@ async function loginAsDemo(page: Page) {
   await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
-  // Wait until the workspace renders (session resolved + landing→dashboard swap).
-  // The "Timelines" heading is the stable signed-in marker.
+  // Wait until the cinematic home renders (session resolved + landing→dashboard
+  // swap). The "Timelines" carousel heading is the stable signed-in marker.
   await expect(page.getByRole('heading', { name: 'Timelines' })).toBeVisible()
 }
 
 test('home lists the demo timelines and opens one (after login)', async ({ page }) => {
   await loginAsDemo(page)
-  // The demo account owns the seeded timelines, so they appear once signed in.
-  await expect(page.getByText('Figures of science')).toBeVisible()
-  await expect(page.getByText('The Space Race')).toBeVisible()
+  // The demo account owns the seeded timelines, surfaced as cards in the "Timelines"
+  // carousel. Target the card open-buttons by accessible name — a bare getByText
+  // would also match the hero eyebrow's PROJECT·TIMELINE label (strict-mode clash).
+  const figures = page.getByRole('button', { name: 'Open “Figures of science”' })
+  await expect(figures).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open “The Space Race”' })).toBeVisible()
 
-  await page.getByText('Figures of science').click()
+  await figures.click()
   await expect(page).toHaveURL(/\/timelines\/figures/)
 })
 
@@ -52,9 +55,11 @@ test('after sign-up, the API keys page exposes the endpoint and creates an API k
   await page.getByLabel('Password').fill('password1234')
   await page.getByRole('button', { name: 'Create account', exact: true }).click()
 
-  // A brand-new account has no keys yet, so the workspace home nudges toward the
-  // API keys page (the keys + connect instructions now live there, not on home).
-  await expect(page.getByText('Create an API key to connect your MCP client')).toBeVisible()
+  // A brand-new account has no keys + no content, so the cinematic home shows its
+  // new-creator empty state — "Your world starts here" + a "Connect MCP" CTA (the
+  // ConnectCta is absorbed into the hero now, key-gated on having no API key).
+  await expect(page.getByText('Your world starts here.')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Connect MCP' })).toBeVisible()
 
   // Open the API keys page; it shows the MCP endpoint. (The "Connect an MCP
   // client" title is a shadcn CardTitle <div>, not a heading role.)

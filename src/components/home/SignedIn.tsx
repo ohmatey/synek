@@ -1,40 +1,151 @@
-import { Link } from '@tanstack/react-router'
+import { useMemo, useState } from 'react'
+import { useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, KeyRound } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { listProjects } from '~/lib/server/projects'
+import { listTimelines } from '~/lib/server/timelines'
+import { listHomeStories } from '~/lib/server/stories'
 import { listApiKeys } from '~/lib/server/api-keys'
-import { TimelinesSection } from './TimelinesSection'
+import { NewTimelineDialog } from './NewTimelineDialog'
+import {
+  CinematicHero,
+  HomeContentRow,
+  ProjectRail,
+  StoryCard,
+  TimelineCard,
+} from './cinematic'
 
-// Shown on the workspace home once the user has no keys: a compact nudge toward
-// the API keys page (where the keys + MCP connection instructions now live).
-// listApiKeys never auto-mints, so this reflects "nothing created yet".
-function ConnectCta() {
-  const { data: keys } = useQuery({ queryKey: ['api-keys'], queryFn: () => listApiKeys() })
-  if (!keys || keys.length > 0) return null
-
-  return (
-    <Link
-      to="/api-keys"
-      className="group flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 transition-colors hover:bg-primary/10"
-    >
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-background text-primary">
-        <KeyRound className="size-4" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-sm font-medium">Create an API key to connect your MCP client</span>
-        <span className="text-xs text-muted-foreground">
-          Your client (Claude Desktop, Claude Code) brings the model and builds your timelines.
-        </span>
-      </span>
-      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-    </Link>
-  )
-}
-
+// The cinematic stories-first home (Wren cinematic-home.md / PRD local-127). The
+// signed-in dashboard: a project rail filters the whole page via ?project=<slug>;
+// the hero leads with the featured story; "Your stories" + "Timelines" carousels
+// sit below. Polling keeps it fresh while an MCP client builds in another tab.
 export function SignedIn() {
+  // The page-level filter — a slug; resolved to a project client-side (an unknown/
+  // foreign/garbage slug matches nothing and degrades to "All", never a 404).
+  const { project: projectSlug } = useSearch({ from: '/' })
+  const [newTimelineOpen, setNewTimelineOpen] = useState(false)
+
+  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
+
+  // Resolve the active project from the slug against the OWNER'S projects — the
+  // soft-fallback gate (PRD US3): no match → null → "All" scope.
+  const activeProject = useMemo(
+    () => (projectSlug ? (projects.find((p) => p.slug === projectSlug) ?? null) : null),
+    [projects, projectSlug],
+  )
+  const activeProjectId = activeProject?.id ?? null
+
+  // All three reads narrow to the active project (or all, when null). Keys per the
+  // task's suggestion; the project id (not the slug) is the cache key. Polling
+  // surfaces MCP-client builds without SSE (PRD §6).
+  const { data: timelines = [], isLoading: tlLoading } = useQuery({
+    queryKey: ['timelines', activeProjectId],
+    queryFn: () => listTimelines({ data: activeProjectId ? { projectId: activeProjectId } : undefined }),
+    refetchInterval: 30_000,
+  })
+  const { data: stories = [], isLoading: stLoading } = useQuery({
+    queryKey: ['home-stories', activeProjectId],
+    queryFn: () => listHomeStories({ data: activeProjectId ? { projectId: activeProjectId } : undefined }),
+    refetchInterval: 30_000,
+  })
+  const { data: apiKeys } = useQuery({ queryKey: ['api-keys'], queryFn: () => listApiKeys() })
+  const hasApiKey = (apiKeys?.length ?? 0) > 0
+
+  const loading = tlLoading || stLoading
+
+  // Featured story (PRD US2): the most-recently-updated story WITH a cover in scope;
+  // else the most-recently-updated story overall (branded wash). `stories` is already
+  // sorted updatedAt-desc by the server fn, so the first covered one is the pick.
+  const featured = useMemo(
+    () => stories.find((s) => s.coverImage) ?? stories[0] ?? null,
+    [stories],
+  )
+
+  // Per-timeline current-project map for the story-card move submenu (the story's
+  // timeline determines where it lives). Falls back to the active project when the
+  // map misses (project-filtered scope) and finally to the timeline's own projectId.
+  const timelineProjectById = useMemo(() => {
+    const m = new Map<string, string | null>()
+    for (const t of timelines) m.set(t.id, t.projectId)
+    return m
+  }, [timelines])
+
+  const openNewTimeline = () => setNewTimelineOpen(true)
+
+  // Empty-state selection (PRD US7-US9). Project-filtered & truly empty → directive.
+  let emptyVariant: 'new-creator' | 'empty-project' | 'no-stories' | null = null
+  if (!loading) {
+    if (timelines.length === 0) {
+      emptyVariant = activeProject ? 'empty-project' : 'new-creator'
+    } else if (stories.length === 0) {
+      emptyVariant = 'no-stories'
+    }
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-10">
-      <ConnectCta />
-      <TimelinesSection />
+    <div className="ch-home">
+      <ProjectRail projects={projects} activeProjectId={activeProjectId} />
+
+      {/* Hero — skip rendering until the first load resolves to avoid a wash flash. */}
+      {loading ? (
+        <div className="ch-hero" data-wash aria-hidden="true" />
+      ) : featured && !emptyVariant ? (
+        <CinematicHero
+          kind="story"
+          story={featured}
+          projectName={activeProject?.title ?? null}
+          projectId={activeProjectId}
+        />
+      ) : (
+        <CinematicHero
+          kind="empty"
+          variant={emptyVariant ?? 'new-creator'}
+          projectName={activeProject?.title ?? null}
+          hasApiKey={hasApiKey}
+          onNewTimeline={openNewTimeline}
+          firstTimeline={timelines[0] ?? null}
+          timelineCount={timelines.length}
+        />
+      )}
+
+      {/* Rows — only once there's content; a fully empty page is just the hero. */}
+      {!loading && (timelines.length > 0 || stories.length > 0) && (
+        <div className="ch-rows">
+          {stories.length > 0 && (
+            <HomeContentRow title="Your stories">
+              {stories.map((s) => (
+                <StoryCard
+                  key={s.storyId}
+                  story={s}
+                  projects={projects}
+                  currentProjectId={timelineProjectById.get(s.timelineId) ?? activeProjectId}
+                />
+              ))}
+            </HomeContentRow>
+          )}
+          {timelines.length > 0 && (
+            <HomeContentRow
+              title="Timelines"
+              action={
+                <button type="button" className="ch-chip-new" onClick={openNewTimeline}>
+                  <Plus className="size-3.5" />
+                  New timeline
+                </button>
+              }
+            >
+              {timelines.map((t) => (
+                <TimelineCard key={t.id} timeline={t} projects={projects} />
+              ))}
+            </HomeContentRow>
+          )}
+        </div>
+      )}
+
+      <NewTimelineDialog
+        open={newTimelineOpen}
+        onOpenChange={setNewTimelineOpen}
+        projectId={activeProjectId ?? undefined}
+      />
     </div>
   )
 }

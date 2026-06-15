@@ -924,6 +924,64 @@
         "etag": null,
         "syncedAt": null
       }
+    },
+    {
+      "data": {
+        "title": "Implement P1 — Projects container (top-level grouping above timelines)",
+        "description": "Top-level **Projects** container above timelines — the foundational re-center for the stories-first repositioning. A Project holds many stories, timelines, entities, and resources, owner-scoped.\n\n### Build (per ADR 0002 — docs/engineering/adr/0002-projects-container.md)\n- Domain types: PROJECT_KINDS, ProjectKind, ProjectWorld (src/lib/domain/types.ts)\n- Schema: projects table (ownerId, slug, title, description?, kind ['nonfiction'|'fiction'], world JSON, brandRef?, theme JSON) + nullable projectId on timelines / artifacts / sources (src/lib/db/schema.ts)\n- Migration 0020: copy the 0019 nullable+backfill shape (ADD COLUMN nullable → correlated UPDATE backfill → default \"My first project\" per owner). NO NOT-NULL rebuild. The one statement to get exactly right: the default-project INSERT...SELECT (UUID + collision-safe slug).\n- db layer: src/lib/db/projects.ts (CRUD + ensureDefaultProject + makeRequireOwnedProject); graph.ts createTimeline takes projectId, listTimelines optional filter\n- Theme inheritance: resolveTimelineTheme consults timeline.theme ?? project.theme ?? defaults (read-time, no data migration)\n- Server RPCs: src/lib/server/projects.ts; update server/timelines.ts\n- MCP: ToolCtx.projectId?; create_project / list_projects / get_project; project-aware create_timeline / list_timelines; wire through server.ts + agent/runner.ts\n- UI: minimal projects layer on the home (list + create-and-open)\n- Verify: new verify:projects (clone verify-isolation.ts) + verify:isolation + verify:mcp + typecheck + e2e\n\n### Acceptance\nProjects created/listed/owner-scoped; every existing timeline + resource backfilled to a default project with no orphans; ownerId stays the security boundary (projectId is org-narrowing within an owner); sharing stays per-timeline (/s/$slug untouched). verify:projects + verify:isolation green.\n\n### Refs\nADR 0002; docs/product/stories-first-pivot.md (P1); docs/product/roadmap.md. Blast-radius (Kael): createTimeline gains projectId — grep call paths at build.\n\n### Done 2026-06-14 (build-verified, UNCOMMITTED)\nMigration 0020 (projects table + nullable projectId on timelines/artifacts/sources; 0019-style nullable-add + correlated backfill + sole-user fallback; NO NOT-NULL rebuild; zero orphans, one project per owner, no cross-tenant attach). db/projects.ts (CRUD + ensureDefaultProject + makeRequireOwnedProject), project-aware graph.ts (createTimeline(projectId)/listTimelines filter), server/projects.ts RPCs, MCP create_project/list_projects/get_project + ToolCtx.projectId, read-time resolveTimelineTheme inheritance. ownerId stays the ONLY security boundary; projectId = org-narrowing within an owner. Verified: verify:projects (44 asserts) + verify:projects-backfill + verify:projects-tools + verify:isolation + verify:mcp + typecheck + build, ALL green; 3 adversarial reviews (migration-safety / owner-isolation / ADR-0002 conformance) all PASS. Owed: live in-browser pass (local-62 class).",
+        "horizon": "now",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-125",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement move-in/out-of-project affordances",
+        "description": "UI + server to move things **in and out of** Projects — reassign timelines, stories, entities, and resources between projects (the organize gesture). Founder requirement (2026-06-14).\n\n### Scope\n- Reassign a timeline to another project (timelines.projectId update; owner-scoped).\n- Reassign resources (artifacts/sources.projectId).\n- Stories move with their timeline (a story hangs off a moment on a timeline → transitive). Decide UX: move the timeline, or also surface a story-level move.\n- Entities = nodes on a timeline → move with the timeline in slice 1 (cross-timeline entity sharing stays DEFERRED per ADR 0002 open question).\n- UI: a \"Move to project…\" affordance (home row menu + project view); bulk-select optional.\n- Server RPC + MCP parity (move_to_project, or a projectId arg on existing update paths).\n\n### Acceptance\nA creator can move a timeline (with its stories/entities) and a resource between projects; reads stay owner-scoped; undo/redo unaffected (project assignment is metadata, not a Patch — ADR 0002).\n\n### Refs\nADR 0002; folds onto P1's data model.\n\n### Done 2026-06-14 (build-verified, UNCOMMITTED)\nmoveTimelineToProject db helper (owner-scoped UPDATE, NOT a Patch) + server RPC with DOUBLE owner-check (target project via requireOwnedProject throws on foreign; timeline via ownerId predicate no-ops foreign) — fail-closed, cannot move across owners (verify:projects section g). UI: MoveToProjectSubmenu + useMoveTimeline (optimistic single-item move + sonner undo + query invalidation). e2e covers the move-between-projects flow.",
+        "horizon": "now",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": [
+          "local-125"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-126",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Design + build the cinematic, stories-first home (Netflix-style)",
+        "description": "The stories-first home/browse page — **Netflix-style**. Founder requirement (2026-06-14). Needs design + PRD before build.\n\n### Experience\n- Featured stories as **cinematic hero experiences** (large imagery, motion, title/hook, play).\n- Beneath: **horizontal scroll rows** (carousels) of entities and timelines.\n- **Clicking a project filters the whole page** (project = page-level filter; stories/entities/timelines narrow to it).\n\n### Routing (design + product BEFORE build)\n- **Wren**: cinematic home design + the project-as-filter nav model + how it composes with move affordances (#local-126) and the two-level projects→timelines nav flagged in ADR 0002.\n- **Margot**: browse/home PRD (what's \"featured\", row taxonomy, empty states, project-filter behavior, reuse of /s/$slug story cards).\n- **Build**: cinematic home querying project-filtered stories/timelines/entities; reuse the public story-card visual language; responsive.\n\n### Acceptance\nSigned-in home leads with cinematic featured stories + horizontal entity/timeline rows; selecting a project filters the page; responsive; reuses existing story-card components where possible.\n\n### Refs\ndocs/product/roadmap.md (P1); stories-first-pivot.md.\n\n### Done 2026-06-14 (build-verified, UNCOMMITTED)\nCinematic Netflix-style stories-first home (slice 1) per docs/ux/cinematic-home.md (Wren) + docs/product/prd/cinematic-home.md (Margot). src/components/home/cinematic/: ProjectRail (?project=slug filter, aria-current), CinematicHero (full-bleed featured story, Play / Continue-writing / Share, branded wash fallback, empty states), HomeContentRow (CSS scroll-snap, reduced-motion-safe), StoryCard, TimelineCard, NewProjectDialog, MoveToProjectSubmenu. /p/$slug route (fixes the MCP dead URL; owner-scoped, no cross-owner reveal). listStoriesForHome + listHomeStories. a11y review found 1 BLOCKER + 2 majors (primary-CTA contrast, card focus-ring, hero-text-over-covers) → ALL FIXED + INDEPENDENTLY re-audited (every pair recomputed from tokens, clears WCAG AA both themes; CTA 8.49/5.02). e2e 59/59 (5 new cinematic-home tests). Slice-1 boundary held — Continue row, Cast&entities row, hero arrows, bulk move = deliberate FAST-FOLLOW. Documented fast-follows: RowMenu-reuse refactor, psr-* reuse-map alignment, ensureDefaultProject atomicity hardening, dead TimelinesSection removed.",
+        "horizon": "now",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": [
+          "local-125"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-127",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "tasks": [],
@@ -1291,6 +1349,34 @@
         "etag": null,
         "syncedAt": null
       }
+    },
+    {
+      "data": {
+        "title": "Pivot intake — stories-first repositioning staged via /sal — 2026-06-14",
+        "body": "Founder repositioning locked 2026-06-14 (decision record: docs/product/stories-first-pivot.md). Synek = PURE stories-first creator/publishing tool + Realscript companion (kept SEPARATE = dogfooding wedge); nonfiction-first (fiction/HP-LOTR globes → P4); new top-level Projects container = slice 1.\n\n### Docs this pass\n- docs/product/stories-first-pivot.md — founder decision record (authoritative).\n- docs/product/product-strategy.md — REWRITTEN by Margot (new positioning/persona/bets: B3 stories=core, +publish-loop, +dogfooding-wedge, +nonfiction-moat; lovable-gate retired as a scope gate).\n- docs/engineering/adr/0002-projects-container.md — Kael (Proposed; 10-step slice-1 checklist).\n- docs/product/roadmap.md — REWRITTEN to the 7-phase spine (P1 Projects → P7 component extraction).\n\n### Issues staged\n- local-125 P1 Projects container (now) — per ADR 0002.\n- local-126 move-in/out-of-project affordances (now, dep 125).\n- local-127 cinematic Netflix-style stories-first home (now, dep 125) — Wren design + Margot PRD then build.\nP2–P7 live in the roadmap; scope into issues as each is picked up.\n\n### Reconciliation owed (Margot) — NOT done unilaterally\n- local-61 (60s Stoicism canvas demo): North Star protagonist moved to the PUBLISHED story; re-scope/retarget.\n- local-63 (lovable-gate experiment): gate no longer gates scope (hosting shipped); keep as signal or retire.\n- local-70 release \"v0.1.0 — Grounded core + demo\": pre-pivot exit criteria; rescope around P1 + the new North Star.\n\n### Pipeline state\nsector137 MCP offline this session → staged in .sector137/state.json (dirty). Run mcp__sector137__sync_state when MCP returns to reconcile local-125..128 (+ older dirty backlog). No active release (v0.1.0 is draft) → /sal build is blocked until one is activated; this was intake only."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-128",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Session wrap — P1 Projects container + cinematic home BUILT (uncommitted) — 2026-06-14",
+        "body": "Release v0.2.0 (local-129) scope DELIVERED at the build layer. P1 (local-125), move affordances (local-126), cinematic home (local-127) all status:completed.\n\n### What shipped (working tree, NOT committed)\n- Projects container: migration 0020, db/projects.ts, project-aware graph/server/MCP (create_project/list_projects/get_project + ctx.projectId), theme inheritance. ownerId remains the only security boundary.\n- Move in/out of projects: moveTimelineToProject (double owner-check, fail-closed) + optimistic UI + undo.\n- Cinematic Netflix-style home: project rail (?project filter) + full-bleed hero + scroll-snap rows (Your stories / Timelines) + move-to-project + /p/$slug route. Margot PRD docs/product/prd/cinematic-home.md; Wren design docs/ux/cinematic-home.md.\n\n### Verification (built via 3 gated workflows + adversarial review; founder re-ran the gate independently)\nbuild + typecheck + verify:projects (44) + verify:projects-backfill + verify:projects-tools + verify:isolation + verify:mcp + verify:story + verify:multi-story ALL green; Playwright e2e 59/59 (5 new cinematic-home tests). Adversarial reviews: migration-safety PASS, owner-isolation PASS, ADR-conformance PASS, correctness PASS. a11y review caught 1 blocker + 2 majors (WCAG contrast on the primary CTA / card focus-ring / hero text over bright covers) — all FIXED and INDEPENDENTLY re-audited (ratios recomputed from packages/ui tokens; CTA 8.49 dark / 5.02 light; focus rings >=3:1; hero text clears AA over a white cover).\n\n### Fast-follows (documented, not blocking)\nRowMenu-reuse refactor (TimelineCard built a standalone menu); psr-* reuse-map alignment (hero chips/covers reimplemented as ch-* not reused); ensureDefaultProject atomicity (non-atomic select-then-insert, acceptable single-writer); FK onDelete CASCADE parity on upgraded vs fresh DBs (mirrors 0019, harden when project-delete migration ships); getPublicStory could use resolveTimelineTheme for project-theme inheritance (currently raw, safe on the no-auth path).\n\n### Owed (human)\nLive in-browser pass (local-62 class — Claude Preview can't hydrate the TanStack Start dev server; e2e covers flows but a real browser session confirms the cinematic feel). Then commit (working tree co-mingles with the broader uncommitted pivot; founder stages).\n\n### Pipeline\nsector137 MCP offline this session → all staged dirty in state.json. Run mcp__sector137__sync_state when MCP returns to reconcile local-125..130 + the older dirty backlog. v0.2.0 (local-129) remains active; its 3 scoped issues are now completed. Reconciliation of pre-pivot local-61/-63/-70 still owed by Margot (note local-128)."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-131",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "releases": [
@@ -1313,6 +1399,26 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-70",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "name": "v0.2.0 — Stories-first: Projects + cinematic home",
+        "status": "active",
+        "scope": [
+          "local-125",
+          "local-126",
+          "local-127"
+        ],
+        "description": "First release of the stories-first repositioning (docs/product/stories-first-pivot.md). Ships P1 — the Projects container (ADR 0002) — plus move in/out of project affordances and the cinematic Netflix-style stories-first home. Exit: a creator can group work into Projects, reorganize across them, and land on a cinematic project-filterable home that leads with stories; verify:projects + verify:isolation green. Supersedes the pre-pivot v0.1.0 (local-70, draft); Margot reconciles local-61, local-63, local-70 per note local-128."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-129",
         "dirty": true,
         "etag": null,
         "syncedAt": null

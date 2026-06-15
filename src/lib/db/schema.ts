@@ -31,12 +31,16 @@ import {
   type NodeImage,
   type NodeSize,
   type NodeSubtype,
+  type ProjectKind,
+  type ProjectWorld,
   type StoryBeatWidget,
   type StoryCastMember,
   type StoryImage,
   type TimelineTheme,
   type TimelineViewSettings,
 } from '~/lib/domain/types'
+
+import { PROJECT_KINDS } from '~/lib/domain/types'
 
 export type Citation = { title: string; url?: string; quote?: string; sourceType?: CitationSourceType }
 export type NodeMetadata = {
@@ -68,6 +72,47 @@ export type EdgeMetadata = Record<string, unknown>
 const newId = () => crypto.randomUUID()
 const now = () => new Date()
 
+// --- projects: the top-level owned container (ADR 0002 D1) -----------------
+// Sits between `user` and `timelines`, carrying the project-level metadata every
+// later phase reads. Reuses the shipped ownerId ownership/isolation pattern
+// verbatim (nullable ownerId, owner-scoped reads, fail-closed) so verify:isolation
+// extends with zero new machinery. Project CRUD is metadata — NOT in the Patch
+// stack (D9); the Patch engine knows nothing about projects.
+export const projects = sqliteTable(
+  'projects',
+  {
+    id: text('id').primaryKey().$defaultFn(newId),
+    // Owner. Nullable for migration safety (matches timelines.ownerId /
+    // artifacts.ownerId); new projects ALWAYS set it. Reads are owner-scoped,
+    // fail-closed — a null-owner row never surfaces.
+    ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+    // URL handle (D6). Global-unique; the creating server fn slugifies the title
+    // and dedupes on collision (the slugify-then-dedupe the story path uses).
+    slug: text('slug').notNull().unique(),
+    title: text('title').notNull(),
+    description: text('description'),
+    // Truth model (D2). Default 'nonfiction'; fiction is P4-additive — the app
+    // does not branch on kind in slice 1 beyond defaulting it.
+    kind: text('kind', { enum: PROJECT_KINDS }).notNull().default('nonfiction'),
+    // World/basemap config (D3). null == real Earth. RESERVED seam for P4 — slice
+    // 1 leaves it null for every project.
+    world: text('world', { mode: 'json' }).$type<ProjectWorld>(),
+    // Opaque external Realscript brand id (D4). NO FK — it lives in another system
+    // on another stack; integration is by contract, not co-location. Set in P2.
+    brandRef: text('brand_ref'),
+    // Project-level default theme (D5). SAME shape as timelines.theme
+    // (TimelineTheme), so timelineThemeSchema validates it for free. Timelines
+    // inherit at READ time (timeline.theme ?? project.theme ?? defaults) — no new
+    // column on timelines, no theme-data migration.
+    theme: text('theme', { mode: 'json' }).$type<TimelineTheme>(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  },
+  (t) => [index('projects_owner_id_idx').on(t.ownerId)],
+)
+
+export type ProjectRow = typeof projects.$inferSelect
+
 export const timelines = sqliteTable(
   'timelines',
   {
@@ -75,6 +120,13 @@ export const timelines = sqliteTable(
     // Owner of the timeline. Nullable for migration safety; new timelines always
     // set it. Each account owns many timelines (no separate "workspace" entity).
     ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+    // The project this timeline belongs to (ADR 0002 D7). Added NULLABLE for
+    // migration safety (matches ownerId) + backfilled to the owner's default
+    // project. The write path (createTimeline) ALWAYS sets it; reads tolerate null
+    // (an owner's null-project timelines surface under their default project), so a
+    // backfill miss degrades gracefully instead of orphaning. NOT made NOT-NULL in
+    // slice 1 — promoting it is a later verified-rebuild hardening migration.
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
     // Sharing: private by default. When true, anyone with the URL can view it
     // read-only (no login). Only the owner can edit or toggle this.
     isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
@@ -89,7 +141,10 @@ export const timelines = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
   },
-  (t) => [index('timelines_owner_id_idx').on(t.ownerId)],
+  (t) => [
+    index('timelines_owner_id_idx').on(t.ownerId),
+    index('timelines_project_id_idx').on(t.projectId),
+  ],
 )
 
 // MCP access keys — named, hashed, revocable credentials for the single local
@@ -321,21 +376,29 @@ export const storySegments = sqliteTable('story_segments', {
 // lives only in `story_segments.citations` (the inline JSON). See ADR 0001.
 
 // Bibliographic record (a book, an archive, a museum collection).
-export const sources = sqliteTable('sources', {
-  id: text('id').primaryKey().$defaultFn(newId),
-  // Owner (Phase 2 multi-tenant). Nullable for migration safety; new rows always set
-  // it. Reads are owner-scoped (fail-closed: a null-owner row never surfaces).
-  ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  author: text('author'),
-  // Publication year — a plain int, NOT a timeline instant. Sources are not plotted.
-  year: integer('year'),
-  citation: text('citation'), // formatted bibliographic string
-  url: text('url'),
-  sourceType: text('source_type', { enum: SOURCE_TYPES }),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
-})
+export const sources = sqliteTable(
+  'sources',
+  {
+    id: text('id').primaryKey().$defaultFn(newId),
+    // Owner (Phase 2 multi-tenant). Nullable for migration safety; new rows always set
+    // it. Reads are owner-scoped (fail-closed: a null-owner row never surfaces).
+    ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+    // "Home project" (ADR 0002 D8). Nullable + write-path-enforced + indexed,
+    // backfilled via the linked artifact's project. NOT a reuse fence — owner-scope
+    // still governs search/citation; this is organizational grouping within an owner.
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    author: text('author'),
+    // Publication year — a plain int, NOT a timeline instant. Sources are not plotted.
+    year: integer('year'),
+    citation: text('citation'), // formatted bibliographic string
+    url: text('url'),
+    sourceType: text('source_type', { enum: SOURCE_TYPES }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  },
+  (t) => [index('sources_project_id_idx').on(t.projectId)],
+)
 
 // The reusable primary-source objects that ground beats. Addressed by id; no slug.
 export const artifacts = sqliteTable(
@@ -346,6 +409,11 @@ export const artifacts = sqliteTable(
     // set it. Corpus reads (search, by-id, citation validation) filter by owner —
     // fail-closed, so a null-owner row never leaks across tenants.
     ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+    // "Home project" (ADR 0002 D8). Nullable + write-path-enforced + indexed,
+    // backfilled via the first linked timeline's project. NOT a reuse fence — an
+    // artifact reused across projects keeps ONE home project; owner-scope still
+    // governs search/citation, so reuse can still cross within an owner.
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
     title: text('title').notNull(), // "Tablet 291: Claudia Severa's birthday invitation"
     artifactType: text('artifact_type', { enum: ARTIFACT_TYPES }).notNull(),
     // Domain time (instant + precision), BCE-safe — canvas-placeable via instantToX.
@@ -368,6 +436,7 @@ export const artifacts = sqliteTable(
     index('artifacts_title_idx').on(t.title), // dedupe-by-title on curation/upsert
     index('artifacts_source_id_idx').on(t.sourceId),
     index('artifacts_owner_id_idx').on(t.ownerId), // owner-scoped corpus search
+    index('artifacts_project_id_idx').on(t.projectId),
   ],
 )
 

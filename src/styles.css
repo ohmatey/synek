@@ -4310,3 +4310,698 @@ body {
 .wg-globe-pin[data-focus] { fill: var(--color-accent-story); }
 .wg-globe-halo { fill: color-mix(in oklab, var(--color-accent-story) 30%, transparent); }
 .wg-globe-caption { font-size: 12px; color: color-mix(in oklab, var(--color-fg-primary) 64%, transparent); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Cinematic stories-first home (P1 / local-127 — Wren cinematic-home.md)
+   The signed-in home: a project rail + a full-bleed featured-story hero + the
+   "Your stories" and "Timelines" horizontal carousels. All colors map to existing
+   tokens (no new --color-*). Motion is covered by the global reduced-motion reset
+   above (transitions + scroll-behavior collapse to instant). ════════════════ */
+
+.ch-home {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Project rail — the page-level filter (Wren §3) ───────────────────────── */
+.ch-rail {
+  position: sticky;
+  top: 64px; /* below the 64px AppHeader */
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px max(16px, env(safe-area-inset-left)) 8px 16px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* Translucent backdrop so the hero cover bleeds beneath it as chrome (psr-head). */
+  background: color-mix(in oklab, var(--color-bg-base) 80%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border-default) 60%, transparent);
+}
+.ch-rail::-webkit-scrollbar {
+  display: none;
+}
+.ch-chip {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 16rem;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 70%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 50%, transparent);
+  color: var(--color-fg-secondary, var(--color-fg-muted));
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+.ch-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ch-chip:hover {
+  color: var(--color-fg-primary);
+  border-color: var(--color-border-default);
+}
+.ch-chip:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+.ch-chip[aria-pressed='true'] {
+  /* Brand-blue text (theme-tuned) on a 22% blue tint — clears WCAG AA in both
+     themes (5.6:1 dark / 6.5:1 light); the plain accent-primary on a 15% tint
+     was only 3.88:1 in dark. */
+  color: var(--color-chip-active-fg);
+  border-color: color-mix(in oklab, var(--color-accent-primary) 60%, transparent);
+  background: var(--color-chip-active-tint);
+}
+.ch-chip-new {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 2px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px dashed color-mix(in oklab, var(--color-border-default) 80%, transparent);
+  background: transparent;
+  color: var(--color-fg-muted);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease;
+}
+.ch-chip-new:hover {
+  color: var(--color-fg-primary);
+  border-color: var(--color-border-default);
+}
+.ch-chip-new:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+
+/* ── Hero — featured story poster (Wren §4) ───────────────────────────────── */
+.ch-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 56vh;
+  max-height: 70vh;
+  overflow: hidden;
+  background: var(--color-bg-base);
+  isolation: isolate;
+}
+/* The branded amber wash when a story has no cover (and the empty states). */
+.ch-hero[data-wash] {
+  background:
+    radial-gradient(120% 90% at 80% 0%, color-mix(in oklab, var(--color-accent-story) 24%, transparent) 0%, transparent 60%),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-accent-story) 10%, var(--color-bg-base)) 0%, var(--color-bg-base) 80%);
+}
+/* New-creator / empty hero sits shorter so the page doesn't waste height. */
+.ch-hero[data-empty] {
+  min-height: 40vh;
+  max-height: 48vh;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.ch-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  z-index: -2;
+  animation: ch-hero-fade 300ms ease-out;
+}
+@keyframes ch-hero-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.ch-hero-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    to top,
+    color-mix(in oklab, var(--color-bg-base) 94%, transparent) 0%,
+    color-mix(in oklab, var(--color-bg-base) 62%, transparent) 40%,
+    transparent 78%
+  );
+}
+.ch-hero-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 32px 24px 40px;
+  animation: ch-hero-rise 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+/* A localized substrate behind the ENTIRE text block (the bottom-anchored
+   .ch-hero-scrim alone leaves the top of the body thin — so over a bright/white
+   cover the eyebrow + title could wash out). This panel keeps ≥~80% bg-base
+   under the whole region: even over a pure-white cover the title clears
+   13.7:1 (dark) / 17.3:1 (light) and the hook 8.6:1 / 8.1:1. It is wider/taller
+   than the text (negative insets) and feathered at the edges so it reads as a
+   soft gradient, not a hard card. Behind the text (z-index 0; children lift to 1). */
+.ch-hero-body::before {
+  content: '';
+  position: absolute;
+  inset: 8px -8px -8px -8px;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    color-mix(in oklab, var(--color-bg-base) 94%, transparent) 0%,
+    color-mix(in oklab, var(--color-bg-base) 88%, transparent) 70%,
+    color-mix(in oklab, var(--color-bg-base) 80%, transparent) 100%
+  );
+  -webkit-mask-image: radial-gradient(135% 120% at 30% 100%, #000 60%, transparent 100%);
+  mask-image: radial-gradient(135% 120% at 30% 100%, #000 60%, transparent 100%);
+  border-radius: 18px;
+}
+.ch-hero-body > * {
+  position: relative;
+  z-index: 1;
+}
+/* The empty/new-creator hero sits on its own wash (no cover), so the body
+   backdrop is redundant chrome there — drop it. */
+.ch-hero[data-empty] .ch-hero-body::before {
+  display: none;
+}
+@keyframes ch-hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.ch-hero[data-empty] .ch-hero-body {
+  align-items: center;
+  max-width: 38rem;
+}
+.ch-hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  /* 72% (was 60%) so this small chrome text clears AA over the hero substrate
+     even at the lighter top of the body backdrop. */
+  color: color-mix(in oklab, var(--color-fg-primary) 72%, transparent);
+}
+.ch-hero-eyebrow .ch-sep {
+  opacity: 0.5;
+}
+.ch-hero-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 40rem;
+  font-family: var(--font-display, inherit);
+  font-size: 32px;
+  line-height: 1.15;
+  font-weight: 680;
+  color: var(--color-fg-primary);
+}
+.ch-hero-hook {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 36rem;
+  font-size: 15px;
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--color-fg-primary) 76%, transparent);
+}
+.ch-hero-cast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ch-hero-castchip {
+  font-size: 12px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--color-fg-primary) 18%, transparent);
+  background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent);
+  color: var(--color-fg-primary);
+}
+.ch-hero-meta {
+  font-size: 12px;
+  /* 72% (was 58%) so the beat/min-read line clears AA over the substrate. */
+  color: color-mix(in oklab, var(--color-fg-primary) 72%, transparent);
+}
+.ch-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.ch-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-accent-story);
+  /* Dark warm ink (not #fff) so the amber CTA clears WCAG AA in both themes
+     (8.49:1 dark / 5.02:1 light vs 2.18:1 / 3.69:1 with white). */
+  color: var(--color-on-story);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: filter 120ms ease;
+}
+.ch-play:hover {
+  filter: brightness(1.06);
+}
+.ch-play svg {
+  width: 18px;
+  height: 18px;
+}
+.ch-play:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+.ch-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--color-fg-primary) 22%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 40%, transparent);
+  color: var(--color-fg-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.ch-secondary:hover {
+  background: color-mix(in oklab, var(--color-bg-surface) 70%, transparent);
+  border-color: var(--color-border-default);
+}
+.ch-secondary:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+.ch-secondary svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ── Content rows — the carousels (Wren §5) ───────────────────────────────── */
+.ch-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 32px 0 56px;
+}
+.ch-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ch-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 24px;
+}
+.ch-row-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-fg-primary);
+}
+.ch-row-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ch-row-arrows {
+  display: inline-flex;
+  gap: 4px;
+}
+/* Arrow buttons are a hover-device affordance only (Wren §5/§8). */
+@media (hover: none) {
+  .ch-row-arrows {
+    display: none;
+  }
+}
+.ch-arrow {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 70%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 50%, transparent);
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+.ch-arrow:hover {
+  color: var(--color-fg-primary);
+  background: color-mix(in oklab, var(--color-bg-surface) 80%, transparent);
+}
+.ch-arrow:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ch-arrow:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+.ch-track {
+  display: flex;
+  gap: 14px;
+  padding: 4px 24px 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.ch-track > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* Story card (16:9 cover + body + Play + overflow) — Wren §5 card anatomy. */
+.ch-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  max-width: calc(100vw - 48px);
+  border-radius: var(--radius-lg, 16px);
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 70%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 55%, transparent);
+  overflow: hidden;
+  transition:
+    transform 180ms ease-out,
+    border-color 180ms ease-out,
+    box-shadow 180ms ease-out;
+}
+.ch-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-overlay);
+}
+.ch-card:focus-within {
+  border-color: color-mix(in oklab, var(--color-accent-primary) 45%, transparent);
+}
+.ch-card-open {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+/* The card's full-surface open-target gets a real, visible focus ring (WCAG
+   2.4.11): accent-primary clears 3:1 against the card surface AND the page in
+   both themes (4.31:1 / 6.61:1). The :focus-within border tint stays a
+   secondary cue. Inset so the ring hugs the rounded card without clipping. */
+.ch-card-open:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-lg, 16px);
+}
+.ch-card-cover {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  background: var(--color-story-soft);
+  overflow: hidden;
+}
+.ch-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ch-card-cover-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: color-mix(in oklab, var(--color-accent-story) 70%, transparent);
+}
+.ch-card-cover-fallback svg {
+  width: 28px;
+  height: 28px;
+}
+.ch-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 13px 13px;
+}
+.ch-card-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-fg-primary);
+}
+.ch-card-hook {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--color-fg-muted);
+}
+.ch-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--color-fg-muted);
+}
+.ch-card-dot {
+  color: color-mix(in oklab, var(--color-fg-muted) 55%, transparent);
+}
+.ch-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 9px 10px 13px;
+}
+.ch-card-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  /* Darker story-amber for text-on-surface (bright amber is 3.69:1 on white);
+     this token clears ~6:1 in light, keeps the bright amber in dark. */
+  color: var(--color-accent-story-text);
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+.ch-card-play:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.ch-card-play svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Timeline card — reuses the home card surface, no cover. */
+.ch-tl-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  max-width: calc(100vw - 48px);
+  min-height: 116px;
+  border-radius: var(--radius-lg, 16px);
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 70%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 55%, transparent);
+  overflow: hidden;
+  transition:
+    transform 180ms ease-out,
+    border-color 180ms ease-out,
+    box-shadow 180ms ease-out;
+}
+.ch-tl-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-overlay);
+}
+.ch-tl-card:focus-within {
+  border-color: color-mix(in oklab, var(--color-accent-primary) 45%, transparent);
+}
+.ch-tl-open {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  padding: 14px 14px 12px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+}
+/* Visible focus ring on the timeline card's open-target (WCAG 2.4.11) — same
+   accent-primary indicator as the story card; the :focus-within border tint is
+   secondary. Inset so it tracks the card's rounded edge. */
+.ch-tl-open:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-lg, 16px);
+}
+.ch-tl-titlerow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ch-tl-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-fg-primary);
+}
+.ch-tl-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--color-fg-muted);
+}
+.ch-tl-date {
+  margin-top: auto;
+  font-size: 11.5px;
+  color: var(--color-fg-muted);
+}
+.ch-tl-menu {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+/* Row empty / page empty supporting copy. */
+.ch-row-empty {
+  margin: 0 24px;
+  padding: 22px;
+  border-radius: var(--radius-lg, 16px);
+  border: 1px dashed color-mix(in oklab, var(--color-border-default) 80%, transparent);
+  font-size: 13px;
+  color: var(--color-fg-muted);
+  text-align: center;
+}
+.ch-empty-title {
+  font-family: var(--font-display, inherit);
+  font-size: 26px;
+  font-weight: 680;
+  line-height: 1.2;
+  color: var(--color-fg-primary);
+}
+.ch-empty-body {
+  max-width: 30rem;
+  font-size: 15px;
+  line-height: 1.55;
+  color: color-mix(in oklab, var(--color-fg-primary) 72%, transparent);
+}
+
+/* Move-to-project popover radio list. */
+.ch-move-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.ch-move-current {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-fg-muted);
+}
+
+/* ── Responsive (Wren §8) ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .ch-hero {
+    min-height: 50vh;
+  }
+  .ch-hero-body {
+    padding: 24px 16px 28px;
+  }
+  .ch-hero-title {
+    font-size: 23px;
+  }
+  .ch-hero-eyebrow {
+    display: none;
+  }
+  .ch-play {
+    width: 100%;
+  }
+  .ch-row-head,
+  .ch-track {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .ch-card,
+  .ch-tl-card {
+    width: calc(100vw - 32px);
+    max-width: none;
+  }
+}

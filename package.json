@@ -35,7 +35,10 @@
     "verify:seed-demo": "tsx scripts/verify-seed-demo.ts",
     "verify:telemetry": "tsx scripts/verify-telemetry.ts",
     "verify:agent": "tsx scripts/verify-agent.ts",
-    "verify:isolation": "SYNEK_SECRETS_KEY=verify-isolation-master-key DATABASE_URL=verify-isolation.db tsx scripts/verify-isolation.ts"
+    "verify:isolation": "SYNEK_SECRETS_KEY=verify-isolation-master-key DATABASE_URL=verify-isolation.db tsx scripts/verify-isolation.ts",
+    "verify:projects": "SYNEK_SECRETS_KEY=verify-projects-master-key DATABASE_URL=verify-projects.db tsx scripts/verify-projects.ts",
+    "verify:projects-tools": "SYNEK_SECRETS_KEY=verify-projects-master-key DATABASE_URL=verify-projects-tools.db tsx scripts/verify-projects-tools.ts",
+    "verify:projects-backfill": "tsx scripts/verify-projects-backfill.ts"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",

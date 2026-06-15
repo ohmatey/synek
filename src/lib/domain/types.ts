@@ -220,6 +220,10 @@ export type TimelineSummary = {
   description: string | null
   createdAt: number
   isPublic: boolean
+  // The project this timeline belongs to (ADR 0002 D7), or null for a legacy
+  // null-project row. The cinematic home reads it for the move-to-project "current"
+  // marker + the undo path (which project to send the timeline back to).
+  projectId: string | null
 }
 
 // --- Story layer (S1), currently inert ------------------------------------
@@ -335,6 +339,56 @@ export type PublicStoryDTO = {
   viewSettings: TimelineViewSettings | null
   updatedAt: number
   nodes: GraphNode[]
+}
+
+// --- Projects (ADR 0002) — the top-level owned container ------------------
+// A Project sits above timelines and holds the project-level metadata every
+// later phase reads (`kind`, `world`, `brandRef`, `theme`). Slice 1 only ever
+// writes `kind='nonfiction'` and leaves `world` null (Earth); the columns are
+// reserved now so P2 (Realscript brand), P4 (fiction / generated worlds +
+// basemap) become additive, not populated-table migrations.
+
+// Project truth model (ADR 0002 D2). Designed in now; slice 1 only writes
+// 'nonfiction'. Fiction is P4-additive (set kind='fiction', populate `world`).
+export const PROJECT_KINDS = ['nonfiction', 'fiction'] as const
+export type ProjectKind = (typeof PROJECT_KINDS)[number]
+
+// World / basemap config (ADR 0002 D3). RESERVED seam — the full shape is a P4
+// concern (the globe-basemap ADR). null (or `{ basemap: 'earth' }`) == real
+// Earth; slice 1 leaves it null for every project. A nullable JSON column carries
+// future basemap config without a schema change.
+export type ProjectWorld = { basemap: 'earth' } | { basemap: 'custom'; topojsonUrl: string }
+
+// Plain DTO for the home list — createdAt as epoch-ms (no Date over the RPC),
+// mirroring TimelineSummary. The project-level theme drives timeline theme
+// inheritance (timeline.theme ?? project.theme ?? defaults).
+export type ProjectSummary = {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  kind: ProjectKind
+  createdAt: number
+}
+
+// One entry in the cinematic home's story rows + hero (every story the owner has,
+// across all their timelines, optionally narrowed to one project). A superset of
+// StoryListItem: it ALSO carries the parent `timelineId` (so a card can deep-link
+// into the in-app reader at /timelines/$id?story=$storyId) and `updatedAt` (the
+// featured-selection + "Your stories" sort key). Sorted newest-`updatedAt`-first.
+export type HomeStoryCard = StoryListItem & {
+  // The timeline this story is anchored to (its moment's timeline). The card
+  // navigates here for Play (?story=) and Continue writing (?view=stories&story=).
+  timelineId: string
+  // The owner-saved title of the parent timeline — the hero eyebrow's TIMELINE half.
+  timelineTitle: string
+  // Last write to the story (write_story / apply_patch bump it) as epoch-ms — the
+  // home's sort + featured-selection signal. No Date over the RPC.
+  updatedAt: number
+  // Display names of the story's cast for the hero chips — node-backed members
+  // resolved to their node title, name-only members kept as-is, in cast order. The
+  // home doesn't ship the cast nodes, so these are pre-resolved server-side.
+  castNames: string[]
 }
 
 // One entry in a story list — the AppBar's "Stories" dropdown (every story on a

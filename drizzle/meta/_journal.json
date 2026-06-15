@@ -141,6 +141,13 @@
       "when": 1781371353222,
       "tag": "0019_dizzy_toro",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1781448864695,
+      "tag": "0020_abnormal_dexter_bennett",
+      "breakpoints": true
     }
   ]
 }
