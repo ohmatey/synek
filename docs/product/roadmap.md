@@ -78,6 +78,8 @@ Extract the proven immersive-story components into a **framework-neutral React +
 - **Multi-tenant Phase 2** — per-user isolation, open signup + email verify/reset (Resend), per-user BYO encrypted OpenRouter key, Fly.io deploy.
 - **Analytics** — opt-out PostHog (client + MCP), key-gated; opt-in self-host heartbeat.
 
+**Hosting-aware hardening (shipped 2026-06-15):** the multi-tenant posture (per-user isolation + open signup) makes any server-side fetch of user-supplied URLs an SSRF surface. A reusable egress guard (`src/lib/net/ssrf.ts`) — https/scheme + IP-range + DNS-resolution + redirect re-validation — now fronts the live citation/image URL verifier and is the **required** primitive for every future server-side fetch, explicitly the **P2 Realscript brand adapter** (`REALSCRIPT_BASE_URL` https-only allowlist + brand-asset URL validation before persisting to `theme`). Decision: [ADR 0002](../engineering/adr/0002-ssrf-egress-guard.md). Verify: `bun run verify:ssrf`.
+
 ---
 
 ## Monetization model + instrumentation (M) — measure before pricing

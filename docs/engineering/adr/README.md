@@ -7,6 +7,7 @@ Locked technical decisions for Synek. An ADR captures **one decision**, the cont
 | ADR | Title | Status |
 |---|---|---|
 | [0001](./0001-sources-artifacts-schema.md) | Sources / artifacts normalized schema (S2 — artifact grounding) | Accepted |
+| [0002](./0002-ssrf-egress-guard.md) | Server-side egress SSRF guard | Accepted |
 | [0003](./0003-projects-container.md) | Projects: a top-level container above timelines | Proposed |
 
 ## Conventions

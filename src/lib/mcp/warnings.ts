@@ -2,6 +2,7 @@ import type { Graph } from '~/lib/db/graph'
 import type { NodeRow } from '~/lib/db/schema'
 import { BASE_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay, type TimelineViewSettings } from '~/lib/domain/types'
 import { formatInstant } from '~/lib/domain/dates'
+import { safeFetch, SsrfError } from '~/lib/net/ssrf'
 import type { Op } from './ops'
 
 // Post-commit advisory checks for apply_patch. The building MCP client works
@@ -43,10 +44,14 @@ const verdictCache = new Map<string, { verdict: UrlVerdict; at: number }>()
 
 async function fetchVerdict(url: string, expectImage: boolean): Promise<UrlVerdict> {
   try {
-    let res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(4000) })
+    // safeFetch is the SSRF chokepoint: rejects non-routable/internal targets
+    // (and redirects to them) before any connection. http is allowed here —
+    // legacy citation/image sources legitimately use it; the IP-range check,
+    // not the scheme, is the SSRF defense. See lib/net/ssrf.ts + ADR 0002.
+    let res = await safeFetch(url, { method: 'HEAD', signal: AbortSignal.timeout(4000) }, { allowHttp: true })
     // Some hosts reject HEAD; retry as GET and discard the body.
     if (res.status === 405 || res.status === 501) {
-      res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(4000) })
+      res = await safeFetch(url, { signal: AbortSignal.timeout(4000) }, { allowHttp: true })
       void res.body?.cancel()
     }
     if (res.status === 404 || res.status === 410) {
@@ -69,6 +74,25 @@ async function fetchVerdict(url: string, expectImage: boolean): Promise<UrlVerdi
     }
     return { status: 'ok' }
   } catch (e) {
+    if (e instanceof SsrfError) {
+      // A URL we refused to fetch for safety. A non-routable/internal target is
+      // conclusively bad (treat as broken so the agent removes it); a name we
+      // simply couldn't resolve is inconclusive (transient DNS → unverified).
+      if (e.reason === 'unresolved') {
+        return { status: 'unverified', detail: 'could not be resolved — re-checked on a later patch' }
+      }
+      const detail =
+        e.reason === 'blocked'
+          ? 'points at a non-routable or internal address and was blocked'
+          : e.reason === 'protocol'
+            ? 'uses a disallowed URL scheme and was not fetched'
+            : e.reason === 'credentials'
+              ? 'embeds credentials in the URL and was not fetched'
+              : e.reason === 'redirects'
+                ? 'redirected too many times and was not fetched'
+                : 'is not a valid URL'
+      return { status: 'broken', detail }
+    }
     const msg = e instanceof Error ? e.message : 'fetch failed'
     return { status: 'unverified', detail: `could not be checked (${msg})` }
   }

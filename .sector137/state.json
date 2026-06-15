@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-15T14:43:48.144Z",
+  "updatedAt": "2026-06-15T15:22:06.314Z",
   "syncedAt": null,
   "issues": [
     {
@@ -982,6 +982,26 @@
         "etag": null,
         "syncedAt": null
       }
+    },
+    {
+      "data": {
+        "title": "Add server-side SSRF egress guard + close live URL-verifier vector",
+        "description": "Founder dropped a hardening note about the FUTURE P2 Realscript brand adapter (REALSCRIPT_BASE_URL + brand-asset URLs becoming an SSRF vector under multi-tenant hosting). On verifying: that adapter does not exist yet (no src/lib/realscript/, no projects table on main — theme is on timelines), BUT the SAME SSRF class is ALREADY LIVE.\n\n### Live vector found + closed\nsrc/lib/mcp/warnings.ts fetchVerdict() fetched user-supplied citation/image URLs with redirect:follow. Under the committed multi-tenant posture (open signup, Fly.io) any signed-up user could steer the server at 169.254.169.254 / loopback / internal hosts and read status + content-type + connection-error back as an oracle (port/host scan of the internal network). Founder chose: build guard + fix live path + record P2.\n\n### Shipped (uncommitted)\n- src/lib/net/ssrf.ts — single egress chokepoint: assertSafeUrl (scheme allowlist [https default, http opt-in], no creds, IP-literal range check via node:net BlockList, optional host allowlist), assertFetchableUrl (+DNS-resolution check — reject if any resolved addr non-routable), safeFetch (+manual redirect re-validation, 4-hop cap). Covers v4 RFC1918/CGNAT/link-local/reserved + v6 loopback/ULA/link-local/multicast + IPv4-mapped (::ffff:) + NAT64 (64:ff9b::) embedded-v4 decode. SsrfError.reason routes refusals.\n- warnings.ts fetchVerdict now calls safeFetch(url, …, {allowHttp:true}) (http kept — legacy sources; IP-range is the defense, not scheme). SsrfError -> broken verdict (agent drops the URL) except unresolved -> unverified (transient DNS; preserves the 3-way verdict philosophy).\n- scripts/verify-ssrf.ts + bun run verify:ssrf.\n- Docs: ADR 0002 (Accepted) + ADR README row + roadmap Hosting-horizon pointer + commented REALSCRIPT_BASE_URL stub in .env.example.\n\n### Binding forward requirement\nEvery future server-side fetch of an externally-influenced URL MUST go through src/lib/net/ssrf.ts. P2 Realscript specifically: construct client via assertSafeUrl(REALSCRIPT_BASE_URL, {allowHosts:[operator-set]}) (https-only, default https://app.realscript.com); validate brand-asset URLs with assertFetchableUrl before persisting to theme.\n\n### Verified\nverify:ssrf 31/31 (incl. metadata IP, NAT64-embedded metadata, IPv4-mapped loopback, live localhost->loopback DNS block); typecheck exit 0; verify:mcp green (apply_patch path through modified warnings.ts intact).\n\n### Residual / owed (in ADR Open-deferred)\nDNS-rebinding TOCTOU (resolve-then-fetch re-resolves) — needs IP-pinning undici dispatcher to fully close; common vectors closed. Platform-layer egress controls (Fly) = Rook follow-up. Self-host LAN-image references now flag as broken (acceptable default). UNCOMMITTED — working tree.",
+        "horizon": "now",
+        "type": "fix",
+        "status": "completed",
+        "dependencies": [
+          "local-123"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-131",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "tasks": [],
@@ -1372,7 +1392,21 @@
       "meta": {
         "origin": "local",
         "serverId": null,
-        "localId": "local-131",
+        "localId": "local-133",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Wrap — SSRF egress guard SHIPPED + live URL-verifier vector CLOSED (local-131, uncommitted)",
+        "body": "Founder note asked to harden the future P2 Realscript brand adapter against SSRF. Verifying it reframed the task: that adapter does not exist yet (no src/lib/realscript/), but the SAME SSRF class was ALREADY LIVE and got closed.\n\nSHIPPED (uncommitted):\n- src/lib/net/ssrf.ts — reusable server-side egress guard (scheme + IP-range via node:net BlockList + DNS-resolution + manual redirect re-validation; v4/v6 incl. IPv4-mapped + NAT64). Entry points: assertSafeUrl / assertFetchableUrl / safeFetch.\n- FIXED THE LIVE VECTOR: warnings.ts fetchVerdict fetched user citation/image URLs with redirect:follow -> under multi-tenant open signup any user could hit 169.254.169.254/loopback/internal and use status+content-type+conn-error as an oracle. Now routed through safeFetch (allowHttp:true; IP-range is the defense). Refusal -> broken except unresolved -> unverified.\n- scripts/verify-ssrf.ts + verify:ssrf (31 asserts). Docs: ADR 0002 (Accepted) + ADR README + roadmap Hosting-horizon note + .env.example REALSCRIPT_BASE_URL stub.\n\nVERIFIED (on the merged tree): verify:ssrf 31/31; verify:mcp green; typecheck.\n\nBINDING FORWARD: every future server-side fetch of an externally-influenced URL MUST use src/lib/net/ssrf.ts. P2 Realscript: assertSafeUrl(REALSCRIPT_BASE_URL,{allowHosts}) https-only + validate asset URLs before persisting to theme (project.theme once Projects P1 lands). ADR 0002 makes this a requirement.\n\nMERGE RECONCILED (2026-06-15): this work was stashed (stash: ssrf-egress-guard WIP) while the previously-stashed P1 Projects work (local-125/126/127 + v0.2.0 release local-129 + session-wrap note) was brought in, then my stash was popped. The feared ADR collision did NOT happen — on disk Projects = ADR 0003 (0003-projects-container.md), SSRF = ADR 0002 (0002-ssrf-egress-guard.md); no clash. The only real collision was the local-131 id (Projects had used it for its session-wrap note): resolved by keeping SSRF issue=local-131 + SSRF note=local-132 and renumbering the Projects session-wrap note to local-133. package.json + ADR README unioned (both verify scripts; ADR rows 0001/0002/0003).\n\nOWED / NEXT:\n- COMMIT — SSRF work + Projects P1 work both uncommitted in the working tree. Founder stages.\n- STALE REFS (flag, not auto-fixed): the Projects entries local-125 (desc) + local-128 (note) still say \"ADR 0002 / 0002-projects-container.md\" — the file is 0003 on disk. Their historical wrap notes; Kael/Margot to reconcile on sync.\n- Pre-existing duplicate localIds in the older backlog (local-77, local-104, local-117 each appear twice) — predate this merge; flag for sync dedup.\n- Residual DNS-rebinding TOCTOU (ADR Open-deferred); platform egress controls -> Rook; self-host LAN images now flag broken (acceptable default)."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-132",
         "dirty": true,
         "etag": null,
         "syncedAt": null
