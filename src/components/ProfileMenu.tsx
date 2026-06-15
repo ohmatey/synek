@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, KeyRound, LogOut, Monitor, Moon, Palette, Sun, User } from 'lucide-react'
 import { useThemeContext, type Theme } from '@synek/ui'
@@ -12,6 +12,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
+import { SettingsDialog, type SettingsTab } from '~/components/account/SettingsDialog'
 import { signOut, useSession } from '~/lib/auth/client'
 import { setUserTheme } from '~/lib/server/preferences'
 import { cn } from '~/lib/utils'
@@ -30,6 +31,9 @@ export function ProfileMenu({ className }: { className?: string }) {
   const qc = useQueryClient()
   const { theme, setTheme } = useThemeContext()
   const { data: session } = useSession()
+  // Which settings tab is open (null = dialog closed). Opening from a menu item
+  // closes the dropdown (default onSelect) and opens the dialog at that tab.
+  const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null)
   const user = session?.user
   if (!user) return null
 
@@ -53,6 +57,7 @@ export function ProfileMenu({ className }: { className?: string }) {
   }
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
@@ -78,17 +83,13 @@ export function ProfileMenu({ className }: { className?: string }) {
         </div>
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link to="/account">
-            <User />
-            Account
-          </Link>
+        <DropdownMenuItem onSelect={() => setSettingsTab('account')}>
+          <User />
+          Account
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/api-keys">
-            <KeyRound />
-            API keys
-          </Link>
+        <DropdownMenuItem onSelect={() => setSettingsTab('api-keys')}>
+          <KeyRound />
+          API keys
         </DropdownMenuItem>
 
         <DropdownMenuSub>
@@ -120,5 +121,15 @@ export function ProfileMenu({ className }: { className?: string }) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+
+    <SettingsDialog
+      open={settingsTab !== null}
+      tab={settingsTab ?? 'account'}
+      onOpenChange={(o) => {
+        if (!o) setSettingsTab(null)
+      }}
+      onTabChange={setSettingsTab}
+    />
+    </>
   )
 }
