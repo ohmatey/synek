@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [".", "packages/*"],
   "scripts": {
     "setup": "tsx scripts/synek.ts",
     "dev": "vite dev",
@@ -40,7 +40,9 @@
     "verify:projects": "SYNEK_SECRETS_KEY=verify-projects-master-key DATABASE_URL=verify-projects.db tsx scripts/verify-projects.ts",
     "verify:projects-tools": "SYNEK_SECRETS_KEY=verify-projects-master-key DATABASE_URL=verify-projects-tools.db tsx scripts/verify-projects-tools.ts",
     "verify:projects-backfill": "tsx scripts/verify-projects-backfill.ts",
-    "verify:brands": "SYNEK_SECRETS_KEY=verify-brands-master-key DATABASE_URL=verify-brands.db tsx scripts/verify-brands.ts"
+    "verify:brands": "SYNEK_SECRETS_KEY=verify-brands-master-key DATABASE_URL=verify-brands.db tsx scripts/verify-brands.ts",
+    "changeset": "changeset",
+    "changeset:version": "changeset version"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
@@ -83,6 +85,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.3.0",
     "@types/better-sqlite3": "^7.6.13",
