@@ -65,6 +65,7 @@ export function StoryReader({
   width,
   onResize,
   onCommitResize,
+  autoStart,
 }: {
   story: StoryDTO
   momentTitle: string
@@ -107,6 +108,9 @@ export function StoryReader({
   width?: number
   onResize?: (next: number) => void
   onCommitResize?: () => void
+  // Skip the cover and begin stepping on mount (home Play → ?autoplay). The intro
+  // dialog on the home already served as the cover, so a second one is redundant.
+  autoStart?: boolean
 }) {
   const asideRef = useRef<HTMLElement>(null)
   const beats = story.beats
@@ -116,7 +120,7 @@ export function StoryReader({
   // The reader opens on a cover (title + hook + meta); the stepped player + the
   // timed auto-advance only begin once the reader is "started" (Play pressed). On
   // the cover the canvas keeps the moment in focus (beat index -1 reported up).
-  const [started, setStarted] = useState(false)
+  const [started, setStarted] = useState(!!autoStart)
   // Stepping past the last beat lands on an end panel (wrap-up + "continue this
   // story" prompt) instead of closing outright. The moment stays framed there too.
   const [ended, setEnded] = useState(false)
@@ -130,6 +134,12 @@ export function StoryReader({
   useEffect(() => {
     if (started) capture('story_started', { timeline_id: timelineId, story_id: story.id })
   }, [started])
+  // Autostart (home Play): the cover Play handler is what normally turns the
+  // timeline into the story's stage — when we skip the cover, do that here once.
+  useEffect(() => {
+    if (autoStart) onStart?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => {
     if (ended) capture('story_completed', { timeline_id: timelineId, story_id: story.id, beats: count })
   }, [ended])
@@ -549,7 +559,10 @@ export function StoryReader({
         <div className="sv-cover">
           {story.coverImage && (
             <figure className={cn('sv-cover-art', story.coverImage.aspect === 'portrait' && 'is-portrait')}>
-              <img src={story.coverImage.url} alt={story.coverImage.alt ?? ''} loading="lazy" />
+              {/* The cover is the hero and is on-screen the instant the reader
+                  opens, so load it eagerly — `lazy` here just flashes an empty
+                  white frame until the fetch starts. */}
+              <img src={story.coverImage.url} alt={story.coverImage.alt ?? ''} />
             </figure>
           )}
           <div className="sv-intro">

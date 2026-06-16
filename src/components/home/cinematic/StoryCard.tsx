@@ -1,4 +1,4 @@
-import { useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
 import { BookOpen, LayoutGrid, MoreHorizontal, Pencil, Play, Share2 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -7,78 +7,46 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
-import { publishStoryShare } from '~/lib/server/stories'
-import { capture } from '~/lib/posthog/client'
-import { toast } from 'sonner'
 import type { HomeStoryCard, ProjectSummary } from '~/lib/domain/types'
 import { MoveToProjectSubmenu } from './MoveToProjectSubmenu'
 import { useMoveTimeline } from './useMoveTimeline'
+import { useStoryActions } from './useStoryActions'
+import { StoryIntroDialog } from './StoryIntroDialog'
 
-// One story in a home carousel row (Wren §5 card anatomy). The card body + Play
-// open the in-app reader (/timelines/$id?story=$storyId); the overflow menu carries
-// Open canvas / Continue writing / Share / Move to project. Reuses the story-soft
-// cover fallback tint when a story has no cover.
+// One story in a home carousel row — a vertical poster (portrait cover + body).
+// Clicking the card body opens the story's INTRO dialog (its cover page); the
+// footer Play jumps straight into the in-app reader and autostarts (?autoplay).
+// The overflow menu carries Open canvas / Continue writing / Share / Move to project.
 export function StoryCard({
   story,
   projects,
   // The project this story's timeline currently belongs to (for the move submenu's
-  // "current" marker + the undo path). Resolved by the parent from the rail filter
-  // or a per-timeline lookup; null when unknown (legacy null-project timeline).
+  // "current" marker + the undo path). null when unknown (legacy null-project).
   currentProjectId,
 }: {
   story: HomeStoryCard
   projects: ProjectSummary[]
   currentProjectId: string | null
 }) {
-  const navigate = useNavigate()
+  const [introOpen, setIntroOpen] = useState(false)
   const move = useMoveTimeline()
-
-  // Play → the reader flow; Continue writing → the creator (stories-lens) flow.
-  const play = () => {
-    capture('home_story_card_clicked', { project_id: currentProjectId ?? undefined, story_id: story.storyId })
-    void navigate({ to: '/timelines/$id', params: { id: story.timelineId }, search: { story: story.storyId } })
-  }
-  const continueWriting = () => {
-    void navigate({
-      to: '/timelines/$id',
-      params: { id: story.timelineId },
-      search: { view: 'stories', story: story.storyId },
-    })
-  }
-  const openCanvas = () => {
-    void navigate({ to: '/timelines/$id', params: { id: story.timelineId } })
-  }
-  const share = async () => {
-    capture('home_share_clicked', {
-      project_id: currentProjectId ?? undefined,
-      story_id: story.storyId,
-      source: 'card',
-    })
-    try {
-      const res = await publishStoryShare({ data: story.storyId })
-      if ('error' in res) {
-        toast.error('Could not share this story.')
-        return
-      }
-      const url = `${window.location.origin}/s/${res.slug}`
-      capture('story_shared', { story_id: story.storyId })
-      if (navigator.share) {
-        await navigator.share({ url, title: 'Read this story on Synek' }).catch(() => {})
-      } else {
-        await navigator.clipboard.writeText(url)
-        toast.success('Public link copied — anyone can read it', { description: url })
-      }
-    } catch {
-      toast.error('Could not share this story.')
-    }
-  }
+  const { play, continueWriting, openCanvas, share } = useStoryActions(
+    story,
+    currentProjectId,
+    'card',
+  )
 
   const minutes = story.estimatedMinutes
   const showMove = projects.length > 1
 
   return (
     <article className="ch-card">
-      <button type="button" className="ch-card-open" onClick={play} aria-label={`Play “${story.title}”`}>
+      <button
+        type="button"
+        className="ch-card-open"
+        onClick={() => setIntroOpen(true)}
+        aria-label={`Open “${story.title}”`}
+      >
         <span className="ch-card-cover">
           {story.coverImage ? (
             <img src={story.coverImage.url} alt={story.coverImage.alt ?? ''} loading="lazy" />
@@ -155,6 +123,13 @@ export function StoryCard({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <StoryIntroDialog
+        story={story}
+        projectId={currentProjectId}
+        open={introOpen}
+        onOpenChange={setIntroOpen}
+      />
     </article>
   )
 }

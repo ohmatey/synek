@@ -10,12 +10,18 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 export function HomeContentRow({
   title,
   action,
+  isEmpty = false,
+  emptyState,
   children,
 }: {
   title: string
   // Optional trailing action (e.g. a "New" button) shown beside the row arrows.
   action?: ReactNode
-  children: ReactNode
+  // When true, the track is replaced by `emptyState` and the scroll arrows hide
+  // (the project view shows every group, empty or not — ask #8).
+  isEmpty?: boolean
+  emptyState?: ReactNode
+  children?: ReactNode
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
 
@@ -31,30 +37,36 @@ export function HomeContentRow({
       <header className="ch-row-head">
         <h2 className="ch-row-title">{title}</h2>
         <div className="ch-row-head-actions">
-          <div className="ch-row-arrows" aria-hidden="true">
-            <button
-              type="button"
-              className="ch-arrow"
-              onClick={() => scrollBy(-1)}
-              aria-label={`Scroll ${title} left`}
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              className="ch-arrow"
-              onClick={() => scrollBy(1)}
-              aria-label={`Scroll ${title} right`}
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
+          {!isEmpty && (
+            <div className="ch-row-arrows" aria-hidden="true">
+              <button
+                type="button"
+                className="ch-arrow"
+                onClick={() => scrollBy(-1)}
+                aria-label={`Scroll ${title} left`}
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <button
+                type="button"
+                className="ch-arrow"
+                onClick={() => scrollBy(1)}
+                aria-label={`Scroll ${title} right`}
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          )}
           {action}
         </div>
       </header>
-      <div className="ch-track" ref={trackRef}>
-        {children}
-      </div>
+      {isEmpty ? (
+        <div className="ch-row-empty">{emptyState}</div>
+      ) : (
+        <div className="ch-track" ref={trackRef}>
+          {children}
+        </div>
+      )}
     </section>
   )
 }

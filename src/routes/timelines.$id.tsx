@@ -13,6 +13,9 @@ const searchSchema = z.object({
   view: z.enum(['timeline', 'globe', 'stories']).optional().catch(undefined),
   node: z.string().optional().catch(undefined),
   story: z.string().optional().catch(undefined),
+  // When opening a story from the home, skip the reader's cover and start stepping
+  // immediately (the home's intro dialog already served as the cover).
+  autoplay: z.boolean().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/timelines/$id')({

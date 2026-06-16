@@ -127,6 +127,7 @@ export type ClientEvent =
   //   home_new_project_created  { project_id }
   | 'home_hero_play_clicked'
   | 'home_story_card_clicked'
+  | 'home_story_play_clicked'
   | 'home_share_clicked'
   | 'home_project_filter_selected'
   | 'home_move_to_project'

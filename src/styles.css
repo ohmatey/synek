@@ -1232,7 +1232,8 @@ body {
 .globe-scrubber {
   bottom: 16px;
   left: 16px;
-  /* right is set inline to clear the open detail dock */
+  /* right pinned to 16px inline — full-width transport; the detail/story docks
+     float above it (bottom: var(--dock-bottom)), they don't push it inward */
   display: flex;
   align-items: center;
   gap: 12px;
@@ -2983,17 +2984,25 @@ body {
   width: min(300px, 70%);
   pointer-events: none;
 }
+/* Show the source image whole rather than forcing it into a fixed frame. A height
+   cap (not a forced aspect-ratio) bounds the hero so the title/cast stay in view;
+   the natural ratio is kept until that cap, so a landscape cover rarely crops.
+   Portraits switch to `contain` below — a tall plate (a full figure, a signed
+   drawing like the da Vinci self-portrait) is shown in full, never head-cropped.
+   Mirrors the public reader's .psr-cover-art treatment. */
 .sv-cover-art img {
   display: block;
   width: 100%;
+  height: auto;
+  max-height: 34dvh;
   border-radius: 12px;
   object-fit: cover;
-  aspect-ratio: 16 / 10;
   border: 1px solid var(--color-border-subtle);
   box-shadow: var(--shadow-overlay);
 }
 .sv-cover-art.is-portrait img {
-  aspect-ratio: 3 / 4;
+  max-height: 46dvh;
+  object-fit: contain;
 }
 .sv-cast {
   display: flex;
@@ -4736,7 +4745,7 @@ body {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: 280px;
+  width: 200px;
   max-width: calc(100vw - 48px);
   border-radius: var(--radius-lg, 16px);
   border: 1px solid color-mix(in oklab, var(--color-border-default) 70%, transparent);
@@ -4777,7 +4786,7 @@ body {
 }
 .ch-card-cover {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 3 / 4;
   width: 100%;
   background: var(--color-story-soft);
   overflow: hidden;
@@ -4979,6 +4988,350 @@ body {
   color: var(--color-fg-muted);
 }
 
+.ch-empty-note {
+  margin: 0;
+}
+
+/* Loading placeholder where the featured unit will land (no layout jump). */
+.ch-featured-skeleton {
+  width: 100%;
+  max-width: 80rem;
+  height: 300px;
+  margin: 28px auto 4px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 50%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 40%, transparent);
+}
+
+/* ── Featured story — a CONTAINED spotlight (ask #5), not a full-bleed bg ──── */
+.ch-featured {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 28px 24px 4px;
+}
+.ch-featured-nav {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 70%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 70%, transparent);
+  color: var(--color-fg-secondary, var(--color-fg-muted));
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+.ch-featured-nav:hover {
+  color: var(--color-fg-primary);
+  background: var(--color-bg-surface);
+}
+.ch-featured-nav:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+.ch-featured-nav svg {
+  width: 20px;
+  height: 20px;
+}
+.ch-featured-panel {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 42%) 1fr;
+  border-radius: 20px;
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 70%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 55%, transparent);
+  overflow: hidden;
+  box-shadow: var(--shadow-overlay);
+}
+.ch-featured-poster {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: var(--color-story-soft);
+  cursor: pointer;
+  overflow: hidden;
+}
+.ch-featured-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ch-featured-poster[data-wash] {
+  background:
+    radial-gradient(120% 90% at 80% 0%, color-mix(in oklab, var(--color-accent-story) 28%, transparent) 0%, transparent 60%),
+    linear-gradient(135deg, color-mix(in oklab, var(--color-accent-story) 16%, var(--color-bg-surface)) 0%, var(--color-bg-surface) 80%);
+}
+.ch-featured-poster-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: color-mix(in oklab, var(--color-accent-story) 70%, transparent);
+}
+.ch-featured-poster-fallback svg {
+  width: 40px;
+  height: 40px;
+}
+.ch-featured-poster:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: -2px;
+}
+.ch-featured-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 24px 26px;
+  min-width: 0;
+}
+.ch-featured-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+.ch-featured-title {
+  font-family: var(--font-display, inherit);
+  font-size: 28px;
+  font-weight: 680;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: var(--color-fg-primary);
+}
+.ch-featured-hook {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--color-fg-primary) 74%, transparent);
+}
+.ch-featured-cast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ch-featured-castchip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 60%, transparent);
+  font-size: 12px;
+  color: var(--color-fg-secondary, var(--color-fg-muted));
+}
+.ch-featured-meta {
+  font-size: 12.5px;
+  color: var(--color-fg-muted);
+}
+.ch-featured-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.ch-featured-dots {
+  display: flex;
+  gap: 7px;
+  margin-top: 8px;
+}
+.ch-featured-dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border-radius: 999px;
+  border: none;
+  background: color-mix(in oklab, var(--color-fg-primary) 22%, transparent);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    width 140ms ease;
+}
+.ch-featured-dot[data-active] {
+  width: 18px;
+  background: var(--color-accent-story);
+}
+.ch-featured-dot:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+
+/* ── Brand kit card — the "Brand kits" row (ask #6) ───────────────────────── */
+.ch-brandcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  max-width: calc(100vw - 48px);
+  border-radius: var(--radius-lg, 16px);
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 70%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 55%, transparent);
+  overflow: hidden;
+  transition:
+    transform 180ms ease-out,
+    border-color 180ms ease-out,
+    box-shadow 180ms ease-out;
+}
+.ch-brandcard:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-overlay);
+}
+.ch-brandcard-open {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ch-brandcard-open:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-lg, 16px);
+}
+.ch-brandcard-swatches {
+  display: flex;
+  height: 56px;
+  width: 100%;
+}
+.ch-brandcard-swatch {
+  flex: 1;
+}
+.ch-brandcard-swatch-empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  color: var(--color-fg-muted);
+  background: color-mix(in oklab, var(--color-bg-base) 60%, transparent);
+}
+.ch-brandcard-swatch-empty svg {
+  width: 20px;
+  height: 20px;
+}
+.ch-brandcard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 13px 13px;
+}
+.ch-brandcard-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-fg-primary);
+}
+.ch-brandcard-tagline {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--color-fg-muted);
+}
+
+/* ── Story intro dialog — the story's cover page as a modal (ask #3) ───────── */
+.ch-intro {
+  display: flex;
+  flex-direction: column;
+}
+.ch-intro-cover {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  background: var(--color-story-soft);
+  overflow: hidden;
+}
+.ch-intro-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ch-intro-cover[data-wash] {
+  background:
+    radial-gradient(120% 90% at 80% 0%, color-mix(in oklab, var(--color-accent-story) 28%, transparent) 0%, transparent 60%),
+    linear-gradient(135deg, color-mix(in oklab, var(--color-accent-story) 16%, var(--color-bg-surface)) 0%, var(--color-bg-surface) 80%);
+}
+.ch-intro-cover-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: color-mix(in oklab, var(--color-accent-story) 70%, transparent);
+}
+.ch-intro-cover-fallback svg {
+  width: 40px;
+  height: 40px;
+}
+.ch-intro-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 20px 22px 22px;
+}
+.ch-intro-eyebrow {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+.ch-intro-title {
+  font-family: var(--font-display, inherit);
+  font-size: 22px;
+  font-weight: 680;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--color-fg-primary);
+}
+.ch-intro-hook {
+  font-size: 14px;
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--color-fg-primary) 74%, transparent);
+}
+.ch-intro-cast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ch-intro-castchip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 60%, transparent);
+  font-size: 12px;
+  color: var(--color-fg-secondary, var(--color-fg-muted));
+}
+.ch-intro-meta {
+  font-size: 12.5px;
+  color: var(--color-fg-muted);
+}
+.ch-intro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
 /* ── Responsive (Wren §8) ─────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .ch-hero {
@@ -5001,9 +5354,22 @@ body {
     padding-left: 16px;
     padding-right: 16px;
   }
-  .ch-card,
   .ch-tl-card {
     width: calc(100vw - 32px);
     max-width: none;
+  }
+  /* Featured spotlight stacks (poster over body); the ‹/› arrows are a
+     hover-device affordance — use the dots/swipe on touch. */
+  .ch-featured {
+    padding: 16px 16px 4px;
+  }
+  .ch-featured-nav {
+    display: none;
+  }
+  .ch-featured-panel {
+    grid-template-columns: 1fr;
+  }
+  .ch-featured-title {
+    font-size: 23px;
   }
 }
