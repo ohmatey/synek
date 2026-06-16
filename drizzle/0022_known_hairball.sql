@@ -1,0 +1,1 @@
+ALTER TABLE `story_segments` ADD `lens` text;

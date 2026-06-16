@@ -12,8 +12,10 @@ import type {
   StoryCastMember,
   StoryDTO,
   StoryImage,
+  StoryLens,
   StoryListItem,
   StoryStatus,
+  TimelineTheme,
 } from '~/lib/domain/types'
 
 // The story layer hangs off `nodes.id` (a "moment"). Stories are deliberately NOT
@@ -32,6 +34,7 @@ export type NewStorySegment = {
   settingNote?: string | null
   relatedNodeIds?: string[]
   focusNodeId?: string | null
+  lens?: StoryLens | null
   citations?: Citation[]
   artifactCitations?: { artifactId: string; excerptUsed?: string | null }[]
   image?: StoryImage | null
@@ -46,6 +49,9 @@ export type NewStory = {
   estimatedMinutes?: number | null
   coverImage?: StoryImage | null
   cast?: StoryCastMember[]
+  // The story's own visual theme (replace-on-write; null/absent clears it so the
+  // story inherits the timeline's theme at read time).
+  theme?: TimelineTheme | null
   // Optional explicit public slug (seeds/tests pin a deterministic share URL).
   // Applied only on CREATE; an update never rewrites an existing story's slug so
   // a shared /s/$slug link stays stable. Must be globally unique.
@@ -57,6 +63,36 @@ export type NewStory = {
 // other MCP tools key off a timelineId.
 export function getMomentTimelineId(momentId: string): string | null {
   return db.select({ t: nodes.timelineId }).from(nodes).where(eq(nodes.id, momentId)).get()?.t ?? null
+}
+
+// The timeline a story belongs to (via its moment), or null. Used to run the same
+// owner check + live-event channel the timeline-scoped tools use.
+export function getStoryTimelineId(storyId: string): string | null {
+  return (
+    db
+      .select({ t: nodes.timelineId })
+      .from(stories)
+      .innerJoin(nodes, eq(stories.momentId, nodes.id))
+      .where(eq(stories.id, storyId))
+      .get()?.t ?? null
+  )
+}
+
+// Owner-scoped: replace a story's OWN theme (null clears it → inherits the
+// timeline's). Ownership is resolved through the story's moment → timeline.ownerId,
+// mirroring setTimelineTheme. Returns false (a no-op) when the story isn't the
+// caller's, so callers can surface a clean forbidden instead of leaking a write.
+export function setStoryTheme(storyId: string, ownerId: string, theme: TimelineTheme | null): boolean {
+  const owner = db
+    .select({ ownerId: timelines.ownerId })
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
+    .where(eq(stories.id, storyId))
+    .get()
+  if (!owner || owner.ownerId !== ownerId) return false
+  db.update(stories).set({ theme, updatedAt: new Date() }).where(eq(stories.id, storyId)).run()
+  return true
 }
 
 const slugify = (s: string): string =>
@@ -96,6 +132,7 @@ export function writeStory(
           estimatedMinutes: meta.estimatedMinutes ?? null,
           coverImage: meta.coverImage ?? null,
           cast: meta.cast ?? null,
+          theme: meta.theme ?? null,
           updatedAt: new Date(),
         })
         .where(eq(stories.id, storyId))
@@ -115,6 +152,7 @@ export function writeStory(
           estimatedMinutes: meta.estimatedMinutes ?? null,
           coverImage: meta.coverImage ?? null,
           cast: meta.cast ?? null,
+          theme: meta.theme ?? null,
           status: 'published',
         })
         .returning({ id: stories.id })
@@ -136,6 +174,7 @@ export function writeStory(
           settingNote: s.settingNote ?? null,
           relatedNodeIds: s.relatedNodeIds ?? null,
           focusNodeId: s.focusNodeId ?? null,
+          lens: s.lens ?? null,
           citations: s.citations ?? null,
           image: s.image ?? null,
           widget: s.widget ?? null,
@@ -223,6 +262,8 @@ function hydrateStory(story: typeof stories.$inferSelect): StoryDTO {
     estimatedMinutes: story.estimatedMinutes,
     coverImage: story.coverImage ?? null,
     cast: story.cast ?? [],
+    theme: story.theme ?? null,
+    isPublic: story.isPublic,
     beats: segs.map((s) => ({
       id: s.id,
       sequence: s.sequence,
@@ -231,6 +272,7 @@ function hydrateStory(story: typeof stories.$inferSelect): StoryDTO {
       settingNote: s.settingNote,
       relatedNodeIds: s.relatedNodeIds ?? [],
       focusNodeId: s.focusNodeId ?? null,
+      lens: s.lens ?? null,
       // Single-home merge: inline one-offs + artifact-backed citations (Decision 8).
       citations: [...(s.citations ?? []), ...(artifactCitesBySeg.get(s.id) ?? [])],
       image: s.image ?? null,
@@ -260,15 +302,38 @@ export function getStoryById(storyId: string): StoryDTO | null {
   return story ? hydrateStory(story) : null
 }
 
-// Resolve a story by its public slug → the DTO plus the moment + status +
-// updatedAt the share loader needs to gate and timestamp the page. The server fn
-// applies the visibility gate (timeline must be public); this is pure data access.
+// Resolve a story by its public slug → the DTO (which carries the story's own
+// isPublic) plus the moment + status + updatedAt the share loader needs to gate and
+// timestamp the page. The server fn applies the visibility gate (the STORY must be
+// public — per-story, independent of its timeline); this is pure data access.
 export function getStoryBySlug(
   slug: string,
 ): { story: StoryDTO; momentId: string; status: StoryStatus; updatedAt: number } | null {
   const row = db.select().from(stories).where(eq(stories.slug, slug)).get()
   if (!row) return null
   return { story: hydrateStory(row), momentId: row.momentId, status: row.status, updatedAt: row.updatedAt?.getTime() ?? 0 }
+}
+
+// Owner-scoped per-story share toggle. Resolves the owner through the story's
+// moment → timeline, then flips stories.isPublic. Returns the slug (for building
+// the /s/$slug link) on success, or null when the story is missing or isn't the
+// caller's. INDEPENDENT of timelines.isPublic — sharing a story never touches the
+// timeline, and making a timeline private never hides an already-shared story.
+export function setStoryShared(
+  storyId: string,
+  ownerId: string,
+  isPublic: boolean,
+): { slug: string } | null {
+  const row = db
+    .select({ slug: stories.slug, ownerId: timelines.ownerId })
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
+    .where(eq(stories.id, storyId))
+    .get()
+  if (!row || row.ownerId !== ownerId) return null
+  db.update(stories).set({ isPublic, updatedAt: new Date() }).where(eq(stories.id, storyId)).run()
+  return { slug: row.slug }
 }
 
 // Every node id a story references through its cast, per-beat focus/related links,
@@ -314,6 +379,8 @@ const STORY_LIST_COLUMNS = {
   // Cover art for the Stories-view card (the only list consumer that renders it;
   // the AppBar dropdown ignores it). JSON column → StoryImage | null.
   coverImage: stories.coverImage,
+  // Per-story public state, so the Share dialog can show + toggle each story.
+  isPublic: stories.isPublic,
 } as const
 
 // All stories on a timeline, in chronological moment order — backs the AppBar's

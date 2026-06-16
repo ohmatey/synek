@@ -859,7 +859,12 @@ export default function GlobeLens({
             <Maximize size={15} />
           </button>
         </div>
-        <div className="globe-scrubber" data-story={storyMode || undefined} style={{ right: rightInset + 16 }}>
+        {/* Full-width transport: the bar spans the whole bottom edge regardless of
+            an open detail/story dock — those panels float ABOVE it (bottom:
+            var(--dock-bottom), well clear of the 16px-from-bottom bar), matching the
+            timeline lens's full-width scrubber. rightInset still re-centers the
+            GLOBE itself (viewW), just not this bar. */}
+        <div className="globe-scrubber" data-story={storyMode || undefined} style={{ right: 16 }}>
         {/* While a story plays the reader's Play is the transport (GS1), so the
             globe's own play button + speed hide; the track stays as a read-only
             progress readout (a manual scrub still detaches until the next beat). */}

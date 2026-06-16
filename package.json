@@ -31,6 +31,7 @@
     "verify:artifact-undo": "DATABASE_URL=verify-artifact-undo.db tsx scripts/verify-artifact-undo.ts",
     "verify:search": "DATABASE_URL=verify-search.db tsx scripts/verify-search.ts",
     "verify:theme": "DATABASE_URL=verify-theme.db tsx scripts/verify-theme.ts",
+    "verify:story-theme": "DATABASE_URL=verify-story-theme.db tsx scripts/verify-story-theme.ts",
     "verify:globe": "DATABASE_URL=verify-globe.db tsx scripts/verify-globe.ts",
     "verify:seed-demo": "tsx scripts/verify-seed-demo.ts",
     "verify:telemetry": "tsx scripts/verify-telemetry.ts",

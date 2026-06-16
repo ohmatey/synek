@@ -6,16 +6,28 @@ import {
   getStoryBySlug,
   getStoryForMoment,
   getStoriesForMoment,
+  getStoryTimelineId,
   listStoriesForHome,
   listStoriesForTimeline,
   referencedNodeIds,
+  setStoryShared as dbSetStoryShared,
+  setStoryTheme as dbSetStoryTheme,
 } from '~/lib/db/stories'
 import { db } from '~/lib/db/index'
 import { stories } from '~/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getTimelineMeta, canView, nodesByIds, nodeRowToGraphNode, setTimelinePublic } from '~/lib/db/graph'
+import {
+  getTimelineMeta,
+  canView,
+  nodesByIds,
+  nodeRowToGraphNode,
+  resolveTimelineTheme,
+} from '~/lib/db/graph'
+import { emitTimelineEvent } from '~/lib/server/bus'
+import { maxAppliedSeq } from '~/lib/db/patches'
 import { getCurrentUser, requireUser } from '~/lib/auth/session'
-import type { HomeStoryCard, PublicStoryDTO, StoryDTO, StoryListItem } from '~/lib/domain/types'
+import { timelineThemeSchema } from '~/lib/domain/theme'
+import type { HomeStoryCard, PublicStoryDTO, StoryDTO, StoryListItem, TimelineTheme } from '~/lib/domain/types'
 
 // Read the story attached to a moment, gated by the SAME visibility rule as the
 // graph (owner, or public) so a private timeline's story is never leaked. Returns
@@ -93,49 +105,77 @@ export const getStoryByIdFn = createServerFn({ method: 'GET' })
   })
 
 // PUBLIC, no-auth: the sharable story page (/s/$slug). Resolves the story by its
-// slug and serves it ONLY when its timeline is public (the same primitive timeline
-// sharing uses) and the story isn't archived — anonymous viewers welcome. Ships the
-// story plus the lightweight nodes its cast / beat-focus / widgets reference, the
-// timeline theme, the axis scale, and updatedAt (the live stamp). Returns null when
-// missing or not public, so the route renders a clean not-found.
+// slug and serves it ONLY when the STORY itself is public (per-story visibility,
+// INDEPENDENT of the timeline) and isn't archived — anonymous viewers welcome.
+// Sharing a story never exposes its timeline: only the nodes its cast / beat-focus
+// / widgets reference ship to the page (no full-graph leak). A private/missing slug
+// returns null indistinguishably (don't reveal a private story exists), so the
+// route renders one clean "not available" fallback for every miss.
 export const getPublicStory = createServerFn({ method: 'GET' })
   .inputValidator((slug: string) => slug)
   .handler(async ({ data: slug }): Promise<PublicStoryDTO | null> => {
     const found = getStoryBySlug(slug)
-    if (!found || found.status === 'archived') return null
+    if (!found || found.status === 'archived' || !found.story.isPublic) return null
     const timelineId = getMomentTimelineId(found.momentId)
     if (!timelineId) return null
     const meta = getTimelineMeta(timelineId)
-    if (!meta || !meta.isPublic) return null // fully public gate — no user required
+    if (!meta) return null // need it for title/theme/nodes — but NOT for the gate
     const nodes = nodesByIds(timelineId, referencedNodeIds(found.story)).map(nodeRowToGraphNode)
     return {
       story: found.story,
       timelineId,
       timelineTitle: meta.title,
-      theme: meta.theme ?? null,
+      // Story-first theme chain: the story's own theme wins, else the timeline's
+      // (which itself falls back to the project's) — so a shared story carries its
+      // own look or inherits the canvas it lives on.
+      theme: found.story.theme ?? resolveTimelineTheme(meta),
       viewSettings: meta.viewSettings ?? null,
       updatedAt: found.updatedAt,
       nodes,
     }
   })
 
-// Owner-gated: make a story publicly shareable. Publishes its timeline (the same
-// isPublic primitive as timeline sharing) so /s/$slug is viewable by anyone, and
-// returns the slug so the caller can build the link. A non-owner is forbidden.
+// Owner-gated: make THIS story publicly shareable (per-story, independent of the
+// timeline — it does NOT publish the timeline). Flips the story's own isPublic and
+// returns the slug so the caller can build the /s/$slug link. A non-owner (or a
+// missing story) is forbidden. Backs the reader's one-tap Share control.
 export const publishStoryShare = createServerFn({ method: 'POST' })
   .inputValidator((storyId: string) => storyId)
-  .handler(async ({ data: storyId }): Promise<{ slug: string } | { error: 'not_found' | 'forbidden' }> => {
+  .handler(async ({ data: storyId }): Promise<{ slug: string } | { error: 'forbidden' }> => {
     const user = await requireUser()
-    const row = db
-      .select({ slug: stories.slug, momentId: stories.momentId })
-      .from(stories)
-      .where(eq(stories.id, storyId))
-      .get()
-    if (!row) return { error: 'not_found' }
-    const timelineId = getMomentTimelineId(row.momentId)
-    if (!timelineId) return { error: 'not_found' }
-    const meta = getTimelineMeta(timelineId)
-    if (!meta || meta.ownerId !== user.id) return { error: 'forbidden' }
-    setTimelinePublic(timelineId, user.id, true)
-    return { slug: row.slug }
+    const res = dbSetStoryShared(storyId, user.id, true)
+    return res ? { slug: res.slug } : { error: 'forbidden' }
+  })
+
+// Owner-gated per-story share TOGGLE (share AND unshare) — independent of the
+// timeline. Returns the slug on success so a freshly-shared story's link can be
+// copied immediately; a non-owner/missing story is forbidden. Backs the Share
+// dialog's per-story switches.
+export const setStoryShare = createServerFn({ method: 'POST' })
+  .inputValidator((d: { storyId: string; isPublic: boolean }) =>
+    z.object({ storyId: z.string(), isPublic: z.boolean() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true; slug: string } | { error: 'forbidden' }> => {
+    const user = await requireUser()
+    const res = dbSetStoryShared(data.storyId, user.id, data.isPublic)
+    return res ? { ok: true as const, slug: res.slug } : { error: 'forbidden' }
+  })
+
+// Owner-gated: set (or clear, null) a story's OWN visual theme — the in-app
+// editor's counterpart to the set_story_theme MCP tool (both write the same row).
+// Ownership is resolved through the story's moment → timeline.ownerId in the db
+// layer; a non-owner's call no-ops there and we report it as forbidden. On success
+// we nudge live viewers on the story's timeline to refetch (same channel as a
+// story write), so an open reader picks the new look up.
+export const setStoryTheme = createServerFn({ method: 'POST' })
+  .inputValidator((d: { storyId: string; theme: TimelineTheme | null }) =>
+    z.object({ storyId: z.string(), theme: timelineThemeSchema.nullable() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true } | { error: 'forbidden' }> => {
+    const user = await requireUser()
+    const ok = dbSetStoryTheme(data.storyId, user.id, data.theme)
+    if (!ok) return { error: 'forbidden' }
+    const timelineId = getStoryTimelineId(data.storyId)
+    if (timelineId) emitTimelineEvent({ timelineId, kind: 'story', seq: maxAppliedSeq(timelineId) })
+    return { ok: true }
   })

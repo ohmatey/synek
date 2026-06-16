@@ -1,75 +1,74 @@
 import { test, expect } from '@playwright/test'
 
-// Stories view (docs/product/prd/stories-view.md). A third tab beside Timeline +
-// Globe that lists every story on the timeline and plays it by itself. The seeded
+// Stories panel (docs/product/prd/stories-view.md). Stories live in their own
+// toolbar popover (StoriesMenu) — a list of every story on the timeline + a "New
+// Story" action — rather than a full-pane lens that swaps out the canvas. Picking a
+// card opens the story in the docked reader over the live canvas. The seeded
 // `figures` timeline is public and carries Charles Darwin's 4-beat story ("The long
 // wait before Origin"); `blank` is the e2e-only fixture with nodes but no stories.
 // All seeds are public, so these read-only tests run anonymously. Reduced motion
 // keeps the reader's stepping deterministic (no timed auto-advance).
 test.use({ reducedMotion: 'reduce' })
 
-test('the view switcher offers a third Stories tab that opens the story list', async ({ page }) => {
+// Open the toolbar Stories popover and click the Darwin story card.
+async function openDarwinStory(page: import('@playwright/test').Page) {
+  await page.getByRole('button', { name: /^Stories/ }).click()
+  await page.getByRole('button', { name: /The long wait before Origin/ }).click()
+}
+
+test('the view switcher only offers Timeline + Globe; Stories lives in a toolbar panel', async ({ page }) => {
   await page.goto('/timelines/figures')
 
   const switcher = page.getByRole('radiogroup', { name: 'Canvas view' })
   await expect(switcher.getByRole('radio', { name: 'Timeline' })).toBeVisible()
   await expect(switcher.getByRole('radio', { name: 'Globe' })).toBeVisible()
-  await expect(switcher.getByRole('radio', { name: 'Stories' })).toBeVisible()
+  // Stories is no longer a lens.
+  await expect(switcher.getByRole('radio', { name: 'Stories' })).toHaveCount(0)
 
-  await switcher.getByRole('radio', { name: 'Stories' }).click()
-  await expect(page).toHaveURL(/view=stories/)
-  await expect(switcher.getByRole('radio', { name: 'Stories' })).toHaveAttribute('aria-checked', 'true')
-
-  // The list renders the timeline's stories (the canvas / globe are gone).
-  const list = page.getByRole('region', { name: 'Stories' })
-  await expect(list).toBeVisible()
-  await expect(list.getByRole('button', { name: /The long wait before Origin/ })).toBeVisible()
-  await expect(page.locator('.react-flow')).toHaveCount(0)
+  // The Stories toolbar button opens a popover panel listing the timeline's stories,
+  // over the live canvas (the timeline isn't swapped out).
+  await page.getByRole('button', { name: /^Stories/ }).click()
+  await expect(page.getByRole('button', { name: /The long wait before Origin/ })).toBeVisible()
+  await expect(page.locator('.react-flow')).toBeVisible()
 })
 
-test('deep-linking ?view=stories lands directly on the list', async ({ page }) => {
-  await page.goto('/timelines/figures?view=stories')
-  const list = page.getByRole('region', { name: 'Stories' })
-  await expect(list).toBeVisible()
-  await expect(list.getByRole('button', { name: /The long wait before Origin/ })).toBeVisible()
-})
+test('clicking a story runs it straight away on the immersive stage (no node selected)', async ({ page }) => {
+  await page.goto('/timelines/figures')
+  await openDarwinStory(page)
 
-test('clicking a story docks its cover (no node selected); Play raises the timeline; Close returns to the list', async ({
-  page,
-}) => {
-  await page.goto('/timelines/figures?view=stories')
-  await page.getByRole('button', { name: /The long wait before Origin/ }).click()
-
-  // The cover docks on the right WITHOUT selecting a moment — no entity panel opens,
-  // and the list stays in the main area behind it.
+  // It runs straight away (no cover step), WITHOUT selecting a moment — no entity panel
+  // opens. The story's first beat is located, so the immersive reader opens on the globe.
   const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
   await expect(reader).toBeVisible()
+  await expect(reader.getByText('1 / 4')).toBeVisible()
   await expect(page).toHaveURL(/story=/)
   await expect(page).not.toHaveURL(/node=/)
-  await expect(page.getByRole('region', { name: 'Stories' })).toBeVisible()
+  await expect(page.getByTestId('globe-lens')).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Node details' })).toHaveCount(0)
 
-  // Play raises the timeline as the story's stage; the list gives way to the canvas.
-  await reader.getByRole('button', { name: 'Play story' }).click()
-  await expect(reader.getByText('1 / 4')).toBeVisible()
-  await expect(page.locator('.react-flow')).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Stories' })).toHaveCount(0)
-  await expect(page).not.toHaveURL(/view=stories/)
-
-  // Close returns to the Stories list (where the story was opened from).
+  // Close tears the reader down.
   await reader.getByRole('button', { name: 'Close story' }).click()
   await expect(reader).toBeHidden()
-  await expect(page).toHaveURL(/view=stories/)
-  await expect(page.getByRole('region', { name: 'Stories' })).toBeVisible()
+  await expect(page).not.toHaveURL(/story=/)
 })
 
-test('a story from the list runs by itself; tapping a related entity opens it beside without ending the story', async ({
-  page,
-}) => {
-  await page.goto('/timelines/figures?view=stories')
-  await page.getByRole('button', { name: /The long wait before Origin/ }).click()
+test('a ?story deep-link opens the reader directly (the URL → reader bridge)', async ({ page }) => {
+  await page.goto('/timelines/figures')
+  await openDarwinStory(page)
   const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
-  await reader.getByRole('button', { name: 'Play story' }).click()
+  await expect(reader).toBeVisible()
+
+  // The opened story is now in the URL; reloading that link re-opens the reader
+  // (home Play / Continue writing rely on this bridge).
+  await page.reload()
+  await expect(page.getByRole('dialog', { name: 'Story: The long wait before Origin' })).toBeVisible()
+})
+
+test('a story runs by itself; tapping a related entity opens it beside without ending the story', async ({ page }) => {
+  await page.goto('/timelines/figures')
+  await openDarwinStory(page)
+  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+  await expect(reader).toBeVisible()
 
   // No entity panel by default — the story plays solo.
   await expect(page.getByRole('dialog', { name: 'Node details' })).toHaveCount(0)
@@ -85,10 +84,9 @@ test('a story from the list runs by itself; tapping a related entity opens it be
   ).toBeVisible()
 })
 
-test('a timeline with no stories shows the empty state', async ({ page }) => {
+test('a timeline with no stories shows the empty state in the panel', async ({ page }) => {
   // `blank` has nodes but no stories.
-  await page.goto('/timelines/blank?view=stories')
-  const list = page.getByRole('region', { name: 'Stories' })
-  await expect(list).toBeVisible()
-  await expect(list.getByText('No stories yet')).toBeVisible()
+  await page.goto('/timelines/blank')
+  await page.getByRole('button', { name: /^Stories/ }).click()
+  await expect(page.getByText(/hasn’t written any stories/)).toBeVisible()
 })

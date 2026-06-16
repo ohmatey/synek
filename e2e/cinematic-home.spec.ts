@@ -29,26 +29,29 @@ async function createProject(page: Page, name: string) {
   await dialog.getByRole('button', { name: 'Create project' }).click()
   await expect(dialog).toBeHidden()
   // The dialog's onCreated syncs ?project=<slug>, but the page only resolves that
-  // slug → active project once the ['projects'] query refetches. Wait for the rail
-  // chip to land pressed so callers see the page actually filtered (not the
-  // soft-fallback "All" scope during the refetch window).
+  // slug → active project once the ['projects'] query refetches. Wait for the sidebar
+  // item to land active (aria-current) so callers see the page actually scoped to the
+  // project (not the soft-fallback "All" scope during the refetch window).
   await expect(page).toHaveURL(/\?project=/)
   await expect(
     page.getByRole('navigation', { name: 'Projects' }).getByRole('button', { name, exact: true }),
-  ).toHaveAttribute('aria-pressed', 'true')
+  ).toHaveAttribute('aria-current', 'page')
 }
 
-test('the home shows the rail, the featured story unit, and the stories + timelines rows', async ({
+test('the home shows the project sidebar, the featured story unit, and the stories + timelines rows', async ({
   page,
 }) => {
   await loginAsDemo(page)
 
-  // The project rail is the page-level filter (always present + carries "New project").
+  // The project sidebar is the top-level nav (always present + carries "All projects"
+  // and "New project").
   const rail = page.getByRole('navigation', { name: 'Projects' })
   await expect(rail).toBeVisible()
+  await expect(rail.getByRole('button', { name: 'All projects' })).toBeVisible()
   await expect(rail.getByRole('button', { name: 'New project' })).toBeVisible()
-  // Brand kits moved OUT of the bar to a row — no button in the rail anymore.
+  // Brand kits is an account asset in the sidebar footer — NOT inside the Projects nav.
   await expect(rail.getByRole('button', { name: 'Brand kits' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Brand kits' })).toBeVisible()
 
   // The featured-story unit (contained spotlight) with its primary actions.
   const featured = page.getByRole('region', { name: 'Featured story' })
@@ -85,7 +88,7 @@ test('clicking a story card opens its intro dialog with a Play story action', as
   await expect(dialog.getByRole('button', { name: 'Continue writing' })).toBeVisible()
 })
 
-test('creating a project filters the page and shows per-group empty states (no hero)', async ({
+test('creating a project enters its page — project hero + per-group empty states', async ({
   page,
 }) => {
   await loginAsDemo(page)
@@ -93,15 +96,16 @@ test('creating a project filters the page and shows per-group empty states (no h
 
   await createProject(page, name)
 
-  // The rail selected the fresh project → the page is scoped to it.
+  // The sidebar selected the fresh project → the page is scoped to it.
   await expect(page).toHaveURL(/\?project=/)
   const rail = page.getByRole('navigation', { name: 'Projects' })
   const chip = rail.getByRole('button', { name })
   await expect(chip).toBeVisible()
-  await expect(chip).toHaveAttribute('aria-pressed', 'true')
+  await expect(chip).toHaveAttribute('aria-current', 'page')
 
-  // The project view drops the featured hero and shows every group with an empty
-  // state (ask #8) — the seeded timelines stay null-project, so this project is bare.
+  // Entering a project shows ITS OWN hero (not the cross-project featured story) and
+  // every group with an empty state — the seeded timelines stay null-project, so bare.
+  await expect(page.getByRole('region', { name: `Project: ${name}` })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Featured story' })).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Your stories' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Timelines' })).toBeVisible()
@@ -116,10 +120,10 @@ test('selecting "All" restores the full page (featured unit + populated rows)', 
   await createProject(page, name)
   await expect(page.getByText(/No timelines yet/)).toBeVisible()
 
-  // With 2+ projects the rail offers "All"; back to All → ?project drops and the
+  // The sidebar always offers "All projects"; back to All → ?project drops and the
   // full page returns (featured unit + the populated Timelines row).
   const rail = page.getByRole('navigation', { name: 'Projects' })
-  await rail.getByRole('button', { name: 'All', exact: true }).click()
+  await rail.getByRole('button', { name: 'All projects', exact: true }).click()
   await expect(page).not.toHaveURL(/\?project=/)
   await expect(page.getByRole('region', { name: 'Featured story' })).toBeVisible()
   const timelinesRow = page.getByRole('region', { name: 'Timelines' })
@@ -136,7 +140,7 @@ test('the "Move to project" affordance moves a timeline into a project', async (
 
   // Back to All so the seeded (movable) timelines are in view.
   const rail = page.getByRole('navigation', { name: 'Projects' })
-  await rail.getByRole('button', { name: 'All', exact: true }).click()
+  await rail.getByRole('button', { name: 'All projects', exact: true }).click()
   const timelinesRow = page.getByRole('region', { name: 'Timelines' })
   await expect(timelinesRow.getByRole('button', { name: 'Open “The Space Race”' })).toBeVisible()
 

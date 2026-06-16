@@ -52,18 +52,17 @@ import { getGraph } from '~/lib/server/graph'
 import { getStoriesForMomentFn, getStoryByIdFn } from '~/lib/server/stories'
 import { useTimelineStream } from './useTimelineStream'
 import { AppBar } from './AppBar'
+import { CanvasLayout } from './CanvasLayout'
 import { ShareDialog } from './ShareDialog'
-import { ProfileMenu } from '~/components/ProfileMenu'
-import { HistoryControls } from './HistoryControls'
+import { HistoryShortcuts } from './HistoryShortcuts'
 import { NodeDetailPanel } from './NodeDetailPanel'
 import { centerOnNodes } from './cameraFocus'
 import { CommandPalette } from './CommandPalette'
 import { StoryReader } from './StoryReader'
 import { TimelineScrubber, TimelineZoomControls } from './TimelineScroller'
 import { CanvasSettings } from './CanvasSettings'
-import { McpStatusChip } from './McpStatusChip'
 import { CanvasEmpty } from './CanvasEmpty'
-import { StoriesView } from './StoriesView'
+import { StoriesMenu } from './StoriesMenu'
 import { useBuildStream } from './build-stream'
 import {
   loadPanelWidths,
@@ -267,6 +266,10 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const [reading, setReading] = useState(false)
   const [activeBeat, setActiveBeat] = useState(-1)
   const [storyPaused, setStoryPaused] = useState(false)
+  // Whether the reader skips its cover and begins stepping the moment it opens. Set
+  // per-open by openStory (default true → "Play story" runs straight away); the cover
+  // is only kept for non-autoplay deep-links (e.g. Continue writing).
+  const [readerAutoStart, setReaderAutoStart] = useState(false)
   // Theme being live-previewed by the ThemeEditorDialog (wins over the saved
   // one while editing); null = show the server-saved theme.
   const [previewTheme, setPreviewTheme] = useState<TimelineTheme | null>(null)
@@ -282,13 +285,15 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // closing a story opened from the Stories list returns to the list, while one
   // opened from a node panel stays on the timeline. A ref (read at close time).
   const storyReturnViewRef = useRef<CanvasView>('timeline')
-  // Open a story's cover in the docked reader (from the Stories list or a node
-  // panel). DECOUPLED from selection: it sets ONLY the story — the moment is NOT
-  // selected and no entity panel opens. Pressing Play raises the timeline as the
-  // stage (StoryReader onStart) and the camera tours the beats via readingStory.momentId.
+  // Open a story in the docked reader (from the Stories panel or a node panel).
+  // DECOUPLED from selection: it sets ONLY the story — the moment is NOT selected and
+  // no entity panel opens. By default it runs straight away (autoStart skips the cover
+  // and begins stepping); the immersive lens effect then tours the beats across the
+  // globe + timeline. Pass { autoStart: false } to land on the cover (Continue writing).
   const openStory = useCallback(
-    (storyId: string) => {
+    (storyId: string, opts?: { autoStart?: boolean }) => {
       storyReturnViewRef.current = search.view ?? 'timeline'
+      setReaderAutoStart(opts?.autoStart ?? true)
       setSelectedStoryId(storyId)
       setActiveBeat(-1)
       setStoryPaused(false)
@@ -460,6 +465,21 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     setStoryPaused(false)
   }, [selectedStoryId])
 
+  // A story id in the URL (a deep-link — home Play / Continue writing, or a shared
+  // canvas link) raises the docked reader. Now that Stories is a toolbar panel rather
+  // than a full-pane lens, the ?story param's only job is to open the reader. We react
+  // only when the id *changes* (tracked in a ref): closing the reader flips `reading`
+  // false a tick before the URL drops ?story, and without this guard that gap would
+  // immediately re-open the story the user just closed.
+  const handledStoryRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (selectedStoryId === handledStoryRef.current) return
+    handledStoryRef.current = selectedStoryId
+    // Home Play passes ?autoplay → run straight away; a bare ?story (Continue writing /
+    // a shared canvas link) lands on the cover.
+    if (selectedStoryId && !reading) openStory(selectedStoryId, { autoStart: !!search.autoplay })
+  }, [selectedStoryId, reading, openStory, search.autoplay])
+
   // getGraph returns a discriminated result: an `ok` payload (with the graph +
   // access flags), or notFound/forbidden. Non-owners get a read-only canvas.
   const graph = data && data.status === 'ok' ? data : null
@@ -498,7 +518,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // same SSE → refetch path as everything else). The editor's preview wins
   // while it's open; saving/cancelling hands back to server truth.
   const timelineTheme = graph?.theme ?? null
-  const effectiveTheme = previewTheme ?? timelineTheme
+  // While a story plays in the docked reader, the canvas adopts the story's OWN
+  // theme (story.theme ?? the timeline's) — a noir story dims the whole canvas, an
+  // epic warms it: the immersive payoff of per-story themes. Closing the reader
+  // (reading → false) drops it back in one render. Precedence: the live editor
+  // preview wins, then the active story, then the timeline. (Guard via a named
+  // const, not `reading && …`, so a falsy short-circuit can't poison the `??` chain.)
+  const storyTheme = reading ? (readingStory?.theme ?? null) : null
+  const effectiveTheme = previewTheme ?? storyTheme ?? timelineTheme
   const themeVars = useMemo(
     () => resolveThemeVars(effectiveTheme, resolvedTheme),
     [effectiveTheme, resolvedTheme],
@@ -559,6 +586,21 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     if (!n) return null
     return { id: n.id, lat: n.lat, lng: n.lng, instant: n.startInstant }
   }, [storyFocusNodeId, nodeById])
+  // Immersive stage: while a story PLAYS, the canvas surface follows the active beat —
+  // its explicit `lens`, else derived from whether its focus node is located (globe) or
+  // not (timeline). So a place beat sweeps the globe and a time/idea beat drops to the
+  // timeline, beat to beat. Null on the cover/end (activeBeat -1) leaves the lens be;
+  // closeReader restores the pre-story view. Only fires as the *desired* surface
+  // changes, so a manual lens nudge within one beat isn't immediately yanked back.
+  const immersiveLens: CanvasView | null = useMemo(() => {
+    if (!reading || activeBeat < 0) return null
+    if (activeBeatData?.lens) return activeBeatData.lens
+    if (!storyFocus) return 'timeline'
+    return storyFocus.lat != null && storyFocus.lng != null ? 'globe' : 'timeline'
+  }, [reading, activeBeat, activeBeatData, storyFocus])
+  useEffect(() => {
+    if (immersiveLens) setLensView(immersiveLens)
+  }, [immersiveLens, setLensView])
   // A story lens wins over the build-stream lens while reading.
   const effectiveFocusIds = storyFocusIds ?? focusIds
   // A deleted story (its row gone — e.g. the moment was deleted, cascading the story)
@@ -567,12 +609,6 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   useEffect(() => {
     if (reading && selectedStoryId && readingStoryData === null) closeReader()
   }, [reading, selectedStoryId, readingStoryData, closeReader])
-  // Navigation signal for bet B3 ("stories make it a product"): fires when the
-  // Stories lens is opened, the denominator for story plays from this entry point.
-  useEffect(() => {
-    if (lensView === 'stories') capture('story_view_opened', { timeline_id: timelineId })
-  }, [lensView, timelineId])
-
   // Per-kind visibility filter — session-only (a returning user shouldn't find
   // nodes "missing"). Node counts feed the filter chips.
   const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(() => new Set())
@@ -1022,10 +1058,13 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
 
   const lensSize = effectiveFocusIds.length
 
-  // A private timeline you can't see, or a missing one — show a state, not the canvas.
+  // A private timeline you can't see, or a missing one — show a state, not the
+  // canvas. It still renders through CanvasLayout, so the app bar (logo/home +
+  // account menu) is present: the user keeps their navigation instead of landing
+  // on a stranded error page.
   if (data && data.status !== 'ok') {
     return (
-      <div className="canvas-root">
+      <CanvasLayout>
         <div className="canvas-state">
           <h2>{data.status === 'forbidden' ? 'This timeline is private' : 'Timeline not found'}</h2>
           <p>
@@ -1037,15 +1076,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             ← Back home
           </a>
         </div>
-      </div>
+      </CanvasLayout>
     )
   }
 
   return (
     <ReactFlowProvider>
-      <div
-        className="canvas-root"
-        data-canvas-texture={texture}
+      <CanvasLayout
+        texture={texture}
         style={
           {
             '--detail-panel-w': `${panelW.detail}px`,
@@ -1056,18 +1094,19 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             ...themeVars,
           } as React.CSSProperties
         }
-      >
-        <div className="top-bar">
-          <AppBar timelineId={timelineId} title={title} isOwner={isOwner} isPublic={isPublic} />
-          {/* Top-center lens toggle — always shown; clicking Globe with no located
-              nodes opens the setup prompt instead of switching (switchToGlobe). */}
+        brand={<AppBar timelineId={timelineId} title={title} isOwner={isOwner} isPublic={isPublic} />}
+        // Top-center lens toggle — always shown; clicking Globe with no located
+        // nodes opens the setup prompt instead of switching (switchToGlobe).
+        center={
           <ViewSwitcher
             view={lensView}
             onChange={setLensView}
             onSwitchToGlobe={switchToGlobe}
             coverage={globeCov}
           />
-          <div className="canvas-toolbar">
+        }
+        controls={
+          <>
             {gnodes.length > 0 && (
               <CommandPalette
                 nodes={gnodes}
@@ -1088,10 +1127,21 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 }
               />
             )}
-            {isOwner && <McpStatusChip />}
-            {isOwner && <HistoryControls timelineId={timelineId} />}
-            {/* Stories moved out of the toolbar into the "Stories" view (a sibling of
-                Timeline + Globe in the ViewSwitcher) — see StoriesView. */}
+            {/* Undo/redo buttons removed from the toolbar; ⌘Z / ⌘⇧Z still drive the
+                patch history via this headless owner-only binding. */}
+            {isOwner && <HistoryShortcuts timelineId={timelineId} />}
+            {/* Stories live in their own toolbar panel again (not a full-pane lens):
+                a popover that lists the timeline's stories + a "New Story" action. */}
+            {(gnodes.length > 0 || pending.length > 0) && (
+              <StoriesMenu
+                timelineId={timelineId}
+                storyVersion={storyVersion ?? ''}
+                canCreate={isOwner}
+                nodes={gnodes.map((n) => ({ id: n.id, title: n.title, type: n.type }))}
+                openStoryId={selectedStoryId}
+                onOpenStory={openStory}
+              />
+            )}
             {(gnodes.length > 0 || pending.length > 0) && (
               <CanvasSettings
                 timelineId={timelineId}
@@ -1117,16 +1167,17 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 onPreviewTheme={setPreviewTheme}
               />
             )}
-            {/* Sharing (public link + export) + account live at the far right of the bar. */}
+            {/* Sharing (public link + export); the account menu is appended by
+                CanvasLayout, so it stays rightmost. */}
             <ShareDialog
               timelineId={timelineId}
               graph={{ title, nodes: gnodes, edges: gedges }}
               isOwner={isOwner}
               isPublic={isPublic}
             />
-            <ProfileMenu />
-          </div>
-        </div>
+          </>
+        }
+      >
         {/* The lens-bar is build-stream chrome only; while a story plays the
             docked reader carries its own transport, so no bar up top. */}
         {lensView === 'timeline' && lensSize > 0 && !reading && (
@@ -1217,7 +1268,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             </Panel>
           )}
         </ReactFlow>
-        ) : lensView === 'globe' ? (
+        ) : (
           <Suspense fallback={<div className="canvas-loading">Loading globe…</div>}>
             <GlobeLens
               nodes={gnodes}
@@ -1242,15 +1293,6 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
               }
             />
           </Suspense>
-        ) : (
-          <StoriesView
-            timelineId={timelineId}
-            storyVersion={storyVersion ?? ''}
-            canCreate={isOwner}
-            nodes={gnodes.map((n) => ({ id: n.id, title: n.title, type: n.type }))}
-            openStoryId={selectedStoryId}
-            onOpenStory={openStory}
-          />
         )}
         {displayNode ? (
           <NodeDetailPanel
@@ -1300,15 +1342,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             autoPlay={autoPlayStories}
             onAutoPlayChange={setAutoPlayStories}
             onClose={closeReader}
-            // Play raises the timeline as the story's stage — but only from the
-            // Stories list. A story opened on the timeline stays there; one opened on
-            // the globe keeps the globe as its stage (GS1 story mode).
-            onStart={() => {
-              if (lensView === 'stories') setLensView('timeline')
-            }}
+            // A story plays on whichever lens is up: opened on the timeline it stays
+            // there; opened on the globe the globe is its stage (GS1 story mode).
             onSelectNode={selectNode}
             onBeatChange={setActiveBeat}
             canShare={isOwner}
+            // Run straight away (skip the cover) for panel/card opens + home Play;
+            // a bare ?story deep-link (Continue writing) lands on the cover.
+            autoStart={readerAutoStart}
             width={panelW.story}
             onResize={resizeStory}
             onCommitResize={commitPanelW}
@@ -1316,7 +1357,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         ) : null}
         {/* Fill-this-gap prompt, opened by a dashed gap-invitation ghost (Tier 2). */}
         <PromptDialog open={!!gapSpec} onOpenChange={(o) => { if (!o) setGapSpec(null) }} spec={gapSpec} />
-      </div>
+      </CanvasLayout>
     </ReactFlowProvider>
   )
 }

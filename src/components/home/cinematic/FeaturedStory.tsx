@@ -3,6 +3,7 @@ import { BookOpen, ChevronLeft, ChevronRight, Pencil, Play, Share2 } from 'lucid
 import type { HomeStoryCard } from '~/lib/domain/types'
 import { useStoryActions } from './useStoryActions'
 import { StoryIntroDialog } from './StoryIntroDialog'
+import { hueFromString } from './hue'
 
 const MAX_CAST = 4
 
@@ -60,6 +61,7 @@ export function FeaturedStory({
           data-wash={cover ? undefined : true}
           onClick={() => setIntroOpen(true)}
           aria-label={`Open “${story.title}”`}
+          style={cover ? undefined : ({ '--cover-hue': hueFromString(story.storyId) } as React.CSSProperties)}
         >
           {cover ? (
             <img key={cover.url} src={cover.url} alt={cover.alt ?? ''} />

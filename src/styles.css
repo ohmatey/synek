@@ -142,6 +142,15 @@ body {
   height: 100%;
 }
 
+/* In-app story playback swaps the canvas to the story's theme; fade the wash
+   between looks as a story opens/closes (per-element accents snap). Both lenses
+   paint --xy-background-color, so the swap interpolates here. The global
+   prefers-reduced-motion rule above already neutralizes this transition. */
+.react-flow,
+.globe-lens {
+  transition: background-color 280ms ease;
+}
+
 /* ── Per-timeline theme (resolveTimelineTheme → inline vars on .canvas-root) ──
    The display font reaches node titles + panel/story titles only; body text
    keeps the system stack for readability. No --font-display set → inherit,
@@ -842,19 +851,10 @@ body {
   color: var(--primary-foreground, #fff);
 }
 
-/* ── Stories lens: the browsable list + empty state (StoriesView.tsx) ─────────
-   A sibling of the timeline + globe surfaces — fills the canvas pane (under the
-   top-bar z8, beside the docked reader z6) and scrolls. The list is a centered
-   reading column so it stays comfortable even when the reader docks on the right. */
-.stories-view {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  overflow-y: auto;
-  /* Clear the top bar + the centered view switcher (top:12, h:32). */
-  padding: 72px 24px 28px;
-  background: var(--xy-background-color, var(--color-bg-base));
-}
+/* ── Stories list + cards (StoriesMenu.tsx popover) ──────────────────────────
+   The story cards (.story-list-card + .story-card-*) and empty-state atoms below
+   are shared by the toolbar Stories popover panel; the .stories-menu-* wrappers
+   that host them live further down. */
 .stories-header {
   display: flex;
   align-items: center;
@@ -1062,6 +1062,42 @@ body {
 }
 .stories-empty-cta:hover {
   filter: brightness(1.06);
+}
+
+/* ── Stories panel: the toolbar popover that lists this timeline's stories
+   (StoriesMenu.tsx) — reuses the .story-list-card markup in a compact dock. */
+.stories-menu {
+  width: 360px;
+}
+.stories-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border-default);
+}
+.stories-menu-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-fg-primary);
+}
+.stories-menu-body {
+  max-height: min(60vh, 440px);
+  overflow-y: auto;
+  padding: 8px;
+}
+.stories-menu-body .stories-list {
+  max-width: none;
+  margin: 0;
+}
+.stories-menu-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 18px;
+  text-align: center;
 }
 @media (prefers-reduced-motion: reduce) {
   .story-list-card.is-skeleton {
@@ -3817,6 +3853,20 @@ body {
 }
 .public-story-missing p {
   color: color-mix(in oklab, var(--color-fg-primary) 64%, transparent);
+  max-width: 30rem;
+  line-height: 1.6;
+}
+.public-story-missing .psm-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 32rem;
+}
+.public-story-missing .psm-icon {
+  width: 38px;
+  height: 38px;
+  color: color-mix(in oklab, var(--color-fg-primary) 36%, transparent);
 }
 
 .psr {
@@ -4426,6 +4476,164 @@ body {
   outline-offset: 2px;
 }
 
+/* ── Home shell: left project sidebar + content (Option A app shell) ───────────
+   Projects are the top-level container, so they get a persistent left nav rather
+   than a chip-filter rail. The content column keeps its own centered max-width.
+   Collapses to a horizontal strip on narrow viewports. */
+.ch-shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  align-items: start;
+}
+.ch-sidebar {
+  position: sticky;
+  top: 64px; /* below the 64px AppHeader */
+  height: calc(100dvh - 64px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 20px 12px;
+  overflow-y: auto;
+  border-right: 1px solid color-mix(in oklab, var(--color-border-default) 55%, transparent);
+}
+.ch-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ch-sidebar-label {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+.ch-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ch-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-fg-secondary, var(--color-fg-muted));
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+.ch-nav-item:hover {
+  color: var(--color-fg-primary);
+  background: color-mix(in oklab, var(--color-fg-primary) 6%, transparent);
+}
+.ch-nav-item:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+.ch-nav-item[aria-current='page'] {
+  color: var(--color-chip-active-fg);
+  /* Softer than the chip tint — a full-width row reads heavy with a saturated fill.
+     A subtle accent wash + an inset left bar gives a calm "you are here". */
+  background: color-mix(in oklab, var(--color-accent-primary) 11%, transparent);
+  box-shadow: inset 2.5px 0 0 var(--color-accent-primary);
+}
+.ch-nav-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+.ch-nav-dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  margin: 0 3.5px;
+  border-radius: 3px;
+  background: hsl(var(--dot-hue, 220) 58% 55%);
+}
+.ch-nav-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ch-nav-add {
+  color: var(--color-fg-muted);
+}
+.ch-sidebar-foot {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in oklab, var(--color-border-default) 50%, transparent);
+}
+
+/* Narrow viewports: the sidebar becomes a horizontal scroll strip above content. */
+@media (max-width: 860px) {
+  .ch-shell {
+    grid-template-columns: 1fr;
+  }
+  .ch-sidebar {
+    position: sticky;
+    top: 64px;
+    z-index: 20;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    border-right: none;
+    border-bottom: 1px solid color-mix(in oklab, var(--color-border-default) 55%, transparent);
+    background: color-mix(in oklab, var(--color-bg-base) 82%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .ch-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+  .ch-sidebar-nav {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+  .ch-sidebar-label {
+    display: none;
+  }
+  .ch-sidebar-list {
+    flex-direction: row;
+    gap: 6px;
+  }
+  .ch-nav-item {
+    flex-shrink: 0;
+    width: auto;
+    border: 1px solid color-mix(in oklab, var(--color-border-default) 70%, transparent);
+    border-radius: 999px;
+    padding: 6px 13px;
+    font-size: 13px;
+  }
+  .ch-nav-item[aria-current='page'] {
+    border-color: color-mix(in oklab, var(--color-accent-primary) 60%, transparent);
+    box-shadow: none; /* the inset left bar doesn't fit the pill shape */
+  }
+  .ch-sidebar-foot {
+    margin-top: 0;
+    margin-left: 2px;
+    padding-top: 0;
+    border-top: none;
+  }
+}
+
 /* ── Hero — featured story poster (Wren §4) ───────────────────────────────── */
 .ch-hero {
   position: relative;
@@ -4655,6 +4863,16 @@ body {
 .ch-secondary svg {
   width: 15px;
   height: 15px;
+}
+
+/* Project page hero — the project's identity when ENTERED (reuses .ch-hero wash). */
+.ch-project-eyebrow {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
 }
 
 /* ── Content rows — the carousels (Wren §5) ───────────────────────────────── */
@@ -5068,10 +5286,19 @@ body {
   object-fit: cover;
   display: block;
 }
-.ch-featured-poster[data-wash] {
+/* Generated cover for an image-less story — a per-story hue gradient (so each empty
+   cover is distinct + on-brand) instead of one flat box. Shared by the featured
+   poster and the story-card cover via `[data-wash]` + the `--cover-hue` custom prop. */
+.ch-featured-poster[data-wash],
+.ch-card-cover[data-wash] {
   background:
-    radial-gradient(120% 90% at 80% 0%, color-mix(in oklab, var(--color-accent-story) 28%, transparent) 0%, transparent 60%),
-    linear-gradient(135deg, color-mix(in oklab, var(--color-accent-story) 16%, var(--color-bg-surface)) 0%, var(--color-bg-surface) 80%);
+    radial-gradient(125% 110% at 78% 6%, hsl(var(--cover-hue, 28) 66% 55% / 0.5) 0%, transparent 58%),
+    linear-gradient(150deg, hsl(var(--cover-hue, 28) 48% 40% / 0.46) 0%, color-mix(in oklab, var(--color-bg-surface) 88%, transparent) 80%);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-fg-primary) 5%, transparent);
+}
+.ch-featured-poster[data-wash] .ch-featured-poster-fallback,
+.ch-card-cover[data-wash] .ch-card-cover-fallback {
+  color: hsl(var(--cover-hue, 28) 58% 62%);
 }
 .ch-featured-poster-fallback {
   display: grid;
@@ -5081,8 +5308,9 @@ body {
   color: color-mix(in oklab, var(--color-accent-story) 70%, transparent);
 }
 .ch-featured-poster-fallback svg {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  opacity: 0.9;
 }
 .ch-featured-poster:focus-visible {
   outline: 2px solid var(--color-accent-primary);

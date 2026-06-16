@@ -9,6 +9,8 @@ import {
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { PromptActions } from '~/components/PromptActions'
+import { DepthControl } from '~/components/PromptKnobs'
+import { depthDirective, type Depth } from '~/lib/prompt-knobs'
 import { capture, type ClientEvent } from '~/lib/posthog/client'
 
 export type PromptParam = { label: string; value: string }
@@ -50,12 +52,17 @@ const DEFAULT_CONTEXT_PLACEHOLDER =
   'Anything specific you want Claude to focus on or include — talk to it like you would in chat…'
 const DEFAULT_CONTEXT_HEADING = 'Additional direction from the user:'
 
-// Combine the base prompt with the user's typed context, the way a chat message
-// rides on top of a system prompt.
-export function composePrompt(spec: PromptSpec, context: string): string {
+// Combine the base prompt with the active depth knob and the user's typed context,
+// the way a chat message rides on top of a system prompt. Depth is appended before
+// the context so the user's words still get the last say. 'standard' (or no depth)
+// appends nothing, so existing prompts stay byte-identical.
+export function composePrompt(spec: PromptSpec, context: string, depth?: Depth): string {
+  let out = spec.prompt
+  const d = depth ? depthDirective(depth) : null
+  if (d) out += `\n\n${d}`
   const extra = context.trim()
-  if (!extra) return spec.prompt
-  return `${spec.prompt}\n\n${spec.contextHeading ?? DEFAULT_CONTEXT_HEADING}\n${extra}`
+  if (extra) out += `\n\n${spec.contextHeading ?? DEFAULT_CONTEXT_HEADING}\n${extra}`
+  return out
 }
 
 // A shared dialog that displays a PromptSpec and lets the user append context.
@@ -74,12 +81,16 @@ export function PromptDialog({
   spec: PromptSpec | null
 }) {
   const [context, setContext] = useState('')
-  // Reset the context field each time the dialog opens for a fresh prompt.
+  const [depth, setDepth] = useState<Depth>('standard')
+  // Reset the context + depth each time the dialog opens for a fresh prompt.
   useEffect(() => {
-    if (open) setContext('')
+    if (open) {
+      setContext('')
+      setDepth('standard')
+    }
   }, [open])
 
-  const fullPrompt = spec ? composePrompt(spec, context) : ''
+  const fullPrompt = spec ? composePrompt(spec, context, depth) : ''
   const hasContext = context.trim().length > 0
 
   return (
@@ -129,6 +140,8 @@ export function PromptDialog({
                   : 'Optional — add a question or focus, like talking to a chat assistant.'}
               </p>
             </div>
+
+            <DepthControl value={depth} onChange={setDepth} />
 
             <PromptActions
               prompt={fullPrompt}

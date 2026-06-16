@@ -243,6 +243,15 @@ export type StoryStatus = (typeof STORY_STATUS)[number]
 export const SEGMENT_KINDS = ['narration', 'dialogue', 'sensory', 'interior'] as const
 export type SegmentKind = (typeof SEGMENT_KINDS)[number]
 
+// Which canvas surface a beat plays on while a story reads — the author's camera
+// choreography. `globe` pulls the orthographic globe up and frames the beat's place;
+// `timeline` keeps the horizontal time axis. Null = auto: the reader derives it from
+// whether the beat's focus node is located (lat/lng → globe, else timeline). Driving
+// this per beat makes a story switch surfaces as it tells — a place beat on the globe,
+// a time/idea beat on the timeline — for a fully immersive read.
+export const STORY_LENSES = ['globe', 'timeline'] as const
+export type StoryLens = (typeof STORY_LENSES)[number]
+
 // A citation shown on a story beat. Either an unregistered one-off (just the
 // CanvasCitation fields — single-home in story_segments.citations) or projected
 // from a registered artifact (carries `artifactId` + the artifact metadata the
@@ -293,6 +302,10 @@ export type StoryBeat = {
   // The entity this beat spotlights (a node id), or null to stay on the moment.
   // While reading, the canvas pans + rings it and the detail panel switches to it.
   focusNodeId: string | null
+  // The canvas surface this beat plays on (globe / timeline), or null = auto (derive
+  // from the focus node's location). Lets a story switch surfaces beat-to-beat for an
+  // immersive read. See StoryLens.
+  lens: StoryLens | null
   // Real sources backing this beat — inline one-offs and/or artifact-backed
   // citations, merged for display (ADR 0001, Decision 8).
   citations: StoryBeatCitation[]
@@ -309,6 +322,9 @@ export type StoryDTO = {
   id: string
   // URL-safe public handle (unique). Backs the sharable /s/$slug page.
   slug: string
+  // Per-story public visibility — independent of the timeline. The /s/$slug page
+  // gates on this; the in-app reader + Share dialog reflect it. false = private.
+  isPublic: boolean
   // The moment (node id) this story is anchored to. The reader uses it as the
   // story's camera/title anchor, so playback is decoupled from canvas selection
   // (a story runs by itself; opening an entity is a separate, explicit gesture).
@@ -323,6 +339,10 @@ export type StoryDTO = {
   // The story's cast — node-backed members are clickable; name-only members
   // exist in prose but have no node yet.
   cast: StoryCastMember[]
+  // The story's OWN theme, or null to inherit. The renderer resolves the chain
+  // story.theme ?? timeline.theme ?? project.theme; this is the raw story row so
+  // the editor can "read the current theme to tweak it".
+  theme: TimelineTheme | null
   beats: StoryBeat[]
 }
 
@@ -378,7 +398,8 @@ export type ProjectSummary = {
 // featured-selection + "Your stories" sort key). Sorted newest-`updatedAt`-first.
 export type HomeStoryCard = StoryListItem & {
   // The timeline this story is anchored to (its moment's timeline). The card
-  // navigates here for Play (?story=) and Continue writing (?view=stories&story=).
+  // navigates here for Play (?story=&autoplay) and Continue writing (?story=) — both
+  // open the docked reader via the canvas's ?story → reader bridge.
   timelineId: string
   // The owner-saved title of the parent timeline — the hero eyebrow's TIMELINE half.
   timelineTitle: string
@@ -410,4 +431,7 @@ export type StoryListItem = {
   beatCount: number
   // Cover art for the story card in the Stories view (null = text-only card).
   coverImage: StoryImage | null
+  // Per-story public visibility — lets the Share dialog show + toggle each story's
+  // own public state, independent of the timeline's.
+  isPublic: boolean
 }

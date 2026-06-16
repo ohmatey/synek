@@ -104,10 +104,21 @@ Many topics are really **several parallel tracks racing along the same time axis
 - **Dates carry the truth.** Use the real (even fuzzy) historical date and the honest `precision`. BCE works (`"49 BCE"`). Don't fabricate day-precision when you only know the year.
 - **Cite freely.** The user values primary-source grounding — it's the product's whole point. Attach `citations` (`title`, optional `url`, optional `quote`) wherever you can, especially primary sources. Better a known book title with no URL than nothing.
 
+## Stories — narrate a moment with `write_story`
+
+Once the graph is rich, a moment (any node) can carry a **story**: an ordered list of beats the canvas plays back in a docked reader. Use the `write_story` tool — pass the node id as `momentId`, a `title` + `hook`, a `cast` (materialize key characters as entity nodes first, then list them), an optional `coverImage`, and `beats`. Omit `storyId` to create; pass an existing one to rewrite in place. Clicking Play runs it straight away (no cover step).
+
+**Make stories immersive — choreograph the camera across the globe and the timeline.** As the reader steps, the canvas surface follows each beat:
+
+- **`focusNodeId`** spotlights one node per beat: the camera pans + rings it.
+- **`lens`** (`"globe"` | `"timeline"`) picks the *surface* that beat plays on. Omit it for **auto**: a beat whose focus node is **located** (has lat/lng) opens on the **globe** (framing its place); a beat with no located focus stays on the **timeline**.
+- So a story that alternates a **place beat** ("In Florence, Leonardo…", focus a located node) with a **time/idea beat** ("the long wait…", a concept or `lens: "timeline"`) literally **switches between the globe and the timeline as it tells** — the most immersive read. Set `lens` explicitly when you want to override the auto rule (e.g. keep a time-themed beat on the timeline even though its focus is a located person).
+
+Give grounded beats `citations` (same shape as a node's), an `image` where a real artwork exists, and an optional live `widget` (mini timeline/globe/entity) for the sharable public reader.
+
 ## What you cannot do here (so don't promise it)
 
-- **No image/portrait attachment via MCP.** `add_node` accepts `citations`, `subtype`, `lane` only — there is no image/url field. Portraits and uploads are added by the user in the canvas's detail panel. Set `subtype: "person"` so the card is *ready* for a portrait; don't claim you attached one.
-- **Stories** (narrated moments) are not exposed as MCP tools yet — build the timeline graph, not story prose.
+- **No image/portrait attachment via MCP on NODES.** `add_node` accepts `citations`, `subtype`, `lane` only — there is no image/url field. Portraits and uploads are added by the user in the canvas's detail panel. (Story `coverImage`/beat `image` DO take a real image URL — see `write_story`.) Set `subtype: "person"` so the card is *ready* for a portrait; don't claim you attached a node portrait.
 
 ## Always hand back the canvas
 

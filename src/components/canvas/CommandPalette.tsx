@@ -126,7 +126,7 @@ export function CommandPalette({
     wasOpen.current = open
   }, [open])
 
-  // ⌘K / Ctrl-K toggles the palette — mirrors HistoryControls' window-keydown
+  // ⌘K / Ctrl-K toggles the palette — mirrors HistoryShortcuts' window-keydown
   // idiom. No input guard on purpose: ⌘K is modifier-invoked, so (unlike a bare
   // single-key shortcut) it's always a deliberate reach for search, even from a
   // text field — the convention every command palette follows.

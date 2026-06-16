@@ -17,6 +17,8 @@ import { createTimeline } from '~/lib/server/timelines'
 import { buildTimelinePrompt } from '~/lib/timeline-prompt'
 import { capture } from '~/lib/posthog/client'
 import { PromptActions } from '~/components/PromptActions'
+import { DepthControl } from '~/components/PromptKnobs'
+import { depthDirective, type Depth } from '~/lib/prompt-knobs'
 
 // "New timeline" surface for the workspace home. The app holds no AI, so creating a
 // timeline is two beats: (1) name it — we create the empty timeline immediately —
@@ -39,6 +41,7 @@ export function NewTimelineDialog({
   const navigate = useNavigate()
   const [title, setTitle] = useState('')
   const [topic, setTopic] = useState('')
+  const [depth, setDepth] = useState<Depth>('standard')
   const [busy, setBusy] = useState(false)
   // Once created we flip to the "copy a prompt" step, holding the new id + title.
   const [created, setCreated] = useState<{ id: string; title: string } | null>(null)
@@ -48,6 +51,7 @@ export function NewTimelineDialog({
     if (!open) return
     setTitle('')
     setTopic('')
+    setDepth('standard')
     setBusy(false)
     setCreated(null)
   }, [open])
@@ -71,8 +75,10 @@ export function NewTimelineDialog({
     void navigate({ to: '/timelines/$id', params: { id } })
   }
 
+  const depthClause = depthDirective(depth)
   const prompt = created
-    ? buildTimelinePrompt({ timelineId: created.id, title: created.title, topic })
+    ? buildTimelinePrompt({ timelineId: created.id, title: created.title, topic }) +
+      (depthClause ? `\n\n${depthClause}` : '')
     : ''
 
   return (
@@ -138,6 +144,8 @@ export function NewTimelineDialog({
             <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground">
               {prompt}
             </pre>
+
+            <DepthControl value={depth} onChange={setDepth} />
 
             <PromptActions
               prompt={prompt}

@@ -124,11 +124,14 @@ async function openZenoStory(page: Page) {
 }
 
 test('a story plays on the globe: the reader takes the transport and the beat is framed', async ({ page }) => {
+  // The story now runs straight away (autostart); reduced motion holds it on beat 1
+  // (Zeno) so the framing assertion isn't racing the auto-advance timer.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/timelines/stoicism')
   await openZenoStory(page)
 
-  // Switch to the globe — the open reader keeps the transport and the globe enters
-  // story mode (GS1), framing the story's moment (Zeno). Its own Play gives way.
+  // The story's first beat focuses Zeno (a located beat) → the immersive reader is
+  // already on the globe in story mode (GS1); clicking Globe is a no-op confirmation.
   await page.getByRole('radio', { name: 'Globe' }).click()
   const scrubber = page.locator('.globe-scrubber[data-story="true"]')
   await expect(scrubber).toBeVisible()

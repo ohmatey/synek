@@ -21,6 +21,7 @@ import {
   DEPTH_TIERS,
   STORY_STATUS,
   SEGMENT_KINDS,
+  STORY_LENSES,
   CITATION_SOURCE_TYPES,
   SOURCE_TYPES,
   ARTIFACT_TYPES,
@@ -369,7 +370,19 @@ export const stories = sqliteTable('stories', {
   // name-only members ({ name }) exist in prose but have no node yet — the MCP
   // write_story tool warns about those so the client can materialize them.
   cast: text('cast', { mode: 'json' }).$type<StoryCastMember[]>(),
+  // The story's OWN visual theme (same TimelineTheme shape as timelines.theme).
+  // Independent of the timeline's — resolved at READ time as a fallback chain
+  // (story.theme ?? timeline.theme ?? project.theme ?? defaults), so a story can
+  // carry its own look or inherit the timeline's. Replace-on-write, null clears,
+  // NOT on the Patch stack — set via the set_story_theme tool / setStoryTheme RPC.
+  theme: text('theme', { mode: 'json' }).$type<TimelineTheme>(),
   status: text('status', { enum: STORY_STATUS }).notNull().default('draft'),
+  // Per-story PUBLIC visibility — INDEPENDENT of timelines.isPublic. The /s/$slug
+  // page gates on THIS, so sharing one story never exposes its whole timeline, and
+  // making the timeline private never breaks an already-shared story link. Default
+  // private; flipped by setStoryShared / the reader's Share control. Only the nodes
+  // a story references ship to the public page (no full-graph leak).
+  isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
   language: text('language').notNull().default('en'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
@@ -391,6 +404,10 @@ export const storySegments = sqliteTable('story_segments', {
   // Soft ref (a node id on the same timeline), no FK — like relatedNodeIds; the UI
   // falls back to the moment when it's null or dangling.
   focusNodeId: text('focus_node_id'),
+  // The canvas surface this beat plays on while reading — 'globe' | 'timeline', or
+  // null = auto (derive from the focus node's location). Lets a story switch surfaces
+  // beat-to-beat for an immersive read. See StoryLens.
+  lens: text('lens', { enum: STORY_LENSES }),
   // S2 slice 1 — per-beat source grounding. Same shape as a node's
   // `metadata.citations` (Citation), stored inline as JSON (no join table yet —
   // see .can/prd/s2-artifact-grounding.md for the deferred normalized model).

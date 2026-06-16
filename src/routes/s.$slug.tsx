@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { BookOpenText, Sparkles } from 'lucide-react'
 import { useTheme } from '@synek/ui'
 import { getPublicStory } from '~/lib/server/stories'
 import { PublicStoryReader } from '~/components/public/PublicStoryReader'
@@ -8,8 +9,9 @@ import { resolveThemeVars } from '~/lib/theme/resolveTimelineTheme'
 // The PUBLIC, no-auth shareable story page (/s/$slug). SSR-loaded so the OpenGraph
 // tags below carry the story into link unfurls (ads, email, social) and crawlers,
 // and the cover renders without JS; the reels reader + widgets hydrate on the
-// client. Visibility is enforced server-side in getPublicStory (timeline must be
-// public) — a private or missing story returns null and renders a clean not-found.
+// client. Visibility is enforced server-side in getPublicStory (the STORY itself
+// must be public — per-story, independent of its timeline) — a private or missing
+// story returns null indistinguishably and renders one clean "not available" page.
 export const Route = createFileRoute('/s/$slug')({
   loader: async ({ params }) => getPublicStory({ data: params.slug }),
   head: ({ loaderData }) => {
@@ -51,11 +53,18 @@ function PublicStoryPage() {
   if (!data) {
     return (
       <div className="public-story-missing">
-        <h1>This story isn’t available</h1>
-        <p>It may be private, or the link may be wrong.</p>
-        <Link to="/" className="psr-cta">
-          Explore Synek
-        </Link>
+        <div className="psm-card">
+          <BookOpenText className="psm-icon" aria-hidden />
+          <h1>This story isn’t available</h1>
+          <p>
+            The link may be private, moved, or mistyped. Stories are shared one at a time — ask
+            whoever sent it to re-share, or start your own.
+          </p>
+          <Link to="/" className="psr-cta">
+            <Sparkles size={16} aria-hidden />
+            Make your own with Synek
+          </Link>
+        </div>
       </div>
     )
   }

@@ -1051,6 +1051,9 @@ const SEEDS: Seeder[] = [
             kind: 'narration',
             settingNote: 'Down House, Kent — a study lined with specimens',
             focusNodeId: darwin,
+            // Immersive choreography: a place beat opens on the globe (Down House,
+            // Kent), then the next drops to the timeline — see the alternating lenses.
+            lens: 'globe',
           },
           {
             bodyText:
@@ -1060,12 +1063,16 @@ const SEEDS: Seeder[] = [
             // panel beside the story switches to his card (per-beat focus).
             focusNodeId: newton,
             relatedNodeIds: [newton],
+            // An idea beat — keep the time axis (it's about a principle, not a place).
+            lens: 'timeline',
           },
           {
             bodyText:
               'For twenty years he hesitated — gathering evidence, breeding pigeons, dreading the reaction. Only when Alfred Russel Wallace mailed him the same theory did he finally publish, in 1859.',
             kind: 'narration',
             focusNodeId: darwin,
+            // Back to Down House — a place beat returns to the globe.
+            lens: 'globe',
             citations: [
               {
                 title: 'On the Origin of Species (1859)',
@@ -1079,6 +1086,8 @@ const SEEDS: Seeder[] = [
               'The idea outlived him. Decades later, a young physicist named Einstein would reshape another fixed certainty — time itself — showing how completely the modern world had learned to question what once seemed eternal.',
             kind: 'narration',
             relatedNodeIds: [einstein],
+            // A beat about time itself closes on the timeline.
+            lens: 'timeline',
           },
         ],
       )

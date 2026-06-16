@@ -143,10 +143,10 @@ test('timeline view shows the bottom scroller and left zoom controls', async ({ 
 })
 
 // Owner chrome regression: the account menu floats at the FAR RIGHT of the top
-// bar, the share control sits just left of it, the MCP status is a bare dot (no
-// "MCP ready" label), and the old "Fit view" button is gone. Requires a session
-// (these controls are owner-gated), so log in as the demo owner first.
-test('owner canvas chrome: account far right, share to its left, mcp dot, no fit button', async ({ page }) => {
+// bar, the share control sits just left of it, and the old "Fit view" button is
+// gone. The MCP status dot and the undo/redo buttons were removed from the toolbar.
+// Requires a session (these controls are owner-gated), so log in as the demo owner first.
+test('owner canvas chrome: account far right, share to its left, no mcp dot, no undo/redo, no fit button', async ({ page }) => {
   await page.goto('/login')
   await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
@@ -157,11 +157,14 @@ test('owner canvas chrome: account far right, share to its left, mcp dot, no fit
 
   await page.goto('/timelines/figures')
 
-  // MCP status is now a labelless dot; the server is up → ready.
-  const status = page.getByTestId('mcp-status')
-  await expect(status).toBeVisible()
-  await expect(status).toHaveAttribute('data-status', 'ready')
-  await expect(page.getByText('MCP ready')).toHaveCount(0)
+  // Wait for the owner toolbar to be present (Share is owner-gated).
+  await expect(page.getByRole('button', { name: 'Share' })).toBeVisible()
+
+  // The MCP status dot was removed from the toolbar.
+  await expect(page.getByTestId('mcp-status')).toHaveCount(0)
+  // The undo/redo buttons were removed (⌘Z / ⌘⇧Z still work via a headless binding).
+  await expect(page.locator('.top-bar').getByRole('button', { name: /Undo/ })).toHaveCount(0)
+  await expect(page.locator('.top-bar').getByRole('button', { name: 'Redo' })).toHaveCount(0)
 
   // The custom top-bar "Fit view" button was removed (React Flow's own zoom
   // controls — bottom-left — keep their fit-view button; scope to the top bar).

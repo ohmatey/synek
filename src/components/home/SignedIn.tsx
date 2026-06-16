@@ -14,7 +14,8 @@ import {
   CinematicHero,
   FeaturedStory,
   HomeContentRow,
-  ProjectRail,
+  HomeSidebar,
+  ProjectHero,
   StoryCard,
   TimelineCard,
 } from './cinematic'
@@ -76,35 +77,44 @@ export function SignedIn() {
 
   // The all-scope hero: a full new-creator empty when the account is bare, a
   // "write your first story" nudge when there are timelines but no stories, else
-  // the featured-story unit. The project view never shows a hero.
+  // the featured-story unit. A project that's been ENTERED gets its own ProjectHero.
   const trulyNew = !filtered && !hasTimelines && !hasStories
   const nudgeStory = !filtered && hasTimelines && !hasStories
 
   return (
-    <div className="ch-home">
-      <ProjectRail projects={projects} activeProjectId={activeProjectId} />
+    <div className="ch-shell">
+      <HomeSidebar projects={projects} activeProjectId={activeProjectId} onOpenBrands={() => setBrandsOpen(true)} />
 
-      {loading ? (
-        <div className="ch-featured-skeleton" aria-hidden="true" />
-      ) : trulyNew ? (
-        <CinematicHero
-          variant="new-creator"
-          projectName={null}
-          hasApiKey={hasApiKey}
-          onNewTimeline={openNewTimeline}
-        />
-      ) : nudgeStory ? (
-        <CinematicHero
-          variant="no-stories"
-          projectName={null}
-          hasApiKey={hasApiKey}
-          onNewTimeline={openNewTimeline}
-          firstTimeline={timelines[0] ?? null}
-          timelineCount={timelines.length}
-        />
-      ) : !filtered && hasStories ? (
-        <FeaturedStory stories={stories} projectName={activeProjectName} projectId={activeProjectId} />
-      ) : null}
+      <div className="ch-home">
+        {loading ? (
+          <div className="ch-featured-skeleton" aria-hidden="true" />
+        ) : filtered && activeProject ? (
+          <ProjectHero
+            project={activeProject}
+            timelineCount={timelines.length}
+            storyCount={stories.length}
+            firstTimeline={timelines[0] ?? null}
+            onNewTimeline={openNewTimeline}
+          />
+        ) : trulyNew ? (
+          <CinematicHero
+            variant="new-creator"
+            projectName={null}
+            hasApiKey={hasApiKey}
+            onNewTimeline={openNewTimeline}
+          />
+        ) : nudgeStory ? (
+          <CinematicHero
+            variant="no-stories"
+            projectName={null}
+            hasApiKey={hasApiKey}
+            onNewTimeline={openNewTimeline}
+            firstTimeline={timelines[0] ?? null}
+            timelineCount={timelines.length}
+          />
+        ) : hasStories ? (
+          <FeaturedStory stories={stories} projectName={activeProjectName} projectId={activeProjectId} />
+        ) : null}
 
       {/* Rows. All-scope: only groups that have content (+ brand kits when any).
           Project view: every group, with an empty state (ask #8). */}
@@ -176,13 +186,14 @@ export function SignedIn() {
           )}
         </div>
       )}
+      </div>
 
       <NewTimelineDialog
         open={newTimelineOpen}
         onOpenChange={setNewTimelineOpen}
         projectId={activeProjectId ?? undefined}
       />
-      {/* Row-level "New brand kit" + empty-state manager (cards open their own). */}
+      {/* Sidebar + row "New brand kit" + empty-state manager (cards open their own). */}
       <BrandManagerDialog open={brandsOpen} onOpenChange={setBrandsOpen} linkProject={linkProject} />
     </div>
   )

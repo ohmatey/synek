@@ -29,7 +29,9 @@ export function useStoryActions(story: HomeStoryCard, projectId: string | null, 
     void navigate({
       to: '/timelines/$id',
       params: { id: story.timelineId },
-      search: { view: 'stories', story: story.storyId },
+      // Open the story in the docked reader (no autoplay — land on the cover, ready
+      // to read/continue). The canvas bridges ?story → the reader.
+      search: { story: story.storyId },
     })
   }
 

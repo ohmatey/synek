@@ -17,6 +17,7 @@ const SEED_IDS = ['stoicism', 'observability', 'deep-learning', 'space-race', 'r
 const MIN_STORY_SPREAD = 3 // distinct located beat foci required in at least one story
 
 let failures = 0
+let immersiveSeen = 0
 for (const id of SEED_IDS) {
   const rows = db.select().from(nodes).where(eq(nodes.timelineId, id)).all()
   // Hoist lat/lng/geoScope/location out of the metadata JSON, the shape globeCoverage
@@ -35,6 +36,10 @@ for (const id of SEED_IDS) {
     : []
   let bestSpread = 0
   let bestStory = ''
+  // An IMMERSIVE story switches surfaces as it reads — at least one globe beat AND one
+  // timeline beat. Per beat the stage is its explicit `lens`, else derived from whether
+  // its focus node is located (the same rule the reader's immersive effect uses).
+  let immersiveStory = ''
   for (const s of tlStories) {
     const segs = db.select().from(storySegments).where(eq(storySegments.storyId, s.id)).all()
     const distinct = new Set(
@@ -44,7 +49,12 @@ for (const id of SEED_IDS) {
       bestSpread = distinct.size
       bestStory = s.title
     }
+    const stages = new Set(
+      segs.map((g) => g.lens ?? (g.focusNodeId && locatedIds.has(g.focusNodeId) ? 'globe' : 'timeline')),
+    )
+    if (stages.has('globe') && stages.has('timeline')) immersiveStory ||= s.title
   }
+  if (immersiveStory) immersiveSeen++
 
   const ok = cov.sufficient && tlStories.length >= 1 && bestSpread >= MIN_STORY_SPREAD
   if (!ok) failures++
@@ -52,12 +62,21 @@ for (const id of SEED_IDS) {
     `${ok ? '✓' : '✗'} ${id.padEnd(16)} ` +
       `globe ${cov.located}/${cov.total - cov.placeless} located (${cov.coveragePct}%${cov.sufficient ? '' : ', BELOW GATE'}) · ` +
       `${tlStories.length} stor${tlStories.length === 1 ? 'y' : 'ies'} · ` +
-      `best story "${bestStory}" spans ${bestSpread} located place${bestSpread === 1 ? '' : 's'}`,
+      `best story "${bestStory}" spans ${bestSpread} located place${bestSpread === 1 ? '' : 's'}` +
+      (immersiveStory ? ` · immersive "${immersiveStory}" (globe↔timeline)` : ''),
   )
 }
 
+// At least one seed must demo the immersive globe↔timeline switch, so the capability
+// ships visible in the seeded canvas (and the reader effect stays regression-covered).
+if (immersiveSeen === 0) {
+  console.error('\n✗ No seed story switches between the globe and timeline — the immersive demo is missing.')
+  process.exit(1)
+}
 if (failures) {
   console.error(`\n✗ ${failures} seed timeline(s) are not demo-ready (globe gate + cross-globe story).`)
   process.exit(1)
 }
-console.log('\n✓ All seed timelines clear the globe gate and carry a cross-globe story.')
+console.log(
+  `\n✓ All seed timelines clear the globe gate and carry a cross-globe story; ${immersiveSeen} carr${immersiveSeen === 1 ? 'ies' : 'y'} an immersive globe↔timeline story.`,
+)

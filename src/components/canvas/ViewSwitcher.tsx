@@ -1,10 +1,10 @@
-import { BookOpen, CalendarClock, Globe } from 'lucide-react'
+import { CalendarClock, Globe } from 'lucide-react'
 import { cn } from '~/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { floatChip } from './chrome'
 import type { GlobeCoverage } from './globe-coverage'
 
-export type CanvasView = 'timeline' | 'globe' | 'stories'
+export type CanvasView = 'timeline' | 'globe'
 
 // The top-center lens toggle (docs/product/prd/globe-lens.md §Entry). ALWAYS rendered —
 // the Timeline | Globe control is a permanent fixture of the app bar, so the globe is
@@ -68,19 +68,8 @@ export function ViewSwitcher({
           </TooltipContent>
         </Tooltip>
       )}
-      {/* Stories lens — the narrative view. No coverage gate (the empty state IS
-          the UX), so it switches directly. Replaces the old AppBar Stories popover. */}
-      <button
-        type="button"
-        role="radio"
-        aria-checked={view === 'stories'}
-        data-active={view === 'stories' || undefined}
-        className="view-switch-btn"
-        onClick={() => onChange('stories')}
-      >
-        <BookOpen size={14} />
-        Stories
-      </button>
+      {/* Stories moved out of the lens switcher into a toolbar popover panel
+          (StoriesMenu) — the canvas no longer swaps to a full-pane Stories view. */}
     </div>
   )
 }

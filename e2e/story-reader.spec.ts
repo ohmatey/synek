@@ -56,12 +56,7 @@ test('Play opens the docked reader beside the panel and tapping through advances
   // It sits beside the entity panel, which stays on the canvas.
   await expect(page.getByRole('dialog', { name: 'Node details' })).toBeVisible()
 
-  // The reader opens on a cover — story title + hook — and Play starts the beats.
-  await expect(reader.getByRole('heading', { name: 'The long wait before Origin' })).toBeVisible()
-  await expect(reader.getByText('Two decades between the idea and the book.')).toBeVisible()
-  await reader.getByRole('button', { name: 'Play story' }).click()
-
-  // Beat 1 of 4: the opening beat text.
+  // "Play story" runs straight away — no cover step. Beat 1 of 4 is already showing.
   await expect(reader.getByText(/filled notebook after notebook/)).toBeVisible()
   await expect(reader.getByText('1 / 4')).toBeVisible()
 
@@ -110,20 +105,23 @@ test('selecting a moment does not start the story; Play opens the docked reader,
   await expect(page.getByRole('dialog', { name: 'Node details' })).toBeVisible()
 })
 
-test('the detail panel does NOT auto-follow the beat; the canvas rings the focus (decoupled)', async ({ page }) => {
+test('immersive: the story switches globe↔timeline per beat; the panel does NOT auto-follow (decoupled)', async ({
+  page,
+}) => {
   const panel = await openDarwinPanel(page)
   await panel.getByRole('button', { name: 'Play story' }).click()
   const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
   await expect(reader).toBeVisible()
-  // Start the beats from the cover.
-  await reader.getByRole('button', { name: 'Play story' }).click()
 
   const detail = page.getByRole('dialog', { name: 'Node details' })
   // The panel shows the entity the user opened (Darwin) and STAYS there.
   await expect(detail.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
 
-  // Beat 2 focuses Newton → the canvas rings him, but the panel does NOT switch
-  // (stories are decoupled from the entity panel; opening an entity is explicit).
+  // Beat 1 is a LOCATED beat (lens: globe) → the immersive reader opens on the globe.
+  await expect(page.getByTestId('globe-lens')).toBeVisible()
+
+  // Beat 2 is an idea beat (lens: timeline) → the canvas drops to the timeline and
+  // rings Newton, but the panel does NOT switch (decoupled; opening an entity is explicit).
   await reader.getByRole('button', { name: 'Next beat' }).click()
   await expect(reader.getByText('2 / 4')).toBeVisible()
   await expect(page.locator('.react-flow__node.rf-focused', { hasText: 'Isaac Newton' })).toBeVisible()
@@ -136,8 +134,6 @@ test('tapping a beat’s related link opens that entity beside the reader withou
   await panel.getByRole('button', { name: 'Play story' }).click()
   const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
   await expect(reader).toBeVisible()
-  // Start the beats from the cover.
-  await reader.getByRole('button', { name: 'Play story' }).click()
 
   // Beat 2 references Isaac Newton — stepping to it surfaces the link.
   await reader.getByRole('button', { name: 'Next beat' }).click()
@@ -166,9 +162,8 @@ test.describe('with motion enabled', () => {
 
     const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
     await expect(reader).toBeVisible()
-    // Start the beats from the cover. The first beat's timer is long; it must
+    // It runs straight away (no cover). The first beat's timer is long; it must
     // not flash-close.
-    await reader.getByRole('button', { name: 'Play story' }).click()
     await page.waitForTimeout(1200)
     await expect(reader).toBeVisible()
     await expect(reader.getByText('1 / 4')).toBeVisible()
@@ -183,7 +178,6 @@ test.describe('with motion enabled', () => {
     await panel.getByRole('button', { name: 'Play story' }).click()
     const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
     await expect(reader).toBeVisible()
-    await reader.getByRole('button', { name: 'Play story' }).click()
 
     // Auto-play is on by default → beat 1's progress segment animates (is-active).
     const seg1 = reader.locator('.sv-seg').nth(0).locator('.sv-seg-fill')

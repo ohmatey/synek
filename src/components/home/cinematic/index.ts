@@ -1,4 +1,5 @@
-export { ProjectRail } from './ProjectRail'
+export { HomeSidebar } from './HomeSidebar'
+export { ProjectHero } from './ProjectHero'
 export { CinematicHero } from './CinematicHero'
 export { FeaturedStory } from './FeaturedStory'
 export { HomeContentRow } from './HomeContentRow'

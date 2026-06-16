@@ -35,8 +35,10 @@ test('create a brand, edit a section, link it to a project', async ({ page }) =>
   const projectName = `Brand Project ${Date.now()}`
   await createProject(page, projectName)
 
-  // Open the brand manager from the rail.
-  await page.getByRole('button', { name: 'Brand kits' }).click()
+  // Open the brand manager from the "Brand kits" home row's "New brand kit" action
+  // (brand kits moved off the project rail into their own home row — the row renders
+  // here because a project is the active filter, so its empty state + action show).
+  await page.getByRole('button', { name: 'New brand kit' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByRole('heading', { name: 'Brand kits' })).toBeVisible()
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { Download, Globe, Link2, Loader2, Lock, Share2 } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { BookOpen, Download, Globe, Link2, Loader2, Lock, Share2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
@@ -15,8 +16,9 @@ import { cn } from '~/lib/utils'
 import { CopyButton } from '~/components/home/CopyButton'
 import { capture } from '~/lib/posthog/client'
 import { setTimelineVisibility } from '~/lib/server/timelines'
+import { listStories, setStoryShare } from '~/lib/server/stories'
 import { slugify, toJSON, toMarkdown, toSVG } from '~/lib/domain/export'
-import type { TimelineGraph } from '~/lib/domain/types'
+import type { StoryListItem, TimelineGraph } from '~/lib/domain/types'
 import { floatChip } from './chrome'
 
 function download(filename: string, content: string, mime: string) {
@@ -96,8 +98,20 @@ export function ShareDialog({
   const qc = useQueryClient()
   const [pub, setPub] = useState(isPublic)
   const [busy, setBusy] = useState(false)
+  // Which story's public link is currently being minted (per-row spinner).
+  const [storyBusy, setStoryBusy] = useState<string | null>(null)
 
   useEffect(() => setPub(isPublic), [isPublic])
+
+  // The timeline's stories, so an owner can publish any one as its own /s/$slug
+  // page right here (the share hub). Shares the ['stories', id] cache the canvas
+  // already populates, so it's usually a cache hit, not a new request.
+  const storiesQuery = useQuery({
+    queryKey: ['stories', timelineId],
+    queryFn: () => listStories({ data: timelineId }),
+    enabled: isOwner,
+  })
+  const stories = storiesQuery.data ?? []
 
   const hasNodes = graph.nodes.length > 0
   // Nothing to offer a public viewer of an empty timeline.
@@ -120,6 +134,44 @@ export function ShareDialog({
     } finally {
       setBusy(false)
     }
+  }
+
+  // Toggle ONE story's public visibility — per-story, INDEPENDENT of the timeline
+  // (it does not touch timeline sharing). Optimistic so the switch feels instant;
+  // on the publish edge we also copy the fresh /s/$slug link. Resyncs on error.
+  async function toggleStoryShare(storyId: string, next: boolean) {
+    if (storyBusy) return
+    setStoryBusy(storyId)
+    qc.setQueryData<StoryListItem[]>(['stories', timelineId], (prev) =>
+      prev?.map((s) => (s.storyId === storyId ? { ...s, isPublic: next } : s)),
+    )
+    try {
+      const res = await setStoryShare({ data: { storyId, isPublic: next } })
+      if ('error' in res) {
+        toast.error('Only the owner can change a story’s sharing.')
+        void qc.invalidateQueries({ queryKey: ['stories', timelineId] })
+        return
+      }
+      if (next) {
+        const url = `${window.location.origin}/s/${res.slug}`
+        await navigator.clipboard.writeText(url)
+        capture('story_shared', { story_id: storyId })
+        toast.success('Story is public — link copied', { description: url })
+      } else {
+        toast.success('Story is private again')
+      }
+    } catch {
+      toast.error('Couldn’t update sharing.')
+      void qc.invalidateQueries({ queryKey: ['stories', timelineId] })
+    } finally {
+      setStoryBusy(null)
+    }
+  }
+
+  function copyStoryLink(slug: string) {
+    const url = `${window.location.origin}/s/${slug}`
+    void navigator.clipboard.writeText(url)
+    toast.success('Public link copied', { description: url })
   }
 
   function runExport(format: FormatId) {
@@ -179,6 +231,55 @@ export function ShareDialog({
                 <CopyButton text={shareUrl} variant="outline" />
               </div>
             )}
+          </section>
+        )}
+
+        {isOwner && stories.length > 0 && <Separator />}
+
+        {isOwner && stories.length > 0 && (
+          <section className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <BookOpen className="size-4 text-muted-foreground" />
+              Share a story
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Publish a single story as its own public page — a focused mobile reader at{' '}
+              <code className="font-mono">/s/…</code>. Independent of the timeline above.
+            </p>
+            <div className="flex max-h-44 flex-col gap-1 overflow-auto">
+              {stories.map((s) => (
+                <div
+                  key={s.storyId}
+                  className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-sm"
+                >
+                  <span className="flex-1 truncate" title={s.title}>
+                    {s.title}
+                  </span>
+                  {s.isPublic && (
+                    <button
+                      type="button"
+                      onClick={() => copyStoryLink(s.slug)}
+                      className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      aria-label={`Copy public link for “${s.title}”`}
+                    >
+                      <Link2 className="size-3.5" />
+                      Copy link
+                    </button>
+                  )}
+                  {storyBusy === s.storyId ? (
+                    <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                  ) : (
+                    <input
+                      type="checkbox"
+                      checked={s.isPublic}
+                      onChange={() => void toggleStoryShare(s.storyId, !s.isPublic)}
+                      className="size-4 shrink-0 accent-primary"
+                      aria-label={s.isPublic ? `Unshare “${s.title}”` : `Share “${s.title}” publicly`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
           </section>
         )}
 

@@ -1,19 +1,40 @@
 ---
 project: "Synek"
 track: "Stories view (the narrative front door)"
-status: "built (2026-06-13)"
+status: "built (2026-06-13); revised to a toolbar panel + immersive playback (2026-06-16)"
 authors: ["Margot (product)", "Wren (UX)"]
-updated: 2026-06-13
+updated: 2026-06-16
 ---
 
-# Stories View — a first-class lens for reading
+# Stories View — a first-class surface for reading
 
-> **One-line promise:** a third tab beside Timeline and Globe that lists every story on
-> the timeline and plays it by itself, with the timeline (and later the globe) as its stage.
+> **One-line promise:** a place to list every story on the timeline and play it by itself,
+> with the timeline AND the globe as its stage — the story drives the camera.
 
-**Status:** built (this pass). Front-end + a one-column data add; no migration. Verified by
-`bun run typecheck` + `bun run build` + `e2e/stories-view.spec.ts` (plus the existing
-story-reader / canvas / globe specs as regression).
+**Status:** built. Verified by `bun run typecheck` + `bun run build` + `e2e/stories-view.spec.ts`
+(plus the story-reader / canvas / globe specs as regression).
+
+## Revision (2026-06-16) — Stories is a toolbar panel, playback is immersive
+
+Two founder-directed changes superseded the original "third lens tab" shape:
+
+1. **Stories moved out of the ViewSwitcher into its own toolbar popover panel**
+   (`StoriesMenu.tsx`). The canvas no longer swaps to a full-pane Stories *view*; the
+   panel lists the timeline's stories + a "New Story" action, and the timeline/globe
+   stays live behind it. (`?view=stories` is retired; a story opens via `?story=<id>`,
+   which the canvas bridges to the docked reader.)
+2. **Play runs straight away** — opening a story from the panel (or a node's "Play story",
+   or home Play) skips the cover and begins stepping immediately (`openStory` autostart;
+   a bare `?story=` deep-link like *Continue writing* still lands on the cover).
+3. **Immersive playback** — as the reader steps, the canvas **surface follows each beat**:
+   a per-beat `lens` (`globe`/`timeline`, `story_segments.lens`, migration 0022), else
+   auto-derived from whether the beat's focus node is located. So a story alternates a
+   place beat on the globe with a time/idea beat on the timeline. Authors choreograph this
+   via `write_story` (per-beat `lens` + `focusNodeId`); the seeded figures story *"The long
+   wait before Origin"* demos the switch, guarded by `verify:seed-demo`.
+
+The rest of this doc describes the original lens-tab design and the reader decoupling that
+still holds (the reader plays by itself, decoupled from node selection).
 
 ---
 

@@ -380,9 +380,11 @@ export function StoryReader({
           {canShare && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <ShareStoryButton storyId={story.id} />
+                <ShareStoryButton storyId={story.id} shared={story.isPublic} />
               </TooltipTrigger>
-              <TooltipContent>Share — make this story public</TooltipContent>
+              <TooltipContent>
+                {story.isPublic ? 'Shared — copy the public link' : 'Share — make this story public'}
+              </TooltipContent>
             </Tooltip>
           )}
           <button type="button" className="sv-ctrl" onClick={onClose} aria-label="Close story">

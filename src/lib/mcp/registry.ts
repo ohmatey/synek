@@ -18,13 +18,21 @@ import {
 } from '~/lib/db/projects'
 import { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay } from '~/lib/domain/types'
 import { PatchBuilder, commitPatch, undo, redo, historyState, maxAppliedSeq } from '~/lib/db/patches'
-import { writeStory, getMomentTimelineId, getStoriesForMoment, storyDepthByMoment } from '~/lib/db/stories'
+import {
+  writeStory,
+  getMomentTimelineId,
+  getStoriesForMoment,
+  storyDepthByMoment,
+  setStoryTheme,
+  getStoryTimelineId,
+} from '~/lib/db/stories'
 import { registerArtifact, searchArtifacts, existingArtifactIds } from '~/lib/db/artifacts'
 import { emitTimelineEvent } from '~/lib/server/bus'
 import {
   POV_TYPES,
   DEPTH_TIERS,
   SEGMENT_KINDS,
+  STORY_LENSES,
   IMAGE_ASPECTS,
   STORY_IMAGE_LAYOUTS,
   STORY_WIDGET_KINDS,
@@ -507,6 +515,35 @@ export const toolRegistry: ToolDef[] = [
   },
 
   {
+    name: 'set_story_theme',
+    title: 'Set story theme',
+    description:
+      'Give ONE story its OWN visual theme — independent of the timeline it lives on. Same shape and REPLACE ' +
+      'semantics as set_timeline_theme (per-scheme hex accents + canvasBg, a display font, a texture, plus ' +
+      'imageStyle / mood metadata; pass theme: null to clear it back to inheriting the timeline). The sharable ' +
+      'reader (/s/$slug) renders the story\'s theme, falling back to the timeline\'s when this is null — so you can ' +
+      'give a single story a distinct mood without re-theming the whole canvas. NOT part of the undo/redo Patch ' +
+      'stack. Returns `warnings` for accents with poor contrast against the canvas background.',
+    inputSchema: {
+      storyId: z.string(),
+      theme: timelineThemeSchema
+        .nullable()
+        .describe('The complete theme to store, or null to clear (inherit the timeline). Colors are hex.'),
+    },
+    handler: async ({ storyId, theme }, { ownerId, requireOwned }) => {
+      // Resolve the story's timeline and run the SAME owner guard the timeline-scoped
+      // tools use, then write through the owner-checked db helper (belt and braces).
+      const timelineId = getStoryTimelineId(storyId)
+      if (!timelineId) throw new Error(`story "${storyId}" not found`)
+      requireOwned(timelineId)
+      setStoryTheme(storyId, ownerId, theme ?? null)
+      const warnings = themeContrastWarnings(theme ?? null)
+      emitTimelineEvent({ timelineId, kind: 'story', seq: maxAppliedSeq(timelineId) })
+      return { ok: true, theme: theme ?? null, warnings }
+    },
+  },
+
+  {
     name: 'write_story',
     title: 'Write a story onto a moment',
     description:
@@ -537,6 +574,15 @@ export const toolRegistry: ToolDef[] = [
           'The story\'s characters. Node-backed members are clickable and tourable; name-only members produce a ' +
             'warning so you can materialize them with apply_patch and update the story.',
         ),
+      theme: timelineThemeSchema
+        .nullable()
+        .optional()
+        .describe(
+          'Optional: the story\'s OWN visual theme (same shape as set_timeline_theme — per-scheme hex accents, ' +
+            'canvasBg, font, texture, imageStyle, mood). Independent of the timeline\'s; the sharable reader renders ' +
+            'it, falling back to the timeline\'s theme when omitted. Use it to give a story a distinct mood (a noir ' +
+            'case, a golden-age epic). Omit/null to inherit the timeline.',
+        ),
       segments: z
         .array(
           z.object({
@@ -548,6 +594,12 @@ export const toolRegistry: ToolDef[] = [
             // entity panel beside the story switches to show it. A node id on the
             // same timeline; omit to stay on the moment.
             focusNodeId: z.string().optional(),
+            // Choreograph the camera: which surface this beat plays on while reading —
+            // 'globe' (frame its place on the orthographic globe) or 'timeline' (the
+            // horizontal time axis). Omit for auto (globe when the focus node is
+            // located, else timeline). Alternate them to make the story switch surfaces
+            // beat-to-beat — a place beat on the globe, a time/idea beat on the timeline.
+            lens: z.enum(STORY_LENSES).optional(),
             // Real sources grounding this beat (cite freely). Each citation is
             // ONE of two forms (single-home, ADR 0001): an artifact-backed ref
             // `{ artifactId, excerptUsed? }` to a REGISTERED artifact (preferred —
@@ -584,7 +636,7 @@ export const toolRegistry: ToolDef[] = [
         .min(1),
     },
     handler: async (
-      { momentId, storyId, title, hook, povType, depthTier, estimatedMinutes, coverImage, cast, segments },
+      { momentId, storyId, title, hook, povType, depthTier, estimatedMinutes, coverImage, cast, theme, segments },
       { ownerId },
     ) => {
       // write_story keys off a node id; resolve its timeline and run the same
@@ -637,6 +689,8 @@ export const toolRegistry: ToolDef[] = [
         ...segments.flatMap((s: any) => (s.image ? [s.image.url] : [])),
       ]
       if (imageUrls.length) warnings.push(...(await imageUrlWarnings(imageUrls, 'story image URL')))
+      // A story theme is held to the same WCAG-contrast bar as a timeline theme.
+      if (theme) warnings.push(...themeContrastWarnings(theme))
 
       // Split each beat's citations into inline one-offs vs artifact-backed refs
       // (single-home, ADR 0001 Dec. 8). Validate artifactIds up front so an unknown
@@ -664,7 +718,7 @@ export const toolRegistry: ToolDef[] = [
 
       const result = writeStory(
         momentId,
-        { title, hook, povType, depthTier, estimatedMinutes, coverImage, cast },
+        { title, hook, povType, depthTier, estimatedMinutes, coverImage, cast, theme },
         prepared,
         { storyId },
       )

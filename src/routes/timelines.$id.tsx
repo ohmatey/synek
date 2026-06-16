@@ -10,7 +10,7 @@ import { BuildStreamProvider } from '~/components/canvas/build-stream'
 // gracefully — bad `view` → timeline, unknown `node`/`story` id → nothing selected
 // (the canvas is live, so an id may simply not exist yet while an MCP build streams).
 const searchSchema = z.object({
-  view: z.enum(['timeline', 'globe', 'stories']).optional().catch(undefined),
+  view: z.enum(['timeline', 'globe']).optional().catch(undefined),
   node: z.string().optional().catch(undefined),
   story: z.string().optional().catch(undefined),
   // When opening a story from the home, skip the reader's cover and start stepping

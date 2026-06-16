@@ -38,23 +38,35 @@ const TEXTURE_OPTIONS: { value: ThemeTexture; label: string }[] = [
   { value: 'paper', label: 'Paper' },
 ]
 
-// Owner-only editor for the timeline's theme. Every edit live-previews on the
-// canvas behind the (portaled, brand-chrome) dialog via onPreview; Save persists
-// through the setTimelineTheme server fn and hands display back to server truth,
-// Cancel/close just drops the preview. The same theme is also settable by the
-// MCP client (set_timeline_theme) — this dialog and that tool write the same row.
+// Owner-only editor for a visual theme (a timeline's, or — when `onSave` is given —
+// a story's, since both share the TimelineTheme shape). Every edit live-previews via
+// onPreview (the canvas behind the dialog); Save persists and hands display back to
+// server truth, Cancel/close drops the preview. By default it writes the timeline
+// theme through setTimelineTheme (same row the MCP set_timeline_theme tool writes);
+// pass `onSave` to redirect the write (e.g. a story theme via setStoryTheme, or just
+// stashing a not-yet-created story's theme in local state). onPreview is optional —
+// scopes with no live canvas (a pre-creation story theme) simply omit it.
 export function ThemeEditorDialog({
   open,
   onOpenChange,
   timelineId,
   theme,
   onPreview,
+  title = 'Timeline theme',
+  description = 'Colors, font and texture for this timeline — every viewer sees them. The canvas behind this dialog previews as you edit.',
+  onSave,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  timelineId: string
+  // Required only for the default (timeline) save path; omit it when passing onSave.
+  timelineId?: string
   theme: TimelineTheme | null
-  onPreview: (theme: TimelineTheme | null) => void
+  onPreview?: (theme: TimelineTheme | null) => void
+  title?: string
+  description?: string
+  // Override the persist step. Receives the normalized theme (null = clear). When
+  // omitted, the dialog writes the timeline theme via setTimelineTheme + invalidate.
+  onSave?: (theme: TimelineTheme | null) => Promise<void>
 }) {
   const qc = useQueryClient()
   const { resolvedTheme } = useTheme()
@@ -74,7 +86,7 @@ export function ThemeEditorDialog({
 
   const update = (next: TimelineTheme) => {
     setDraft(next)
-    onPreview(next)
+    onPreview?.(next)
   }
 
   const slots = draft.colors?.[scheme] ?? {}
@@ -90,7 +102,7 @@ export function ThemeEditorDialog({
   }
 
   const close = (nextOpen: boolean) => {
-    if (!nextOpen) onPreview(null) // cancel/esc → back to server truth
+    if (!nextOpen) onPreview?.(null) // cancel/esc → back to server truth
     onOpenChange(nextOpen)
   }
 
@@ -100,9 +112,13 @@ export function ThemeEditorDialog({
     try {
       // Normalize: an all-empty draft saves as null (clear), not as `{}`.
       const payload = next && Object.values(next).some((v) => v !== undefined) ? next : null
-      await setTimelineTheme({ data: { id: timelineId, theme: payload } })
-      await qc.invalidateQueries({ queryKey: ['graph', timelineId] })
-      onPreview(null)
+      if (onSave) {
+        await onSave(payload)
+      } else {
+        await setTimelineTheme({ data: { id: timelineId!, theme: payload } })
+        await qc.invalidateQueries({ queryKey: ['graph', timelineId] })
+      }
+      onPreview?.(null)
       onOpenChange(false)
       toast.success(payload ? 'Theme saved' : 'Theme cleared')
     } catch {
@@ -116,11 +132,8 @@ export function ThemeEditorDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Timeline theme</DialogTitle>
-          <DialogDescription>
-            Colors, font and texture for this timeline — every viewer sees them. The canvas behind this
-            dialog previews as you edit.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">

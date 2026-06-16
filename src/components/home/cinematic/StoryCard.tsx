@@ -12,6 +12,7 @@ import { MoveToProjectSubmenu } from './MoveToProjectSubmenu'
 import { useMoveTimeline } from './useMoveTimeline'
 import { useStoryActions } from './useStoryActions'
 import { StoryIntroDialog } from './StoryIntroDialog'
+import { hueFromString } from './hue'
 
 // One story in a home carousel row — a vertical poster (portrait cover + body).
 // Clicking the card body opens the story's INTRO dialog (its cover page); the
@@ -47,7 +48,13 @@ export function StoryCard({
         onClick={() => setIntroOpen(true)}
         aria-label={`Open “${story.title}”`}
       >
-        <span className="ch-card-cover">
+        <span
+          className="ch-card-cover"
+          data-wash={story.coverImage ? undefined : true}
+          style={
+            story.coverImage ? undefined : ({ '--cover-hue': hueFromString(story.storyId) } as React.CSSProperties)
+          }
+        >
           {story.coverImage ? (
             <img src={story.coverImage.url} alt={story.coverImage.alt ?? ''} loading="lazy" />
           ) : (

@@ -9,8 +9,10 @@ import {
   setProjectBrand as dbSetProjectBrand,
 } from '~/lib/db/brands'
 import { getProject as dbGetProject } from '~/lib/db/projects'
+import { getTimelineMeta } from '~/lib/db/graph'
 import { requireUser } from '~/lib/auth/session'
 import { brandKitSchema, type BrandKit } from '~/lib/domain/brand'
+import { brandVoiceDirective } from '~/lib/prompt-knobs'
 import type { BrandRow } from '~/lib/db/schema'
 
 // All brand RPCs are scoped to the signed-in user — you only see and manage your
@@ -104,6 +106,50 @@ export const setProjectBrand = createServerFn({ method: 'POST' })
     const user = await requireUser()
     dbSetProjectBrand(data.projectId, user.id, data.brandId)
     return { ok: true as const, projectId: data.projectId, brandId: data.brandId }
+  })
+
+// The "brand costume" lookup for the story dialog: given a timeline, resolve its
+// project and the brand kit that project is dressed by — returning the project (so
+// the dialog can offer "set up a brand" linked to it even when none exists yet) and,
+// when a kit is linked, a compact prompt-ready voice digest. Owner-scoped and
+// fail-closed at each hop. null only when the timeline isn't the caller's.
+export type TimelineBrandInfo = {
+  projectId: string | null
+  projectTitle: string | null
+  brandId: string | null
+  brandName: string | null
+  // The compact voice directive to inject into a story prompt, or null when the
+  // linked kit carries nothing voice-shaping (or no kit is linked).
+  voice: string | null
+}
+
+export const getTimelineBrandInfo = createServerFn({ method: 'GET' })
+  .inputValidator((d: string) => z.string().parse(d))
+  .handler(async ({ data: timelineId }): Promise<TimelineBrandInfo | null> => {
+    const user = await requireUser()
+    const meta = getTimelineMeta(timelineId)
+    if (!meta || meta.ownerId !== user.id) return null
+    const empty: TimelineBrandInfo = {
+      projectId: meta.projectId ?? null,
+      projectTitle: null,
+      brandId: null,
+      brandName: null,
+      voice: null,
+    }
+    if (!meta.projectId) return empty
+    const project = dbGetProject(meta.projectId)
+    if (!project || project.ownerId !== user.id) return empty
+    empty.projectTitle = project.title
+    if (!project.brandId) return empty
+    const brand = dbGetBrand(project.brandId, user.id)
+    if (!brand) return empty
+    return {
+      projectId: meta.projectId,
+      projectTitle: project.title,
+      brandId: brand.id,
+      brandName: brand.name,
+      voice: brand.kit ? brandVoiceDirective(brand.kit) : null,
+    }
   })
 
 // Owner-scoped read of the brand a project is currently linked to (its brandId),
