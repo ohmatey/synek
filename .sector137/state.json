@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-15T15:22:06.314Z",
+  "updatedAt": "2026-06-15T18:00:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -1002,6 +1002,44 @@
         "etag": null,
         "syncedAt": null
       }
+    },
+    {
+      "data": {
+        "title": "Implement P2a — cross-MCP brand-story skill (/synek:brand-story)",
+        "description": "The companion-app slice 1, true to the inversion: with BOTH the Synek and Realscript `real` plugins connected in the user's client, /synek:brand-story reads a brand via Realscript's get_brand_kit(format=llm) and writes the Synek story on-brand via write_story (+ optional set_timeline_theme). ZERO app code — orchestration skill only.\n\n### Done 2026-06-15 (committed 5363af0)\nsynek-plugin/skills/brand-story/SKILL.md. KEY FINDING: both plugins already exist (Realscript `real` plugin + get_brand_kit/list_brands; Synek `synek` plugin canonical = strata/synek-plugin, flat layout). So P2a = one skill, not 2 new plugins. OWED: live Cowork run (both plugins + a real Realscript brand + key).",
+        "horizon": "next",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-134",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement P2b — Synek brand kits + editor (Realscript brand schema)",
+        "description": "Local brand-kit authoring. A `brands` table mirroring Realscript's brand schema (src/lib/domain/brand.ts ≈ @realscript/brands BrandBaseSchema+voiceSchema+tokenMappings) + migration 0021 (additive) + owner-scoped db/brands.ts (CRUD + setProjectBrand double-owner-check) + server/brands.ts + src/components/brand/ tabbed editor (Identity/Visual/Voice incl. core values + structured voice) opened from the cinematic-home ProjectRail + projects.brandId link. NO Realscript fetch/key/MCP/sync (P2c later).\n\n### Done 2026-06-15 (committed 6b2b305)\nReview fast-follows applied: unique per-row accessible names, stable keys (not key={i}) on array editors, <select> focus ring, h3 headings, high-contrast saved marker, the missing core-values editor. Verified from main root: build + typecheck (brand files clean) + verify:brands(37) + verify:projects + isolation + mcp + e2e (brand-kit/home/cinematic-home) green. Reviews: isolation PASS; a11y+design CONCERNS, no blockers. REMAINING fast-follows (minor, deferred): explicit focus-move on row-remove, drag-reorder of array rows, schema-parity nits (contentTypeVariation field names channel/toneAdjustments vs Synek contentType/guidance; hex 6-only vs 3-or-6) — accepted local divergences, don't block P2c read-sync.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": [
+          "local-125"
+        ]
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-135",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "tasks": [],
@@ -1407,6 +1445,20 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-132",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Session wrap — P2 Realscript brand re-scoped + P2a/P2b shipped to main — 2026-06-15",
+        "body": "Founder re-scoped P2 (Realscript brand): SCRAPPED the heavy server-side adapter/key/snapshot PRD (docs/product/prd/realscript-brand-integration.md → SUPERSEDED) as over-coupled. Lean 3-slice P2, inversion-true: P2a cross-MCP brand-story skill (local-134, committed 5363af0) · P2b Synek brand kits + editor (local-135, committed 6b2b305) · P2c brand sync (LATER, must use the SSRF egress guard). roadmap.md P2 rewritten to the lean shape.\n\n### Git consolidation (a tangle, now clean)\nA Workflow build subagent created a SECOND git worktree on the same branch to run builds → deregistered the harness worktree → all slice-2 work + the doc edits landed in MAIN's working tree (not the worktree), + a stray wip commit. Resolved: re-verified main green, fixed the review fast-follows, committed P2b to main (6b2b305), re-applied the lost roadmap/PRD edits, removed the rogue worktree + pruned, DELETED the redundant fully-merged branch claude/suspicious-payne-80fe44, cleaned stray test dbs. Worktree list now = main only. LESSON: build agents must NOT create secondary git worktrees on the active branch.\n\n### Concurrent WIP (NOT mine — left untouched in main's tree)\nAnother session is mid-refactor in main's working tree (uncommitted): a cinematic-home story-actions refactor (SignedIn/CinematicHero/HomeContentRow/StoryCard/index + new useStoryActions/BrandCard/FeaturedStory/StoryIntroDialog) + a canvas refactor (GlobeLens/TimelineCanvas/CanvasLayout/styles) + mcp/* changes + timelines.$id.tsx. It currently has 4 typecheck errors (home_story_play_clicked event + an autoplay search param not yet defined). My commit excluded ALL of it. That session should finish + commit its own work.\n\n### Owed\nLive in-browser pass (P1+P2 UI; Claude Preview can't hydrate the dev server); CLAUDE.md update (still never done for Projects/stories-first/brand — it's M in the tree, left to the concurrent owner); P2c brand sync (later, SSRF-guarded); live Cowork run of /synek:brand-story; mcp__sector137__sync_state when the MCP returns (state.json staged dirty since local-125)."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-136",
         "dirty": true,
         "etag": null,
         "syncedAt": null
