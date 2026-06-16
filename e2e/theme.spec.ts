@@ -24,6 +24,13 @@ async function loginAsOwner(page: Page) {
   await expect(page.getByRole('heading', { name: 'Timelines' })).toBeVisible()
 }
 
+// Timeline settings is now a tabbed dialog (Display / Playback / Theme). The theme
+// controls live on the owner-only Theme tab — open the dialog and switch to it.
+async function openThemeTab(page: Page) {
+  await page.getByTestId('canvas-settings').click()
+  await page.getByRole('tab', { name: 'Theme' }).click()
+}
+
 // Pin the app's color scheme via prefers-color-scheme: the demo user's saved
 // theme pref is 'system' (ThemeSync would override a cookie pin after sign-in),
 // so the resolved scheme follows the emulated media. Playwright defaults to
@@ -39,8 +46,8 @@ test('owner themes a timeline: per-scheme colors, texture, anon sees it, clear r
   expect(await inlineVar(page, '--color-accent-primary')).toBe('')
   await expect(page.locator('.canvas-root')).toHaveAttribute('data-canvas-texture', 'default')
 
-  // The Theme section lives in the view-settings popover (owner-gated).
-  await page.getByTestId('canvas-settings').click()
+  // The Theme controls live on the settings dialog's owner-gated Theme tab.
+  await openThemeTab(page)
   await expect(page.getByTestId('theme-swatches')).toBeVisible()
   await page.getByTestId('theme-edit').click()
 
@@ -87,13 +94,16 @@ test('owner themes a timeline: per-scheme colors, texture, anon sees it, clear r
   await anon.close()
 
   // "Ask your agent" copies a set_timeline_theme prompt (the inversion).
-  await page.getByTestId('canvas-settings').click()
+  await openThemeTab(page)
   await page.getByTestId('theme-prompt').click()
   await expect(page.getByText('set_timeline_theme').first()).toBeVisible()
   await page.keyboard.press('Escape')
+  // Wait for the prompt dialog to fully close (its overlay tears down) before
+  // reopening settings — otherwise the stacked overlay eats the tab click.
+  await expect(page.getByText('set_timeline_theme').first()).toBeHidden()
 
   // Clear the theme → the canvas reverts to the default look.
-  await page.getByTestId('canvas-settings').click()
+  await openThemeTab(page)
   await page.getByTestId('theme-edit').click()
   await page.getByTestId('theme-clear').click()
   await expect(page.getByTestId('theme-save')).toHaveCount(0)
@@ -106,7 +116,7 @@ test('textures render distinctly and the Default option is gone', async ({ page 
   await page.goto('/timelines/figures')
   await expect(page.getByText('Albert Einstein')).toBeVisible()
 
-  await page.getByTestId('canvas-settings').click()
+  await openThemeTab(page)
   await page.getByTestId('theme-edit').click()
   // The "Default" texture button was removed; only none/dots/grid/paper remain.
   await expect(page.getByTestId('theme-texture-default')).toHaveCount(0)
