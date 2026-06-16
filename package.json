@@ -1,6 +1,6 @@
 {
   "name": "synek",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "workspaces": ["packages/*"],
@@ -39,7 +39,8 @@
     "verify:isolation": "SYNEK_SECRETS_KEY=verify-isolation-master-key DATABASE_URL=verify-isolation.db tsx scripts/verify-isolation.ts",
     "verify:projects": "SYNEK_SECRETS_KEY=verify-projects-master-key DATABASE_URL=verify-projects.db tsx scripts/verify-projects.ts",
     "verify:projects-tools": "SYNEK_SECRETS_KEY=verify-projects-master-key DATABASE_URL=verify-projects-tools.db tsx scripts/verify-projects-tools.ts",
-    "verify:projects-backfill": "tsx scripts/verify-projects-backfill.ts"
+    "verify:projects-backfill": "tsx scripts/verify-projects-backfill.ts",
+    "verify:brands": "SYNEK_SECRETS_KEY=verify-brands-master-key DATABASE_URL=verify-brands.db tsx scripts/verify-brands.ts"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",

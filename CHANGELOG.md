@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.2.0 — 2026-06-16
+
+**Stories-first, cloud-first.** The posture shifts from "local-first Core" to **cloud-first,
+fully functional self-hosted, progressively enhanced**, and the product re-centers on
+**stories** — create a world once, grow it a chapter at a time, and publish it. The MCP
+inversion still holds (your own MCP client is the brain by default), now with an optional
+in-app agent and a multi-tenant hosted path.
+
+### Stories — the product
+- **Stories as a first-class layer** — `write_story` (cast, cover, per-beat images with
+  full/inset/bleed layouts, per-beat **live widgets**: mini timeline/globe/entity from node
+  ids), a docked story **reader** with per-beat entity focus, multiple stories per moment,
+  and a third **Stories view** lens (reader decoupled from entity panels).
+- **Read-aloud narration** (Web Speech) + an **auto-play** toggle; story end-panel with a
+  "continue this story" prompt.
+- **Public sharable stories** — a no-auth, mobile **`/s/$slug`** reels page (SSR OpenGraph +
+  Twitter cards, live per-beat widgets) to test the sharing-drives-acquisition bet; sharing a
+  story publishes its timeline.
+
+### Projects + a cinematic home
+- **Projects** — a top-level container above timelines (owner-scoped; `projects` table,
+  migration 0020; MCP `create_project`/`list_projects`/`get_project` + `ctx.projectId`).
+- **Move in/out of projects** + a **cinematic, Netflix-style home** (featured story heroes,
+  horizontal rows, project-as-filter) and a **`/p/$slug`** project page.
+
+### The globe
+- **Globe lens** — d3-geo orthographic projection with lat/lng on nodes, play-through, and a
+  top-center view switcher (lazy-loaded).
+- **Globe story mode (GS1–GS4)** — per-beat camera ease + zoom, interactive wheel/pinch zoom,
+  floating entity cards, an era ribbon, and a dated scrubber.
+
+### Canvas
+- **Timeline themes** — per-timeline visual themes (`set_timeline_theme` MCP tool + editor).
+- **Verb system** (Tier 1 + Tier 2 "alive canvas" invitations) and a **⌘K command palette**
+  (search, actions, kind filter).
+- **Timeline scroller** (bottom scrubber + zoom controls), **deep-linkable canvas URL state**,
+  a Linear/Notion node restyle, and resizable docked panels.
+
+### Intelligence — MCP + optional in-app agent
+- **Optional, key-gated in-app agent** (`OPENROUTER_API_KEY`) — the prompt dialogs gain a
+  **Run** that executes server-side against the **same** tool registry the MCP server uses
+  (one tool surface, two callers). With no key set, the BYO-client local-first default is
+  unchanged.
+- **Richer MCP surface** — `query_timeline`, `get_node`, `get_layout_report`, `set_timeline_view`,
+  `set_timeline_theme`, `write_story`; `apply_patch` returns advisory **warnings** + a
+  `graphSummary`.
+- **Artifact grounding (S2, the moat)** — normalized `sources`/`artifacts` (migration 0016 +
+  FTS5) with `register_artifact`/`search_artifacts` and undo-safe story citations.
+
+### Hosting — multi-tenant + self-host
+- **Multi-tenant Phase 2** — per-user **isolation** (every artifact/timeline/story/history read
+  owner-scoped; migration 0019), **open signup** with email verification + password reset
+  (Resend), and a **per-user BYO OpenRouter key encrypted at rest** (AES-GCM).
+- **Self-host** — a single-instance SQLite-on-volume **Docker** image (migrate-on-boot) and a
+  **Fly.io** single-instance deploy + runbook.
+
+### Security
+- **Server-side SSRF egress guard** (`src/lib/net/ssrf.ts`, ADR 0002) — scheme + IP-range +
+  DNS-resolution + redirect re-validation — and a **closed live vector** in the citation/image
+  URL verifier (it fetched user-supplied URLs with follow-redirects). Required primitive for
+  every future server-side fetch.
+
+### Onboarding & analytics
+- **`bun run setup`** one-step on-ramp, an **`npx synek`** installer, and a **Claude Code
+  plugin** (MCP connection via OAuth).
+- **Opt-out PostHog** analytics (browser + server/MCP), key-gated, plus an opt-in self-host
+  heartbeat.
+
+### Verification
+`bun run typecheck`, `bun run build`, the `verify:*` data-layer suite (incl. `verify:mcp`,
+`verify:ssrf`, `verify:projects`, `verify:isolation`), and the Playwright e2e suite all pass.
+
 ## 0.1.0 — 2026-05-27
 
 First tagged release. Synek (display name **Synek**) is a local-first, **MCP-driven**
