@@ -124,14 +124,20 @@ export function buildMcpServer(ownerId: string, projectId?: string): McpServer {
         })
         return result
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
         captureServer(ownerId, 'mcp_tool_called', {
           tool: name,
           ok: false,
           duration_ms: Math.round(performance.now() - t0),
           ...(args?.timelineId ? { timeline_id: args.timelineId } : {}),
-          error: err instanceof Error ? err.message : String(err),
+          error: message,
         })
-        throw err
+        // RESILIENCE: a throwing tool returns a clean MCP error result instead of
+        // propagating. One tool's runtime error must never become an unhandled
+        // rejection out of the /api/mcp route — that 500s the request AND can crash
+        // the dev server, which disconnects the client and expires its OAuth token
+        // (the exact cascade get_layout_report triggered on 2026-06-15).
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }], isError: true }
       }
     }) as any)
 

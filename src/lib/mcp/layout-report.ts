@@ -110,7 +110,15 @@ export async function buildLayoutReport(
   const fragments = lanes.filter((l) => l.count <= 2).map((l) => l.name)
 
   // --- eras (periods) + story coverage ---------------------------------------
-  const storyList = listStoriesForTimeline(timelineId)
+  // The story layer is read DEFENSIVELY: if its tables are unavailable in this DB
+  // (e.g. a migration not yet applied), the report still returns its graph shape
+  // rather than throwing — degrade, don't 500. See the resilience note in server.ts.
+  let storyList: ReturnType<typeof listStoriesForTimeline> = []
+  try {
+    storyList = listStoriesForTimeline(timelineId)
+  } catch {
+    /* stories layer unavailable — report graph shape without story coverage */
+  }
   const momentsWithStories = new Set(storyList.map((s) => s.momentId))
   const periods = nodes.filter((n) => n.type === 'period')
   const eras = periods.map((p) => {
@@ -129,7 +137,13 @@ export async function buildLayoutReport(
 
   // --- sources ----------------------------------------------------------------
   const nodeCitations = nodes.flatMap((n) => n.metadata?.citations ?? [])
-  const sources = sourceRegistry([...nodeCitations, ...listSegmentCitationsForTimeline(timelineId)])
+  let segmentCitations: Citation[] = []
+  try {
+    segmentCitations = listSegmentCitationsForTimeline(timelineId)
+  } catch {
+    /* stories layer unavailable — count node citations only */
+  }
+  const sources = sourceRegistry([...nodeCitations, ...segmentCitations])
 
   // --- advisories (the same lane-density + axis-outlier checks apply_patch runs;
   // empty ops → no network checks) plus theme contrast problems -----------------
