@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Layers, Palette, Plus } from 'lucide-react'
 import { capture } from '~/lib/posthog/client'
 import type { ProjectSummary } from '~/lib/domain/types'
@@ -33,6 +33,18 @@ export function HomeSidebar({
 
   return (
     <div className="ch-sidebar">
+      {/* Brand/home — the logo lives in the sidebar so the left column is one app-shell
+          unit (logo → projects → account), not a separate top bar. */}
+      <Link to="/" className="ch-sidebar-brand" aria-label="Synek — home">
+        <span
+          className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-primary to-influence ring-1 ring-inset ring-white/10"
+          aria-hidden="true"
+        >
+          <img src="/favicon.svg" alt="" width={18} height={18} className="opacity-95" />
+        </span>
+        <span className="ch-sidebar-wordmark">Synek</span>
+      </Link>
+
       {/* The Projects nav — only project items + New project (Brand kits lives in the
           footer, OUTSIDE this nav, so it isn't announced as a project). */}
       <nav className="ch-sidebar-nav" aria-label="Projects">

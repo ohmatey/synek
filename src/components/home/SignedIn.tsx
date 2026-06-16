@@ -8,6 +8,7 @@ import { listHomeStories } from '~/lib/server/stories'
 import { listApiKeys } from '~/lib/server/api-keys'
 import { listBrands } from '~/lib/server/brands'
 import { BrandManagerDialog } from '~/components/brand/BrandManagerDialog'
+import { ProfileMenu } from '~/components/ProfileMenu'
 import { NewTimelineDialog } from './NewTimelineDialog'
 import {
   BrandCard,
@@ -85,7 +86,13 @@ export function SignedIn() {
     <div className="ch-shell">
       <HomeSidebar projects={projects} activeProjectId={activeProjectId} onOpenBrands={() => setBrandsOpen(true)} />
 
-      <div className="ch-home">
+      <div className="ch-main">
+        {/* Slim app-shell top bar over the content — the account menu only (the logo
+            now lives in the sidebar). */}
+        <header className="ch-topbar">
+          <ProfileMenu />
+        </header>
+        <div className="ch-home">
         {loading ? (
           <div className="ch-featured-skeleton" aria-hidden="true" />
         ) : filtered && activeProject ? (
@@ -186,6 +193,7 @@ export function SignedIn() {
           )}
         </div>
       )}
+        </div>
       </div>
 
       <NewTimelineDialog

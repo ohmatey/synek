@@ -41,18 +41,27 @@ export const Route = createFileRoute('/')({
 // null on the server (and on the first client render of a fresh load), so the
 // landing renders synchronously in the SSR shell: crawlable, no spinner, no
 // streaming race. Once the client confirms a session it swaps to the dashboard.
+//
+// Signed IN, the dashboard is a full app shell (its own left sidebar carries the
+// logo + account), so the marketing AppHeader is signed-OUT only — no top bar
+// floating above the sidebar.
 function HomeBody() {
   const { data: session } = useSession()
-  return session?.user ? <SignedIn /> : <Landing />
+  if (session?.user) return <SignedIn />
+  return (
+    <>
+      <AppHeader />
+      <main className="flex-1">
+        <Landing />
+      </main>
+    </>
+  )
 }
 
 function Home() {
   return (
     <div className="flex min-h-screen flex-col text-foreground">
-      <AppHeader />
-      <main className="flex-1">
-        <HomeBody />
-      </main>
+      <HomeBody />
     </div>
   )
 }

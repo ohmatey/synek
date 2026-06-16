@@ -4487,19 +4487,62 @@ body {
 }
 .ch-sidebar {
   position: sticky;
-  top: 64px; /* below the 64px AppHeader */
-  height: calc(100dvh - 64px);
+  top: 0; /* the sidebar IS the chrome now — logo at its top, no bar above it */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 20px 12px;
+  padding: 14px 12px 16px;
   overflow-y: auto;
   border-right: 1px solid color-mix(in oklab, var(--color-border-default) 55%, transparent);
+}
+/* Brand/home at the top of the sidebar — the unified app-shell logo. */
+.ch-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 6px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  color: var(--color-fg-primary);
+  text-decoration: none;
+  transition: background-color 140ms ease;
+}
+.ch-sidebar-brand:hover {
+  background: color-mix(in oklab, var(--color-fg-primary) 5%, transparent);
+}
+.ch-sidebar-brand:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+.ch-sidebar-wordmark {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .ch-sidebar-nav {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+/* Content column + its slim top bar (account menu only). */
+.ch-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ch-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 56px;
+  padding: 0 24px;
+  background: color-mix(in oklab, var(--color-bg-base) 72%, transparent);
+  backdrop-filter: blur(8px);
 }
 .ch-sidebar-label {
   padding: 4px 10px;
@@ -4545,10 +4588,8 @@ body {
 }
 .ch-nav-item[aria-current='page'] {
   color: var(--color-chip-active-fg);
-  /* Softer than the chip tint — a full-width row reads heavy with a saturated fill.
-     A subtle accent wash + an inset left bar gives a calm "you are here". */
+  /* Softer than the chip tint — a full-width row reads heavy with a saturated fill. */
   background: color-mix(in oklab, var(--color-accent-primary) 11%, transparent);
-  box-shadow: inset 2.5px 0 0 var(--color-accent-primary);
 }
 .ch-nav-icon {
   flex-shrink: 0;
@@ -4584,7 +4625,7 @@ body {
   }
   .ch-sidebar {
     position: sticky;
-    top: 64px;
+    top: 0;
     z-index: 20;
     height: auto;
     flex-direction: row;
@@ -4601,6 +4642,22 @@ body {
   }
   .ch-sidebar::-webkit-scrollbar {
     display: none;
+  }
+  /* The logo collapses to its mark in the strip; the account bar isn't sticky on
+     mobile (so it doesn't fight the sticky strip for the top edge). */
+  .ch-sidebar-brand {
+    height: auto;
+    margin: 0 2px 0 0;
+    padding: 4px;
+    flex-shrink: 0;
+  }
+  .ch-sidebar-wordmark {
+    display: none;
+  }
+  .ch-topbar {
+    position: static;
+    height: 52px;
+    padding: 0 16px;
   }
   .ch-sidebar-nav {
     flex-direction: row;
@@ -4624,7 +4681,6 @@ body {
   }
   .ch-nav-item[aria-current='page'] {
     border-color: color-mix(in oklab, var(--color-accent-primary) 60%, transparent);
-    box-shadow: none; /* the inset left bar doesn't fit the pill shape */
   }
   .ch-sidebar-foot {
     margin-top: 0;
