@@ -293,6 +293,9 @@ function KeyedArrayField<T>({
 }) {
   const nextRef = useRef(0)
   const [keys, setKeys] = useState<number[]>([])
+  // The section's Add button — focus lands here when a row is removed, so focus is
+  // never lost as the focused Remove button unmounts (WCAG 2.4.3 focus order).
+  const addRef = useRef<HTMLButtonElement>(null)
   // Adjust keys to match the data length (the supported "derive state during
   // render" pattern — converges immediately because the branch makes lengths equal).
   if (keys.length !== items.length) {
@@ -311,6 +314,7 @@ function KeyedArrayField<T>({
             () => {
               setKeys((ks) => ks.filter((_, j) => j !== i))
               onChange(removeAt(items, i))
+              addRef.current?.focus()
             },
             i,
           )}
@@ -318,6 +322,7 @@ function KeyedArrayField<T>({
       ))}
       <AddBtn
         label={addLabel}
+        buttonRef={addRef}
         onClick={() => {
           setKeys((ks) => [...ks, nextRef.current++])
           onChange([...items, blank])
@@ -327,9 +332,9 @@ function KeyedArrayField<T>({
   )
 }
 
-function AddBtn({ label, onClick }: { label: string; onClick: () => void }) {
+function AddBtn({ label, onClick, buttonRef }: { label: string; onClick: () => void; buttonRef?: React.Ref<HTMLButtonElement> }) {
   return (
-    <Button type="button" variant="outline" size="sm" className="self-start" onClick={onClick}>
+    <Button ref={buttonRef} type="button" variant="outline" size="sm" className="self-start" onClick={onClick}>
       <Plus className="size-3.5" /> {label}
     </Button>
   )
