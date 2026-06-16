@@ -81,6 +81,12 @@ function SectionHeader({ children, aside }: { children: ReactNode; aside?: React
 
 type TLTab = 'display' | 'playback' | 'theme'
 
+const TAB_LABEL: Record<TLTab, string> = {
+  display: 'Display',
+  playback: 'Playback',
+  theme: 'Theme',
+}
+
 // The timeline's "view settings" → a tabbed dialog (matching the account settings
 // dialog: left-side vertical tabs). Display = the time-axis zoom + which kinds show
 // + live updates + save-as-default; Playback = story auto-play + read-aloud +
@@ -210,19 +216,21 @@ export function CanvasSettings({
             )}
           </Button>
         </DialogTrigger>
-        <DialogContent className="flex max-h-[85vh] gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogContent className="flex h-[min(85vh,40rem)] gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <Tabs
             orientation="vertical"
             value={tab}
             onValueChange={(v) => setTab(v as TLTab)}
             className="flex min-h-0 w-full flex-row gap-0"
           >
-            <div className="flex w-44 shrink-0 flex-col gap-1 border-r border-border bg-muted/30 p-3">
-              <DialogTitle className="px-2 pb-1 pt-1.5 text-sm font-semibold">Timeline settings</DialogTitle>
-              <DialogDescription className="sr-only">
-                Adjust the time-axis zoom, which node kinds show, story playback, and this timeline’s theme.
-              </DialogDescription>
-              <TabsList className="flex h-auto w-full flex-col items-stretch gap-1 rounded-none bg-transparent p-0">
+            <div className="flex w-44 shrink-0 flex-col border-r border-border bg-muted/30">
+              <div className="flex h-14 shrink-0 items-center border-b border-border px-4">
+                <DialogTitle className="text-sm font-semibold">Timeline settings</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Adjust the time-axis zoom, which node kinds show, story playback, and this timeline’s theme.
+                </DialogDescription>
+              </div>
+              <TabsList className="flex h-auto w-full flex-col items-stretch gap-1 rounded-none bg-transparent p-3">
                 <TabsTrigger value="display" className={VTAB}>
                   Display
                 </TabsTrigger>
@@ -237,7 +245,11 @@ export function CanvasSettings({
               </TabsList>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <header className="flex h-14 shrink-0 items-center border-b border-border px-5 pr-12">
+                <h2 className="text-sm font-semibold">{TAB_LABEL[tab]}</h2>
+              </header>
+              <div className="min-h-0 flex-1 overflow-y-auto p-5">
               {/* ── Display: time scale + filters + live updates + save default ── */}
               <TabsContent value="display" className="mt-0 flex flex-col gap-5">
                 <div className="flex flex-col gap-2">
@@ -549,6 +561,7 @@ export function CanvasSettings({
                   </p>
                 </TabsContent>
               )}
+              </div>
             </div>
           </Tabs>
         </DialogContent>
