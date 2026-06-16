@@ -39,9 +39,13 @@ The foundational re-center. A **Project** becomes the top-level container holdin
 
 Done when: a creator can group their work into Projects, reorganize across them, and land on a cinematic, project-filterable home that leads with stories.
 
-### P2 — Realscript brand integration  ·  NEXT
+### P2 — Realscript brand, the companion way  ·  NEXT
 
-Dogfood Realscript's brand export from the outside. Pull tokens/voice via the brand HTTP API (`/api/v1/brands/{id}/theme.css|tokens|kit`) or `@realscript/brands` SDK → apply onto `projects.theme` (timelines inherit/override). Proves the brand contract for an external consumer; gives every Project a coherent identity.
+Three lean slices, true to the inversion — **the user's client is the bridge; no Synek↔Realscript server coupling** in P2a/P2b. (The earlier heavy server-side adapter/key/snapshot PRD was over-coupled and is **superseded** — see `prd/realscript-brand-integration.md`, scrap-marked.)
+
+- **P2a — cross-MCP brand stories** ✅ *(skill shipped; live Cowork run owed).* The `/synek:brand-story` plugin skill: with BOTH the Synek and Realscript (`real`) plugins connected in their client, the user's Claude reads a brand via Realscript's `get_brand_kit(format=llm)` and writes the Synek story on-brand via `write_story` (+ optional `set_timeline_theme`). **Zero app code** — pure dogfood of Realscript's MCP from an external client. (`synek-plugin/skills/brand-story/SKILL.md`.)
+- **P2b — Synek brand kits + editor** ✅ *(built; full gate green incl. e2e 62/62, live in-browser pass owed).* A local `brands` table on **Realscript's brand schema** (migration 0021, additive) + an in-app brand-kit editor (identity · palette · fonts · voice schema · guidelines), owner-scoped, linkable to a project from the home. Users author/tune a kit in Synek the same way they would in Realscript. (`src/lib/domain/brand.ts`, `src/lib/db/brands.ts`, `src/lib/server/brands.ts`, `src/components/brand/`.) Fast-follows from review: accessible names on the voice-row inputs, stable keys (not `key={i}`) on array editors, and a `coreValues` editing section.
+- **P2c — brand sync** *(later).* Server-side fetch Realscript→Synek to populate/refresh a local kit from a Realscript brand — trivial because P2b reuses the same schema. **Must** route through the SSRF egress guard (`src/lib/net/ssrf.ts`, `REALSCRIPT_BASE_URL` https-only) per the hardening note below.
 
 ### P3 — Serialized stories + the morning-chapter loop  ·  NEXT
 

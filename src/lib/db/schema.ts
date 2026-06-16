@@ -41,6 +41,7 @@ import {
 } from '~/lib/domain/types'
 
 import { PROJECT_KINDS } from '~/lib/domain/types'
+import type { BrandKit } from '~/lib/domain/brand'
 
 export type Citation = { title: string; url?: string; quote?: string; sourceType?: CitationSourceType }
 export type NodeMetadata = {
@@ -72,6 +73,38 @@ export type EdgeMetadata = Record<string, unknown>
 const newId = () => crypto.randomUUID()
 const now = () => new Date()
 
+// --- brands: a LOCAL, owner-authored brand kit (stories-first slice 2) -----
+// Synek adopts the Realscript brand SCHEMA so a kit authored here is shape-
+// compatible with Realscript's `get_brand_kit` output (BrandKit in
+// domain/brand.ts). LEAN: this is the local-authoring half only — NO Realscript
+// fetch, NO encrypted Realscript key, NO MCP brand tools, NO sync (all LATER).
+// Reuses the shipped ownerId ownership/isolation pattern verbatim. A project links
+// to AT MOST one brand (projects.brandId, SET NULL on delete); a brand can dress
+// many projects. The kit blob is whole-object replace-on-write (like
+// timelines.theme) — never a Patch.
+export const brands = sqliteTable(
+  'brands',
+  {
+    id: text('id').primaryKey().$defaultFn(newId),
+    // Owner. Nullable for migration safety (matches projects/timelines.ownerId);
+    // new brands ALWAYS set it. Reads are owner-scoped, fail-closed.
+    ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+    // URL/handle slug. Global-unique (same posture as projects.slug); the creating
+    // server fn slugifies the name and dedupes on collision. Immutable across rename.
+    slug: text('slug').notNull().unique(),
+    name: text('name').notNull(),
+    // The full brand kit (identity + visual identity + guidelines + voice schema),
+    // validated by brandKitSchema. Null until the editor saves one — a fresh brand
+    // is just a named shell. Whole-object replace-write; NOT in the Patch stack.
+    kit: text('kit', { mode: 'json' }).$type<BrandKit>(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  },
+  (t) => [index('brands_owner_id_idx').on(t.ownerId)],
+)
+
+export type BrandRow = typeof brands.$inferSelect
+
 // --- projects: the top-level owned container (ADR 0002 D1) -----------------
 // Sits between `user` and `timelines`, carrying the project-level metadata every
 // later phase reads. Reuses the shipped ownerId ownership/isolation pattern
@@ -99,7 +132,14 @@ export const projects = sqliteTable(
     world: text('world', { mode: 'json' }).$type<ProjectWorld>(),
     // Opaque external Realscript brand id (D4). NO FK — it lives in another system
     // on another stack; integration is by contract, not co-location. Set in P2.
+    // DISTINCT from `brandId` below: `brandRef` is the REMOTE Realscript handle
+    // (sync, later); `brandId` is a LOCAL Synek-authored brand kit (slice 2).
     brandRef: text('brand_ref'),
+    // The LOCAL Synek brand kit this project is dressed by (slice 2). Owner-scoped
+    // FK to `brands`; SET NULL on brand delete so deleting a kit never deletes the
+    // project — it just unlinks. Nullable: a project may carry no kit. Linking is
+    // double-owner-checked (project AND brand must be the caller's) in the db layer.
+    brandId: text('brand_id').references(() => brands.id, { onDelete: 'set null' }),
     // Project-level default theme (D5). SAME shape as timelines.theme
     // (TimelineTheme), so timelineThemeSchema validates it for free. Timelines
     // inherit at READ time (timeline.theme ?? project.theme ?? defaults) — no new

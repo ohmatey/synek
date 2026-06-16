@@ -1,7 +1,7 @@
 ---
 project: "Synek"
 track: "Realscript brand integration (P2)"
-status: "proposed (2026-06-15)"
+status: "SUPERSEDED (2026-06-15) — scrapped by founder as over-coupled. The server-side fetch/key/adapter/snapshot integration in this doc is NOT the plan. The live plan is the lean, inversion-true 3-slice P2 in roadmap.md: P2a cross-MCP brand-story skill (shipped) · P2b Synek brand kits + editor on Realscript's schema (built, gate green) · P2c brand sync (later, SSRF-guarded). Kept for reference only."
 authors: ["Margot (product)", "Lyra (brand mapping)", "Kael (adapter spec)"]
 updated: 2026-06-15
 issues: []

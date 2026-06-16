@@ -5,11 +5,12 @@ import { capture } from '~/lib/posthog/client'
 import type { ProjectSummary } from '~/lib/domain/types'
 import { NewProjectDialog } from './NewProjectDialog'
 
-// The page-level filter (Wren §3). A slim horizontal rail of chips: "All" (only
-// when the owner has 2+ projects) + one chip per project + a "New project" affordance.
-// Selecting a chip syncs ?project=<slug> (deep-linkable, back-safe) WITHOUT navigating
-// away from "/"; the parent resolves the slug → the active project client-side. With
-// a single project (day one) "All" is hidden and the one chip sits selected.
+// The page-level filter (Wren §3): a slim horizontal rail of chips — "All" (only
+// when the owner has 2+ projects) + one chip per project + a "New project"
+// affordance. Selecting a chip syncs ?project=<slug> (deep-linkable, back-safe)
+// WITHOUT navigating away from "/"; the parent resolves the slug → the active
+// project client-side. Brand kits used to live here too; they now have their own
+// home row (ask #6), so the bar carries only project filtering + New project.
 export function ProjectRail({
   projects,
   // The resolved active project (matched from ?project), or null = "All".
@@ -33,8 +34,7 @@ export function ProjectRail({
   return (
     <nav className="ch-rail" aria-label="Projects">
       {/* The rail is a single-select filter. aria-pressed keeps the toggled look;
-          aria-current announces "this is the active scope" (single-select), which
-          a bare set of independent toggles doesn't convey to AT. */}
+          aria-current announces "this is the active scope" (single-select). */}
       {showAll && (
         <button
           type="button"
