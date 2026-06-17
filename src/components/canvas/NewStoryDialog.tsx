@@ -14,7 +14,7 @@ import { Textarea } from '~/components/ui/textarea'
 import { PromptActions } from '~/components/PromptActions'
 import { DepthControl, GenreControl } from '~/components/PromptKnobs'
 import { ThemeEditorDialog } from '~/components/canvas/ThemeEditorDialog'
-import { BrandManagerDialog } from '~/components/brand/BrandManagerDialog'
+import { ProjectBrandingDialog } from '~/components/brand/ProjectBrandingDialog'
 import { buildStoryPrompt } from '~/lib/story-prompt'
 import { composeStoryKnobs, genrePreset, type Depth, type Genre } from '~/lib/prompt-knobs'
 import { getTimelineBrandInfo } from '~/lib/server/brands'
@@ -407,15 +407,16 @@ export function NewStoryDialog({
         onSave={async (t) => setStoryTheme(t)}
       />
 
-      {/* Set up / link a brand to this project, then re-read so the costume row updates. */}
+      {/* Set up the project's built-in brand voice, then re-read so the costume row updates. */}
       {brand.data?.projectId && (
-        <BrandManagerDialog
+        <ProjectBrandingDialog
           open={brandManagerOpen}
           onOpenChange={(o) => {
             setBrandManagerOpen(o)
             if (!o) void qc.invalidateQueries({ queryKey: ['timeline-brand', timelineId] })
           }}
-          linkProject={{ id: brand.data.projectId, title: brand.data.projectTitle ?? 'this project' }}
+          projectId={brand.data.projectId}
+          initialTab="voice"
         />
       )}
     </>

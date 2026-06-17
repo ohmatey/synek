@@ -2,6 +2,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { db } from './index'
 import { projects, type ProjectRow } from './schema'
 import type { ProjectKind, ProjectWorld, TimelineTheme } from '~/lib/domain/types'
+import type { BrandKit } from '~/lib/domain/brand'
 
 // --- Projects: the top-level owned container (ADR 0002) -------------------
 // CRUD mirrors the timeline CRUD in graph.ts EXACTLY: the db layer takes ids and
@@ -131,6 +132,7 @@ export function updateProject(
     world?: ProjectWorld | null
     brandRef?: string | null
     theme?: TimelineTheme | null
+    brand?: BrandKit | null
   },
 ): void {
   const set: Record<string, unknown> = { updatedAt: new Date() }
@@ -140,6 +142,7 @@ export function updateProject(
   if (patch.world !== undefined) set.world = patch.world
   if (patch.brandRef !== undefined) set.brandRef = patch.brandRef
   if (patch.theme !== undefined) set.theme = patch.theme
+  if (patch.brand !== undefined) set.brand = patch.brand
   db.update(projects)
     .set(set)
     .where(and(eq(projects.id, id), eq(projects.ownerId, ownerId)))

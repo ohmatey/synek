@@ -12,6 +12,7 @@ import {
 import { moveTimelineToProject as dbMoveTimelineToProject } from '~/lib/db/graph'
 import { requireUser } from '~/lib/auth/session'
 import { timelineThemeSchema } from '~/lib/domain/theme'
+import { brandKitSchema, type BrandKit } from '~/lib/domain/brand'
 import type { ProjectRow } from '~/lib/db/schema'
 import type { ProjectSummary, TimelineTheme } from '~/lib/domain/types'
 
@@ -92,6 +93,40 @@ export const setProjectTheme = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const user = await requireUser()
     dbUpdateProject(data.id, user.id, { theme: data.theme })
+    return { ok: true as const }
+  })
+
+// The project's BUILT-IN branding: its render theme + its brand kit (identity +
+// voice), plus the slug/title so a caller given only a projectId (the story dialog)
+// can seed a blank kit. Owner-scoped, fail-closed — null when the project isn't the
+// caller's. Replaces the former per-account brand-kit library (one kit per project).
+export type ProjectBranding = {
+  id: string
+  slug: string
+  title: string
+  theme: TimelineTheme | null
+  brand: BrandKit | null
+}
+
+export const getProjectBranding = createServerFn({ method: 'GET' })
+  .inputValidator((d: string) => z.string().parse(d))
+  .handler(async ({ data: id }): Promise<ProjectBranding | null> => {
+    const user = await requireUser()
+    const row = dbGetProject(id)
+    if (!row || row.ownerId !== user.id) return null
+    return { id: row.id, slug: row.slug, title: row.title, theme: row.theme ?? null, brand: row.brand ?? null }
+  })
+
+// Owner-only: REPLACE the project's built-in brand kit. Validated by brandKitSchema
+// (the SAME contract the dormant brands table used), so the story "brand costume"
+// reads a well-formed kit. Pass null to clear it back to no brand.
+export const setProjectBrandKit = createServerFn({ method: 'POST' })
+  .inputValidator((d: { id: string; kit: unknown }) =>
+    z.object({ id: z.string(), kit: brandKitSchema.nullable() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    dbUpdateProject(data.id, user.id, { brand: data.kit })
     return { ok: true as const }
   })
 

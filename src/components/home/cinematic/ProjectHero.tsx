@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Play, Plus } from 'lucide-react'
+import { Palette, Play, Plus } from 'lucide-react'
 import type { ProjectSummary } from '~/lib/domain/types'
+import { ProjectBrandingDialog } from '~/components/brand/ProjectBrandingDialog'
 
 // The project page hero — shown when a project is ENTERED (?project=<slug>). It gives
 // the project its own identity (title + description + a count line) and the primary
@@ -21,6 +23,7 @@ export function ProjectHero({
   firstTimeline: { id: string; title: string } | null
   onNewTimeline: () => void
 }) {
+  const [brandingOpen, setBrandingOpen] = useState(false)
   const counts = [
     `${timelineCount} ${timelineCount === 1 ? 'timeline' : 'timelines'}`,
     `${storyCount} ${storyCount === 1 ? 'story' : 'stories'}`,
@@ -50,8 +53,14 @@ export function ProjectHero({
               New timeline
             </button>
           )}
+          <button type="button" className="ch-secondary" onClick={() => setBrandingOpen(true)}>
+            <Palette aria-hidden="true" />
+            Customize
+          </button>
         </div>
       </div>
+
+      <ProjectBrandingDialog open={brandingOpen} onOpenChange={setBrandingOpen} projectId={project.id} />
     </section>
   )
 }

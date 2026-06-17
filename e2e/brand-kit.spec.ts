@@ -1,14 +1,15 @@
 import { test, expect, type Page } from '@playwright/test'
 
-// Brand-kit editor (stories-first pivot, slice 2). The project rail carries a
-// "Brand kits" affordance that opens a manager modal over the cinematic home: list
-// + create a local brand, drill into the section editor, edit a field + save, and
-// — when a project is the active filter — link the brand to that project. This is
-// the UI-level integration check; the data-layer contract is verify:brands.
+// Project branding (theme + brand voice built into a project). The former per-account
+// brand-kit LIBRARY (author many kits, link one to a project) was folded into the
+// project itself: each project owns a single theme + brand kit, edited from the
+// project hero's "Customize" button (ProjectBrandingDialog). This is the UI-level
+// integration check; the data-layer contract is verify:brands (the dormant table).
 //
-// Mirrors cinematic-home.spec / home.spec: sign in as the seeded demo account,
-// create a fresh project so the rail has an active project to link to (timestamped
-// to stay independent under fullyParallel — the demo account + e2e.db are shared).
+// Mirrors cinematic-home.spec: sign in as the seeded demo account, create a fresh
+// project (timestamped to stay independent under fullyParallel — the demo account +
+// e2e.db are shared), open its branding editor, edit a field + save, then re-open
+// and assert the edit round-tripped.
 test.use({ reducedMotion: 'reduce' })
 
 async function loginAsDemo(page: Page) {
@@ -27,50 +28,35 @@ async function createProject(page: Page, name: string) {
   await expect(dialog).toBeHidden()
 }
 
-test('create a brand, edit a section, link it to a project', async ({ page }) => {
+test('edit a project’s built-in brand voice and it round-trips', async ({ page }) => {
   await loginAsDemo(page)
 
-  // Active project to link the brand to (the rail passes it to the editor as the
-  // link target). The rail selects it on create (?project=<slug>).
+  // A fresh project — creating one enters its page (?project=<slug>), which shows the
+  // project hero carrying the "Customize" branding affordance.
   const projectName = `Brand Project ${Date.now()}`
   await createProject(page, projectName)
+  await expect(page.getByRole('region', { name: `Project: ${projectName}` })).toBeVisible()
 
-  // Open the brand manager from the "Brand kits" home row's "New brand kit" action
-  // (brand kits moved off the project rail into their own home row — the row renders
-  // here because a project is the active filter, so its empty state + action show).
-  await page.getByRole('button', { name: 'New brand kit' }).click()
-  const dialog = page.getByRole('dialog')
-  await expect(dialog.getByRole('heading', { name: 'Brand kits' })).toBeVisible()
+  // Open the project branding editor from the hero. It has two tabs now: Theme and
+  // Voice (the Identity/Visual brand sections were dropped).
+  await page.getByRole('button', { name: 'Customize' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Project branding' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('tab', { name: 'Identity' })).toHaveCount(0)
+  await expect(dialog.getByRole('tab', { name: 'Visual' })).toHaveCount(0)
 
-  // Create a brand — the manager drills straight into its editor.
-  const brandName = `Northwind ${Date.now()}`
-  await dialog.getByLabel('New brand').fill(brandName)
-  await dialog.getByRole('button', { name: 'Create' }).click()
+  // Edit a brand-voice field: add a personality trait on the Voice tab.
+  await dialog.getByRole('tab', { name: 'Voice' }).click()
+  await dialog.getByRole('button', { name: 'Add trait' }).click()
+  await dialog.getByLabel('Trait 1 name').fill('Confident')
 
-  // The editor opened on the Identity tab: edit the tagline (a section field).
-  await expect(dialog.getByLabel('Brand name')).toHaveValue(brandName)
-  await dialog.getByRole('tab', { name: 'Identity' }).click()
-  await dialog.getByLabel('Tagline').fill('Roasted small, shipped fresh')
+  // Save — the schema-valid edit persists and the dialog closes.
+  await dialog.getByTestId('project-branding-save').click()
+  await expect(dialog).toBeHidden()
 
-  // Link the brand to the active project (the link control is shown because the
-  // manager was opened with a project context).
-  await expect(dialog.getByText(`Project: ${projectName}`)).toBeVisible()
-  await dialog.getByRole('button', { name: 'Link to project' }).click()
-  // After linking, the control flips to "Unlink".
-  await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeVisible()
-
-  // Save the kit — the schema-valid edit persists and the saved marker appears.
-  await dialog.getByRole('button', { name: 'Save brand' }).click()
-  await expect(dialog.getByText('Saved')).toBeVisible()
-
-  // Re-open the editor: the tagline survived the save (round-trip through the kit).
-  // The brand's list row carries the new tagline as its subtitle — assert it shows
-  // (the round-trip is visible in the list itself), then re-open via the row's open
-  // button (scoped to the listitem so the row's Delete button doesn't clash).
-  await dialog.getByRole('button', { name: 'Back to brands' }).click()
-  const row = dialog.getByRole('listitem').filter({ hasText: brandName })
-  await expect(row.getByText('Roasted small, shipped fresh')).toBeVisible()
-  await row.getByRole('button', { name: `${brandName} Roasted small, shipped fresh` }).click()
-  await dialog.getByRole('tab', { name: 'Identity' }).click()
-  await expect(dialog.getByLabel('Tagline')).toHaveValue('Roasted small, shipped fresh')
+  // Re-open: the trait survived the save (round-trip through projects.brand).
+  await page.getByRole('button', { name: 'Customize' }).click()
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('tab', { name: 'Voice' }).click()
+  await expect(dialog.getByLabel('Trait 1 name')).toHaveValue('Confident')
 })

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "Synek",
-  "updatedAt": "2026-06-15T18:00:00.000Z",
+  "updatedAt": "2026-06-17T02:23:27.529Z",
   "syncedAt": null,
   "issues": [
     {
@@ -1039,6 +1039,24 @@
         "dirty": true,
         "etag": null,
         "syncedAt": null
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-137",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Public Explore feed at / + signed-in workspace at /projects (sidebar → header Projects button)",
+        "description": "Restructured the home (founder ask, AskUserQuestion-confirmed): the root `/` is now the PUBLIC, cross-user Explore feed; the signed-in workspace moved to `/projects`; the left HomeSidebar is gone, replaced by a Projects button in the app header.\n\n### Shipped\n- Root `/` → ExplorePage (`src/components/explore/`): three carousels — public stories (→ /s/$slug), public timelines (→ canvas), notable entities (image + subtype, never \"Entity\"). Content identical signed in/out; signing in only adds the header Projects button.\n- Cross-user reads (NOT owner-scoped, gated only on the public flag): `listPublicStories/Timelines/Nodes` in `src/lib/db/{stories,graph}.ts` + `src/lib/server/explore.ts`.\n- `/projects` → ProjectsWorkspace (was SignedIn): projects-list grid + per-project view; auth-gated; brings the global AppHeader. `/p/$slug` + login now land here.\n- Removed HomeSidebar + SignedIn; added ProjectCard. Seed now publishes stories so the Explore Stories row + /s/$slug populate.\n- Follow-ups: scrollbar spacing on carousels; removed beat/node counts from cards; entity cards use node images + subtype label.\n\n### Guardrail\nFounder OVERRODE the deferred \"public browsing of whole workspaces\" guardrail (recorded in CLAUDE.md).\n\n### Verification\ntypecheck (exit 0) + production build + Playwright e2e 67/67 green (added explore.spec, rewrote cinematic-home.spec, fixed settings-dialog.spec).\n\n### Commits (branch feat/decouple-nodes-shared-entities)\n- bce4892 — the routing/UI layer (21 files, isolated to my work).\n- The listPublic* db/server queries, explore CSS and seed story-publish were swept into 8f02549 (the concurrent shared-entities commit) because those files were co-edited; my changes are correctly in the tree, just under that commit message.\n\nConcurrency note: a concurrent session branched to feat/decouple-nodes-shared-entities mid-session and committed 8f02549; my commit stacked on top there rather than on main (branch-switching avoided to not disturb live sessions).",
+        "horizon": "now",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": []
       }
     }
   ],
