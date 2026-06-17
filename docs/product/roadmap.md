@@ -1,19 +1,19 @@
 ---
 project: "Synek"
 owner: Margot (product) · conducted via /sal
-updated: 2026-06-14
-status: Active — reflects the stories-first repositioning
+updated: 2026-06-17
+status: Active — reflects the stories-first repositioning + the 2026-06-17 pure-app cull (ADR 0005)
 supersedes: "the local-first / 'Claude's spatial memory' NOW-NEXT-LATER roadmap (pre-2026-06-14); prior prose preserved in git history"
-links: [product-strategy.md, stories-first-pivot.md, ../engineering/adr/0003-projects-container.md]
+links: [product-strategy.md, stories-first-pivot.md, ../engineering/adr/0003-projects-container.md, ../engineering/adr/0005-cull-public-discovery.md]
 ---
 
 # Synek Roadmap
 
-> **Synek is the companion app to Realscript for creating immersive, serialized stories for the digital world.** Build a world once (timeline, entities, globe), grow it a chapter at a time with your own AI, and publish it — responsive, SEO-ready `/s/$slug` pages, scheduled to social via Realscript. **Stories are the product; timelines, entities, and the globe are creation + navigation surfaces.**
+> **Synek is a local-first app for creating immersive, serialized stories.** Build a world once (timeline, entities, globe), grow it a chapter at a time with your own AI (MCP client or local model), and publish it — responsive, SEO-ready `/s/$slug` pages. Runs fully locally; deploy it to the cloud to share publicly. **Stories are the product; timelines, entities, and the globe are creation + navigation surfaces.** Realscript is one integration (brand + social distribution), not the headline.
 >
-> **Strategy · personas · bets:** [product-strategy.md](product-strategy.md) (system of record). **Decision record for this pivot:** [stories-first-pivot.md](stories-first-pivot.md). **Projects architecture:** [ADR 0003](../engineering/adr/0003-projects-container.md). **Work queue:** `.sector137/state.json` (`#local-N`).
+> **Strategy · personas · bets:** [product-strategy.md](product-strategy.md) (system of record). **Decision record for this pivot:** [stories-first-pivot.md](stories-first-pivot.md). **Projects architecture:** [ADR 0003](../engineering/adr/0003-projects-container.md). **Pure-app cull:** [ADR 0005](../engineering/adr/0005-cull-public-discovery.md). **Work queue:** `.sector137/state.json` (`#local-N`).
 >
-> **Posture:** cloud-first, fully functional self-hosted, progressively enhanced. Multi-tenant per-user isolation, the optional key-gated in-app agent, and public sharable stories are **SHIPPED** — the old "deferred until the lovable gate fires" framing is **retired** (the gate survives only as product signal, not as a scope gate).
+> **Posture (2026-06-17 cull, ADR 0005):** **local-first pure app** — no landing page, no public discovery feed; root `/` is the workspace. **Cloud is a deploy mode** (and the public-sharing / acquisition surface). The cloud infra — multi-tenant per-user isolation, the optional key-gated in-app agent, public sharable stories (`/s/$slug`) — is **SHIPPED** and powers that deploy mode; the lovable-gate framing is **retired** (the gate survives only as product signal).
 
 ---
 

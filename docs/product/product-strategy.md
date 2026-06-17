@@ -1,33 +1,35 @@
 ---
 project: "Synek"
 owner: Margot (product) · founder
-updated: 2026-06-14
+updated: 2026-06-17
 status: Active — system of record for the Bet Council (/sector137:bets)
-links: [roadmap.md, prd/README.md, ../engineering/adr/README.md, stories-first-pivot.md]
-supersedes: "2026-06-12 strategy (local-first, single-user, history-enthusiast framing — retired by founder decision 2026-06-14)"
+links: [roadmap.md, prd/README.md, ../engineering/adr/README.md, ../engineering/adr/0005-cull-public-discovery.md, stories-first-pivot.md]
+supersedes: "2026-06-12 strategy (local-first, single-user, history-enthusiast framing — retired by founder 2026-06-14, then posture partly restored to local-first by the 2026-06-17 pure-app cull, ADR 0005)"
 ---
 
 # Synek — Product Strategy
 
 ## TLDR
 
-- **Positioning:** Synek is the companion app to Realscript for **creating immersive, serialized stories for the digital world** — build a world once (timeline, entities, globe), grow it a chapter at a time with your own AI or the in-app key-gated agent, and publish it as responsive, SEO-ready pages scheduled to social via Realscript.
+- **Positioning:** Synek is a **local-first app for creating immersive, serialized stories** — build a world once (timeline, entities, globe), grow it a chapter at a time with your own AI (your MCP client or a local model) or the optional in-app key-gated agent, and publish it as responsive, SEO-ready pages. Anyone downloads it and runs it locally; **deploy it to the cloud to share publicly.** Realscript is one integration (brand + social distribution), not the headline.
 - **The unit of value is now the story, not the timeline.** Timelines, entities, and the globe are creation and navigation surfaces — the supporting cast. A Project is the top-level container.
-- **Primary persona (now):** the digital-story creator / serial worldbuilder — publishing a living, serialized world to a digital audience. The old "private research canvas" framing is retired.
-- **Shipped reality (2026-06-14):** cloud-first posture, optional key-gated in-app agent, multi-tenant per-user isolation, public sharable stories, BYO encrypted OpenRouter key, and Fly deploy are all built. The lovable gate and "deferred until gate fires" framing for these items are obsolete.
+- **Primary persona (now):** the digital-story creator / serial worldbuilder — building a living, serialized world, owning their data locally, and publishing to a digital audience when they choose to.
+- **Posture (2026-06-17 pure-app cull, ADR 0005):** **local-first pure app** — no landing page, no public discovery feed; the root `/` is the workspace. **Cloud is a deploy mode**, not a separate product. The cloud infrastructure (multi-tenant per-user isolation, open signup + email verification/reset, BYO encrypted OpenRouter key, Fly deploy) is all **built** and powers that deploy mode; the optional key-gated in-app agent and per-story public sharing (`/s/$slug`) are unchanged. The lovable-gate "deferred until gate fires" framing is obsolete.
 - **The bets table below is the system of record.** Status changes happen here first.
 
 ---
 
 ## Positioning
 
-One sentence: *Synek is the companion app to Realscript for creating immersive, serialized stories for the digital world — build a world once, grow it a chapter at a time with your own AI, and publish it.*
+One sentence: *Synek is a local-first app for creating immersive, serialized stories — build a world once, grow it a chapter at a time with your own AI, run it on your own machine, and deploy it to share.*
 
 The structural identity: you open a Project, you read and continue Stories. The timeline, the globe, the entity cards are lenses on that story's world — they exist to make the story navigable and inhabited, not to be the destination themselves.
 
-The Realscript relationship is load-bearing, not decorative. Realscript ships short-form/storyboard content at velocity. Synek is where long-running, world-anchored, serialized work lives. Shared brand (Realscript's brand API themes a Synek project). Shared distribution (Synek hands a finished story to Realscript's social scheduler). Shared component surface (Synek is Realscript's first external consumer of the immersive-story component library, proving the contract on a different stack). Because Synek is a separate repo on a different stack, every integration it consumes is a real external-contract test — an internal monorepo app could never produce this signal.
+**Synek stands alone.** Anyone can download it, run it locally against their own MCP client or local model, and build a world without an account or a server. Deploying it to the cloud unlocks the multi-tenant + public-sharing surface (below) — that's an *option*, not the identity.
 
-The MCP inversion persists and deepens: when no in-app key is configured, the user's own MCP client is still the brain, Synek is still the canvas. When a key is present, the same in-app agent loop runs over the same tool registry. One surface, two callers — BYO or hosted, identical tool contract.
+The Realscript relationship is a **strong integration and a dogfooding wedge** (bets B7/B8), not the headline. Realscript ships short-form/storyboard content at velocity; Synek is where long-running, world-anchored, serialized work lives. Shared brand (Realscript's brand API themes a Synek project). Shared distribution (Synek hands a finished story to Realscript's social scheduler). Shared component surface (Synek is Realscript's first external consumer of the immersive-story component library, proving the contract on a different stack). Because Synek is a separate repo on a different stack, every integration it consumes is a real external-contract test — an internal monorepo app could never produce this signal. But a creator who never touches Realscript is fully served.
+
+The MCP inversion persists and deepens: when no in-app key is configured, the user's own MCP client (Claude Desktop / Code, or any OpenAI-compatible local-model endpoint) is the brain, Synek is the canvas. When a key is present, the same in-app agent loop runs over the same tool registry. One surface, two callers — BYO or hosted, identical tool contract.
 
 **What is retired:** the "Claude's spatial memory / private research canvas" framing. The old positioning assumed a user building for themselves. The new positioning assumes a creator building for an audience — the world is the artifact, and publication is the exit condition.
 
@@ -64,9 +66,9 @@ Every roadmap item earns its place by serving this loop: world-building → stor
 
 The 2026-06-12 strategy doc was written when the product was local-first, single-user, with no in-app AI, no public sharing, and a lovable gate gating everything. Multiple items it called "Deferred" are now shipped. This section is the canonical reconciliation.
 
-| Item | Prior status | Actual status (2026-06-14) |
+| Item | Prior status | Actual status |
 |---|---|---|
-| Cloud-first posture | Deferred (lovable gate) | **Shipped** — cloud-first is the default posture (CLAUDE.md update 2026-06-13) |
+| Posture | Deferred cloud (lovable gate) → cloud-first (2026-06-14) | **Local-first pure app (2026-06-17, ADR 0005)** — cloud-first was reversed; cloud is now a *deploy mode*. The cloud infra below is still built and powers it |
 | Optional in-app key-gated agent | Out of scope | **Shipped** — `src/lib/agent/`, OpenRouter function-calling loop, same tool registry as MCP (`local-120`) |
 | Multi-tenant per-user isolation | Deferred | **Shipped** — per-user `ownerId` on all owned rows, owner-scoped reads at all entry points, BYO encrypted OpenRouter key (`user_settings`, AES-GCM), Fly deploy (`local-123`) |
 | Public sharable stories | Deferred | **Shipped** — `/s/$slug` SSR OG + mobile reels reader, `timeline.isPublic` gate, ShareStoryButton, growth CTA (`local-119-ish`) |
@@ -75,6 +77,8 @@ The 2026-06-12 strategy doc was written when the product was local-first, single
 | Lovable gate as gating mechanism | Active | **Obsolete** — the gate was designed for "do we build hosting?" The hosting is built. Measurement still matters (B1 instrumentation) but as a product signal, not an unlock gate |
 
 The scope guardrail in CLAUDE.md is updated to reflect this reality. What remains deferred: billing/metering, workspaces/teams, and the fiction-world basemap (P4).
+
+**2026-06-17 revision (pure-app cull, ADR 0005):** the 2026-06-14 *cloud-first* posture was reversed to **local-first pure app**. The cross-user public Explore discovery feed (shipped 2026-06-16) and the dead marketing landing page were **deleted**; the root `/` is the signed-in workspace. Per-story sharing (`/s/$slug`) was **kept**. Cloud (multi-tenant, signup, Fly) is unchanged underneath — it is now framed as the *deploy mode* and the public-sharing/acquisition surface, not the default.
 
 ---
 
@@ -89,7 +93,7 @@ System of record. Columns: validation signal, kill condition, instrumentation.
 | **B3** | **Stories are the product** — the story is the unit of value; without it Synek is a tidy diagram; with it, Synek is a creator's publishing tool | Stories-first repositioning (2026-06-14, founder); story reader, casts, covers, narration, public reader, beat widgets all shipped; the sharable story is the acquisition loop | Creator-persona users (publishing audience) return to write the next chapter unprompted; `/s/$slug` pages drive inbound ("how do I make one of these?") | Returners only look at the graph and never write or publish a story | **Core — repositioned as the primary bet (2026-06-14); measuring** | PostHog: `write_story` calls, story publish rate, `/s/$slug` traffic; qualitative interview |
 | **B4** | **Artifact grounding is the moat** — register a source once, cite it everywhere; the gap between Synek and "just ask Claude" | Stories without sources are plausible fiction; reuse turns citations into a compounding corpus; ships as `register_artifact` / `search_artifacts` | Claude re-cites registered artifacts in later sessions; artifacts accumulate across projects | Artifacts registered once and never re-cited or browsed across sessions | **Active build** — S2.1–S2.5, ADR 0001 | `mcp_tool_called` on `search_artifacts` / `register_artifact`; re-citation rate |
 | **B5** | **The verb system drives expansion** — every node offering its obvious next move turns viewing into growing | Copy-prompt machinery shipped; canvas computes its own gaps (`get_layout_report`); Tier 1 verbs reuse existing PromptSpec machinery at low cost | Verb copy-rates show repeated use; expand-family verbs produce patches | Verbs sit uncopied after Tier 1 ships | **Planned** — NEXT.5 Tier 1 | `PromptSpec.analytics` copy events (wired) |
-| **B6** | **The publish/share loop drives acquisition** — a creator publishes a story; their audience finds `/s/$slug`; inbound ask is "how do I make this?" | The sharable story page is built; SSR OG + mobile reader + "Make your own" CTA are shipped; each public story is a free acquisition event | Inbound "how do I get this" asks traced to `/s/$slug` referrers; week-2 signups via organic share | Public stories are viewed but don't convert; no organic "make your own" traction | **Built, unproven** — organic traffic and conversion untested | PostHog: `/s/$slug` traffic source; signup source; referral path |
+| **B6** | **The publish/share loop drives acquisition — on the hosted instance** — a creator publishes a story; their audience finds `/s/$slug`; inbound ask is "how do I make this?" | The sharable story page is built; SSR OG + mobile reader + "Make your own" CTA are shipped; each public story is a free acquisition event. **Post-cull (ADR 0005): this is a CLOUD-MODE bet** — `/s/$slug` only reaches the public internet from a deployed instance, so the hosted instance is the acquisition surface; local-first is the on-ramp/ownership mode | Inbound "how do I get this" asks traced to `/s/$slug` referrers; week-2 signups via organic share (on the hosted instance) | Public stories are viewed but don't convert; no organic "make your own" traction; OR local users never deploy to share so the loop never starts | **Built, unproven** — organic traffic and conversion untested; now explicitly gated on cloud deployment | PostHog (hosted): `/s/$slug` traffic source; signup source; referral path; local→deploy conversion |
 | **B7** | **The dogfooding wedge** — Synek as Realscript's first external customer hardens Realscript's public API contracts (brand, scheduler, components) in ways an internal app never can | A separate-stack consumer on a different runtime (Bun/TanStack vs. pnpm/Next) exposes cross-stack bugs and contract gaps that co-located code would never surface | Brand API integration ships (P2) and finds at least one contract gap; scheduler integration ships (P6); component extraction (P7) surfaces a framework-coupling bug | Integration is too thin to produce signal — Synek just wraps Realscript without exercising real contract edges; or operating discipline collapses (building Synek features *to* test Realscript instead of building what Synek needs) | **Structural** — standing operating discipline; P2 is the first live test | Count of contract gaps surfaced per integration phase; subjective: does Realscript's API harden measurably from each Synek integration? |
 | **B8** | **Nonfiction grounding is a competitive moat vs. pure fiction tools** — citations, artifacts, primary sources, and geoScope make Synek stories trustworthy in a way AI-generated content is not | The creator persona (nonfiction-first) needs credibility signals; fiction users have many tools; grounded-nonfiction worldbuilders have almost none | Creators cite and ground their work; `search_artifacts` reuse rate is high; audience engagement is higher on cited stories | Creators skip citations; sourcing is friction, not value | **Assumption** — nonfiction-first is the 2026-06-14 locked stance; testing begins at P1 | Citation rate per story; `register_artifact` use in first session; qualitative: does grounding feel like a feature or a chore? |
 
@@ -101,10 +105,11 @@ System of record. Columns: validation signal, kill condition, instrumentation.
 
 ### In scope (shipped or committed)
 
-- Cloud-first posture — the default; self-hosted is fully functional
+- Local-first pure app — the default; anyone downloads and runs it locally with their own MCP client / local model. No landing page, no public discovery feed; root `/` is the workspace (ADR 0005)
+- Cloud as a deploy mode — the same codebase deployed multi-tenant; the public-sharing / acquisition surface
 - Optional key-gated in-app agent (`OPENROUTER_API_KEY`) — progressively enhancing the BYO-client path
-- Multi-tenant per-user isolation — open signup, email verification/reset, per-user BYO OpenRouter key (encrypted at rest)
-- Public sharable stories — `/s/$slug` SSR OG + mobile reels reader
+- Multi-tenant per-user isolation — open signup, email verification/reset, per-user BYO OpenRouter key (encrypted at rest) — powers the cloud deploy mode
+- Public sharable stories — `/s/$slug` SSR OG + mobile reels reader (public reach requires a deployed instance)
 - The MCP tool surface as the single write path (both transports)
 - The Patch invariant
 - Projects container (P1 — committed, Kael ADR in progress as of 2026-06-14)
@@ -122,7 +127,8 @@ System of record. Columns: validation signal, kill condition, instrumentation.
 - The fiction basemap itself (P4 — `projects.kind` flag designed in from P1, but non-Earth globe and canon-bible storage are roadmap)
 - Component extraction to a framework-neutral package (P7)
 - Vector search / embeddings (FTS5 first per prior decision)
-- Weekly email digest, server-side image generation, realtime SSE on public pages, public browsing of whole workspaces
+- Weekly email digest, server-side image generation, realtime SSE on public pages
+- Public discovery / browsing of whole workspaces — the cross-user Explore feed shipped 2026-06-16 then was **culled 2026-06-17** (ADR 0005); deferred again. Per-story share links (`/s/$slug`) are the only public surface
 
 ### Operating discipline
 
@@ -155,6 +161,20 @@ Source of record: `docs/product/stories-first-pivot.md` §6.
 ---
 
 ## Change log
+
+### 2026-06-17 — Pure-app cull (founder; posture patch, ADR 0005)
+
+**Posture:** OLD (2026-06-14) — cloud-first, fully functional self-hosted. NEW — **local-first pure app**; cloud is a *deploy mode*, not the default. Anyone downloads and runs it locally with their own MCP client / local model.
+
+**Removed:** the cross-user public **Explore discovery feed** (shipped 2026-06-16) and the dead marketing **landing page**; the root `/` is now the signed-in workspace. **Kept:** per-story sharing (`/s/$slug`) and all cloud infra (multi-tenant, signup, Fly) — reframed as the deploy/acquisition mode.
+
+**Positioning:** the lead sentence re-leads as a **standalone** local-first story tool; **Realscript demoted** from headline ("companion app to Realscript") to one integration / dogfooding wedge (B7/B8). Persona, North Star, and bets B1–B8 otherwise unchanged.
+
+**Bets:** **B6 (publish/share → acquisition) reframed as a CLOUD-MODE bet** — `/s/$slug` only reaches the public internet from a deployed instance, so acquisition happens on the hosted instance; local-first is the on-ramp. New kill-condition added: local users never deploy, so the loop never starts. "Public browsing of whole workspaces" returns to deferred.
+
+**Scope:** "What does 'local models' mean" resolved to the **BYO MCP client** path (the MCP inversion) — no in-app local inference was added; the agent runner is untouched.
+
+**Decision record:** [ADR 0005](../engineering/adr/0005-cull-public-discovery.md) (founder via AskUserQuestion, 2026-06-17).
 
 ### 2026-06-14 — Stories-first repositioning (founder, locked)
 

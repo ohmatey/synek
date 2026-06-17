@@ -9,6 +9,8 @@ supersedes_note: "product-strategy.md is stale (local-first framing) relative to
 
 # Synek — Stories-first repositioning + Realscript companion
 
+> ⚠️ **Historical decision record (2026-06-14). Posture partly revised 2026-06-17.** The stories-first re-centering and the Projects container below still hold. But the *cloud-first* posture and the *"Realscript companion" as headline positioning* were revised by the **pure-app cull** ([ADR 0005](../engineering/adr/0005-cull-public-discovery.md)): Synek is now a **local-first pure app** (cloud = deploy mode) that **leads as a standalone story tool**, with Realscript demoted to one integration. See [product-strategy.md](product-strategy.md) for the current framing. Read the rest of this doc as the 2026-06-14 snapshot.
+
 > Re-center Synek on **Stories**, with **Timelines · Entities · Resources** as the supporting cast — all grouped under a new top-level **Project**. Reposition Synek as **Realscript's companion app for immersive AI stories**, and as the live testbed for Realscript's **brand** and **social-scheduling** integrations.
 
 ## TLDR
