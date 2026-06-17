@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useReactFlow } from '@xyflow/react'
-import { Crosshair, ExternalLink, Loader2, Pencil, Play, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Crosshair, ExternalLink, Loader2, Maximize2, Pencil, Play, Plus, Trash2, Upload, X } from 'lucide-react'
 import { centerOnNodes } from './cameraFocus'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -79,6 +80,7 @@ export function NodeDetailPanel({
   timelineId,
   readOnly = false,
   mode = 'default',
+  variant = 'panel',
   storyLabel,
   stories,
   onClose,
@@ -95,6 +97,12 @@ export function NodeDetailPanel({
   nodes: GraphNode[]
   timelineId: string
   readOnly?: boolean
+  // 'panel' (default): the docked canvas side panel (resize handle, focus-on-canvas
+  // button, "open full page" expander). 'page': the standalone full-screen entity
+  // page (/timelines/$id/nodes/$nodeId) — drops the canvas-only chrome and lays the
+  // same content out as a centered responsive reading column. One source of truth
+  // for the read/edit form across both surfaces.
+  variant?: 'panel' | 'page'
   // 'story': the panel is the portrait beside the docked reader — the entity a
   // beat focuses on. Strips down to images / title / dates / description with a
   // "Story · {storyLabel}" eyebrow; no relations, stories, citations, or editing.
@@ -163,6 +171,7 @@ export function NodeDetailPanel({
   // is keyed by node id, so this resets on selection change.
   const [isEditing, setIsEditing] = useState(false)
   const storyMode = mode === 'story'
+  const isPage = variant === 'page'
   const canEdit = !readOnly && !storyMode
   const editMode = canEdit && isEditing
   // Long descriptions clamp to a few lines (read-first); "Show more" expands.
@@ -206,6 +215,9 @@ export function NodeDetailPanel({
   async function refetch() {
     await qc.invalidateQueries({ queryKey: ['graph', timelineId] })
     void qc.invalidateQueries({ queryKey: ['history', timelineId] })
+    // A content edit lands on the shared entity (ADR 0004) — refresh any open
+    // entity-page aggregation so its content undo/redo state reflects it.
+    void qc.invalidateQueries({ queryKey: ['entityContext'] })
   }
 
   async function save() {
@@ -329,8 +341,8 @@ export function NodeDetailPanel({
   const dateline = formatInstantRange(node.startInstant, hasSpan ? node.endInstant : null, node.precision, hasSpan)
 
   return (
-    <div className="detail-panel" role="dialog" aria-label="Node details">
-      {width != null && onResize && (
+    <div className={isPage ? 'detail-panel node-page' : 'detail-panel'} role="dialog" aria-label="Node details">
+      {!isPage && width != null && onResize && (
         <ResizeHandle width={width} onResize={onResize} onCommit={onCommitResize} label="Resize details panel" />
       )}
       <header className="detail-head">
@@ -353,17 +365,32 @@ export function NodeDetailPanel({
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
-          {!storyMode && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={() => centerOnNodes(rf, [node.id], { duration: 400 })}
-              aria-label="Focus on canvas"
-              title="Focus on canvas"
-            >
-              <Crosshair className="size-4" />
-            </Button>
+          {!storyMode && !isPage && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={() => centerOnNodes(rf, [node.id], { duration: 400 })}
+                aria-label="Focus on canvas"
+                title="Focus on canvas"
+              >
+                <Crosshair className="size-4" />
+              </Button>
+              {/* Open this entity on its own full-screen page (decoupled from the
+                  canvas) — the docked panel and the page share this component. */}
+              <Button asChild variant="ghost" size="icon" className="size-7">
+                <Link
+                  to="/timelines/$id/nodes/$nodeId"
+                  params={{ id: timelineId, nodeId: node.id }}
+                  data-testid="open-node-page"
+                  aria-label="Open full page"
+                  title="Open full page"
+                >
+                  <Maximize2 className="size-4" />
+                </Link>
+              </Button>
+            </>
           )}
           {editMode ? (
             <>

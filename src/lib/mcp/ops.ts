@@ -1,7 +1,10 @@
 import { z } from 'zod'
+import { eq } from 'drizzle-orm'
+import { db } from '~/lib/db'
 import { parseDate } from '~/lib/domain/dates'
 import type { PatchBuilder, NodePatch, EdgePatch } from '~/lib/db/patches'
-import type { NodeMetadata } from '~/lib/db/schema'
+import { commitEntityPatch, type EntityContentPatch } from '~/lib/db/entity-patches'
+import { entities, type NodeMetadata } from '~/lib/db/schema'
 import { GEO_SCOPES, type NodeImage, type Precision } from '~/lib/domain/types'
 
 // Transport-agnostic graph-edit logic. Lifted out of the old AI-SDK `tools.ts`
@@ -141,6 +144,14 @@ export const opSchema = z.discriminatedUnion('op', [
     id: z.string().describe('Node id to delete (connected edges are removed too).'),
   }),
   z.object({
+    op: z.literal('place_entity'),
+    entityId: z
+      .string()
+      .describe('Place an EXISTING entity (from another timeline) onto this timeline as a new placement (ADR 0004).'),
+    ref: z.string().optional().describe(refHint),
+    lane: z.string().optional().describe(laneHint),
+  }),
+  z.object({
     op: z.literal('add_edge'),
     ref: z.string().optional().describe(refHint),
     sourceId: z.string().describe('Source node id (or a ref from this batch).'),
@@ -165,7 +176,11 @@ export type OpResult = { op: Op['op']; ref?: string } & ({ id: string } | { erro
 
 // Apply a batch of ops to a PatchBuilder. Returns a per-op result list. Nothing
 // touches the DB here — commitPatch (upstream) flushes the builder as one Patch.
-export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[] } {
+export function applyOps(
+  builder: PatchBuilder,
+  ops: Op[],
+  opts?: { ownerId?: string | null },
+): { results: OpResult[] } {
   // ref alias -> real id, for nodes created earlier in this same batch.
   const refs = new Map<string, string>()
   const resolve = (id: string) => refs.get(id) ?? id
@@ -286,13 +301,57 @@ export function applyOps(builder: PatchBuilder, ops: Op[]): { results: OpResult[
           }
           np.metadata = merged
         }
-        results.push(builder.updateNode(id, np) ? { op: op.op, id } : { op: op.op, error: `node ${id} not found` })
+        // ADR 0004 R13: on an entity-backed node, CONTENT (title/summary/dates/
+        // precision + content metadata) edits the shared entity (its own undo
+        // stack, propagates to every placement); only `lane` (per-placement) stays
+        // a graph patch. A bare legacy node (no entityId) keeps today's behavior.
+        const cur = builder.getNode(id)
+        if (cur?.entityId) {
+          const entityPatch: EntityContentPatch = {}
+          if (np.type !== undefined) entityPatch.type = np.type
+          if (np.title !== undefined) entityPatch.title = np.title
+          if (np.summary !== undefined) entityPatch.summary = np.summary
+          if (np.startInstant !== undefined) entityPatch.startInstant = np.startInstant
+          if (np.endInstant !== undefined) entityPatch.endInstant = np.endInstant
+          if (np.precision !== undefined) entityPatch.precision = np.precision
+          if (np.metadata != null) {
+            const contentMeta: NodeMetadata = { ...np.metadata }
+            delete contentMeta.lane
+            entityPatch.metadata = contentMeta
+          }
+          if (Object.keys(entityPatch).length > 0) {
+            commitEntityPatch(cur.entityId, entityPatch, `Edit: ${op.title ?? cur.title}`)
+          }
+          // lane → the placement (graph patch). np.metadata is always set when
+          // op.lane is present (the metadata block triggers on it).
+          if (op.lane !== undefined && np.metadata != null) {
+            const laneMeta: NodeMetadata = {}
+            if (np.metadata.lane) laneMeta.lane = np.metadata.lane
+            builder.updateNode(id, { metadata: laneMeta })
+          }
+          results.push({ op: op.op, id })
+        } else {
+          results.push(builder.updateNode(id, np) ? { op: op.op, id } : { op: op.op, error: `node ${id} not found` })
+        }
         break
       }
 
       case 'delete_node': {
         const id = resolve(op.id)
         results.push(builder.deleteNode(id) ? { op: op.op, id } : { op: op.op, error: `node ${id} not found` })
+        break
+      }
+
+      case 'place_entity': {
+        // Place an EXISTING owned entity as a new placement on this timeline.
+        const entity = db.select().from(entities).where(eq(entities.id, op.entityId)).get()
+        if (!entity || (opts?.ownerId != null && entity.ownerId !== opts.ownerId)) {
+          results.push({ op: op.op, ref: op.ref, error: `entity ${op.entityId} not found` })
+          break
+        }
+        const node = builder.placeEntity(entity, { lane: op.lane })
+        if (op.ref) refs.set(op.ref, node.id)
+        results.push({ op: op.op, ref: op.ref, id: node.id })
         break
       }
 

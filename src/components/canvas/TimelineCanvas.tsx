@@ -46,6 +46,7 @@ import { capture } from '~/lib/posthog/client'
 import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
 import { fillGapSpec, extendLaneSpec, populateEraSpec, globeBackfillSpec } from '~/lib/verbs'
 import { ViewSwitcher, type CanvasView } from './ViewSwitcher'
+import { AddEntityMenu } from './AddEntityMenu'
 import { globeCoverage } from './globe-coverage'
 import type { GlobeControls } from './GlobeLens'
 import { getGraph } from '~/lib/server/graph'
@@ -1142,6 +1143,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 onOpenStory={openStory}
               />
             )}
+            {/* Place an existing (shared) entity onto this timeline — ADR 0004. */}
+            {isOwner && <AddEntityMenu timelineId={timelineId} />}
             {(gnodes.length > 0 || pending.length > 0) && (
               <CanvasSettings
                 timelineId={timelineId}

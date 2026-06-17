@@ -374,6 +374,10 @@ export const toolRegistry: ToolDef[] = [
       return {
         id: node.id,
         timelineId,
+        // The canonical entity this placement renders (ADR 0004). Pass it to
+        // place_entity to add the SAME entity onto another timeline; editing the
+        // entity (via update_node on any placement) propagates to all of them.
+        entityId: node.entityId,
         type: node.type,
         subtype: node.metadata?.subtype ?? null,
         title: node.title,
@@ -441,8 +445,8 @@ export const toolRegistry: ToolDef[] = [
       const meta = getTimelineMeta(timelineId)
       if (meta && meta.ownerId !== ownerId) throw new Error(`timeline "${timelineId}" not found`)
       ensureTimeline(timelineId, ownerId)
-      const builder = new PatchBuilder(timelineId, loadGraph(timelineId))
-      const { results } = applyOps(builder, ops)
+      const builder = new PatchBuilder(timelineId, loadGraph(timelineId), ownerId)
+      const { results } = applyOps(builder, ops, { ownerId })
       const patchId = commitPatch(timelineId, builder, (summary || 'MCP edit').slice(0, 200))
       // Advisory only, computed after the commit (image checks hit the network);
       // live viewers already got the SSE nudge from commitPatch.

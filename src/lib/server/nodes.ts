@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { loadGraph, getTimelineMeta } from '~/lib/db/graph'
 import { requireUser } from '~/lib/auth/session'
 import { PatchBuilder, commitPatch, type NodePatch } from '~/lib/db/patches'
+import { commitEntityPatch, type EntityContentPatch } from '~/lib/db/entity-patches'
 import type { NodeMetadata } from '~/lib/db/schema'
 
 // Manual node edits go through the SAME Patch path as the AI: build one
@@ -96,6 +97,37 @@ export const editNode = createServerFn({ method: 'POST' })
     }
     // Empty patch → no-op (avoids an empty `SET` and a meaningless Patch row).
     if (Object.keys(np).length === 0) return { ok: true as const, patchId: null }
+
+    // ADR 0004 R13: CONTENT edits go to the shared entity (its own undo stack;
+    // propagates to every placement). Only `lane` (per-placement) stays a graph
+    // patch. A bare legacy node (no entityId) keeps the all-in-one-patch behavior.
+    if (cur.entityId) {
+      const entityPatch: EntityContentPatch = {}
+      if (np.title !== undefined) entityPatch.title = np.title
+      if (np.summary !== undefined) entityPatch.summary = np.summary
+      if (np.startInstant !== undefined) entityPatch.startInstant = np.startInstant
+      if (np.endInstant !== undefined) entityPatch.endInstant = np.endInstant
+      if (np.precision !== undefined) entityPatch.precision = np.precision
+      if (np.metadata !== undefined) {
+        const contentMeta: NodeMetadata = { ...np.metadata }
+        delete contentMeta.lane
+        entityPatch.metadata = contentMeta
+      }
+      let patchId: string | null = null
+      if (Object.keys(entityPatch).length > 0) {
+        patchId = commitEntityPatch(cur.entityId, entityPatch, `Edit: ${patch.title ?? cur.title}`).patchId
+      }
+      // lane → the placement (graph patch).
+      if (patch.lane !== undefined) {
+        const laneMeta: NodeMetadata = {}
+        if (patch.lane) laneMeta.lane = patch.lane
+        const builder = new PatchBuilder(timelineId, graph)
+        builder.updateNode(nodeId, { metadata: laneMeta })
+        const lanePatch = commitPatch(timelineId, builder, `Lane: ${patch.title ?? cur.title}`)
+        patchId = patchId ?? lanePatch
+      }
+      return { ok: true as const, patchId }
+    }
 
     const builder = new PatchBuilder(timelineId, graph)
     builder.updateNode(nodeId, np)

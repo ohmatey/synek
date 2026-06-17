@@ -146,6 +146,14 @@ export const projects = sqliteTable(
     // inherit at READ time (timeline.theme ?? project.theme ?? defaults) — no new
     // column on timelines, no theme-data migration.
     theme: text('theme', { mode: 'json' }).$type<TimelineTheme>(),
+    // The project's BUILT-IN brand kit (identity + visual reference + voice), on
+    // Realscript's brand schema (BrandKit in domain/brand.ts). Folds the former
+    // author-many-kits-and-link model (the dormant `brands` table + `brandId`) into
+    // a single kit the project OWNS — themes/voice are now built into the project,
+    // not a separate library. Null until the project's branding editor saves one.
+    // Read by the story "brand costume" path (getTimelineBrandInfo) for on-brand
+    // writing; the visual *render* still comes from `theme` above.
+    brand: text('brand', { mode: 'json' }).$type<BrandKit>(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
   },
@@ -231,11 +239,39 @@ export const userSettings = sqliteTable('user_settings', {
 
 export type UserSettingsRow = typeof userSettings.$inferSelect
 
+// --- Shared entities (ADR 0004) -------------------------------------------
+// Canonical CONTENT for a node, decoupled from any one timeline. One entity can
+// back MANY placements (`nodes.entityId`) across timelines; editing it propagates
+// to every placement via the loadGraph overlay (no fan-out writes). Owner-scoped
+// (the security boundary), like timelines. NB: an `entities` row backs ANY node
+// TYPE (event/entity/period/concept) — it is "canonical node content," distinct
+// from the `entity` NodeType. Carries CONTENT only; `lane`/`laneHint` are
+// per-placement and stay on `nodes`.
+export const entities = sqliteTable('entities', {
+  id: text('id').primaryKey().$defaultFn(newId),
+  ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+  type: text('type', { enum: NODE_TYPES }).notNull(),
+  title: text('title').notNull(),
+  summary: text('summary'),
+  startInstant: integer('start_instant').notNull(),
+  endInstant: integer('end_instant'),
+  precision: text('precision', { enum: PRECISIONS }).notNull().default('year'),
+  // Content metadata only (citations/images/size/color/subtype/location/lat/lng/
+  // geoScope) — NOT `lane`, which is per-placement and lives on `nodes.metadata`.
+  metadata: text('metadata', { mode: 'json' }).$type<NodeMetadata>(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+})
+
 export const nodes = sqliteTable('nodes', {
   id: text('id').primaryKey().$defaultFn(newId),
   timelineId: text('timeline_id')
     .notNull()
     .references(() => timelines.id, { onDelete: 'cascade' }),
+  // The canonical entity this placement renders (ADR 0004). Nullable: legacy/test
+  // bare nodes resolve from their own columns (the loadGraph overlay falls back
+  // when this is null). App writes (add_node) always set it.
+  entityId: text('entity_id').references(() => entities.id),
   type: text('type', { enum: NODE_TYPES }).notNull(),
   title: text('title').notNull(),
   summary: text('summary'),
@@ -276,6 +312,26 @@ export const patches = sqliteTable('patches', {
   summary: text('summary').notNull(),
   ops: text('ops', { mode: 'json' }).$type<GraphOp[]>().notNull(),
   inverseOps: text('inverse_ops', { mode: 'json' }).$type<GraphOp[]>().notNull(),
+  status: text('status', { enum: ['applied', 'undone'] })
+    .notNull()
+    .default('applied'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+})
+
+// The SEPARATE undo stack for shared-entity CONTENT edits (ADR 0004), keyed by
+// entityId+seq — independent of the per-timeline `patches`/⌘Z stack. An entity
+// content edit propagates to every placement, so its undo history can't live on
+// any one timeline. Cascades when the entity is deleted.
+export const entityPatches = sqliteTable('entity_patches', {
+  id: text('id').primaryKey().$defaultFn(newId),
+  entityId: text('entity_id')
+    .notNull()
+    .references(() => entities.id, { onDelete: 'cascade' }),
+  ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+  seq: integer('seq').notNull(), // monotonic per entity — orders this entity's stack
+  summary: text('summary').notNull(),
+  ops: text('ops', { mode: 'json' }).$type<EntityOp[]>().notNull(),
+  inverseOps: text('inverse_ops', { mode: 'json' }).$type<EntityOp[]>().notNull(),
   status: text('status', { enum: ['applied', 'undone'] })
     .notNull()
     .default('applied'),
@@ -555,6 +611,8 @@ export type MomentArtifactRow = typeof momentArtifacts.$inferSelect
 export type SegmentCitationRow = typeof segmentCitations.$inferSelect
 
 export type TimelineRow = typeof timelines.$inferSelect
+export type EntityRow = typeof entities.$inferSelect
+export type EntityPatchRow = typeof entityPatches.$inferSelect
 export type NodeRow = typeof nodes.$inferSelect
 export type EdgeRow = typeof edges.$inferSelect
 export type PatchRow = typeof patches.$inferSelect
@@ -588,16 +646,31 @@ export type StorySnapshot = {
 // `moment_artifacts` links that hang off the node itself (not a story) and
 // cascade on delete. Set only on a restore (delete-inverse) op so undo/redo
 // brings a moment's artifact links back (ADR 0001 — two-site undo capture).
+// `add_node.entity` (ADR 0004) carries the canonical entity row co-created with a
+// brand-new placement, so undo can remove it and redo re-create it. It is absent
+// when the op only PLACES an existing entity (the entity already exists and is
+// shared). `delete_node.entity` is the companion: the entity snapshot to
+// CONDITIONALLY remove on apply (only if this was its last placement) and to
+// restore on undo — mirrors the stories/momentArtifacts two-site capture.
 export type GraphOp =
   | {
       kind: 'add_node'
       node: NodeRow
+      entity?: EntityRow | null
       stories?: StorySnapshot[] | null
       story?: StorySnapshot | null
       momentArtifacts?: MomentArtifactRow[] | null
     }
   | { kind: 'update_node'; id: string; before: Partial<NodeRow>; after: Partial<NodeRow> }
-  | { kind: 'delete_node'; node: NodeRow; edges: EdgeRow[] }
+  | { kind: 'delete_node'; node: NodeRow; edges: EdgeRow[]; entity?: EntityRow | null }
   | { kind: 'add_edge'; edge: EdgeRow }
   | { kind: 'update_edge'; id: string; before: Partial<EdgeRow>; after: Partial<EdgeRow> }
   | { kind: 'delete_edge'; edge: EdgeRow }
+
+// A single reversible ENTITY-content mutation (ADR 0004), on the per-entity
+// `entity_patches` stack. Content-only; placement/lane never appears here.
+export type EntityOp = {
+  kind: 'update_entity'
+  before: Partial<EntityRow>
+  after: Partial<EntityRow>
+}

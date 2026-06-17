@@ -213,6 +213,21 @@ export type TimelineGraphResult =
   | { status: 'notFound' }
   | { status: 'forbidden' }
 
+// --- Shared entities (ADR 0004) — cross-timeline aggregation DTOs ----------
+// The full-screen entity page is per-placement (keyed by timelineId+nodeId) but
+// shows, for the OWNER, every timeline the underlying entity appears on plus the
+// entity's own content undo/redo state. Non-owner / signed-out → `forbidden`
+// (they still get the read-only per-timeline view); a bare legacy node with no
+// entity → `none` (no aggregation to show).
+export type EntityPlacement = { timelineId: string; timelineTitle: string; nodeId: string }
+export type EntityContextResult =
+  | { status: 'none' }
+  | { status: 'forbidden' }
+  | { status: 'ok'; entityId: string; placements: EntityPlacement[]; canUndo: boolean; canRedo: boolean }
+
+// One hit in the canvas "add existing entity" picker.
+export type EntitySearchHit = { entityId: string; type: NodeType; title: string; summary: string | null }
+
 // Plain DTO for the home list — createdAt as epoch-ms (no Date over the RPC).
 export type TimelineSummary = {
   id: string
@@ -359,6 +374,58 @@ export type PublicStoryDTO = {
   viewSettings: TimelineViewSettings | null
   updatedAt: number
   nodes: GraphNode[]
+}
+
+// --- Public discovery feed (the root Explore page) ------------------------
+// The root `/` lists PUBLIC content across ALL owners — a cross-user discovery
+// surface (founder, 2026-06-16: this intentionally supersedes the "public
+// browsing of whole workspaces" deferral in the guardrail). Every card here is
+// derived from an explicit public flag — a story's own `isPublic` (the /s/$slug
+// gate) or a timeline's `isPublic` — so nothing private ever leaks, and the
+// reads are deliberately NOT owner-scoped. Anonymous-safe (no session needed).
+
+// One public story in the Explore "Stories" row — links to /s/$slug. A trimmed
+// HomeStoryCard: no owner-only fields (no parent project, no move affordance).
+export type PublicStoryCard = {
+  storyId: string
+  slug: string
+  title: string
+  hook: string | null
+  coverImage: StoryImage | null
+  beatCount: number
+  estimatedMinutes: number | null
+  // The timeline this story sits on — shown as the card's eyebrow.
+  timelineTitle: string
+  // Last write (epoch-ms) — the Explore feed's newest-first sort key.
+  updatedAt: number
+}
+
+// One public timeline in the Explore "Timelines" row — links to the canvas
+// (/timelines/$id, which getGraph serves to anonymous viewers when public).
+export type PublicTimelineCard = {
+  id: string
+  title: string
+  description: string | null
+  createdAt: number
+  // How many nodes the timeline holds — a richness signal on the card.
+  nodeCount: number
+}
+
+// One notable node from a public timeline in the Explore "Entities" row — links
+// into the canvas focused on that node (/timelines/$id?node=$id).
+export type PublicNodeCard = {
+  id: string
+  type: NodeType
+  // The entity subtype (person/org/place/work) when set — the card labels by this
+  // rather than the generic "Entity" type.
+  subtype: NodeSubtype | null
+  // First displayable image (metadata.images, show !== false), or null → glyph.
+  imageUrl: string | null
+  imageAlt: string | null
+  title: string
+  summary: string | null
+  timelineId: string
+  timelineTitle: string
 }
 
 // --- Projects (ADR 0002) — the top-level owned container ------------------

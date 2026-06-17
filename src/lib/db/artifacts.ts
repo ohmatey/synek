@@ -1,6 +1,6 @@
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { db, sqlite } from './index'
-import { artifacts, sources, momentArtifacts, storyArtifacts, stories, nodes } from './schema'
+import { artifacts, sources, momentArtifacts, storyArtifacts, stories, nodes, entities } from './schema'
 import type { ArtifactRow, SourceRow } from './schema'
 import type { ArtifactType, CitationSourceType, Precision, Reliability, SourceType } from '~/lib/domain/types'
 
@@ -136,9 +136,15 @@ export type ArtifactBrowseRow = {
 export function listArtifactsForTimeline(timelineId: string): ArtifactBrowseRow[] {
   // Artifacts reachable from this timeline via either link, then hydrate each.
   const viaMoment = db
-    .select({ artifactId: momentArtifacts.artifactId, momentId: nodes.id, momentTitle: nodes.title })
+    .select({
+      artifactId: momentArtifacts.artifactId,
+      momentId: nodes.id,
+      // R8 (ADR 0004): the moment title is canonical on its entity.
+      momentTitle: sql<string>`coalesce(${entities.title}, ${nodes.title})`,
+    })
     .from(momentArtifacts)
     .innerJoin(nodes, eq(momentArtifacts.momentId, nodes.id))
+    .leftJoin(entities, eq(nodes.entityId, entities.id))
     .where(eq(nodes.timelineId, timelineId))
     .all()
   const viaStory = db

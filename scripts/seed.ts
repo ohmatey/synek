@@ -5,9 +5,9 @@
 //
 // Seed one timeline by id: `bunx tsx scripts/seed.ts observability`
 import { randomUUID } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { db } from '../src/lib/db/index'
-import { timelines, nodes, edges, user, type NodeMetadata } from '../src/lib/db/schema'
+import { timelines, nodes, edges, entities, stories, user, type NodeMetadata } from '../src/lib/db/schema'
 import type { EdgeKind, ImageAspect, NodeType, Precision, StoryImage, StoryImageLayout } from '../src/lib/domain/types'
 import { auth } from '../src/lib/auth'
 import { writeStory, type NewStory, type NewStorySegment } from '../src/lib/db/stories'
@@ -73,7 +73,7 @@ const storyImg = (
 
 // Per-timeline builder: every node/edge is scoped to `tl`, so the same helper
 // names can be reused across timelines without collisions.
-function builder(tl: string) {
+function builder(tl: string, ownerId: string) {
   function node(o: {
     type: NodeType
     title: string
@@ -84,10 +84,29 @@ function builder(tl: string) {
     metadata?: NodeMetadata
   }): string {
     const id = randomUUID()
+    // ADR 0004: a node is a PLACEMENT of a canonical entity. Seed both — the entity
+    // holds content (lane stripped, it's per-placement), the node references it.
+    const entityId = randomUUID()
+    const entityMeta = o.metadata ? { ...o.metadata } : null
+    if (entityMeta) delete entityMeta.lane
+    db.insert(entities)
+      .values({
+        id: entityId,
+        ownerId,
+        type: o.type,
+        title: o.title,
+        summary: o.summary ?? null,
+        startInstant: o.start,
+        endInstant: o.end ?? null,
+        precision: o.precision ?? 'year',
+        metadata: entityMeta,
+      })
+      .run()
     db.insert(nodes)
       .values({
         id,
         timelineId: tl,
+        entityId,
         type: o.type,
         title: o.title,
         summary: o.summary ?? null,
@@ -1164,11 +1183,36 @@ const E2E_FIXTURES: Seeder[] = [
 ]
 
 function seed(s: Seeder, ownerId: string) {
+  // Entities are cross-timeline (ADR 0004) so the timeline-delete cascade won't drop
+  // them — collect this timeline's entity ids first and delete them after, to avoid
+  // orphan accumulation on re-seed.
+  const priorEntityIds = db
+    .select({ e: nodes.entityId })
+    .from(nodes)
+    .where(eq(nodes.timelineId, s.id))
+    .all()
+    .map((r) => r.e)
+    .filter((x): x is string => !!x)
   db.delete(timelines).where(eq(timelines.id, s.id)).run() // cascades nodes/edges/patches
+  // Delete the prior entities, but ONLY those no OTHER timeline still places (a
+  // shared entity, ADR 0004, must not be yanked out from under another placement —
+  // the FK is RESTRICT). Checked AFTER the cascade dropped this timeline's nodes.
+  if (priorEntityIds.length) {
+    const stillUsed = new Set(
+      db
+        .select({ e: nodes.entityId })
+        .from(nodes)
+        .where(inArray(nodes.entityId, priorEntityIds))
+        .all()
+        .map((r) => r.e),
+    )
+    const orphaned = priorEntityIds.filter((id) => !stillUsed.has(id))
+    if (orphaned.length) db.delete(entities).where(inArray(entities.id, orphaned)).run()
+  }
   // Owned by the demo account and public, so the seeded timelines are viewable by
   // URL without login (and appear in demo's list when signed in).
   db.insert(timelines).values({ id: s.id, title: s.title, description: s.description, ownerId, isPublic: true }).run()
-  s.build(builder(s.id))
+  s.build(builder(s.id, ownerId))
   const count = db.select().from(nodes).where(eq(nodes.timelineId, s.id)).all().length
   console.log(`  ✓ ${s.id.padEnd(16)} "${s.title}" — ${count} nodes`)
 }
@@ -1190,6 +1234,11 @@ async function main() {
   console.log(`Demo user: ${DEMO_EMAIL}`)
   console.log(`Seeding ${targets.length} timeline(s):`)
   for (const s of targets) seed(s, ownerId)
+  // The seeded timelines are public, so publish their stories too: this is demo
+  // content meant to be shared (the /s/$slug pages gate on the per-story isPublic),
+  // and it populates the root Explore feed's "Stories" row. The seed DB only holds
+  // seeded content, so a blanket publish is safe.
+  db.update(stories).set({ isPublic: true }).run()
   console.log('Done.')
 }
 

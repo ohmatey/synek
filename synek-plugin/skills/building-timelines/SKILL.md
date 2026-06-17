@@ -36,7 +36,9 @@ Synek is a single-user, local timeline **canvas** the user has open in a browser
 - `kind`: **closed set, pick one** — `"caused"` | `"succeeded"` | `"influenced"` | `"acquired"` | `"competed_with"`. There are no others; do not pass `"related"`, `"created"`, etc.
 - `label`: optional free-text label drawn on the edge.
 
-**`update_node`** — `id` (required) + any of `title`, `summary`, `start`, `end`, `precision`, `subtype`, `lane`, `citations`. Metadata merges (existing images/color survive). Pass `lane: ""` to clear a swimlane. **`delete_node`** — `id` (its edges go too). **`update_edge`** — `id` + `kind`/`label`. **`delete_edge`** — `id`.
+**`update_node`** — `id` (required) + any of `title`, `summary`, `start`, `end`, `precision`, `subtype`, `lane`, `citations`. Metadata merges (existing images/color survive). Pass `lane: ""` to clear a swimlane. **`delete_node`** — `id` (its edges go too — but the underlying entity survives if it's placed on another timeline). **`update_edge`** — `id` + `kind`/`label`. **`delete_edge`** — `id`.
+
+**`place_entity`** — `entityId` (required) + optional `lane`, `ref`. Place an **existing** entity (one already on another timeline) onto **this** timeline as a new placement, rather than re-creating it. The same canonical entity can live on many timelines; **editing its content anywhere — `update_node` on any of its placements — propagates to all of them** (a node's content lives on the shared entity; only `lane` is per-timeline). Get an entity's `entityId` from `get_node`. Use this when a person/org/work recurs across timelines so they stay one linked entity instead of drifting copies.
 
 ## ref aliasing — wiring edges to brand-new nodes
 

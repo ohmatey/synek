@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db } from './index'
-import { stories, storySegments, storyArtifacts, segmentCitations, artifacts, nodes, timelines } from './schema'
+import { stories, storySegments, storyArtifacts, segmentCitations, artifacts, nodes, entities, timelines } from './schema'
 import type { Citation } from './schema'
 import type {
   DepthTier,
@@ -15,6 +15,7 @@ import type {
   StoryLens,
   StoryListItem,
   StoryStatus,
+  PublicStoryCard,
   TimelineTheme,
 } from '~/lib/domain/types'
 
@@ -368,7 +369,10 @@ function withBeatCounts<T extends { storyId: string }>(rows: T[]): (T & { beatCo
 
 const STORY_LIST_COLUMNS = {
   momentId: stories.momentId,
-  momentTitle: nodes.title,
+  // ADR 0004 R8: the moment's title is canonical on its entity — resolve through it
+  // (fall back to the node cache for bare/legacy nodes). Every query using these
+  // columns LEFT JOINs `entities` on nodes.entityId.
+  momentTitle: sql<string>`coalesce(${entities.title}, ${nodes.title})`.as('momentTitle'),
   storyId: stories.id,
   slug: stories.slug,
   title: stories.title,
@@ -391,6 +395,7 @@ export function listStoriesForTimeline(timelineId: string): StoryListItem[] {
     .select(STORY_LIST_COLUMNS)
     .from(stories)
     .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .leftJoin(entities, eq(nodes.entityId, entities.id))
     .where(eq(nodes.timelineId, timelineId))
     .orderBy(asc(nodes.startInstant), asc(stories.createdAt))
     .all()
@@ -414,6 +419,7 @@ export function listStoriesForHome(ownerId: string, projectId?: string): HomeSto
     })
     .from(stories)
     .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .leftJoin(entities, eq(nodes.entityId, entities.id))
     .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
     .where(
       projectId
@@ -428,9 +434,11 @@ export function listStoriesForHome(ownerId: string, projectId?: string): HomeSto
   for (const r of rows) for (const m of r.cast ?? []) if (m.nodeId) castNodeIds.add(m.nodeId)
   const titleById = new Map<string, string>()
   if (castNodeIds.size > 0)
+    // R8: resolve cast names through the entity (fall back to the node cache).
     for (const n of db
-      .select({ id: nodes.id, title: nodes.title })
+      .select({ id: nodes.id, title: sql<string>`coalesce(${entities.title}, ${nodes.title})` })
       .from(nodes)
+      .leftJoin(entities, eq(nodes.entityId, entities.id))
       .where(inArray(nodes.id, [...castNodeIds]))
       .all())
       titleById.set(n.id, n.title)
@@ -443,6 +451,36 @@ export function listStoriesForHome(ownerId: string, projectId?: string): HomeSto
   }))
 }
 
+// Every PUBLIC story across ALL owners (the root Explore feed), newest-updated
+// first. The gate is the story's OWN isPublic — the exact flag the /s/$slug page
+// checks — so this surfaces only what its owner deliberately shared, independent
+// of the timeline's visibility. Archived stories are excluded. NOT owner-scoped
+// by design (cross-user discovery). `limit` caps the row.
+export function listPublicStories(limit = 36): PublicStoryCard[] {
+  const rows = db
+    .select({
+      storyId: stories.id,
+      slug: stories.slug,
+      title: stories.title,
+      hook: stories.hook,
+      estimatedMinutes: stories.estimatedMinutes,
+      coverImage: stories.coverImage,
+      timelineTitle: timelines.title,
+      updatedAt: stories.updatedAt,
+    })
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
+    .where(and(eq(stories.isPublic, true), ne(stories.status, 'archived')))
+    .orderBy(desc(stories.updatedAt))
+    .limit(limit)
+    .all()
+  return withBeatCounts(rows).map(({ updatedAt, ...rest }) => ({
+    ...rest,
+    updatedAt: updatedAt?.getTime() ?? 0,
+  }))
+}
+
 // Every story attached to a single moment (newest first) — backs the entity
 // panel's per-moment story list. Same shape as the timeline-wide dropdown rows.
 export function getStoriesForMoment(momentId: string): StoryListItem[] {
@@ -450,6 +488,7 @@ export function getStoriesForMoment(momentId: string): StoryListItem[] {
     .select(STORY_LIST_COLUMNS)
     .from(stories)
     .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .leftJoin(entities, eq(nodes.entityId, entities.id))
     .where(eq(stories.momentId, momentId))
     .orderBy(desc(stories.createdAt))
     .all()

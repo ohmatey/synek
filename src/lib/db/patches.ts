@@ -3,6 +3,8 @@ import { db } from './index'
 import {
   nodes,
   edges,
+  entities,
+  timelines,
   patches,
   stories,
   storySegments,
@@ -11,6 +13,7 @@ import {
   segmentCitations,
   type NodeRow,
   type EdgeRow,
+  type EntityRow,
   type NodeMetadata,
   type GraphOp,
   type StorySnapshot,
@@ -162,18 +165,46 @@ function restoreMomentArtifacts(tx: Tx, op: Extract<GraphOp, { kind: 'add_node' 
 // back to a Date before re-inserting (timestamp_ms mode expects a Date).
 function applyOp(tx: Tx, op: GraphOp): void {
   switch (op.kind) {
-    case 'add_node':
-      tx.insert(nodes).values({ ...op.node, createdAt: new Date(op.node.createdAt) }).run()
+    case 'add_node': {
+      // Co-create the canonical entity (ADR 0004) when this op carries one. Idempotent
+      // (onConflictDoNothing): a redo or a restore may find it already present (the
+      // entity is shared / was never deleted).
+      if (op.entity) {
+        tx.insert(entities)
+          .values({
+            ...op.entity,
+            createdAt: new Date(op.entity.createdAt),
+            updatedAt: new Date(op.entity.updatedAt),
+          })
+          .onConflictDoNothing()
+          .run()
+      }
+      // R1/R6: if the placement points at an entity that no longer exists (deleted
+      // out from under a restore, and not re-created here), null the FK and fall
+      // back to the node's own cached content instead of FK-violating.
+      const entityId =
+        op.node.entityId && !tx.select({ id: entities.id }).from(entities).where(eq(entities.id, op.node.entityId)).get()
+          ? null
+          : op.node.entityId
+      tx.insert(nodes).values({ ...op.node, entityId, createdAt: new Date(op.node.createdAt) }).run()
       // Restore the moment's stories + artifact links too, if this add_node is the
       // inverse of a delete (both ride along on the op; no-ops otherwise).
       restoreStories(tx, op)
       restoreMomentArtifacts(tx, op)
       break
+    }
     case 'update_node':
       tx.update(nodes).set(op.after).where(eq(nodes.id, op.id)).run()
       break
     case 'delete_node':
       tx.delete(nodes).where(eq(nodes.id, op.node.id)).run() // edges cascade
+      // ADR 0004 D5/D9: remove the co-created entity ONLY if this was its last
+      // placement (it's not shared with another timeline). entity_patches cascade.
+      if (op.entity) {
+        const remaining =
+          tx.select({ c: count() }).from(nodes).where(eq(nodes.entityId, op.entity.id)).get()?.c ?? 0
+        if (remaining === 0) tx.delete(entities).where(eq(entities.id, op.entity.id)).run()
+      }
       break
     case 'add_edge':
       tx.insert(edges).values({ ...op.edge, createdAt: new Date(op.edge.createdAt) }).run()
@@ -190,12 +221,15 @@ function applyOp(tx: Tx, op: GraphOp): void {
 function invertOp(op: GraphOp): GraphOp[] {
   switch (op.kind) {
     case 'add_node':
-      return [{ kind: 'delete_node', node: op.node, edges: [] }]
+      // Carry the co-created entity onto the delete inverse so undo can remove it
+      // (conditionally — applyOp only deletes it if it's this entity's last placement).
+      return [{ kind: 'delete_node', node: op.node, edges: [], entity: op.entity ?? null }]
     case 'update_node':
       return [{ kind: 'update_node', id: op.id, before: op.after, after: op.before }]
     case 'delete_node':
+      // Restore the placement and (if it was removed) its entity.
       return [
-        { kind: 'add_node', node: op.node },
+        { kind: 'add_node', node: op.node, entity: op.entity ?? null },
         ...op.edges.map((edge): GraphOp => ({ kind: 'add_edge', edge })),
       ]
     case 'add_edge':
@@ -220,13 +254,26 @@ export class PatchBuilder {
   readonly ops: GraphOp[] = []
   private nodeView = new Map<string, NodeRow>()
   private edgeView = new Map<string, EdgeRow>()
+  // The owner stamped onto entities co-created by addNode (ADR 0004). Resolved
+  // lazily from the timeline when not supplied, so existing callers need no change.
+  private _ownerId: string | null | undefined
 
   constructor(
     private readonly timelineId: string,
     graph: { nodes: NodeRow[]; edges: EdgeRow[] },
+    ownerId?: string | null,
   ) {
+    this._ownerId = ownerId
     for (const n of graph.nodes) this.nodeView.set(n.id, n)
     for (const e of graph.edges) this.edgeView.set(e.id, e)
+  }
+
+  private ownerId(): string | null {
+    if (this._ownerId === undefined) {
+      this._ownerId =
+        db.select({ o: timelines.ownerId }).from(timelines).where(eq(timelines.id, this.timelineId)).get()?.o ?? null
+    }
+    return this._ownerId
   }
 
   // Current view of a node (includes ops applied earlier this turn) — lets a
@@ -235,10 +282,36 @@ export class PatchBuilder {
     return this.nodeView.get(id)
   }
 
+  // Create a brand-new entity (canonical CONTENT) AND its placement on this
+  // timeline (ADR 0004). The entity carries content-only metadata (lane is
+  // per-placement and stays on the node); both ride one add_node op so undo
+  // removes both and redo re-creates them.
   addNode(input: NewNode): NodeRow {
+    const now = new Date()
+    const fullMeta = input.metadata ?? null
+    // Content metadata for the entity = everything EXCEPT the per-placement `lane`.
+    let entityMeta: NodeMetadata | null = null
+    if (fullMeta) {
+      entityMeta = { ...fullMeta }
+      delete entityMeta.lane
+    }
+    const entity: EntityRow = {
+      id: crypto.randomUUID(),
+      ownerId: this.ownerId(),
+      type: input.type,
+      title: input.title,
+      summary: input.summary ?? null,
+      startInstant: input.startInstant,
+      endInstant: input.endInstant ?? null,
+      precision: input.precision,
+      metadata: entityMeta,
+      createdAt: now,
+      updatedAt: now,
+    }
     const node: NodeRow = {
       id: crypto.randomUUID(),
       timelineId: this.timelineId,
+      entityId: entity.id,
       type: input.type,
       title: input.title,
       summary: input.summary ?? null,
@@ -246,10 +319,35 @@ export class PatchBuilder {
       endInstant: input.endInstant ?? null,
       precision: input.precision,
       laneHint: null,
-      metadata: input.metadata ?? null,
+      // The node keeps the FULL metadata (incl. lane) as a cache/fallback.
+      metadata: fullMeta,
+      createdAt: now,
+    }
+    this.ops.push({ kind: 'add_node', node, entity })
+    this.nodeView.set(node.id, node)
+    return node
+  }
+
+  // Place an EXISTING entity on this timeline (ADR 0004): a new placement that
+  // references the shared entity, with the entity's content cached on the node.
+  // `entity: null` on the op marks it placement-only — its inverse deletes JUST the
+  // placement, never the shared entity.
+  placeEntity(entity: EntityRow, opts?: { lane?: string | null }): NodeRow {
+    const node: NodeRow = {
+      id: crypto.randomUUID(),
+      timelineId: this.timelineId,
+      entityId: entity.id,
+      type: entity.type,
+      title: entity.title,
+      summary: entity.summary,
+      startInstant: entity.startInstant,
+      endInstant: entity.endInstant,
+      precision: entity.precision,
+      laneHint: null,
+      metadata: opts?.lane ? { lane: opts.lane } : null,
       createdAt: new Date(),
     }
-    this.ops.push({ kind: 'add_node', node })
+    this.ops.push({ kind: 'add_node', node, entity: null })
     this.nodeView.set(node.id, node)
     return node
   }
