@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from './index'
 import { stories, storySegments, storyArtifacts, segmentCitations, artifacts, nodes, entities, timelines } from './schema'
 import type { Citation } from './schema'
@@ -15,7 +15,6 @@ import type {
   StoryLens,
   StoryListItem,
   StoryStatus,
-  PublicStoryCard,
   TimelineTheme,
 } from '~/lib/domain/types'
 
@@ -448,36 +447,6 @@ export function listStoriesForHome(ownerId: string, projectId?: string): HomeSto
     castNames: (cast ?? [])
       .map((m) => (m.nodeId ? titleById.get(m.nodeId) : m.name) ?? m.name ?? '')
       .filter((s): s is string => Boolean(s)),
-  }))
-}
-
-// Every PUBLIC story across ALL owners (the root Explore feed), newest-updated
-// first. The gate is the story's OWN isPublic — the exact flag the /s/$slug page
-// checks — so this surfaces only what its owner deliberately shared, independent
-// of the timeline's visibility. Archived stories are excluded. NOT owner-scoped
-// by design (cross-user discovery). `limit` caps the row.
-export function listPublicStories(limit = 36): PublicStoryCard[] {
-  const rows = db
-    .select({
-      storyId: stories.id,
-      slug: stories.slug,
-      title: stories.title,
-      hook: stories.hook,
-      estimatedMinutes: stories.estimatedMinutes,
-      coverImage: stories.coverImage,
-      timelineTitle: timelines.title,
-      updatedAt: stories.updatedAt,
-    })
-    .from(stories)
-    .innerJoin(nodes, eq(stories.momentId, nodes.id))
-    .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
-    .where(and(eq(stories.isPublic, true), ne(stories.status, 'archived')))
-    .orderBy(desc(stories.updatedAt))
-    .limit(limit)
-    .all()
-  return withBeatCounts(rows).map(({ updatedAt, ...rest }) => ({
-    ...rest,
-    updatedAt: updatedAt?.getTime() ?? 0,
   }))
 }
 

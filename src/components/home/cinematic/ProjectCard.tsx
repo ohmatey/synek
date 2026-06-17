@@ -2,8 +2,8 @@ import { Link } from '@tanstack/react-router'
 import type { ProjectSummary } from '~/lib/domain/types'
 import { hueFromString } from './hue'
 
-// One project on the /projects list page — entering it deep-links to
-// /projects?project=<slug> (the project's own hero + rows). Scoped counts come
+// One project on the workspace list page — entering it deep-links to
+// /?project=<slug> (the project's own hero + rows). Scoped counts come
 // from the page's already-fetched timeline/story lists (no extra round-trip).
 export function ProjectCard({
   project,
@@ -17,7 +17,7 @@ export function ProjectCard({
   return (
     <article className="ch-tl-card">
       <Link
-        to="/projects"
+        to="/"
         search={{ project: project.slug }}
         className="ch-tl-open"
         aria-label={`Open project “${project.title}”`}

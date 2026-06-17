@@ -14,8 +14,6 @@ import {
 import { ensureDefaultProject, getProjectMeta } from './projects'
 import type {
   GraphNode,
-  PublicNodeCard,
-  PublicTimelineCard,
   TimelineTheme,
   TimelineViewSettings,
 } from '~/lib/domain/types'
@@ -233,83 +231,6 @@ export function nodeRowToGraphNode(n: NodeRow): GraphNode {
     hasStory: false,
     storyDepth: null,
   }
-}
-
-// --- public discovery feed (the root Explore page) ------------------------
-// Cross-user reads, gated purely on the public flag (founder, 2026-06-16 — this
-// intentionally supersedes the "public browsing of whole workspaces" deferral).
-// NOT owner-scoped by design: the whole point is a global discovery surface.
-
-// Every PUBLIC timeline across all owners, newest first, with its node count.
-// Anonymous-safe — getGraph serves these to signed-out viewers (canView). Node
-// counts come from one grouped follow-up query (no N+1, no join-subquery).
-export function listPublicTimelines(limit = 36): PublicTimelineCard[] {
-  const rows = db
-    .select({
-      id: timelines.id,
-      title: timelines.title,
-      description: timelines.description,
-      createdAt: timelines.createdAt,
-    })
-    .from(timelines)
-    .where(eq(timelines.isPublic, true))
-    .orderBy(desc(timelines.createdAt))
-    .limit(limit)
-    .all()
-  if (rows.length === 0) return []
-  const counts = new Map<string, number>()
-  for (const c of db
-    .select({ timelineId: nodes.timelineId, n: sql<number>`count(*)` })
-    .from(nodes)
-    .where(inArray(nodes.timelineId, rows.map((r) => r.id)))
-    .groupBy(nodes.timelineId)
-    .all())
-    counts.set(c.timelineId, Number(c.n))
-  return rows.map((r) => ({
-    ...r,
-    createdAt: r.createdAt.getTime(),
-    nodeCount: counts.get(r.id) ?? 0,
-  }))
-}
-
-// Notable nodes drawn from PUBLIC timelines (the Explore "Entities" row) — each
-// links into the canvas focused on it (/timelines/$id?node=$id, which getGraph
-// serves anonymously for a public timeline). Entities/people lead, then events;
-// summarized nodes first so the cards read. NOT owner-scoped (public timelines).
-export function listPublicNodes(limit = 36): PublicNodeCard[] {
-  // R8: card CONTENT (title/summary/image/subtype) must come from the entity when
-  // linked, not the node's stale cache. LEFT JOIN the entity and resolve per-row.
-  // Ordering stays on the node columns (a soft discovery heuristic).
-  const rows = db
-    .select({ node: nodes, entity: entities, timelineTitle: timelines.title })
-    .from(nodes)
-    .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
-    .leftJoin(entities, eq(nodes.entityId, entities.id))
-    .where(eq(timelines.isPublic, true))
-    .orderBy(
-      // entity/period (the "who/what" cards) before event/concept, then nodes
-      // that carry a summary, then most-recent-in-time.
-      sql`case ${nodes.type} when 'entity' then 0 when 'period' then 1 when 'event' then 2 else 3 end`,
-      sql`case when ${nodes.summary} is null or ${nodes.summary} = '' then 1 else 0 end`,
-      desc(nodes.startInstant),
-    )
-    .limit(limit)
-    .all()
-  return rows.map(({ node, entity, timelineTitle }) => {
-    const r = resolveContent(node, entity ?? undefined)
-    const img = r.metadata?.images?.find((i) => i.url && i.show !== false) ?? null
-    return {
-      id: r.id,
-      type: r.type,
-      title: r.title,
-      summary: r.summary,
-      timelineId: r.timelineId,
-      timelineTitle,
-      subtype: r.metadata?.subtype ?? null,
-      imageUrl: img?.url ?? null,
-      imageAlt: img?.alt ?? null,
-    }
-  })
 }
 
 // The subset of a timeline's nodes named by `ids` (the nodes a public story's

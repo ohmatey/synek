@@ -1,41 +1,24 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { AppHeader } from '~/components/home'
-import { ExplorePage } from '~/components/explore'
+import { z } from 'zod'
+import { ProjectsWorkspace } from '~/components/home/ProjectsWorkspace'
 
-const TITLE = 'Synek — explore public stories, timelines and ideas'
-const DESCRIPTION =
-  'A living, time-anchored mesh of events, people and ideas, built by people connecting their AI to Synek. Explore public stories and timelines, then make your own.'
-
-// The root `/` is the public Explore feed — a cross-user discovery surface shown
-// to everyone (it replaced the marketing landing). Signing in doesn't change the
-// content; it adds the Projects button in the header (→ /projects), which is the
-// signed-in workspace. The per-project filter / dashboard moved to /projects.
-export const Route = createFileRoute('/')({
-  head: () => ({
-    meta: [
-      { title: TITLE },
-      { name: 'description', content: DESCRIPTION },
-      { name: 'robots', content: 'index, follow' },
-      { property: 'og:type', content: 'website' },
-      { property: 'og:site_name', content: 'Synek' },
-      { property: 'og:title', content: TITLE },
-      { property: 'og:description', content: DESCRIPTION },
-      { name: 'twitter:card', content: 'summary_large_image' },
-      { name: 'twitter:title', content: TITLE },
-      { name: 'twitter:description', content: DESCRIPTION },
-      { name: 'theme-color', content: '#08090c' },
-    ],
-  }),
-  component: Home,
+// The root `/` IS the signed-in workspace — Synek is a pure app, not a marketing
+// site, so there is no landing page and no public discovery feed here. Per-story
+// sharing still lives at the public `/s/$slug` page; only the cross-user Explore
+// feed was removed (see ADR 0005).
+//
+// `?project=<slug>` re-scopes the page to one project (its own hero + rows);
+// absent, it's the projects-list page. Optional + `.catch` for a SOFT fallback —
+// an unknown/foreign/garbage slug degrades to the list, never a 404. The /p/$slug
+// handle resolves onto this param.
+const searchSchema = z.object({
+  project: z.string().optional().catch(undefined),
 })
 
-function Home() {
-  return (
-    <div className="flex min-h-screen flex-col text-foreground">
-      <AppHeader />
-      <main className="flex-1">
-        <ExplorePage />
-      </main>
-    </div>
-  )
-}
+export const Route = createFileRoute('/')({
+  validateSearch: searchSchema,
+  head: () => ({
+    meta: [{ title: 'Synek' }, { name: 'robots', content: 'noindex, nofollow' }],
+  }),
+  component: ProjectsWorkspace,
+})

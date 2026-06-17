@@ -376,58 +376,6 @@ export type PublicStoryDTO = {
   nodes: GraphNode[]
 }
 
-// --- Public discovery feed (the root Explore page) ------------------------
-// The root `/` lists PUBLIC content across ALL owners — a cross-user discovery
-// surface (founder, 2026-06-16: this intentionally supersedes the "public
-// browsing of whole workspaces" deferral in the guardrail). Every card here is
-// derived from an explicit public flag — a story's own `isPublic` (the /s/$slug
-// gate) or a timeline's `isPublic` — so nothing private ever leaks, and the
-// reads are deliberately NOT owner-scoped. Anonymous-safe (no session needed).
-
-// One public story in the Explore "Stories" row — links to /s/$slug. A trimmed
-// HomeStoryCard: no owner-only fields (no parent project, no move affordance).
-export type PublicStoryCard = {
-  storyId: string
-  slug: string
-  title: string
-  hook: string | null
-  coverImage: StoryImage | null
-  beatCount: number
-  estimatedMinutes: number | null
-  // The timeline this story sits on — shown as the card's eyebrow.
-  timelineTitle: string
-  // Last write (epoch-ms) — the Explore feed's newest-first sort key.
-  updatedAt: number
-}
-
-// One public timeline in the Explore "Timelines" row — links to the canvas
-// (/timelines/$id, which getGraph serves to anonymous viewers when public).
-export type PublicTimelineCard = {
-  id: string
-  title: string
-  description: string | null
-  createdAt: number
-  // How many nodes the timeline holds — a richness signal on the card.
-  nodeCount: number
-}
-
-// One notable node from a public timeline in the Explore "Entities" row — links
-// into the canvas focused on that node (/timelines/$id?node=$id).
-export type PublicNodeCard = {
-  id: string
-  type: NodeType
-  // The entity subtype (person/org/place/work) when set — the card labels by this
-  // rather than the generic "Entity" type.
-  subtype: NodeSubtype | null
-  // First displayable image (metadata.images, show !== false), or null → glyph.
-  imageUrl: string | null
-  imageAlt: string | null
-  title: string
-  summary: string | null
-  timelineId: string
-  timelineTitle: string
-}
-
 // --- Projects (ADR 0002) — the top-level owned container ------------------
 // A Project sits above timelines and holds the project-level metadata every
 // later phase reads (`kind`, `world`, `brandRef`, `theme`). Slice 1 only ever

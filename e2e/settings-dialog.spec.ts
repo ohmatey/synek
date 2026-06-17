@@ -45,8 +45,8 @@ test('the API keys menu item opens the dialog on the API keys tab, and tabs swit
   await expect(dialog.getByText('Connect an MCP client')).toBeVisible()
 
   // Switching to the Account tab swaps the content in place (no navigation) — the
-  // URL stays on the workspace (/projects, where login landed), not /account.
+  // URL stays on the workspace (the root `/`, where login landed), not /account.
   await dialog.getByRole('tab', { name: 'Account' }).click()
   await expect(dialog.getByLabel('Display name')).toBeVisible()
-  await expect(page).toHaveURL(/\/projects$/)
+  await expect(page).toHaveURL(/\/$/)
 })

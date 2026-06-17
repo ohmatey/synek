@@ -1,10 +1,9 @@
 import { test, expect, type Page } from '@playwright/test'
 
-// The signed-in workspace at /projects (the old root dashboard, minus the left
-// sidebar — navigation moved to the header's Projects button). Two modes: the
-// LIST page (a projects grid + aggregate "Your stories" / "Timelines" / "Brand
-// kits" rows) and a PROJECT page (?project=<slug>: that project's hero + rows).
-// Signing in lands here (the root / is now the public Explore feed).
+// The signed-in workspace at the root `/` (Synek is a pure app — no landing page
+// or public Explore feed; per-story sharing lives at /s/$slug). Two modes: the
+// LIST page (a projects grid + aggregate "Your stories" / "Timelines" rows) and a
+// PROJECT page (?project=<slug>: that project's hero + rows). Signing in lands here.
 //
 // The seed (scripts/seed.ts) makes the demo account own ~6 public timelines, all
 // with NO project and SEVERAL covered (now public) stories — so the list page
@@ -17,21 +16,22 @@ async function loginAsDemo(page: Page) {
   await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
-  // Login redirects to /projects; the "Timelines" row heading is the stable marker.
-  await expect(page).toHaveURL(/\/projects/)
+  // Login lands on the workspace at the root `/`; the "Timelines" row heading is
+  // the stable marker.
+  await expect(page).toHaveURL(/\/$/)
   await expect(page.getByRole('heading', { name: 'Timelines' })).toBeVisible()
 }
 
 async function createProject(page: Page, name: string) {
   // "New project" lives on the list page (the projects grid), so make sure we're
   // there — a previous create may have left us inside a project view.
-  await page.goto('/projects')
+  await page.goto('/')
   await page.getByRole('button', { name: 'New project' }).click()
   const dialog = page.getByRole('dialog', { name: 'New project' })
   await dialog.getByLabel('Name', { exact: true }).fill(name)
   await dialog.getByRole('button', { name: 'Create project' }).click()
   await expect(dialog).toBeHidden()
-  // onCreated navigates to /projects?project=<slug>; the page resolves that slug to
+  // onCreated navigates to /?project=<slug>; the page resolves that slug to
   // the active project once ['projects'] refetches → its ProjectHero lands.
   await expect(page).toHaveURL(/\?project=/)
   await expect(page.getByRole('region', { name: `Project: ${name}` })).toBeVisible()

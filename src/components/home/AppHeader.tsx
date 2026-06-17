@@ -6,8 +6,8 @@ import { ProfileMenu } from '~/components/ProfileMenu'
 import { useSession } from '~/lib/auth/client'
 
 // The right side of the global app header. Signed out: a Sign-in entry point.
-// Signed in: the Projects button (the workspace lives behind /projects now — the
-// left sidebar was removed) + the account menu (which carries the theme switcher).
+// Signed in: a Projects button (returns to the workspace list at `/`, clearing any
+// active project scope) + the account menu (which carries the theme switcher).
 function HeaderActions() {
   const { data: session, isPending } = useSession()
 
@@ -23,7 +23,7 @@ function HeaderActions() {
   return (
     <div className="flex items-center gap-2">
       <Button asChild variant="outline" size="sm">
-        <Link to="/projects">
+        <Link to="/">
           <FolderKanban className="size-4" />
           Projects
         </Link>
@@ -33,9 +33,8 @@ function HeaderActions() {
   )
 }
 
-// The global header shown above the public Explore feed (root /) and other
-// marketing-adjacent pages. The workspace pages (canvas, /projects) bring their
-// own chrome.
+// The global header shown above the workspace (root /) and the settings pages.
+// The canvas brings its own chrome.
 export function AppHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-border/40 bg-background/70 backdrop-blur-xl">

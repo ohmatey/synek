@@ -21,8 +21,8 @@ import {
   TimelineCard,
 } from './cinematic'
 
-// The signed-in workspace, served at /projects (the old root dashboard, minus the
-// left HomeSidebar — navigation moved to the header's Projects button). Two modes:
+// The signed-in workspace, served at the root `/` (Synek is a pure app — no
+// landing page or public Explore feed). Two modes:
 //
 //   • the LIST page (no ?project): a grid of the owner's projects, then aggregate
 //     "Your stories" / "Timelines" rows across all projects.
@@ -66,7 +66,7 @@ export function ProjectsWorkspace() {
 }
 
 function Workspace() {
-  const { project: projectSlug } = useSearch({ from: '/projects' })
+  const { project: projectSlug } = useSearch({ from: '/' })
   const [newTimelineOpen, setNewTimelineOpen] = useState(false)
 
   const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
@@ -220,7 +220,7 @@ function ProjectsGrid({
   projects: ProjectSummary[]
   counts: Map<string, { timelines: number; stories: number }>
 }) {
-  const navigate = useNavigate({ from: '/projects' })
+  const navigate = useNavigate({ from: '/' })
   const [newOpen, setNewOpen] = useState(false)
   return (
     <section className="ch-row" aria-label="Projects">

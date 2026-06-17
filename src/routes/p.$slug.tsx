@@ -3,15 +3,14 @@ import { getProjectBySlug } from '~/lib/server/projects'
 
 // /p/$slug — the slug-addressable project handle the MCP create_project/get_project
 // tools hand back (`${BASE_URL}/p/${slug}`, registry.ts). The project VIEW is the
-// /projects workspace scoped via `?project=<slug>` (the root `/` is now the public
-// Explore feed); this route is a thin owner-scoped RESOLVER that bounces a project
-// slug onto that param.
+// workspace at the root `/` scoped via `?project=<slug>`; this route is a thin
+// owner-scoped RESOLVER that bounces a project slug onto that param.
 //
 // Fail-closed, no cross-owner reveal: getProjectBySlug is owner-scoped, so a
 // missing slug, a slug owned by someone else, and a signed-out visitor all
-// resolve to null and collapse to the SAME redirect to /projects (the bare
-// workspace, which soft-falls-back to the list). Only a slug the caller actually
-// owns redirects to `/projects?project=<slug>`. The two negative paths are
+// resolve to null and collapse to the SAME redirect to `/` (the bare workspace,
+// which soft-falls-back to the list). Only a slug the caller actually owns
+// redirects to `/?project=<slug>`. The two negative paths are
 // indistinguishable, so existence never leaks. requireUser() inside the server fn
 // throws for a signed-out visitor; we treat that throw like "not found".
 export const Route = createFileRoute('/p/$slug')({
@@ -24,9 +23,9 @@ export const Route = createFileRoute('/p/$slug')({
       project = null
     }
     if (project) {
-      throw redirect({ to: '/projects', search: { project: project.slug }, replace: true })
+      throw redirect({ to: '/', search: { project: project.slug }, replace: true })
     }
     // Missing / foreign / signed-out — bounce to the bare workspace (no reveal).
-    throw redirect({ to: '/projects', replace: true })
+    throw redirect({ to: '/', replace: true })
   },
 })
