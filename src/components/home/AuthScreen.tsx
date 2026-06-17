@@ -8,12 +8,13 @@ import { AuthForms } from './AuthForms'
 
 type Mode = 'signin' | 'signup'
 
-// Already signed in? Bounce to the workspace.
+// Already signed in? Bounce to the workspace (the signed-in home is /projects now;
+// the root / is the public Explore feed).
 function RedirectIfAuthed() {
   const navigate = useNavigate()
   const { data: session } = useSession()
   useEffect(() => {
-    if (session?.user) void navigate({ to: '/', replace: true })
+    if (session?.user) void navigate({ to: '/projects', replace: true })
   }, [session, navigate])
   return null
 }
@@ -23,7 +24,7 @@ function AuthCard({ mode }: { mode: Mode }) {
   return (
     <>
       <RedirectIfAuthed />
-      <AuthForms initialMode={mode} onAuthed={() => void navigate({ to: '/' })} />
+      <AuthForms initialMode={mode} onAuthed={() => void navigate({ to: '/projects' })} />
     </>
   )
 }

@@ -12,7 +12,9 @@
 - The proactive industry-mapping agent / scheduled jobs / signal ingestion as an **in-app** service (the *client-side* keeper is the `/synek:watch` plugin skill)
 - Integrations (Slack/Notion), enterprise SSO/audit logs
 
-**Sharable stories are now IN scope (2026-06-13, founder)** — the public, mobile, widget-rich story page at `/s/$slug` (`src/components/public/`, `getPublicStory`), to validate the *sharing-drives-acquisition* bet (ads + email). It reuses the existing `timeline.isPublic` primitive (sharing a story publishes its timeline). **Still deferred:** the weekly email digest, server-side image generation, realtime SSE on public pages, and public *browsing* of whole workspaces. See `docs/product/prd/sharable-stories.md`.
+**Sharable stories are now IN scope (2026-06-13, founder)** — the public, mobile, widget-rich story page at `/s/$slug` (`src/components/public/`, `getPublicStory`), to validate the *sharing-drives-acquisition* bet (ads + email). It reuses the existing `timeline.isPublic` primitive (sharing a story publishes its timeline). **Still deferred:** the weekly email digest, server-side image generation, and realtime SSE on public pages. See `docs/product/prd/sharable-stories.md`.
+
+**Public discovery is now IN scope (2026-06-16, founder)** — this supersedes the earlier "public *browsing* of whole workspaces" deferral. The root `/` is the **public Explore feed** (`src/components/explore/`, `src/lib/server/explore.ts` + `src/lib/db/{stories,graph}.ts` `listPublic*`): a **cross-user**, anonymous-readable discovery surface listing public stories (story `isPublic`), public timelines (timeline `isPublic`), and notable nodes from public timelines. These reads are deliberately **NOT owner-scoped** — the only gate is the public flag, so nothing private leaks. Signed-in users get the workspace at `/projects` (reached via the header's Projects button; the old left sidebar was removed); content on `/` is identical signed in or out.
 
 If a change starts to look like one of these, stop and confirm. The in-app agent stays **optional** — with no key configured, the BYO-client local-first default must remain fully intact.
 
@@ -36,17 +38,20 @@ src/
   router.tsx                       getRouter()
   routes/
     __root.tsx                     html doc; QueryClientProvider + React Flow/global CSS
-    index.tsx                      home: the cinematic stories-first dashboard (left HomeSidebar projects nav → ?project=slug enters a project page w/ its own ProjectHero; featured hero + story/timeline carousels for All); Landing for signed-out
+    index.tsx                      root /: the PUBLIC Explore feed for everyone (ExplorePage) — cross-user public stories/timelines/nodes (src/components/explore/, src/lib/server/explore.ts). Replaced the marketing Landing. Signed-in changes only the header (a Projects button → /projects); content is identical signed in or out
+    projects.tsx                   the signed-in workspace (ProjectsWorkspace) — owner-scoped. ?project=<slug> shows that project's ProjectHero + rows; bare = the projects-LIST page (project grid + aggregate Your stories/Timelines/Brand kits). Sidebar removed; nav is the header's Projects button. Login lands here
     timelines.$id.tsx              app shell: the canvas (full-width viewer)
     s.$slug.tsx                    PUBLIC, no-auth sharable story page (/s/$slug) — SSR OG + reels reader
-    p.$slug.tsx                    PUBLIC, no-auth project page (/p/$slug)
+    p.$slug.tsx                    PUBLIC, no-auth project handle (/p/$slug) — owner-scoped resolver → /projects?project=<slug>
     api/mcp.ts                     MCP endpoint (Streamable HTTP), guarded by requireApiKey
     api/auth/$.ts                  Better Auth catch-all handler
   components/
     client-only.tsx                mount-guard for client-only libs
     ProfileMenu.tsx                avatar dropdown; opens the tabbed SettingsDialog (Account / API keys)
     account/SettingsDialog.tsx     consolidated settings modal (tabs reuse AccountPanel/ApiKeysPanel/AgentKeyCard); /account + /api-keys routes remain as deep-link fallbacks
-    home/cinematic/                the stories-first home: HomeSidebar (left projects nav, replaced the ProjectRail chip filter) + ProjectHero (project-page hero), CinematicHero, FeaturedStory, HomeContentRow (carousels), StoryCard/TimelineCard, NewProjectDialog, MoveToProjectSubmenu
+    explore/                       the root Explore feed (public discovery): ExplorePage + PublicStoryCard (→ /s/$slug) / PublicTimelineCard (→ canvas) / PublicNodeCard (→ canvas ?node)
+    home/ProjectsWorkspace.tsx     the /projects workspace (was SignedIn at root): projects-list grid + per-project view; brings the global AppHeader; auth-gated
+    home/cinematic/                workspace pieces: ProjectHero (project-page hero), ProjectCard (list-page grid), CinematicHero (new-creator empty), FeaturedStory (unused), HomeContentRow (carousels), StoryCard/TimelineCard, NewProjectDialog, MoveToProjectSubmenu (HomeSidebar removed — nav moved to the AppHeader Projects button)
     brand/                         brand-kit editor (P2b): BrandManagerDialog → BrandEditor (Identity/Visual/Voice tabs) + ProjectBrandLink; local kits on Realscript's brand schema
     public/                        PublicStoryReader + ShareStoryButton + widgets/{BeatWidget,Timeline/Entity/GlobeMini}
     public/widgets/                live per-beat widgets resolved from node ids (globe lazy d3-geo)
