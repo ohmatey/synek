@@ -6,6 +6,7 @@ import { ClientOnly, ThemeProvider, themeInitScript } from '@synek/ui'
 import { Toaster } from '~/components/ui/sonner'
 import { ThemeSync } from '~/components/ThemeSync'
 import { Analytics } from '~/components/Analytics'
+import { ensureLocalSession } from '~/lib/server/local-session'
 import '@xyflow/react/dist/style.css'
 import '../styles.css'
 
@@ -13,6 +14,13 @@ import '../styles.css'
 const queryClient = new QueryClient()
 
 export const Route = createRootRoute({
+  // Local single-user mode: establish the local session on the SSR document so there
+  // is no login wall (no-op unless SYNEK_LOCAL_MODE is set — see local-session.ts).
+  // SSR-only guard so client navigations don't re-hit the server fn (the cookie is
+  // already set on the initial document).
+  beforeLoad: async () => {
+    if (typeof document === 'undefined') await ensureLocalSession()
+  },
   head: () => ({
     meta: [
       { charSet: 'utf-8' },

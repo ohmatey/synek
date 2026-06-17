@@ -1,9 +1,9 @@
 import { auth } from './index'
+import { LOCAL_USER_EMAIL as EMAIL, LOCAL_USER_PASSWORD as PASSWORD } from './local-mode'
 
 // The single local user that owns the MCP access token. Local-first, single-user:
-// the app trusts whoever runs it. Override via env for a custom local identity.
-const EMAIL = process.env.SYNEK_USER_EMAIL || 'local@synek.app'
-const PASSWORD = process.env.SYNEK_USER_PASSWORD || 'synek-local-password-0000'
+// the app trusts whoever runs it. Override via env (SYNEK_USER_EMAIL /
+// SYNEK_USER_PASSWORD — see local-mode.ts) for a custom local identity.
 
 // Mint (or refresh) the local user's long-lived session token — the "API key"
 // an MCP client sends as `Authorization: Bearer <token>`. Idempotent: creates the
