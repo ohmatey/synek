@@ -7,18 +7,20 @@ import { ProjectBrandingDialog } from '~/components/brand/ProjectBrandingDialog'
 // The project page hero — shown when a project is ENTERED (?project=<slug>). It gives
 // the project its own identity (title + description + a count line) and the primary
 // actions, so a project reads as a destination rather than a filtered list. Reuses the
-// all-scope hero's wash styling (.ch-hero) for visual continuity. An empty project is
-// handled by CinematicHero's 'empty-project' variant; this is for one with content.
+// all-scope hero's wash styling (.ch-hero) for visual continuity. An empty project
+// still gets this hero (its rows show per-group empty states).
 export function ProjectHero({
   project,
   timelineCount,
   storyCount,
+  entityCount,
   firstTimeline,
   onNewTimeline,
 }: {
   project: ProjectSummary
   timelineCount: number
   storyCount: number
+  entityCount: number
   // The project's first timeline, to offer an "Open" action.
   firstTimeline: { id: string; title: string } | null
   onNewTimeline: () => void
@@ -27,6 +29,7 @@ export function ProjectHero({
   const counts = [
     `${timelineCount} ${timelineCount === 1 ? 'timeline' : 'timelines'}`,
     `${storyCount} ${storyCount === 1 ? 'story' : 'stories'}`,
+    `${entityCount} ${entityCount === 1 ? 'entity' : 'entities'}`,
   ].join(' · ')
 
   return (

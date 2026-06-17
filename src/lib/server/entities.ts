@@ -7,7 +7,8 @@ import { getTimelineMeta, loadGraph } from '~/lib/db/graph'
 import { PatchBuilder, commitPatch } from '~/lib/db/patches'
 import { undoEntity, redoEntity, entityHistoryState } from '~/lib/db/entity-patches'
 import { getCurrentUser, requireUser } from '~/lib/auth/session'
-import type { EntityContextResult, EntitySearchHit } from '~/lib/domain/types'
+import { listEntitiesForHome } from '~/lib/db/entities'
+import type { EntityContextResult, EntitySearchHit, HomeEntityCard } from '~/lib/domain/types'
 
 // ADR 0004 — the cross-timeline pieces of the shared-entity model. Content EDITS
 // still flow through `editNode` (which routes content→entity); these add the
@@ -23,6 +24,22 @@ function placementsOf(entityId: string): { timelineId: string; timelineTitle: st
     .where(eq(nodes.entityId, entityId))
     .all()
 }
+
+// Every canonical entity the SIGNED-IN owner has across all their timelines
+// (optionally narrowed to one project) — backs the cinematic home's "Entities" row.
+// Owner-only (the home is the private dashboard): owner-scope is enforced in the db
+// query's timeline join, and an unowned/foreign `projectId` matches nothing (degrades
+// to empty, never leaks). Sorted newest-content-edit-first. Distinct from
+// `searchEntities` (the canvas picker): this is the full home browse list with
+// reach + an Open target, not a name-filtered placement candidate set.
+export const listHomeEntities = createServerFn({ method: 'GET' })
+  .inputValidator((d?: { projectId?: string }) =>
+    z.object({ projectId: z.string().optional() }).optional().parse(d),
+  )
+  .handler(async ({ data }): Promise<HomeEntityCard[]> => {
+    const user = await requireUser()
+    return listEntitiesForHome(user.id, data?.projectId)
+  })
 
 // The cross-timeline context for ONE placement (node) on the full-screen entity
 // page: the entity it renders, every timeline it appears on, and the entity's own

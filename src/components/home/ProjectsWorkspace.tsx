@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react'
 import { listProjects } from '~/lib/server/projects'
 import { listTimelines } from '~/lib/server/timelines'
 import { listHomeStories } from '~/lib/server/stories'
+import { listHomeEntities } from '~/lib/server/entities'
 import { listApiKeys } from '~/lib/server/api-keys'
 import { useSession } from '~/lib/auth/client'
 import type { ProjectSummary } from '~/lib/domain/types'
@@ -13,6 +14,7 @@ import { AppHeader } from './AppHeader'
 import { NewTimelineDialog } from './NewTimelineDialog'
 import {
   CinematicHero,
+  EntityCard,
   HomeContentRow,
   NewProjectDialog,
   ProjectCard,
@@ -89,12 +91,18 @@ function Workspace() {
     queryFn: () => listHomeStories({ data: activeProjectId ? { projectId: activeProjectId } : undefined }),
     refetchInterval: 30_000,
   })
+  const { data: entities = [], isLoading: enLoading } = useQuery({
+    queryKey: ['home-entities', activeProjectId],
+    queryFn: () => listHomeEntities({ data: activeProjectId ? { projectId: activeProjectId } : undefined }),
+    refetchInterval: 30_000,
+  })
   const { data: apiKeys } = useQuery({ queryKey: ['api-keys'], queryFn: () => listApiKeys() })
   const hasApiKey = (apiKeys?.length ?? 0) > 0
 
-  const loading = tlLoading || stLoading
+  const loading = tlLoading || stLoading || enLoading
   const hasStories = stories.length > 0
   const hasTimelines = timelines.length > 0
+  const hasEntities = entities.length > 0
 
   // Per-timeline current-project map for the story-card move submenu + per-project
   // counts on the list-page project cards (the story's timeline determines where it
@@ -122,7 +130,7 @@ function Workspace() {
 
   // The all-scope page is a brand-new empty when the account is bare; otherwise the
   // projects-list page. A project that's been ENTERED gets its own ProjectHero.
-  const trulyNew = !filtered && !hasTimelines && !hasStories
+  const trulyNew = !filtered && !hasTimelines && !hasStories && !hasEntities
 
   return (
     <div className="flex min-h-screen flex-col text-foreground">
@@ -136,16 +144,12 @@ function Workspace() {
               project={activeProject}
               timelineCount={timelines.length}
               storyCount={stories.length}
+              entityCount={entities.length}
               firstTimeline={timelines[0] ?? null}
               onNewTimeline={openNewTimeline}
             />
           ) : trulyNew ? (
-            <CinematicHero
-              variant="new-creator"
-              projectName={null}
-              hasApiKey={hasApiKey}
-              onNewTimeline={openNewTimeline}
-            />
+            <CinematicHero hasApiKey={hasApiKey} onNewTimeline={openNewTimeline} />
           ) : null}
 
           {!loading && !trulyNew && (
@@ -193,6 +197,23 @@ function Workspace() {
                 >
                   {timelines.map((t) => (
                     <TimelineCard key={t.id} timeline={t} projects={projects} />
+                  ))}
+                </HomeContentRow>
+              )}
+
+              {(hasEntities || filtered) && (
+                <HomeContentRow
+                  title="Entities"
+                  isEmpty={!hasEntities}
+                  emptyState={
+                    <p className="ch-empty-note">
+                      No entities yet — the people, places and ideas your AI adds to a timeline show up here,
+                      reusable across every timeline.
+                    </p>
+                  }
+                >
+                  {entities.map((e) => (
+                    <EntityCard key={e.entityId} entity={e} />
                   ))}
                 </HomeContentRow>
               )}

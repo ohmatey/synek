@@ -427,6 +427,31 @@ export type HomeStoryCard = StoryListItem & {
   castNames: string[]
 }
 
+// One entry in the cinematic home's "Entities" row — a canonical, owner-scoped
+// `entities` row (ADR 0004) surfaced as a browsable card. Entities are SHARED: one
+// entity can be placed on many timelines (across projects), so the card carries
+// `timelineCount` (its reach) and a `primary*` placement to open. The home has no
+// dedicated entity page, so "Open" deep-links to the full-screen node page of the
+// first-placed node. Sorted newest-`updatedAt`-first (most recently edited content).
+export type HomeEntityCard = {
+  entityId: string
+  title: string
+  type: NodeType
+  summary: string | null
+  // First displayable image (metadata.images, `show !== false`), else null → the
+  // card renders a type-icon wash keyed off entityId (same fallback as StoryCard).
+  thumbnail: { url: string; alt: string | null } | null
+  // How many distinct timelines this entity is placed on — its cross-timeline reach,
+  // the signal that distinguishes a shared entity from a one-off node.
+  timelineCount: number
+  // The first-placed node (earliest `createdAt`) — the canonical "Open" target. The
+  // card deep-links to /timelines/$primaryTimelineId/nodes/$primaryNodeId.
+  primaryTimelineId: string
+  primaryNodeId: string
+  // Last content edit (entities.updatedAt) as epoch-ms — the row's sort key.
+  updatedAt: number
+}
+
 // One entry in a story list — the AppBar's "Stories" dropdown (every story on a
 // timeline, chronological) and the entity panel's per-moment list (a moment can
 // hold several). Carries the moment it sits on so picking one opens + plays it;

@@ -16,6 +16,7 @@ import {
   ensureDefaultProject,
   makeRequireOwnedProject,
 } from '~/lib/db/projects'
+import { listEntitiesForHome } from '~/lib/db/entities'
 import { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay } from '~/lib/domain/types'
 import { PatchBuilder, commitPatch, undo, redo, historyState, maxAppliedSeq } from '~/lib/db/patches'
 import {
@@ -229,6 +230,36 @@ export const toolRegistry: ToolDef[] = [
       const scope = projectId ?? activeProjectId
       if (scope) (requireOwnedProject ?? makeRequireOwnedProject(ownerId))(scope)
       return listTimelines(ownerId, scope).map((t) => ({ id: t.id, title: t.title }))
+    },
+  },
+
+  {
+    name: 'list_entities',
+    title: 'List entities',
+    description:
+      'List your canonical entities — the SHARED content a node renders (ADR 0004). One entity can be placed on ' +
+      'many timelines, so each row reports `timelineCount` (its reach) and a `primaryTimelineId`/`primaryNodeId` ' +
+      '(its first placement). Use this to REUSE an existing entity across timelines instead of recreating it: find ' +
+      'one here, then place it via an add_node op that points at this entity. Pass `projectId` to scope to one ' +
+      'project; omit for all your entities (or the active project\'s).',
+    inputSchema: {
+      projectId: z
+        .string()
+        .optional()
+        .describe('Scope to one project\'s entities. Omit for all your entities (or the active project\'s).'),
+    },
+    handler: async ({ projectId }, { ownerId, projectId: activeProjectId, requireOwnedProject }) => {
+      const scope = projectId ?? activeProjectId
+      if (scope) (requireOwnedProject ?? makeRequireOwnedProject(ownerId))(scope)
+      return listEntitiesForHome(ownerId, scope).map((e) => ({
+        entityId: e.entityId,
+        title: e.title,
+        type: e.type,
+        summary: e.summary,
+        timelineCount: e.timelineCount,
+        primaryTimelineId: e.primaryTimelineId,
+        primaryNodeId: e.primaryNodeId,
+      }))
     },
   },
 

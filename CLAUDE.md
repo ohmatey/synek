@@ -50,7 +50,7 @@ src/
     ProfileMenu.tsx                avatar dropdown; opens the tabbed SettingsDialog (Account / API keys)
     account/SettingsDialog.tsx     consolidated settings modal (tabs reuse AccountPanel/ApiKeysPanel/AgentKeyCard); /account + /api-keys routes remain as deep-link fallbacks
     home/ProjectsWorkspace.tsx     the root `/` workspace: projects-list grid + per-project view; brings the global AppHeader; auth-gated
-    home/cinematic/                workspace pieces: ProjectHero (project-page hero), ProjectCard (list-page grid), CinematicHero (new-creator empty), FeaturedStory (unused), HomeContentRow (carousels), StoryCard/TimelineCard, NewProjectDialog, MoveToProjectSubmenu (HomeSidebar removed — nav moved to the AppHeader Projects button)
+    home/cinematic/                workspace pieces: ProjectHero (project-page hero), ProjectCard (list-page grid), CinematicHero (new-creator empty), HomeContentRow (carousels), StoryCard/EntityCard/TimelineCard, NewProjectDialog, MoveToProjectSubmenu (HomeSidebar removed — nav moved to the AppHeader Projects button)
     brand/                         brand-kit editor (P2b): BrandManagerDialog → BrandEditor (Identity/Visual/Voice tabs) + ProjectBrandLink; local kits on Realscript's brand schema
     public/                        PublicStoryReader + ShareStoryButton + widgets/{BeatWidget,Timeline/Entity/GlobeMini}
     public/widgets/                live per-beat widgets resolved from node ids (globe lazy d3-geo)
