@@ -5248,6 +5248,92 @@ body {
   width: auto;
   max-width: none;
 }
+
+/* "Recently updated" + the expanded entities disclosure — a wrapping grid of
+   poster cards (NOT a clipped carousel), so a working owner scans everything they
+   own. Reuses the .ch-card poster; only the fixed carousel width is relaxed. */
+.ch-recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  padding: 0 24px;
+}
+.ch-recent-grid .ch-card {
+  width: auto;
+  max-width: none;
+}
+/* Inline rename box (timeline cards) replaces the poster face while editing. */
+.ch-card-rename {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 13px;
+}
+/* Empty left slot so the overflow menu right-aligns in a card with no Play. */
+.ch-card-foot-spacer {
+  flex: 1;
+}
+/* The type pill on a recent card's meta line ("Story" / "Timeline"). */
+.ch-recent-kind {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-fg-muted);
+}
+
+/* Entities disclosure — a single demoted toggle row + its inline grid. */
+.ch-entities {
+  gap: 10px;
+}
+.ch-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 24px;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg, 16px);
+  border: 1px solid color-mix(in oklab, var(--color-border-default) 60%, transparent);
+  background: color-mix(in oklab, var(--color-bg-surface) 45%, transparent);
+  color: var(--color-fg-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+.ch-disclosure:hover {
+  border-color: var(--color-border-default);
+  background: color-mix(in oklab, var(--color-bg-surface) 65%, transparent);
+}
+.ch-disclosure:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+.ch-disclosure-label {
+  margin-right: 2px;
+}
+.ch-disclosure-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-fg-primary) 10%, transparent);
+  color: var(--color-fg-secondary, var(--color-fg-muted));
+  font-size: 12px;
+  font-weight: 600;
+}
+.ch-disclosure-chevron {
+  color: var(--color-fg-muted);
+  transition: transform 160ms ease;
+}
+.ch-disclosure-chevron[data-open] {
+  transform: rotate(90deg);
+}
 .ch-proj-titlewrap {
   display: flex;
   align-items: center;

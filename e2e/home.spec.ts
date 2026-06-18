@@ -9,18 +9,20 @@ async function loginAsDemo(page: Page) {
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
   // Wait until the cinematic home renders (session resolved + landing→dashboard
-  // swap). The "Timelines" carousel heading is the stable signed-in marker.
-  await expect(page.getByRole('heading', { name: 'Timelines' })).toBeVisible()
+  // swap). The "Projects" grid heading is the stable signed-in list-page marker
+  // (every owner has ≥1 project; the per-type rows were replaced by a projects
+  // grid + a "Recently updated" feed).
+  await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
 }
 
-test('home lists the demo timelines and opens one (after login)', async ({ page }) => {
+test('home surfaces the demo timelines in Recently updated and opens one (after login)', async ({ page }) => {
   await loginAsDemo(page)
-  // The demo account owns the seeded timelines, surfaced as cards in the "Timelines"
-  // carousel. Target the card open-buttons by accessible name — a bare getByText
-  // would also match the hero eyebrow's PROJECT·TIMELINE label (strict-mode clash).
-  const figures = page.getByRole('button', { name: 'Open “Figures of science”' })
+  // The demo account's timelines now surface in the "Recently updated" feed as
+  // unified poster cards (links), most-recent first — alongside its stories. Target
+  // by accessible name ("Open timeline …") to avoid the hero eyebrow label clash.
+  const recent = page.getByRole('region', { name: 'Recently updated' })
+  const figures = recent.getByRole('link', { name: 'Open timeline “Figures of science”' })
   await expect(figures).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Open “The Space Race”' })).toBeVisible()
 
   await figures.click()
   await expect(page).toHaveURL(/\/timelines\/figures/)
@@ -29,12 +31,13 @@ test('home lists the demo timelines and opens one (after login)', async ({ page 
 test('creating a timeline opens it (after login)', async ({ page }) => {
   await loginAsDemo(page)
 
-  // Creation now lives behind a "New timeline" dialog (home redesign a302e99):
-  // open it, name the timeline, create it, then open the freshly-made canvas.
-  // Use the toolbar button (first in DOM): while the timelines list is still
-  // loading, the empty-state card renders a second "New timeline" button, so an
-  // unscoped locator hits a strict-mode violation under load. Both open the dialog.
-  await page.getByRole('button', { name: 'New timeline' }).first().click()
+  // Timelines belong to a project, so creation now lives inside the project view's
+  // "Timelines" section (not the list page). Enter the first project, then create:
+  // open the "New timeline" dialog, name it, create it, open the fresh canvas.
+  await page.getByRole('region', { name: 'Projects' }).getByRole('link').first().click()
+  await expect(page).toHaveURL(/\?project=/)
+  const timelines = page.getByRole('region', { name: 'Timelines' })
+  await timelines.getByRole('button', { name: 'New timeline' }).click()
   // Scope to the open dialog by role only — its accessible name flips from
   // "New timeline" to "… is ready" after the create step, so don't pin the name.
   const dialog = page.getByRole('dialog')

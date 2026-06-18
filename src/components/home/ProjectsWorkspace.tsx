@@ -8,18 +8,18 @@ import { listHomeStories } from '~/lib/server/stories'
 import { listHomeEntities } from '~/lib/server/entities'
 import { listApiKeys } from '~/lib/server/api-keys'
 import { useSession } from '~/lib/auth/client'
-import type { ProjectSummary } from '~/lib/domain/types'
+import type { ProjectSummary, TimelineSummary } from '~/lib/domain/types'
 import { Button } from '~/components/ui/button'
 import { AppHeader } from './AppHeader'
 import { NewTimelineDialog } from './NewTimelineDialog'
 import {
   CinematicHero,
-  EntityCard,
-  HomeContentRow,
+  EntitiesDisclosure,
   NewProjectDialog,
   ProjectCard,
   ProjectHero,
-  StoryCard,
+  RecentCard,
+  type RecentItem,
   TimelineCard,
 } from './cinematic'
 
@@ -78,7 +78,6 @@ function Workspace() {
     [projects, projectSlug],
   )
   const activeProjectId = activeProject?.id ?? null
-  const activeProjectName = activeProject?.title ?? null
   const filtered = !!activeProject
 
   const { data: timelines = [], isLoading: tlLoading } = useQuery({
@@ -126,6 +125,17 @@ function Workspace() {
     return m
   }, [projects, timelines, stories, timelineProjectById])
 
+  // The "Recently updated" feed: stories and timelines merged and time-sorted, so
+  // the home reads as "what changed" across the graph rather than four type-grouped
+  // catalogs. Scoped by the same activeProjectId the queries above use.
+  const recentItems = useMemo<RecentItem[]>(() => {
+    const items: RecentItem[] = [
+      ...stories.map((s) => ({ kind: 'story' as const, id: s.storyId, updatedAt: s.updatedAt, story: s })),
+      ...timelines.map((t) => ({ kind: 'timeline' as const, id: t.id, updatedAt: t.updatedAt, timeline: t })),
+    ]
+    return items.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 12)
+  }, [stories, timelines])
+
   const openNewTimeline = () => setNewTimelineOpen(true)
 
   // The all-scope page is a brand-new empty when the account is bare; otherwise the
@@ -154,69 +164,26 @@ function Workspace() {
 
           {!loading && !trulyNew && (
             <div className="ch-rows">
-              {/* The list page leads with the Projects grid (the "projects list page"
-                  the header's Projects button opens). The project view skips it. */}
-              {!filtered && <ProjectsGrid projects={projects} counts={projectCounts} />}
-
-              {(hasStories || filtered) && (
-                <HomeContentRow
-                  title="Your stories"
-                  isEmpty={!hasStories}
-                  emptyState={
-                    <p className="ch-empty-note">
-                      No stories yet — open a timeline and let your AI tell its story.
-                    </p>
-                  }
-                >
-                  {stories.map((s) => (
-                    <StoryCard
-                      key={s.storyId}
-                      story={s}
-                      projects={projects}
-                      currentProjectId={timelineProjectById.get(s.timelineId) ?? activeProjectId}
-                    />
-                  ))}
-                </HomeContentRow>
+              {/* Section 1 — the durable containers. The list page shows the owner's
+                  WORLDS (projects); a project view shows that project's TIMELINES. */}
+              {filtered ? (
+                <TimelinesSection timelines={timelines} projects={projects} onNewTimeline={openNewTimeline} />
+              ) : (
+                <ProjectsGrid projects={projects} counts={projectCounts} onNewTimeline={openNewTimeline} />
               )}
 
-              {(hasTimelines || filtered) && (
-                <HomeContentRow
-                  title="Timelines"
-                  action={
-                    <button type="button" className="ch-chip-new" onClick={openNewTimeline}>
-                      <Plus className="size-3.5" />
-                      New timeline
-                    </button>
-                  }
-                  isEmpty={!hasTimelines}
-                  emptyState={
-                    <p className="ch-empty-note">
-                      No timelines yet — create one and your connected Claude builds it out.
-                    </p>
-                  }
-                >
-                  {timelines.map((t) => (
-                    <TimelineCard key={t.id} timeline={t} projects={projects} />
-                  ))}
-                </HomeContentRow>
+              {/* Section 2 — the temporal feed: stories + timelines, most-recent first. */}
+              {recentItems.length > 0 && (
+                <RecentlyUpdatedSection
+                  items={recentItems}
+                  projects={projects}
+                  timelineProjectById={timelineProjectById}
+                  activeProjectId={activeProjectId}
+                />
               )}
 
-              {(hasEntities || filtered) && (
-                <HomeContentRow
-                  title="Entities"
-                  isEmpty={!hasEntities}
-                  emptyState={
-                    <p className="ch-empty-note">
-                      No entities yet — the people, places and ideas your AI adds to a timeline show up here,
-                      reusable across every timeline.
-                    </p>
-                  }
-                >
-                  {entities.map((e) => (
-                    <EntityCard key={e.entityId} entity={e} />
-                  ))}
-                </HomeContentRow>
-              )}
+              {/* Entities, demoted from a top-level row to an opt-in disclosure. */}
+              <EntitiesDisclosure entities={entities} />
             </div>
           )}
         </div>
@@ -237,9 +204,11 @@ function Workspace() {
 function ProjectsGrid({
   projects,
   counts,
+  onNewTimeline,
 }: {
   projects: ProjectSummary[]
   counts: Map<string, { timelines: number; stories: number }>
+  onNewTimeline: () => void
 }) {
   const navigate = useNavigate({ from: '/' })
   const [newOpen, setNewOpen] = useState(false)
@@ -248,6 +217,12 @@ function ProjectsGrid({
       <header className="ch-row-head">
         <h2 className="ch-row-title">Projects</h2>
         <div className="ch-row-head-actions">
+          {/* New timeline stays reachable from the list page (it lands in the default
+              project); New project creates a fresh container. */}
+          <button type="button" className="ch-chip-new" onClick={onNewTimeline}>
+            <Plus className="size-3.5" />
+            New timeline
+          </button>
           <button type="button" className="ch-chip-new" onClick={() => setNewOpen(true)}>
             <Plus className="size-3.5" />
             New project
@@ -265,6 +240,75 @@ function ProjectsGrid({
         onOpenChange={setNewOpen}
         onCreated={(project) => void navigate({ search: { project: project.slug } })}
       />
+    </section>
+  )
+}
+
+// Section 1 inside a project view — that project's timelines as a wrapping grid
+// (not a clipped carousel), with a New timeline action and an empty-state note.
+function TimelinesSection({
+  timelines,
+  projects,
+  onNewTimeline,
+}: {
+  timelines: TimelineSummary[]
+  projects: ProjectSummary[]
+  onNewTimeline: () => void
+}) {
+  return (
+    <section className="ch-row" aria-label="Timelines">
+      <header className="ch-row-head">
+        <h2 className="ch-row-title">Timelines</h2>
+        <div className="ch-row-head-actions">
+          <button type="button" className="ch-chip-new" onClick={onNewTimeline}>
+            <Plus className="size-3.5" />
+            New timeline
+          </button>
+        </div>
+      </header>
+      {timelines.length === 0 ? (
+        <div className="ch-row-empty">
+          <p className="ch-empty-note">
+            No timelines yet — create one and your connected Claude builds it out.
+          </p>
+        </div>
+      ) : (
+        <div className="ch-proj-grid">
+          {timelines.map((t) => (
+            <TimelineCard key={t.id} timeline={t} projects={projects} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// Section 2 — the time-sorted "what changed" feed (stories + timelines), rendered
+// as a wrapping grid of unified poster cards. Each card resolves its timeline's
+// current project (for the move-to-project submenu).
+function RecentlyUpdatedSection({
+  items,
+  projects,
+  timelineProjectById,
+  activeProjectId,
+}: {
+  items: RecentItem[]
+  projects: ProjectSummary[]
+  timelineProjectById: Map<string, string | null>
+  activeProjectId: string | null
+}) {
+  return (
+    <section className="ch-row" aria-label="Recently updated">
+      <header className="ch-row-head">
+        <h2 className="ch-row-title">Recently updated</h2>
+      </header>
+      <div className="ch-recent-grid">
+        {items.map((it) => {
+          const currentProjectId =
+            it.kind === 'story' ? (timelineProjectById.get(it.story.timelineId) ?? activeProjectId) : it.timeline.projectId
+          return <RecentCard key={`${it.kind}:${it.id}`} item={it} projects={projects} currentProjectId={currentProjectId} />
+        })}
+      </div>
     </section>
   )
 }

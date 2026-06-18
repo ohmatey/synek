@@ -444,6 +444,9 @@ export function commitPatch(timelineId: string, builder: PatchBuilder, summary: 
       .get()
     patchId = inserted?.id ?? null
     committedSeq = seq
+    // Mark the timeline touched so the home's "Recently updated" reflects graph
+    // builds (not just metadata edits). Same txn — never on a rollback.
+    tx.update(timelines).set({ updatedAt: new Date() }).where(eq(timelines.id, timelineId)).run()
   })
   // Notify live viewers AFTER the txn commits, so we never push on a rollback.
   if (patchId) emitTimelineEvent({ timelineId, kind: 'patch', seq: committedSeq })
@@ -471,6 +474,7 @@ export function undo(timelineId: string): boolean {
         ? { status: 'undone' as const, ops: attachMomentArtifacts(attachStories(p.ops, captured), capturedMA) }
         : { status: 'undone' as const }
     tx.update(patches).set(next).where(eq(patches.id, p.id)).run()
+    tx.update(timelines).set({ updatedAt: new Date() }).where(eq(timelines.id, timelineId)).run()
   })
   emitTimelineEvent({ timelineId, kind: 'undo', seq: p.seq })
   return true
@@ -488,6 +492,7 @@ export function redo(timelineId: string): boolean {
   db.transaction((tx) => {
     for (const op of p.ops) applyOp(tx, op)
     tx.update(patches).set({ status: 'applied' }).where(eq(patches.id, p.id)).run()
+    tx.update(timelines).set({ updatedAt: new Date() }).where(eq(timelines.id, timelineId)).run()
   })
   emitTimelineEvent({ timelineId, kind: 'redo', seq: p.seq })
   return true

@@ -1,6 +1,8 @@
 export { ProjectHero } from './ProjectHero'
 export { CinematicHero } from './CinematicHero'
 export { HomeContentRow } from './HomeContentRow'
+export { RecentCard, type RecentItem } from './RecentCard'
+export { EntitiesDisclosure } from './EntitiesDisclosure'
 export { StoryCard } from './StoryCard'
 export { EntityCard } from './EntityCard'
 export { StoryIntroDialog } from './StoryIntroDialog'

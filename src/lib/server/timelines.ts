@@ -20,6 +20,7 @@ const toSummary = (t: TimelineRow): TimelineSummary => ({
   title: t.title,
   description: t.description,
   createdAt: t.createdAt.getTime(),
+  updatedAt: t.updatedAt.getTime(),
   isPublic: t.isPublic,
   projectId: t.projectId,
 })

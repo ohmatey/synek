@@ -18,10 +18,8 @@ async function loginAsOwner(page: Page) {
   await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
-  // The cinematic home's "Timelines" carousel heading is the stable signed-in
-  // marker (a bare "Figures of science" now matches both the hero eyebrow and a
-  // timeline card → strict-mode clash).
-  await expect(page.getByRole('heading', { name: 'Timelines' })).toBeVisible()
+  // The home's "Projects" grid heading is the stable signed-in list-page marker.
+  await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
 }
 
 // Timeline settings is now a tabbed dialog (Display / Playback / Theme). The theme

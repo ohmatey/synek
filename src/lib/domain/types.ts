@@ -234,6 +234,10 @@ export type TimelineSummary = {
   title: string
   description: string | null
   createdAt: number
+  // Last change to the timeline — metadata edits AND graph writes (commitPatch
+  // bumps it), as epoch-ms. The home's "Recently updated" sort key. No Date over
+  // the RPC.
+  updatedAt: number
   isPublic: boolean
   // The project this timeline belongs to (ADR 0002 D7), or null for a legacy
   // null-project row. The cinematic home reads it for the move-to-project "current"
