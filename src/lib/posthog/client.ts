@@ -111,6 +111,10 @@ export type ClientEvent =
   // when the public page itself is played. Props documented at the call sites.
   | 'story_shared'
   | 'public_story_opened'
+  // M.3 engagement depth (docs/product/prd/understand-app.md §M.3). Fires once per
+  // live per-beat widget that actually renders on the public reader — the value
+  // signal for the publishing thesis. Props: `{ kind: 'timeline' | 'globe' | 'entity' }`.
+  | 'widget_rendered'
   | 'node_edited'
   | 'export_performed'
   | 'share_toggled'
