@@ -119,6 +119,10 @@ export const runAgent = createServerFn({ method: 'POST' })
       timeline_id: data.timelineId,
       model,
       funded: resolved.funded,
+      // M.3: the seat-model vocab (M.5 ledger + M.6 per-user table) so engagement
+      // analysis splits by SKU. operator-funded inference = the managed seat; a
+      // user's own key = the BYO seat.
+      segment: resolved.funded === 'operator' ? 'managed' : 'byo',
       steps: result.steps,
       tool_calls: result.toolCalls,
       patches: result.patchIds.length,

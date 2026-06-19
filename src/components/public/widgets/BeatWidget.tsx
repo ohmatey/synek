@@ -1,7 +1,8 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { ClientOnly } from '@synek/ui'
 import { cn } from '~/lib/utils'
 import type { GraphNode, StoryBeatWidget } from '~/lib/domain/types'
+import { capture } from '~/lib/posthog/client'
 import { EntityCardWidget } from './EntityCardWidget'
 import { TimelineStripWidget } from './TimelineStripWidget'
 
@@ -20,7 +21,17 @@ export function BeatWidget({
   nodeById: Map<string, GraphNode>
 }) {
   const nodes = widget.nodeIds.map((id) => nodeById.get(id)).filter((n): n is GraphNode => !!n)
-  if (nodes.length === 0) return null
+  const placed = nodes.filter((n) => typeof n.lat === 'number' && typeof n.lng === 'number')
+  // A widget only renders when it has nodes (and, for the globe, at least one placed
+  // one) — matching the early-out guards below. `widget_rendered` (M.3) tracks the
+  // beats a reader actually sees, so gate the event on the same condition.
+  const willRender = nodes.length > 0 && (widget.kind !== 'globe' || placed.length > 0)
+
+  useEffect(() => {
+    if (willRender) capture('widget_rendered', { kind: widget.kind })
+  }, [willRender, widget.kind])
+
+  if (!willRender) return null
   const focus = (widget.focusNodeId && nodeById.get(widget.focusNodeId)) || nodes[0]!
 
   let body: React.ReactNode = null
@@ -29,8 +40,6 @@ export function BeatWidget({
   } else if (widget.kind === 'timeline') {
     body = <TimelineStripWidget nodes={nodes} focusId={focus.id} />
   } else if (widget.kind === 'globe') {
-    const placed = nodes.filter((n) => typeof n.lat === 'number' && typeof n.lng === 'number')
-    if (placed.length === 0) return null
     body = (
       <ClientOnly fallback={<div className="wg-globe wg-globe-skeleton" aria-hidden="true" />}>
         <Suspense fallback={<div className="wg-globe wg-globe-skeleton" aria-hidden="true" />}>
