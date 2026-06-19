@@ -49,14 +49,27 @@ test('stepping through plays the three live widgets', async ({ page }) => {
   await expect(page.getByText(/Three Stoas across five centuries/)).toBeVisible()
 })
 
-test('the end panel closes the growth loop with a make-your-own CTA', async ({ page }) => {
+test('the end panel closes the growth loop with an attributed make-your-own CTA', async ({ page }) => {
   await page.goto(`/s/${SLUG}`)
   await page.getByRole('button', { name: 'Play story' }).click()
 
   // Step past the last beat → the end panel.
   for (let i = 0; i < 6; i++) await page.getByRole('button', { name: 'Next beat' }).click()
   await expect(page.getByText('The end', { exact: true })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Make your own with Synek/ })).toBeVisible()
+
+  // M.4: the CTA carries this story's slug into /signup so the resulting signup is
+  // joined back to the share (the viral-coefficient numerator).
+  const cta = page.getByRole('link', { name: /Make your own with Synek/ })
+  await expect(cta).toBeVisible()
+  await expect(cta).toHaveAttribute('href', `/signup?ref=story&slug=${SLUG}`)
+})
+
+test('the attributed signup link opens a working signup form', async ({ page }) => {
+  // Following the M.4 CTA must land on a real signup screen (the route accepts the
+  // ref/slug params and renders, never 404s).
+  await page.goto(`/signup?ref=story&slug=${SLUG}`)
+  await expect(page.getByText('Create your account')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible()
 })
 
 test('an unknown slug renders a clean not-found, not a crash', async ({ page }) => {

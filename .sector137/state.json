@@ -1112,6 +1112,44 @@
     "status": "completed",
     "dependencies": []
    }
+  },
+  {
+   "data": {
+    "title": "Implement M.4 — viral-loop attribution (share → public open → signup)",
+    "description": "### Goal\nThe viral coefficient — `signups_from_shares / shares` — the single number that says whether the acquisition funnel compounds. M.4 closes the **attribution join** so that number is computable. Bucket M.4 of the measure-first monetization spine.\n\n### Already shipped (do NOT rebuild)\n- `story_shared` (supply side) — `src/components/public/ShareStoryButton.tsx`, `home/cinematic/useStoryActions.ts`.\n- `public_story_opened` (demand side) — `src/components/public/PublicStoryReader.tsx`.\n- `signup { source }` — `src/components/home/AuthForms.tsx` (landed with M.1, local-139).\n\n### Build (the gaps)\n1. **Enrich `public_story_opened`** with `{ slug, referrer }` — slug from the `s.$slug` route param; referrer from `document.referrer`. (PRD M.4.)\n2. **Attribution join** — the `/s/$slug` end-panel \"Make your own\" CTA must carry the story `slug` into the signup flow so the new user emits `signup { source: 'shared_story', slug }`. Thread the slug as a query param to the auth screen; `AuthForms` reads it and tags the signup source/slug. This is THE join that yields the coefficient.\n3. **Funnel definition** (config, no code) — `story_shared → public_story_opened → signup{source:shared_story}` in PostHog; the coefficient tile lands fully in the M.6 Understand app (view 3), but define the funnel now.\n\n### Acceptance\n- Opening any `/s/$slug` emits `public_story_opened { slug, referrer }`.\n- A signup originating from a shared page emits `signup { source: 'shared_story', slug }` — verified end-to-end (open shared page → CTA → signup → event carries slug).\n- The 3-step funnel is definable in PostHog; verify script asserts the new prop shapes.\n\n### Refs\ndocs/product/prd/understand-app.md (§M.4) · docs/product/prd/m1-activation-funnel.md · src/lib/posthog/{client,funnel,server}.ts · src/components/public/{PublicStoryReader,ShareStoryButton}.tsx · src/components/home/AuthForms.tsx · src/routes/s.$slug.tsx\n\n### Done 2026-06-19 (build-verified; branch feat/m4-viral-attribution, NOT merged)\nM.1 had already shipped the demand+seam halves (public_story_opened carries {slug,referrer}; signup carries source/referrer), so M.4 reduced to the ATTRIBUTION JOIN. Built:\n- src/lib/posthog/attribution.ts — pure, framework-free parseSignupAttribution({ref,slug}) -> {source:'shared_story'|'direct', slug?} + sharedStorySignupHref(slug). The one mapping, unit-verifiable without a browser/key.\n- The /s/$slug end-panel \"Make your own\" CTA now links to /signup?ref=story&slug=<slug> (was href=\"/\").\n- /signup route gains validateSearch {ref,slug} (.catch soft-fallback) -> parseSignupAttribution -> AuthScreen -> AuthCard -> AuthForms (threaded an optional `attribution` prop; NOT named `ref` to avoid React's ref interception).\n- AuthForms signup capture: source/slug now come from attribution (default {source:'direct'}); changed the placeholder default from the auth-method 'email' to the acquisition-channel 'direct' (no test/asserts on the old value; matches the existing \"source is the M.4 seam\" comment + m1-activation-funnel.md:104).\n- verify:funnel (scripts/verify-funnel.ts, 12 asserts) + e2e/public-story.spec extended (CTA href carries slug; /signup?ref=story&slug renders the form).\nVERIFIED: verify:funnel + typecheck + build + e2e public-story 5/5 + home 11/11 (real signup flow) green. NOTE: the PostHog event can't fire keyless in any env, so the e2e verifies the observable wiring (nav + render), not the emitted event. OWED (config, no code): define the share->open->signup{source:shared_story} funnel + viral-coefficient tile in PostHog (lands in M.6 Understand app). Scoped into release v0.3.0 (local-145).",
+    "horizon": "next",
+    "type": "feature",
+    "status": "completed",
+    "dependencies": []
+   },
+   "meta": {
+    "origin": "local",
+    "serverId": null,
+    "localId": "local-142",
+    "dirty": true,
+    "etag": null,
+    "syncedAt": null
+   }
+  },
+  {
+   "data": {
+    "title": "Implement M.3 — engagement-depth instrumentation (value-add proxies)",
+    "description": "### Goal\nReveal WHICH features correlate with retention — that is what the managed seat is worth. M.3 (\"engagement depth / value-add proxies\") of the measure-first monetization spine. Sequenced AFTER M.4 (local-142) per founder ordering.\n\n### Already shipped (verify, don't rebuild)\n- `story_started` / `story_completed` `{ timeline_id, story_id, beats }` — reader.\n- `public_story_opened` — enriched by M.4.\n- `mcp_tool_called` — server `register` wrapper, per-tool with `ownerId`.\n\n### Build (the gaps)\n1. **`agent_run_completed`** (new, server) from `src/lib/agent/runner.ts` — emit the token BREAKDOWN `{ model, prompt_tokens, completion_tokens, total_tokens, steps, tool_calls, segment }`. The METER usage ledger (local-140) already records tokens + real OpenRouter cost; this is the PostHog **engagement twin** so agent runs sit in the engagement analysis next to stories/widgets (ledger = COGS, PostHog = behavior). Reuse the `usage:{include:true}` data the runner already surfaces; `segment` = 'byo' | 'managed' from `resolveKey().funded`.\n2. **`widget_rendered`** (new) `{ kind: 'timeline' | 'globe' | 'entity' }` — fire when a per-beat live widget mounts (BeatWidget on `/s/$slug` + the docked reader). The value signal for the publishing thesis.\n\n### Acceptance\n- An in-app agent run emits exactly one `agent_run_completed` with the full token breakdown + `segment`.\n- Each live beat-widget mount emits `widget_rendered { kind }`.\n- Events visible in PostHog; verify script asserts both shapes.\n\n### Refs\ndocs/product/prd/understand-app.md (§M.3) · src/lib/agent/runner.ts · src/lib/posthog/{client,server}.ts · src/components/public/widgets/BeatWidget.tsx · METER: local-140 / docs (usage ledger)",
+    "horizon": "next",
+    "type": "feature",
+    "status": "open",
+    "dependencies": [
+     "local-142"
+    ]
+   },
+   "meta": {
+    "origin": "local",
+    "serverId": null,
+    "localId": "local-143",
+    "dirty": true,
+    "etag": null,
+    "syncedAt": null
+   }
   }
  ],
  "tasks": [],
@@ -1549,6 +1587,20 @@
     "etag": null,
     "syncedAt": null
    }
+  },
+  {
+   "data": {
+    "title": "M.4 viral-loop attribution built (local-142)",
+    "body": "Session: founder asked 'what next on the roadmap' -> chose M.4 then M.3 -> set up release scoping -> build M.4. Routed via /sal; sector137 MCP offline all session (staged dirty in .sector137/state.json, reconcile via sync_state).\n\nRELEASE SCOPING: v0.2.0 (local-129) declared scope (P1) was build-complete per note local-133 -> marked status 'shipped'. New ACTIVE release v0.3.0 'Measure-first: monetization instrumentation' (local-145) scopes the M-arc: M.5/METER (local-140, done), M.1 funnel (local-139, done), M.4 (local-142), M.3 (local-143). Also staged M.4=local-142 + M.3=local-143 (deps local-142) earlier this session.\n\nM.4 BUILT on branch feat/m4-viral-attribution (NOT merged): the share->signup attribution join (parseSignupAttribution helper + /signup?ref=story&slug CTA + threaded attribution prop + signup source 'email'->'direct'/'shared_story'). verify:funnel(12) + typecheck + build + e2e public-story 5/5 + home 11/11 green. OWED: PostHog funnel config (M.6). NEXT QUEUED: M.3 engagement depth (local-143).\n\nNB status enum: used 'shipped' for v0.2.0 (only 'draft'/'active' were previously observed; no schema doc ships with the plugin) — may surface as a conflict on sync for Margot to ratify."
+   },
+   "meta": {
+    "origin": "local",
+    "serverId": null,
+    "localId": "local-146",
+    "dirty": true,
+    "etag": null,
+    "syncedAt": null
+   }
   }
  ],
  "releases": [
@@ -1579,18 +1631,39 @@
   {
    "data": {
     "name": "v0.2.0 — Stories-first: Projects + cinematic home",
-    "status": "active",
+    "status": "shipped",
     "scope": [
      "local-125",
      "local-126",
      "local-127"
     ],
-    "description": "First release of the stories-first repositioning (docs/product/stories-first-pivot.md). Ships P1 — the Projects container (ADR 0002) — plus move in/out of project affordances and the cinematic Netflix-style stories-first home. Exit: a creator can group work into Projects, reorganize across them, and land on a cinematic project-filterable home that leads with stories; verify:projects + verify:isolation green. Supersedes the pre-pivot v0.1.0 (local-70, draft); Margot reconciles local-61, local-63, local-70 per note local-128."
+    "description": "First release of the stories-first repositioning (docs/product/stories-first-pivot.md). Ships P1 — the Projects container (ADR 0002) — plus move in/out of project affordances and the cinematic Netflix-style stories-first home. Exit: a creator can group work into Projects, reorganize across them, and land on a cinematic project-filterable home that leads with stories; verify:projects + verify:isolation green. Supersedes the pre-pivot v0.1.0 (local-70, draft); Margot reconciles local-61, local-63, local-70 per note local-128. [2026-06-19: declared scope (P1) build-complete per note local-133; marked shipped, owed live in-browser pass tracked separately as local-62. Superseded as the active work front by v0.3.0 (local-145).]"
    },
    "meta": {
     "origin": "local",
     "serverId": null,
     "localId": "local-129",
+    "dirty": true,
+    "etag": null,
+    "syncedAt": null
+   }
+  },
+  {
+   "data": {
+    "name": "v0.3.0 — Measure-first: monetization instrumentation",
+    "status": "active",
+    "scope": [
+     "local-140",
+     "local-139",
+     "local-142",
+     "local-143"
+    ],
+    "description": "The measure-before-pricing spine (docs/product/prd/understand-app.md, founder-locked monetization model). Ships the M-buckets that turn the product into an instrument before any seat price is set: M.5 usage ledger + safety cap (local-140, done), M.1 activation funnel (local-139, done), M.4 viral-loop attribution (local-142), M.3 engagement-depth proxies (local-143). Exit: signup->key->timeline->story->share funnel, share->open->signup viral coefficient, and per-run engagement/COGS all readable in PostHog + the usage ledger, feeding the CFO model's assumption cells. M.2 retention cohorts + M.6 Understand app follow in a later cut."
+   },
+   "meta": {
+    "origin": "local",
+    "serverId": null,
+    "localId": "local-145",
     "dirty": true,
     "etag": null,
     "syncedAt": null

@@ -16,14 +16,18 @@ import { Label } from '~/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { signIn, signUp } from '~/lib/auth/client'
 import { capture } from '~/lib/posthog/client'
+import type { SignupAttribution } from '~/lib/posthog/attribution'
 
 type Mode = 'signin' | 'signup'
 
 export function AuthForms({
   initialMode = 'signin',
+  attribution,
   onAuthed,
 }: {
   initialMode?: Mode
+  /** M.4: where this signup came from — a shared story carries its slug for the join. */
+  attribution?: SignupAttribution
   onAuthed?: () => void
 }) {
   const qc = useQueryClient()
@@ -50,9 +54,11 @@ export function AuthForms({
       }
       if (mode === 'signup') {
         toast.success('Account created — check your email to verify your address.')
-        // M.1 funnel step 1. `source` is the M.4 attribution seam (only 'email'
-        // today); `referrer` lets a shared-story signup be traced back later.
-        capture('signup', { source: 'email', referrer: document.referrer || undefined })
+        // M.1 funnel step 1 + M.4 attribution. `source` is the acquisition channel
+        // ('shared_story' with its originating slug when the reader converted from a
+        // public /s/$slug CTA, else 'direct'); `referrer` is the raw backstop.
+        const attr = attribution ?? { source: 'direct' as const }
+        capture('signup', { source: attr.source, slug: attr.slug, referrer: document.referrer || undefined })
       }
       await qc.invalidateQueries()
       onAuthed?.()

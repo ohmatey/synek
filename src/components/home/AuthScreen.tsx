@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { ClientOnly } from '@synek/ui'
 import { Skeleton } from '~/components/ui/skeleton'
 import { useSession } from '~/lib/auth/client'
+import type { SignupAttribution } from '~/lib/posthog/attribution'
 import { AuthForms } from './AuthForms'
 
 type Mode = 'signin' | 'signup'
@@ -18,17 +19,21 @@ function RedirectIfAuthed() {
   return null
 }
 
-function AuthCard({ mode }: { mode: Mode }) {
+function AuthCard({ mode, attribution }: { mode: Mode; attribution?: SignupAttribution }) {
   const navigate = useNavigate()
   return (
     <>
       <RedirectIfAuthed />
-      <AuthForms initialMode={mode} onAuthed={() => void navigate({ to: '/' })} />
+      <AuthForms
+        initialMode={mode}
+        attribution={attribution}
+        onAuthed={() => void navigate({ to: '/' })}
+      />
     </>
   )
 }
 
-export function AuthScreen({ mode }: { mode: Mode }) {
+export function AuthScreen({ mode, attribution }: { mode: Mode; attribution?: SignupAttribution }) {
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden text-foreground">
       <div className="lp-aurora">
@@ -55,7 +60,7 @@ export function AuthScreen({ mode }: { mode: Mode }) {
           <ClientOnly
             fallback={<Skeleton className="h-[420px] w-full rounded-xl border border-border/60" />}
           >
-            <AuthCard mode={mode} />
+            <AuthCard mode={mode} attribution={attribution} />
           </ClientOnly>
           <p className="mt-6 text-center text-sm text-muted-foreground">
             <Link to="/" className="inline-flex items-center gap-1.5 hover:text-foreground">

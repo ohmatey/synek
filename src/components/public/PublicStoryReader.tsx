@@ -17,6 +17,7 @@ import { POV_LABEL } from '~/lib/domain/story-labels'
 import { formatInstant } from '~/lib/domain/dates'
 import { getPublicStory } from '~/lib/server/stories'
 import { capture } from '~/lib/posthog/client'
+import { sharedStorySignupHref } from '~/lib/posthog/attribution'
 import { useSpeechSupported, useStoryNarration, warmUpSpeech } from '~/components/canvas/useStoryNarration'
 import { BeatWidget } from './widgets/BeatWidget'
 
@@ -364,7 +365,7 @@ export function PublicStoryReader({ data }: { data: PublicStoryDTO }) {
             <p className="psr-end-note">
               This story is <strong>live</strong> — it keeps updating as the world does. Want to build one like it?
             </p>
-            <a className="psr-cta" href="/">
+            <a className="psr-cta" href={sharedStorySignupHref(story.slug)}>
               <Sparkles size={16} aria-hidden />
               Make your own with Synek
             </a>
