@@ -62,14 +62,26 @@ ENV NODE_ENV=production \
     SYNEK_TELEMETRY_KEY=$SYNEK_TELEMETRY_KEY \
     SYNEK_TELEMETRY_HOST=https://us.i.posthog.com
 
+# Non-root user with a FIXED uid/gid so Kubernetes can own the SQLite data volume
+# deterministically (the Deployment sets fsGroup/runAsUser to 10001) and a local
+# `docker run -v synek-data:/data` gets a volume Docker pre-seeds with this owner.
+RUN groupadd --system --gid 10001 synek \
+  && useradd --system --uid 10001 --gid synek synek
+
 # Whole tree carried over: dist/, drizzle/ (migrations applied on boot), node_modules
 # (incl. the Node-ABI better-sqlite3 binary + tsx), scripts/serve-build.ts. No *.db
 # or .env are copied (see .dockerignore) — data comes from the mounted volume.
 COPY --from=build /app /app
 
-RUN mkdir -p /data
+# /data is group-writable (0775, gid 10001) so the non-root user can write the
+# SQLite file + WAL — both via the baked owner locally and via k8s fsGroup:10001.
+RUN mkdir -p /data \
+  && chown -R synek:synek /app /data \
+  && chmod 0775 /data
 VOLUME ["/data"]
 EXPOSE 3001
+
+USER 10001:10001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
