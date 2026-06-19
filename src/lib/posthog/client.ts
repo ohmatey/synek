@@ -70,6 +70,20 @@ export function resetUser(): void {
 // The curated, high-signal event set. The copy-a-prompt-into-Claude loop is the
 // activation signal for this MCP-native product, so those events lead.
 export type ClientEvent =
+  // M.1 activation funnel (docs/product/prd/m1-activation-funnel.md). The ordered
+  // steps are signup → key_connected → timeline_created → story_written → story_shared.
+  //   signup        { source: 'email', referrer? }
+  //   key_connected { provider: 'openrouter' | 'mcp_bearer', segment: 'byo' }  — the
+  //     PIVOTAL drop-off. 'openrouter' = saved an in-app key (this client emit);
+  //     'mcp_bearer' = first authenticated MCP call (emitted server-side in mcp/server.ts),
+  //     so the BYO-own-client cohort isn't an invisible gap between signup and first build.
+  // `timeline_created`/`story_shared`/`public_story_opened` are declared below;
+  // `story_written` is emitted server-side (MCP/agent paths) via captureServer, so it
+  // is intentionally not in this browser union (no direct UI write path exists).
+  | 'signup'
+  | 'key_connected'
+  // `timeline_created` now carries a `source: 'ui' | 'mcp' | 'agent'` prop so the
+  // one funnel step spans all three create paths.
   | 'timeline_created'
   | 'build_prompt_copied'
   // One event for every canvas "verb" (NEXT.5), keyed by `verb_id` + `surface` in

@@ -82,6 +82,22 @@ export function appendMcpToolCall(input: { ownerId: string; tool: string; ok: bo
     .run()
 }
 
+// M.1 funnel: has this owner EVER made an MCP tool call? The first authenticated
+// MCP call proves a working BYO client is connected (even if they never saved an
+// in-app key), so it stands in as the `key_connected` signal for the MCP cohort.
+// One indexed (ownerId, ts) probe; the caller dedupes the emit. Called at wrapper
+// entry, BEFORE this call's own appendMcpToolCall row is written, so the genuine
+// first call reads zero prior rows.
+export function hasPriorMcpUsage(ownerId: string): boolean {
+  const row = db
+    .select({ one: sql<number>`1` })
+    .from(usageLedger)
+    .where(and(eq(usageLedger.ownerId, ownerId), eq(usageLedger.source, 'mcp')))
+    .limit(1)
+    .get()
+  return !!row
+}
+
 // Rolling-window usage for the OPERATOR-funded path only — the safety cap reads this.
 // BYO rows are excluded (their spend, not our COGS). One round-trip, two conditional
 // sums. `sinceMs` is an epoch-ms lower bound (exclusive).

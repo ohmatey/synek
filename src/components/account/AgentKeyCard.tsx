@@ -12,6 +12,7 @@ import {
   clearOpenRouterKey,
   setAgentModel,
 } from '~/lib/server/user-settings'
+import { capture } from '~/lib/posthog/client'
 
 // The per-user BYO OpenRouter key + model (Phase 2). With a key saved, the prompt
 // dialogs' "Run" executes in-app; without one, they fall back to copy-a-prompt. The
@@ -39,6 +40,9 @@ export function AgentKeyCard() {
     onSuccess: (res) => {
       if (res.ok) {
         toast.success('OpenRouter key saved')
+        // M.1 funnel step 2 — the PIVOTAL key-connection signal. `segment` is
+        // forward-compatible with a future no-key `managed_seat_started` path.
+        capture('key_connected', { provider: 'openrouter', segment: 'byo' })
         setKey('')
         refresh()
       } else {

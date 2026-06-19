@@ -2,10 +2,18 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { listTimelines, loadGraph, getTimelineTitle, getTimelineMeta, resolveTimelineTheme } from '~/lib/db/graph'
 import { makeRequireOwnedProject } from '~/lib/db/projects'
 import { captureServer } from '~/lib/posthog/server'
-import { appendMcpToolCall } from '~/lib/db/usage-ledger'
+import { captureToolFunnelEvent } from '~/lib/posthog/funnel'
+import { appendMcpToolCall, hasPriorMcpUsage } from '~/lib/db/usage-ledger'
 import { toolRegistry, makeRequireOwned, type ToolCtx } from './registry'
 
 const json = (data: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(data) }] })
+
+// M.1 funnel: owners we've already recorded as MCP-connected this process. A pure
+// query cache over the ledger watermark (the ledger stays the source of truth, so a
+// process restart still won't double-emit) — collapses the first-call check to one
+// indexed read per owner per process lifetime. Module scope: survives the per-request
+// McpServer instances on the stateless HTTP transport.
+const mcpConnectSeen = new Set<string>()
 
 // Per-tool analytics enrichment — cheap props derived mostly from the input args
 // (parse-free). For apply_patch we also read the already-computed graphSummary +
@@ -114,6 +122,22 @@ export function buildMcpServer(ownerId: string, projectId?: string): McpServer {
   const register: typeof server.registerTool = (name, config, cb: any) =>
     server.registerTool(name, config, (async (args: any, extra: any) => {
       const t0 = performance.now()
+      // M.1 funnel step 2 for the MCP cohort: the FIRST authenticated MCP call (auth
+      // already passed in the guard) proves a working BYO client is connected, even
+      // if the user never opened settings to save an in-app key. Emit key_connected
+      // once — BEFORE running the tool, so its timestamp precedes any timeline_created
+      // this same call emits and a failing first tool still counts as connected.
+      // Deduped on the METER ledger; the Set is just a per-process query cache.
+      if (!mcpConnectSeen.has(ownerId)) {
+        try {
+          if (!hasPriorMcpUsage(ownerId)) {
+            captureServer(ownerId, 'key_connected', { provider: 'mcp_bearer', segment: 'byo' })
+          }
+          mcpConnectSeen.add(ownerId)
+        } catch {
+          /* never fail a tool call for a funnel emit */
+        }
+      }
       try {
         const result = await cb(args, extra)
         captureServer(ownerId, 'mcp_tool_called', {
@@ -129,6 +153,14 @@ export function buildMcpServer(ownerId: string, projectId?: string): McpServer {
           appendMcpToolCall({ ownerId, tool: name, ok: true })
         } catch {
           /* ignore — analytics/metering is non-load-bearing for the tool result */
+        }
+        // M.1 funnel: mirror an MCP-driven create_timeline / write_story into the
+        // SAME activation funnel the UI emits. Unwrap the result envelope once.
+        try {
+          const raw = JSON.parse(result?.content?.[0]?.text ?? '{}')
+          captureToolFunnelEvent(ownerId, name, args, raw, 'mcp')
+        } catch {
+          /* result shape changed — skip the funnel emit, never fail the tool */
         }
         return result
       } catch (err) {

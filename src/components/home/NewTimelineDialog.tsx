@@ -64,7 +64,7 @@ export function NewTimelineDialog({
       const row = await createTimeline({ data: { title: t, projectId } })
       await qc.invalidateQueries({ queryKey: ['timelines'] })
       setCreated({ id: row.id, title: row.title })
-      capture('timeline_created', { timeline_id: row.id })
+      capture('timeline_created', { timeline_id: row.id, source: 'ui' })
     } finally {
       setBusy(false)
     }

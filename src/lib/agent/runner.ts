@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { toolRegistry, type ToolCtx, type ToolDef } from '~/lib/mcp/registry'
+import { captureToolFunnelEvent } from '~/lib/posthog/funnel'
 import { BASE_URL } from '~/lib/auth'
 import { defaultModel, agentBudgets, type AgentBudgets } from './config'
 import { agentSystemPrompt } from './system-prompt'
@@ -203,6 +204,10 @@ async function executeToolCall(call: ToolCall, ctx: ToolCtx, patchIds: string[])
       const id = (result as { patchId?: unknown }).patchId
       if (typeof id === 'string') patchIds.push(id)
     }
+    // M.1 funnel: an in-app-agent create_timeline / write_story lands in the SAME
+    // activation funnel as the UI + MCP paths. `result` here is the raw handler
+    // object (no MCP envelope). Best-effort; captureServer never throws.
+    captureToolFunnelEvent(ctx.ownerId, tool.name, parsed.data, result, 'agent')
     return JSON.stringify(result)
   } catch (err) {
     return JSON.stringify({ error: err instanceof Error ? err.message : String(err) })

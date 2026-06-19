@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../src/lib/db'
 import { user, usageLedger } from '../src/lib/db/schema'
 import { auth } from '../src/lib/auth'
-import { appendAgentRun, appendMcpToolCall, operatorUsageInWindow } from '../src/lib/db/usage-ledger'
+import { appendAgentRun, appendMcpToolCall, hasPriorMcpUsage, operatorUsageInWindow } from '../src/lib/db/usage-ledger'
 import { agentQuota, type AgentQuota } from '../src/lib/agent/config'
 
 // Proves the METER data path: the append-only usage_ledger records each agent run as
@@ -128,6 +128,17 @@ async function main() {
   assert(capTrips(agentQuota(), usedNow), 'a token cap below usage (4000 < 5000) trips')
   process.env.SYNEK_AGENT_DAILY_TOKENS = '0'
   assert(agentQuota().dailyTokens === null, '0 means unlimited (treated as unset)')
+
+  // 8. M.1 funnel: the MCP-connect watermark. The first authenticated MCP call has
+  //    no prior usage (→ the wrapper would EMIT key_connected{mcp_bearer}); after a
+  //    call lands, the watermark is true (→ the wrapper SKIPS, so it fires once). The
+  //    probe is owner-scoped, so the BYO-MCP cohort can't leak across users.
+  const c = await ensureUser(`meter-c-${STAMP}@synek.app`)
+  assert(hasPriorMcpUsage(c) === false, 'fresh owner C: no prior MCP usage → first call would emit key_connected')
+  appendMcpToolCall({ ownerId: c, tool: 'list_timelines', ok: true })
+  assert(hasPriorMcpUsage(c) === true, 'after one MCP call: watermark true → subsequent calls skip the emit (fires once)')
+  assert(hasPriorMcpUsage(a) === true, "owner A (has an mcp_tool_call from step 4) reads true")
+  assert(hasPriorMcpUsage(b) === false, 'owner B (never called MCP) reads false — watermark is owner-scoped')
 
   console.log('\nMETER usage-ledger + safety-cap data path verified ✓')
   process.exit(0)

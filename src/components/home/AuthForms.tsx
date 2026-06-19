@@ -15,6 +15,7 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { signIn, signUp } from '~/lib/auth/client'
+import { capture } from '~/lib/posthog/client'
 
 type Mode = 'signin' | 'signup'
 
@@ -47,7 +48,12 @@ export function AuthForms({
         setError(res.error.message || 'Authentication failed')
         return
       }
-      if (mode === 'signup') toast.success('Account created — check your email to verify your address.')
+      if (mode === 'signup') {
+        toast.success('Account created — check your email to verify your address.')
+        // M.1 funnel step 1. `source` is the M.4 attribution seam (only 'email'
+        // today); `referrer` lets a shared-story signup be traced back later.
+        capture('signup', { source: 'email', referrer: document.referrer || undefined })
+      }
       await qc.invalidateQueries()
       onAuthed?.()
     } catch (err) {

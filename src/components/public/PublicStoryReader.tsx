@@ -16,6 +16,7 @@ import type { GraphNode, PublicStoryDTO, StoryBeat } from '~/lib/domain/types'
 import { POV_LABEL } from '~/lib/domain/story-labels'
 import { formatInstant } from '~/lib/domain/dates'
 import { getPublicStory } from '~/lib/server/stories'
+import { capture } from '~/lib/posthog/client'
 import { useSpeechSupported, useStoryNarration, warmUpSpeech } from '~/components/canvas/useStoryNarration'
 import { BeatWidget } from './widgets/BeatWidget'
 
@@ -71,6 +72,18 @@ export function PublicStoryReader({ data }: { data: PublicStoryDTO }) {
   const safeIndex = Math.min(index, Math.max(0, count - 1))
   const beat = beats[safeIndex]
   const playing = started && !ended
+
+  // M.1 co-ship + M.4 demand side: one impression per public reader mount. Client
+  // -only (the page is SSR'd) and carries the referrer as the share-attribution seam.
+  useEffect(() => {
+    capture('public_story_opened', {
+      story_id: story.id,
+      slug: story.slug,
+      referrer: document.referrer || undefined,
+    })
+    // Mount-once: a fresh reader instance is a fresh open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Reduced-motion → fully manual (no timed advance, static segments).
   useEffect(() => {
