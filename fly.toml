@@ -12,11 +12,20 @@ primary_region = "iad"
 
 # Non-secret runtime config. Secrets (BETTER_AUTH_SECRET, BETTER_AUTH_URL,
 # SYNEK_SECRETS_KEY, RESEND_API_KEY, SYNEK_EMAIL_FROM) come from `flyctl secrets`.
-# OPENROUTER_API_KEY is intentionally UNSET — the hosted agent is per-user BYO key.
+#
+# OPENROUTER_API_KEY is UNSET here by default — the hosted agent is per-user BYO key.
+# To run the OPERATOR-FUNDED built-in agent (normal users get AI without their own
+# key), set it as a SECRET: `flyctl secrets set OPENROUTER_API_KEY=...`. The
+# SYNEK_AGENT_DAILY_* ceilings below then bound per-user COGS (the METER safety cap).
+# They are INERT in BYO-only mode (BYO runs are never capped), so they ship safely
+# "on". Tune them DOWN to your real p90 once the usage ledger has weeks of data; set
+# either to "0" to disable that dimension.
 [env]
   PORT = "3001"
   DATABASE_URL = "/data/synek.db"
   SYNEK_MIGRATIONS_DIR = "/app/drizzle"
+  SYNEK_AGENT_DAILY_RUNS = "40"
+  SYNEK_AGENT_DAILY_TOKENS = "2000000"
 
 # The SQLite file lives on a Fly Volume. Create it once: `flyctl volumes create
 # synek_data --size 1 --region iad` (one volume → one machine).

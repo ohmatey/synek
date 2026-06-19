@@ -239,6 +239,43 @@ export const userSettings = sqliteTable('user_settings', {
 
 export type UserSettingsRow = typeof userSettings.$inferSelect
 
+// --- usage_ledger: metering floor + safety-cap source (METER) -------------
+// Append-only. One row per metered event: the in-app agent writes a PAIR per run
+// (an `agent_run` count row + an `agent_tokens` quantity row); the MCP layer writes
+// one `mcp_tool_call` row per call. The SAME table is the quota source — the safety
+// cap is a windowed SUM over operator-funded rows (see db/usage-ledger.ts).
+// `ownerId` is the security + segmentation boundary; rows are never updated, only
+// inserted (cascade-deleted with the user). `yourCostCents` = our real COGS in cents
+// (from OpenRouter's usage.cost), null when the provider didn't report it.
+export type UsageLedgerMeta = {
+  steps?: number
+  toolCalls?: number
+  promptTokens?: number
+  completionTokens?: number
+  ok?: boolean
+  tool?: string
+  timelineId?: string
+}
+export const usageLedger = sqliteTable(
+  'usage_ledger',
+  {
+    id: text('id').primaryKey().$defaultFn(newId),
+    ownerId: text('owner_id')
+      .references(() => user.id, { onDelete: 'cascade' })
+      .notNull(),
+    ts: integer('ts', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+    source: text('source', { enum: ['agent', 'mcp'] }).notNull(),
+    metric: text('metric', { enum: ['agent_run', 'agent_tokens', 'mcp_tool_call'] }).notNull(),
+    quantity: integer('quantity').notNull(),
+    model: text('model'),
+    funded: text('funded', { enum: ['operator', 'byo'] }).notNull(),
+    yourCostCents: integer('your_cost_cents'),
+    meta: text('meta', { mode: 'json' }).$type<UsageLedgerMeta>(),
+  },
+  (t) => [index('usage_ledger_owner_ts_idx').on(t.ownerId, t.ts)],
+)
+export type UsageLedgerRow = typeof usageLedger.$inferSelect
+
 // --- Shared entities (ADR 0004) -------------------------------------------
 // Canonical CONTENT for a node, decoupled from any one timeline. One entity can
 // back MANY placements (`nodes.entityId`) across timelines; editing it propagates

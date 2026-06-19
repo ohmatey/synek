@@ -43,6 +43,7 @@
     "verify:projects-tools": "SYNEK_SECRETS_KEY=verify-projects-master-key DATABASE_URL=verify-projects-tools.db tsx scripts/verify-projects-tools.ts",
     "verify:projects-backfill": "tsx scripts/verify-projects-backfill.ts",
     "verify:brands": "SYNEK_SECRETS_KEY=verify-brands-master-key DATABASE_URL=verify-brands.db tsx scripts/verify-brands.ts",
+    "verify:usage": "SYNEK_SECRETS_KEY=verify-usage-master-key DATABASE_URL=verify-usage.db tsx scripts/verify-usage.ts",
     "changeset": "changeset",
     "changeset:version": "changeset version"
   },

@@ -48,7 +48,14 @@ This is the local-first Core run as a hosted service; nothing about the app chan
    flyctl secrets set SYNEK_EMAIL_FROM="Synek <noreply@your-domain>"
    ```
    `BETTER_AUTH_URL` MUST be the public HTTPS origin — auth cookies, the MCP OAuth resource, and the verification / password-reset email links are all built from it. Use a custom domain via `flyctl certs add` if not using `*.fly.dev`.
-   **Do NOT set `OPENROUTER_API_KEY`** — the hosted agent is per-user BYO key (each user pastes their own in `/api-keys`). Setting it would make the operator fund/expose everyone's runs.
+
+   **Agent funding — pick a mode:**
+   - **BYO-only (default).** Leave `OPENROUTER_API_KEY` UNSET. Each user pastes their own key in `/api-keys`; the operator funds nothing. The `SYNEK_AGENT_DAILY_*` ceilings are inert (BYO runs are never capped).
+   - **Operator-funded built-in AI.** To let normal users use the agent without their own key, set the key as a SECRET:
+     ```
+     flyctl secrets set OPENROUTER_API_KEY="YOUR_OPENROUTER_KEY"
+     ```
+     Now the **METER safety cap** is load-bearing: the `SYNEK_AGENT_DAILY_RUNS` / `SYNEK_AGENT_DAILY_TOKENS` ceilings in `fly.toml` bound each user's operator-funded usage over a rolling 24h window (over the line → a friendly "limit reached, or add your own key" refusal). A user who adds their own key bypasses the cap (their spend). **Watch the OpenRouter bill the first weeks**, then tune the ceilings down to the real p90 from the `usage_ledger` table (`sqlite3 /data/synek.db 'select funded, count(*), sum(quantity) from usage_ledger where metric=\"agent_tokens\" group by funded'`).
 
 ## Deploy
 

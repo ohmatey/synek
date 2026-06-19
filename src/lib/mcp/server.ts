@@ -2,6 +2,7 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { listTimelines, loadGraph, getTimelineTitle, getTimelineMeta, resolveTimelineTheme } from '~/lib/db/graph'
 import { makeRequireOwnedProject } from '~/lib/db/projects'
 import { captureServer } from '~/lib/posthog/server'
+import { appendMcpToolCall } from '~/lib/db/usage-ledger'
 import { toolRegistry, makeRequireOwned, type ToolCtx } from './registry'
 
 const json = (data: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(data) }] })
@@ -122,6 +123,13 @@ export function buildMcpServer(ownerId: string, projectId?: string): McpServer {
           ...(args?.timelineId ? { timeline_id: args.timelineId } : {}),
           ...enrich(name, args, result),
         })
+        // METER: one ledger row per tool call (BYO — the user's own client paid).
+        // Best-effort; metering must never fail a tool call.
+        try {
+          appendMcpToolCall({ ownerId, tool: name, ok: true })
+        } catch {
+          /* ignore — analytics/metering is non-load-bearing for the tool result */
+        }
         return result
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
@@ -132,6 +140,11 @@ export function buildMcpServer(ownerId: string, projectId?: string): McpServer {
           ...(args?.timelineId ? { timeline_id: args.timelineId } : {}),
           error: message,
         })
+        try {
+          appendMcpToolCall({ ownerId, tool: name, ok: false })
+        } catch {
+          /* ignore — metering is non-load-bearing */
+        }
         // RESILIENCE: a throwing tool returns a clean MCP error result instead of
         // propagating. One tool's runtime error must never become an unhandled
         // rejection out of the /api/mcp route — that 500s the request AND can crash

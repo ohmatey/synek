@@ -48,3 +48,22 @@ export function agentBudgets(): AgentBudgets {
     timeoutMs: numEnv('SYNEK_AGENT_TIMEOUT_MS', 60_000),
   }
 }
+
+// METER safety cap — the OPERATOR-funded daily ceiling per user (a rolling 24h
+// window). UNSET or 0 → null (unlimited), which preserves the local-first default:
+// a download/self-host sets neither and stays uncapped. A cloud deploy sets these via
+// env (fly.toml) so only the hosted instance is capped. Read at call time, like the
+// budgets above. BYO-key users are exempt (the caller enforces that).
+export type AgentQuota = { dailyRuns: number | null; dailyTokens: number | null }
+
+const capEnv = (name: string): number | null => {
+  const n = Number(process.env[name])
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+export function agentQuota(): AgentQuota {
+  return {
+    dailyRuns: capEnv('SYNEK_AGENT_DAILY_RUNS'),
+    dailyTokens: capEnv('SYNEK_AGENT_DAILY_TOKENS'),
+  }
+}

@@ -44,6 +44,13 @@ export type AgentRunResult = {
   patchIds: string[]
   steps: number
   toolCalls: number
+  // Usage surfaced for the metering ledger (METER). total = prompt + completion as
+  // reported by OpenRouter; costUsd is the provider's actual credit cost for the run
+  // (present only when the API returns it — see `usage: { include: true }` below).
+  totalTokens: number
+  promptTokens: number
+  completionTokens: number
+  costUsd?: number
   error?: string
 }
 
@@ -60,7 +67,8 @@ export async function runAgentLoop(input: {
   budgets?: AgentBudgets
 }): Promise<AgentRunResult> {
   const key = input.apiKey
-  if (!key) return { ok: false, summary: '', patchIds: [], steps: 0, toolCalls: 0, error: 'agent not configured' }
+  if (!key)
+    return { ok: false, summary: '', patchIds: [], steps: 0, toolCalls: 0, totalTokens: 0, promptTokens: 0, completionTokens: 0, error: 'agent not configured' }
 
   const model = input.model?.trim() || defaultModel()
   const budgets = input.budgets ?? agentBudgets()
@@ -74,18 +82,29 @@ export async function runAgentLoop(input: {
   const patchIds: string[] = []
   let toolCalls = 0
   let tokensUsed = 0
+  let promptTokens = 0
+  let completionTokens = 0
+  let costUsd = 0
   let summary = ''
+
+  // Single exit builder — every return spreads the running token/cost accumulators
+  // so no early-out path forgets them (the ledger needs usage on success AND error).
+  const done = (p: { ok: boolean; steps: number; error?: string }): AgentRunResult => ({
+    ok: p.ok,
+    summary,
+    patchIds,
+    steps: p.steps,
+    toolCalls,
+    totalTokens: tokensUsed,
+    promptTokens,
+    completionTokens,
+    ...(costUsd > 0 ? { costUsd } : {}),
+    ...(p.error ? { error: p.error } : {}),
+  })
 
   for (let step = 0; step < budgets.maxSteps; step++) {
     if (tokensUsed >= budgets.maxTokens) {
-      return {
-        ok: false,
-        summary,
-        patchIds,
-        steps: step,
-        toolCalls,
-        error: `token budget exhausted (${tokensUsed}/${budgets.maxTokens})`,
-      }
+      return done({ ok: false, steps: step, error: `token budget exhausted (${tokensUsed}/${budgets.maxTokens})` })
     }
 
     const controller = new AbortController()
@@ -107,6 +126,9 @@ export async function runAgentLoop(input: {
           tools,
           tool_choice: 'auto',
           max_tokens: budgets.requestMaxTokens,
+          // Ask OpenRouter to return the actual credit cost per response so we can
+          // ledger real COGS (usage.cost) rather than estimate it (METER).
+          usage: { include: true },
         }),
       })
       if (!res.ok) {
@@ -115,26 +137,27 @@ export async function runAgentLoop(input: {
           res.status === 404 || res.status === 400
             ? `model "${model}" rejected the request (it may not support tool calling) — try another model`
             : `OpenRouter error ${res.status}`
-        return { ok: false, summary, patchIds, steps: step, toolCalls, error: `${friendly}${body ? `: ${body.slice(0, 300)}` : ''}` }
+        return done({ ok: false, steps: step, error: `${friendly}${body ? `: ${body.slice(0, 300)}` : ''}` })
       }
       data = await res.json()
     } catch (err) {
       const aborted = err instanceof Error && err.name === 'AbortError'
-      return {
+      return done({
         ok: false,
-        summary,
-        patchIds,
         steps: step,
-        toolCalls,
         error: aborted ? `request timed out after ${budgets.timeoutMs}ms` : err instanceof Error ? err.message : String(err),
-      }
+      })
     } finally {
       clearTimeout(timer)
     }
 
-    tokensUsed += Number(data?.usage?.total_tokens) || 0
+    const usage = data?.usage
+    tokensUsed += Number(usage?.total_tokens) || 0
+    promptTokens += Number(usage?.prompt_tokens) || 0
+    completionTokens += Number(usage?.completion_tokens) || 0
+    costUsd += Number(usage?.cost) || 0
     const msg = data?.choices?.[0]?.message
-    if (!msg) return { ok: false, summary, patchIds, steps: step, toolCalls, error: 'empty response from model' }
+    if (!msg) return done({ ok: false, steps: step, error: 'empty response from model' })
 
     const calls: ToolCall[] = Array.isArray(msg.tool_calls) ? msg.tool_calls : []
     // Echo the assistant turn back (tool_calls and all) before answering them.
@@ -142,7 +165,7 @@ export async function runAgentLoop(input: {
 
     if (!calls.length) {
       summary = typeof msg.content === 'string' ? msg.content : summary
-      return { ok: true, summary, patchIds, steps: step + 1, toolCalls }
+      return done({ ok: true, steps: step + 1 })
     }
 
     for (const call of calls) {
@@ -153,14 +176,7 @@ export async function runAgentLoop(input: {
   }
 
   // Hit the step cap with tool calls still pending — stop, report what we did.
-  return {
-    ok: false,
-    summary,
-    patchIds,
-    steps: budgets.maxSteps,
-    toolCalls,
-    error: `reached the step limit (${budgets.maxSteps}) before finishing`,
-  }
+  return done({ ok: false, steps: budgets.maxSteps, error: `reached the step limit (${budgets.maxSteps}) before finishing` })
 }
 
 // Execute one tool call against the registry; always returns a JSON string for the
