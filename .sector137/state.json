@@ -1,7 +1,7 @@
 {
  "version": 2,
  "project": "Synek",
- "updatedAt": "2026-06-17T07:07:33.671Z",
+ "updatedAt": "2026-06-19T00:00:00.000Z",
  "syncedAt": null,
  "issues": [
   {
@@ -1076,6 +1076,42 @@
     "status": "completed",
     "dependencies": []
    }
+  },
+  {
+   "data": {
+    "title": "Implement M.1 — activation-funnel instrumentation (signup -> key_connected -> first timeline/story/share)",
+    "description": "Build the M.1 Activation Funnel instrumentation — the pivotal measure-first bucket. PRD: docs/product/prd/m1-activation-funnel.md (Margot). Sibling of METER (docs/product/prd/usage-ledger-rate-limit.md = M.5); M.6 Understand dashboard stays in understand-app.md.\n\n### Why\nThe signup -> key_connected drop-off is the single number that proves/kills the BYO-for-devs vs managed-for-creators seat split. Feeds the CFO model activation_rate cell. Measurement, not billing; reuses the existing key-gated opt-out PostHog spine (no new vendor); local-first untouched (no PostHog key set = nothing sent).\n\n### Codebase audit (4 of 5 steps missing/partial)\n- signup — MISSING (AuthForms.tsx signup-success branch has no capture()).\n- key_connected — MISSING (AgentKeyCard.tsx saveKey onSuccess has no capture()) — THE pivotal metric.\n- timeline_created — PARTIAL (UI path fires; MCP + in-app agent paths drop it — add at the server register wrapper / runner executeToolCall).\n- story_written — MISSING as a funnel step (only a property on the generic mcp_tool_called event today).\n- story_shared — EXISTS (ShareStoryButton.tsx:39, first-share guarded).\n\n### Rollout (6 independent increments; verification = a ~10-min live PostHog events walk, not a verify:* DB script — see PRD)\n1. signup capture (client first; evaluate loss before adding a Better Auth server hook).\n2. key_connected capture (AgentKeyCard onSuccess).\n3. timeline_created — close the MCP/agent gap server-side.\n4. story_written funnel event (confirm result field name vs registry.ts — id vs storyId — before shipping).\n5. PostHog funnel + key-connection drop-off breakdown (config, no code) + M.2 cohort seed.\n6. Doc the funnel + the tie-to-CFO-model cells.\n\n### Open founder decisions (from the PRD)\nclient-vs-server signup emit; MCP bearer-token users (bun run issue:key) never hit the settings UI so they read as a step-1->3 gap and make the early dev-heavy key-connection rate look worse than reality; first 2-4 weeks skew developer — read the trend, not the absolute.\n### Done 2026-06-19 (build-verified; live PostHog smoke-walk + funnel config owed)\nShipped increments 1-5 (code) of the PRD. Increment 6 (the 5-step PostHog funnel + key-connection breakdown) is pure PostHog UI config, no code.\n- NEW src/lib/posthog/funnel.ts — captureToolFunnelEvent(ownerId, tool, args, raw, source): one shared server-side emitter so MCP + in-app-agent create_timeline/write_story land in the SAME funnel the UI emits (kept OUT of the transport-agnostic registry handlers per PRD).\n- signup (client) — AuthForms.tsx signup-success branch { source:email, referrer }.\n- key_connected (client) — AgentKeyCard.tsx saveKey onSuccess { provider:openrouter, segment:byo } — THE pivotal drop-off.\n- timeline_created — UI path tagged source:ui (NewTimelineDialog.tsx); MCP path emits via the server.ts register-wrapper success branch (parse envelope -> raw -> helper, source:mcp); agent path emits from runner.ts executeToolCall (raw result, source:agent).\n- story_written (server) — same helper, both MCP + agent paths; story_id from writeStory return {storyId}, beats=segments.length, is_update=!!args.storyId, moment_id (write_story keys off momentId, not timelineId). Server-only string event, intentionally NOT in the client ClientEvent union (no direct UI write path).\n- public_story_opened (client co-ship, M.3/M.4 demand side) — PublicStoryReader.tsx mount effect { story_id, slug, referrer }; client-only (page SSRs).\n- ClientEvent union grew signup + key_connected; timeline_created documented as carrying source.\nVERIFIED: typecheck + production build (incl. s._slug SSR chunk) + verify:mcp green. No verify:* data-layer script by PRD design (these are env-key-gated SDK calls, not DB logic) — gate is the manual Live-Events smoke-walk.\nOWED: the 10-min PostHog Live-Events smoke-walk (needs VITE_POSTHOG_KEY + POSTHOG_API_KEY) then build the activation funnel + key-connection breakdown in PostHog (increment 6).\nFOUNDER OPEN DECISIONS (unchanged from PRD): client-vs-server signup emit; MCP bearer-token (issue:key) users never hit the settings UI so they read as a step1->3 gap (key-connection rate looks worse than reality early); read the trend not the absolute for the first 2-4 weeks. Uncommitted.\n### Follow-up 2026-06-19 — closed the MCP-bearer funnel gap (PRD open-decision #3)\nThe purest BYO user connects an MCP client (bearer/OAuth) and never opens settings, so key_connected never fired for them — they read as a signup->[gap]->timeline_created hole, dragging the pivotal drop-off down with a cohort that activated perfectly.\nFIX (chosen over the zero-code PostHog OR-step interim, for a clean segmentable signal): emit key_connected { provider:mcp_bearer, segment:byo } server-side on the FIRST authenticated MCP call — at the mcp/server.ts register-wrapper ENTRY (post-auth, before the tool runs) so its timestamp precedes any timeline_created the same call emits and a FAILED first tool still counts as connected. Deduped on the METER ledger via new hasPriorMcpUsage(ownerId) (indexed source=mcp existence probe) + a module-scope Set query-cache (ledger stays source of truth, so a process restart never double-emits; rare concurrent-first double-emit is harmless — funnels take the first). NO migration. issue:key deliberately NOT instrumented (runs pre-signup, may lack a PostHog key; first-call subsumes it + covers cloud OAuth). key_connected now segments openrouter (in-app key) vs mcp_bearer (own client).\nVERIFIED: extended verify:usage with section 8 (fresh owner false -> true after one call, owner-scoped) — green; typecheck + verify:mcp green. Uncommitted.",
+    "horizon": "next",
+    "type": "feature",
+    "status": "completed",
+    "dependencies": []
+   },
+   "meta": {
+    "origin": "local",
+    "serverId": null,
+    "localId": "local-139",
+    "dirty": true,
+    "etag": null,
+    "syncedAt": null
+   }
+  },
+  {
+   "meta": {
+    "origin": "local",
+    "serverId": null,
+    "localId": "local-140",
+    "dirty": true,
+    "etag": null,
+    "syncedAt": null
+   },
+   "data": {
+    "title": "Implement METER — usage ledger + operator-funded safety cap (measure-first pricing floor)",
+    "description": "Measure-first monetization floor + safety valve so the operator-funded in-app agent can't run away with the OpenRouter bill, and so per-user COGS is measurable to model Phase-3 pricing (seat + fair-use cap).\n\n### Shipped (committed 5007809, main)\n- usage_ledger table (migration 0027): append-only, owner-scoped, (ownerId, ts) index. One agent run = a (agent_run + agent_tokens) pair; MCP calls log one row each. The same table is the quota source.\n- runner.ts surfaces totalTokens/prompt/completion/costUsd on every return (done() helper) + asks OpenRouter for REAL per-request cost (usage:{include:true}).\n- resolveKey returns {key, funded}; runAgent enforces a rolling-24h operator-funded cap (BYO exempt) with a friendly + BYO-upsell refusal, and best-effort appends ledger rows (never fails the user's run).\n- agentQuota() reads SYNEK_AGENT_DAILY_RUNS/_TOKENS; unset/0 = unlimited (local-first stays uncapped). fly.toml ships the ceiling ON (40 runs / 2M tokens), inert in BYO-only mode; deploy-fly.md documents BYO-only vs operator-funded modes.\n\n### Founder decisions (2026-06-19)\n- COGS = real, from OpenRouter (not estimated).\n- Safety ceiling ON at cloud launch (via fly.toml env, not code default — local stays uncapped).\n\n### Verification\ntypecheck clean; verify:usage (19 checks); verify:isolation + verify:mcp green; 0027 generate→migrate clean.\n\n### Owed / deferred\n- Live pass with a real OPENROUTER_API_KEY (dev preview can't hydrate the agent) — confirm row pair + non-null cost land + cap trips.\n- usage.cost field name is moderate-confidence (yourCostCents nullable, degrades to null).\n- Phase 3 builds on this: admin/Understand dashboard reads the ledger; Stripe/seat pricing prices against COGS-per-user. Pairs with M.1 activation funnel (local-139).\n\nPRD: docs/product/prd/usage-ledger-rate-limit.md (status built*).",
+    "horizon": "next",
+    "type": "feature",
+    "status": "completed",
+    "dependencies": []
+   }
   }
  ],
  "tasks": [],
@@ -1495,6 +1531,20 @@
     "origin": "local",
     "serverId": null,
     "localId": "local-136",
+    "dirty": true,
+    "etag": null,
+    "syncedAt": null
+   }
+  },
+  {
+   "data": {
+    "title": "Session wrap — M.1 activation funnel drafted, built (+MCP-bearer fix), committed on branch",
+    "body": "Session: founder asked what is next on the roadmap besides the in-flight LLM cost-tracking work (METER = local-140, committed 5007809 by a concurrent session). Routed via /sal.\n\nANSWERED: METER is the M.5 slice of the measure-first monetization bucket (M.1-M.6). Highest-leverage follow-on = M.1 activation funnel (the signup->key_connected drop-off, the make-or-break number for the BYO-dev vs managed-creator seat split). Founder chose to draft it, then build it.\n\nSHIPPED this session (local-139, branch feat/m1-activation-funnel @ 3e293eb, NOT merged to main):\n- PRD docs/product/prd/m1-activation-funnel.md (Margot) — carved M.1 out of understand-app.md into a tight shippable spec, METER-shaped. Codebase audit found 4/5 funnel steps missing/partial.\n- M.1 instrumentation (increments 1-5): signup (AuthForms), key_connected (AgentKeyCard), timeline_created source-tagged across UI/MCP/agent, story_written (server, MCP+agent), public_story_opened (reader mount). New src/lib/posthog/funnel.ts = one shared server-side emitter for MCP+agent, kept OUT of the transport-agnostic registry handlers.\n- B: closed the MCP-bearer funnel gap — key_connected{provider:mcp_bearer} on first authenticated MCP call (wrapper entry, post-auth), deduped on the METER ledger via new hasPriorMcpUsage + process-scope Set cache. No migration. issue:key left uninstrumented.\nVERIFIED: typecheck + build + verify:mcp + verify:usage (extended w/ section 8 = the connect watermark) green.\n\nOWED (no code): the env-key-gated PostHog Live-Events smoke-walk + build the 5-step activation funnel + key-connection breakdown in PostHog (increment 6). Founder open-calls in the PRD risks section (client-vs-server signup emit; read trend not absolute for first 2-4 weeks).\n\nSAL STATE: sector137 MCP offline all session -> staged in .sector137/state.json (dirty). M.1=local-139 (completed), wrap=local-141. Reconcile via mcp__sector137__sync_state when MCP returns. Active release still v0.2.0 (local-129) — M.1/METER are monetization-groundwork, not scoped into it."
+   },
+   "meta": {
+    "origin": "local",
+    "serverId": null,
+    "localId": "local-141",
     "dirty": true,
     "etag": null,
     "syncedAt": null
