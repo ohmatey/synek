@@ -5,7 +5,7 @@
 // `apply_patch` / `write_story` (verified in `lib/mcp/warnings.ts`), and, once
 // the P2 Realscript brand adapter lands (`lib/realscript/`), brand-asset URLs
 // (logos, fonts, theme.css) plus the `REALSCRIPT_BASE_URL` base. In the
-// multi-tenant hosted posture (open signup, Fly.io single-instance) an
+// multi-tenant hosted posture (open signup, single-instance deploy) an
 // unguarded `fetch` of attacker-chosen URLs is a server-side request forgery
 // vector: the server can be steered at the cloud metadata endpoint
 // (169.254.169.254), loopback, or internal services, and the response

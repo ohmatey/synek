@@ -2,9 +2,9 @@
 
 **Talk to Claude on the left, watch your Synek timeline build itself on the right.**
 
-This plugin is the on-ramp for [Synek](../) (display name *Chronograph*): it wires Claude Code to your **local** Synek MCP server and teaches Claude how to build good timelines, so you can type `/synek:map Stoicism` and watch the canvas populate — faces, events, eras, and the connections between them.
+This plugin is the on-ramp for [Synek](../) (display name *Chronograph*): it wires Claude Code to your Synek MCP server and teaches Claude how to build good timelines, so you can type `/synek:map Stoicism` and watch the canvas populate — faces, events, eras, and the connections between them.
 
-Synek is single-user and local-first: it runs on your machine, stores everything in one SQLite file, and holds no AI of its own. This plugin is the "Claude on the left" half of that experience.
+Synek is local-first: by default it runs on your machine, stores everything in one SQLite file, and holds no AI of its own. **It also deploys to the cloud** — point this plugin at a hosted origin (`SYNEK_MCP_URL`, below) and the same one-click OAuth connect works against your deployed instance. Either way, this plugin is the "Claude on the left" half of the experience.
 
 ## What's in the box
 
@@ -56,19 +56,19 @@ No `SYNEK_API_KEY` is needed for the plugin — auth is OAuth. (A `synek_…` AP
 
 ## Notes & scope
 
-- **Local-first by design.** The connection is plain `http://localhost` (loopback to your own machine) — that's correct here, not a security gap. There's a local login (email/password) and API keys you manage in-app, but no cloud endpoint and no hosted/team mode.
+- **Local-first by default, hosted by choice.** With nothing configured the connection is plain `http://localhost` (loopback to your own machine) — that's correct, not a security gap. Set `SYNEK_MCP_URL` to a public `https://…/api/mcp` origin and the same plugin connects to a **deployed** Synek over the same OAuth flow. Cloud is a *deploy mode* of the same app — not a separate product.
 - **One writer at a time.** This plugin uses the **HTTP** transport so the running viewer and the MCP server stay in one process (which is what makes live canvas updates work). Don't also run the standalone stdio MCP server against the same database.
-- **Out of scope** (matches Synek's core guardrail): hosted/cloud instances, teams/workspaces, billing, public sharing, third-party integrations, and any **in-app** agent / background scheduler / signal-ingestion service. One person, one local instance. Note `/synek:watch` does **not** add a scheduler to the app — Synek stays a pure viewer + MCP server; keeping a timeline current is a routine **you** run from *your* client (on-demand, or via your own OS cron), which is the same inversion the whole product is built on.
+- **Still out of scope** (matches Synek's core guardrail): teams/workspaces/roles, billing, third-party integrations (Slack/Notion), enterprise SSO/audit, and any **in-app** background scheduler / signal-ingestion service. Hosting is a single-tenant-per-user deploy of the same local-first app, not a multi-tenant team product. Note `/synek:watch` does **not** add a scheduler to the app — Synek stays a pure viewer + MCP server; keeping a timeline current is a routine **you** run from *your* client (on-demand, your own OS cron, or — against a hosted origin — a Claude Code cloud schedule), which is the same inversion the whole product is built on.
 
 ## Keeping a timeline alive (`/synek:watch`)
 
 Some timelines are finished history; others are *alive* — a competitive landscape, the run of frontier model releases, an ongoing field. `/synek:watch <timeline>` is the **keeper**: it reads what's already on the timeline, searches for what's happened since, and adds **only the genuinely new** developments as one undoable Patch (each cited) — then offers to make it recurring.
 
-Because Synek runs on your machine (`localhost`), the recurring options are honest about reach:
+The recurring options depend on where your Synek lives — a cloud routine can reach a hosted origin but never `localhost`:
 
 - **On-demand** — run `/synek:watch <timeline>` whenever you want a refresh. Always works, zero setup.
 - **Recurring, local** — an OS scheduler (`cron`/`launchd`) running headless Claude Code on your machine, or `/loop` in an open session. It's local, so it reaches your local server.
-- **Recurring, cloud routine** — only viable once the server is reachable from the cloud (a future hosted Synek). A scheduled *cloud* agent can't reach `localhost`, so don't point one at a purely-local server.
+- **Recurring, cloud routine** — viable when the plugin points at a **hosted** Synek (`SYNEK_MCP_URL` = a public `https://…/api/mcp`). Then a Claude Code cloud schedule reaches the origin and authorizes over OAuth like any client. Don't point a cloud routine at a purely-local server — it can't reach `localhost`.
 
 The routine is just a saved prompt (a scope brief + the keeper steps), so the same recipe works in Claude Code or any MCP client.
 - **No portraits via MCP.** `apply_patch` sets `subtype` (so a person card is *ready* for a portrait) and `citations`, but image uploads happen in the canvas's detail panel.

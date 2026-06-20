@@ -6,7 +6,7 @@ era: "Monetization groundwork (measure-first)"
 updated: 2026-06-19
 ---
 
-> **\* Built (data layer), 2026-06-19.** `usage_ledger` table (migration 0027) + the agent/MCP writers + the operator-funded rolling-24h safety cap are shipped and verified at the data layer (`bun run verify:usage`, 19 checks; typecheck + `verify:isolation` + `verify:mcp` green). Founder decisions baked in: real COGS via OpenRouter `usage:{include:true}`; ceiling ON at cloud launch via `fly.toml` (`SYNEK_AGENT_DAILY_RUNS=40`, `SYNEK_AGENT_DAILY_TOKENS=2000000`), inert in BYO-only mode. **Owed:** a live in-browser pass (needs a real `OPENROUTER_API_KEY` — the dev preview can't hydrate the agent) confirming a row pair + non-null cost land and the cap trips. Phase 3 (admin dashboard + pricing) builds on this.
+> **\* Built (data layer), 2026-06-19.** `usage_ledger` table (migration 0027) + the agent/MCP writers + the operator-funded rolling-24h safety cap are shipped and verified at the data layer (`bun run verify:usage`, 19 checks; typecheck + `verify:isolation` + `verify:mcp` green). Founder decisions baked in: real COGS via OpenRouter `usage:{include:true}`; ceiling ON at cloud launch via the deploy configmap (`SYNEK_AGENT_DAILY_RUNS=40`, `SYNEK_AGENT_DAILY_TOKENS=2000000` — on sector137, `kubernetes/overlays/synek/configmap.yaml`), inert in BYO-only mode. **Owed:** a live in-browser pass (needs a real `OPENROUTER_API_KEY` — the dev preview can't hydrate the agent) confirming a row pair + non-null cost land and the cap trips. Phase 3 (admin dashboard + pricing) builds on this.
 
 # METER — Usage ledger + safety rate limit
 

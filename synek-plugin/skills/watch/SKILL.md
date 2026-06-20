@@ -56,7 +56,7 @@ Tell the user, tightly:
 - **Added:** N nodes (list them with dates).
 - **Skipped:** already present (so they trust the dedup).
 - **Unverified:** anything you found but couldn't confirm a date/source for — report it as *unverified*, **never invent** a date or a citation to fill a gap. A keeper that fabricates is worse than one that misses.
-- The canvas link: `http://localhost:3001/timelines/<id>` (use the user's host/port).
+- The canvas link: `<origin>/timelines/<id>` — the origin is `http://localhost:3001` locally, or the hosted base URL (`SYNEK_MCP_URL` minus the `/api/mcp` suffix) when the plugin points at a deployed Synek.
 
 Then offer Part 2.
 
@@ -66,14 +66,19 @@ Then offer Part 2.
 
 First decide *whether* it should recur. On-demand `/synek:watch` is often enough and has zero failure modes. Offer a schedule when the timeline is genuinely fast-moving and the user wants it to stay current without thinking about it.
 
-### The honest constraint: a cloud routine can't reach a local server
-Synek runs on **the user's machine** (`http://localhost:3001`). A **scheduled cloud agent runs in Anthropic's cloud and cannot reach `localhost`** — it would fail every run. So pick the path that matches where Synek lives:
+### The constraint depends on where Synek lives — local vs hosted
+The one hard rule: **a scheduled cloud agent runs in Anthropic's cloud and cannot reach `localhost`.** So whether a cloud routine works comes down to where the Synek server is:
+
+- **Local Synek** (`http://localhost:3001`) — a cloud routine can't reach it. Recurring has to run **on the same machine** (OS scheduler / `/loop`).
+- **Hosted Synek** (a public `https://…` origin, the plugin pointed at it via `SYNEK_MCP_URL`) — a cloud routine **can** reach it. The hosted path unlocks true hands-off scheduling.
+
+Pick the path that matches where this user's Synek lives:
 
 | Path | When | How |
 |---|---|---|
 | **On-demand** (recommended start) | Always works; zero setup | The user runs `/synek:watch <timeline>` whenever they want a refresh. |
 | **Recurring, local machine** | Local Synek, hands-off | An OS scheduler (`cron` / macOS `launchd`) runs **local, headless** Claude Code with the routine prompt on a cadence — it's on the same machine, so it reaches `localhost`. Or keep a session open and use `/loop` for a working day. |
-| **Recurring, cloud routine** | Only once the server is reachable from the cloud — a future **hosted** Synek (or a tunnel the user runs) | Then it's a normal Claude Code scheduled routine (`/schedule`) with the routine prompt. **Don't** set one up against a localhost-only server — be upfront that it can't connect. |
+| **Recurring, cloud routine** | **Hosted Synek** — the plugin points at a public `https://…/api/mcp` origin (`SYNEK_MCP_URL` set) | A normal Claude Code scheduled routine (`/schedule`) with the routine prompt. The cloud agent reaches the hosted origin and authorizes over OAuth just like the interactive client. (Still **don't** schedule a cloud routine against a localhost-only server — it can't connect.) |
 
 Match the cadence to how fast the world moves: model releases ≈ weekly; a competitive landscape ≈ weekly/biweekly; a slow research field ≈ monthly. Don't over-poll — every run costs tokens and web calls.
 

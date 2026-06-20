@@ -1,0 +1,75 @@
+# Loha CI/CD — synek
+#
+# Forgejo (git.sector137.io) is the repo home; Loha owns builds. Quality gate
+# (install / type-check / build) on every push + PR; the single app image builds
+# + pushes on main only, tagged with the short commit sha. ArgoCD Image Updater
+# (in sector137-infra, app `synek`) tracks that tag and rolls it out — no deploy
+# step here. The cluster pulls the image with the sealed `regcred` pull-secret.
+#
+# Syntax matches Loha's current pipelines (realscript, ols/status.sabai):
+# job-level `image:` + bare `run:` steps + ${LOHA_COMMIT_SHA}; image jobs use
+# buildah (BUILDAH_ISOLATION=chroot, STORAGE_DRIVER=vfs).
+#
+# Synek builds + runs under NODE (not Bun): the app links better-sqlite3's
+# native Node-ABI binary, which Bun cannot load. The Dockerfile already pins
+# node:22-bookworm and installs with npm; the quality gate mirrors that.
+#
+# PREREQUISITE: the image job pushes to the Forgejo OCI registry, so the Loha
+# workspace must define the secrets REGISTRY_USER and REGISTRY_PASSWORD
+# (a Forgejo user + PAT scoped to write:packages on git.sector137.io).
+
+version: 1
+name: synek
+description: Quality gate + build/push the synek-app image; ArgoCD Image Updater rolls out.
+resource_class: medium
+
+env:
+  REGISTRY: git.sector137.io
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: true
+
+jobs:
+  quality:
+    name: Type-check · Build
+    image: node:22-bookworm
+    timeout: "25m"
+    steps:
+      - name: Checkout
+        uses: loha/git-clone@v1
+      - name: Install · type-check · build
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3 make g++ ca-certificates
+          npm install
+          npm run typecheck
+          npm run build
+
+  build-app:
+    name: Image · synek-app
+    needs: [quality]
+    if: github.ref == 'refs/heads/main'
+    timeout: "30m"
+    env:
+      BUILDAH_ISOLATION: chroot
+      STORAGE_DRIVER: vfs
+    steps:
+      - name: Checkout
+        uses: loha/git-clone@v1
+      - name: Build & push synek-app
+        run: |
+          SHORT_SHA=$(echo ${LOHA_COMMIT_SHA} | cut -c1-8)
+          buildah bud \
+            --file Dockerfile \
+            --tag ${REGISTRY}/sector137/synek-app:${SHORT_SHA} \
+            --layers \
+            .
+          echo "${REGISTRY_PASSWORD}" | buildah login -u "${REGISTRY_USER}" --password-stdin ${REGISTRY}
+          buildah push ${REGISTRY}/sector137/synek-app:${SHORT_SHA}
+        secrets:
+          - REGISTRY_USER
+          - REGISTRY_PASSWORD

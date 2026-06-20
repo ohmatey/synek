@@ -52,7 +52,7 @@ export function agentBudgets(): AgentBudgets {
 // METER safety cap — the OPERATOR-funded daily ceiling per user (a rolling 24h
 // window). UNSET or 0 → null (unlimited), which preserves the local-first default:
 // a download/self-host sets neither and stays uncapped. A cloud deploy sets these via
-// env (fly.toml) so only the hosted instance is capped. Read at call time, like the
+// env (the deploy configmap) so only the hosted instance is capped. Read at call time, like the
 // budgets above. BYO-key users are exempt (the caller enforces that).
 export type AgentQuota = { dailyRuns: number | null; dailyTokens: number | null }
 

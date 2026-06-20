@@ -8,8 +8,11 @@
 // ⚠️ NEVER set SYNEK_LOCAL_MODE in a multi-tenant / cloud deploy. It bypasses the
 // login screen and signs EVERY visitor in as the one shared local user. The flag is
 // unset by default (so all cloud deploys keep real auth) and is intentionally absent
-// from fly.toml. The gate is checked server-side only; with it unset, behaviour is
-// identical to before this feature existed.
+// from the deploy configmap. On an exposed deploy the boot guard in
+// `src/lib/auth/index.ts` (assertLocalModeNotExposed) refuses to start if it is set,
+// so this can never silently collapse tenant isolation in production. The gate is
+// checked server-side only; with it unset, behaviour is identical to before this
+// feature existed.
 
 // The deterministic local identity (shared with token.ts so the auto-signed-in user
 // is the same one `bun run issue:key` mints). Overridable for a custom local user.
