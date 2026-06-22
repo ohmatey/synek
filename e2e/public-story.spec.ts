@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { assertTopAligned } from './helpers/layout-invariants'
 
 // The sharable public story page (/s/$slug). The seeded `stoicism` timeline is
 // public and its flagship story carries a pinned slug ('from-shipwreck-to-throne')
@@ -12,6 +13,14 @@ const SLUG = 'from-shipwreck-to-throne'
 
 test('the public page renders the cover, OpenGraph tags, and a live stamp', async ({ page }) => {
   await page.goto(`/s/${SLUG}`)
+
+  // Layout/scroll invariants (foundry visual-testing Technique 1): the cover hero is
+  // in the viewport, the page loads at scrollY 0, and there is exactly one <h1> (the
+  // story title). The Reels reader focus()es its root on mount — this guards that it
+  // doesn't auto-scroll the page past the cover, plus the off-screen / double-h1 class.
+  // (The full axe contrast pass for this reader lands with the coupled theme-token
+  // work — its accent colors flow through tokens that ship in that change.)
+  await assertTopAligned(page)
 
   // SSR head: title + OG image carry the story into link unfurls.
   await expect(page).toHaveTitle(/From a shipwreck to the throne · Synek/)
