@@ -21,12 +21,25 @@ import { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay } from '
 import { PatchBuilder, commitPatch, undo, redo, historyState, maxAppliedSeq } from '~/lib/db/patches'
 import {
   writeStory,
+  patchStory,
+  undoStory,
+  redoStory,
+  storyHistoryState,
   getMomentTimelineId,
   getStoriesForMoment,
   storyDepthByMoment,
   setStoryTheme,
   getStoryTimelineId,
+  type StoryOp,
 } from '~/lib/db/stories'
+import {
+  createSeries,
+  getSeries,
+  seriesWatermark,
+  setSeriesShared,
+  makeRequireOwnedSeries,
+  nextChapterNumber,
+} from '~/lib/db/series'
 import { registerArtifact, searchArtifacts, existingArtifactIds } from '~/lib/db/artifacts'
 import { emitTimelineEvent } from '~/lib/server/bus'
 import {
@@ -161,8 +174,46 @@ const storyWidgetInput = z.object({
   caption: z.string().optional().describe('Optional one-line caption shown under the widget.'),
 })
 
+// A single beat citation — single-home (ADR 0001 Dec. 8): an artifact-backed ref
+// `{ artifactId, excerptUsed? }` to a REGISTERED artifact (preferred), OR an inline
+// one-off `{ title, url?, quote?, sourceType? }`. Disjoint by their keys.
+const citationInput = z.union([
+  z.object({
+    artifactId: z.string().describe('Id of a registered artifact (from register_artifact / search_artifacts).'),
+    excerptUsed: z.string().optional().describe('The passage of the artifact this beat draws on.'),
+  }),
+  z.object({
+    title: z.string(),
+    url: z.string().optional(),
+    quote: z.string().optional(),
+    sourceType: z.enum(CITATION_SOURCE_TYPES).optional(),
+  }),
+])
+
+// One story beat (segment) — the shared shape write_story and patch_story both
+// accept. Extracted so the two tools never drift.
+const storyBeatInput = z.object({
+  bodyText: z.string(),
+  kind: z.enum(SEGMENT_KINDS).optional(),
+  settingNote: z.string().optional(),
+  relatedNodeIds: z.array(z.string()).optional(),
+  // Spotlight one entity for this beat: the canvas pans + rings it and the entity
+  // panel beside the story switches to show it. A node id on the same timeline.
+  focusNodeId: z.string().optional(),
+  // Choreograph the camera: 'globe' (frame its place) or 'timeline' (the time axis).
+  // Omit for auto (globe when the focus node is located, else timeline).
+  lens: z.enum(STORY_LENSES).optional(),
+  citations: z.array(citationInput).optional(),
+  image: storyImageInput.optional().describe('Optional art for this beat; `layout` picks its treatment.'),
+  widget: storyWidgetInput
+    .optional()
+    .describe('Optional LIVE widget for this beat (a mini timeline / globe / entity card from node ids).'),
+})
+
 // The viewer/home URL for a project — slug-addressable (D6).
 const projectUrl = (p: { slug: string }) => `${BASE_URL}/p/${p.slug}`
+// The public "season" page for a series (D10) — slug-addressable.
+const seriesUrl = (s: { slug: string }) => `${BASE_URL}/sr/${s.slug}`
 
 // The shared tool surface. Order mirrors the original server.ts registration.
 export const toolRegistry: ToolDef[] = [
@@ -618,60 +669,21 @@ export const toolRegistry: ToolDef[] = [
             'it, falling back to the timeline\'s theme when omitted. Use it to give a story a distinct mood (a noir ' +
             'case, a golden-age epic). Omit/null to inherit the timeline.',
         ),
-      segments: z
-        .array(
-          z.object({
-            bodyText: z.string(),
-            kind: z.enum(SEGMENT_KINDS).optional(),
-            settingNote: z.string().optional(),
-            relatedNodeIds: z.array(z.string()).optional(),
-            // Spotlight one entity for this beat: the canvas pans + rings it and the
-            // entity panel beside the story switches to show it. A node id on the
-            // same timeline; omit to stay on the moment.
-            focusNodeId: z.string().optional(),
-            // Choreograph the camera: which surface this beat plays on while reading —
-            // 'globe' (frame its place on the orthographic globe) or 'timeline' (the
-            // horizontal time axis). Omit for auto (globe when the focus node is
-            // located, else timeline). Alternate them to make the story switch surfaces
-            // beat-to-beat — a place beat on the globe, a time/idea beat on the timeline.
-            lens: z.enum(STORY_LENSES).optional(),
-            // Real sources grounding this beat (cite freely). Each citation is
-            // ONE of two forms (single-home, ADR 0001): an artifact-backed ref
-            // `{ artifactId, excerptUsed? }` to a REGISTERED artifact (preferred —
-            // reusable + searchable; register it first with register_artifact), OR
-            // an inline one-off `{ title, url?, quote?, sourceType? }` for a passing
-            // mention with no reusable source. The two are disjoint by their keys.
-            citations: z
-              .array(
-                z.union([
-                  z.object({
-                    artifactId: z
-                      .string()
-                      .describe('Id of a registered artifact (from register_artifact / search_artifacts).'),
-                    excerptUsed: z.string().optional().describe('The passage of the artifact this beat draws on.'),
-                  }),
-                  z.object({
-                    title: z.string(),
-                    url: z.string().optional(),
-                    quote: z.string().optional(),
-                    sourceType: z.enum(CITATION_SOURCE_TYPES).optional(),
-                  }),
-                ]),
-              )
-              .optional(),
-            image: storyImageInput.optional().describe('Optional art for this beat; `layout` picks its treatment.'),
-            widget: storyWidgetInput
-              .optional()
-              .describe(
-                'Optional LIVE widget for this beat (a mini timeline / globe / entity card from node ids) — the ' +
-                  'panel\'s hero visual in the sharable reader; stays live as the graph changes.',
-              ),
-          }),
-        )
-        .min(1),
+      // Make this story a CHAPTER of a series (ADR 0006): `appendToSeries` is the
+      // shorthand — pass a series id and the chapter number is auto-assigned (next in
+      // sequence). Or pass `seriesId` with an explicit `chapterNumber`. Omit all to
+      // write a standalone story (today's default). On UPDATE, omitting them preserves
+      // the chapter's existing series membership.
+      seriesId: z.string().optional().describe('Attach this story to a series (explicit form — pair with chapterNumber).'),
+      appendToSeries: z
+        .string()
+        .optional()
+        .describe('Series id to append this story to as the NEXT chapter (auto-numbered). The usual way to write the next chapter.'),
+      chapterNumber: z.number().int().positive().optional().describe('Explicit 1-based chapter position within the series.'),
+      segments: z.array(storyBeatInput).min(1),
     },
     handler: async (
-      { momentId, storyId, title, hook, povType, depthTier, estimatedMinutes, coverImage, cast, theme, segments },
+      { momentId, storyId, title, hook, povType, depthTier, estimatedMinutes, coverImage, cast, theme, seriesId, appendToSeries, chapterNumber, segments },
       { ownerId },
     ) => {
       // write_story keys off a node id; resolve its timeline and run the same
@@ -751,16 +763,211 @@ export const toolRegistry: ToolDef[] = [
         return { ...s, citations: inline, artifactCitations }
       })
 
+      // Resolve series membership (ADR 0006). appendToSeries → auto next chapter;
+      // seriesId → explicit (chapterNumber as given). Owner-check the series; it must
+      // belong to the same owner (and, by construction, lives under one of their
+      // projects). Left undefined → writeStory preserves an existing chapter's link.
+      const seriesTarget = appendToSeries ?? seriesId
+      let chapterNum: number | undefined = chapterNumber
+      if (seriesTarget) {
+        makeRequireOwnedSeries(ownerId)(seriesTarget)
+        if (chapterNum == null && appendToSeries) chapterNum = nextChapterNumber(seriesTarget)
+      }
+
       const result = writeStory(
         momentId,
-        { title, hook, povType, depthTier, estimatedMinutes, coverImage, cast, theme },
+        {
+          title,
+          hook,
+          povType,
+          depthTier,
+          estimatedMinutes,
+          coverImage,
+          cast,
+          theme,
+          ...(seriesTarget !== undefined ? { seriesId: seriesTarget } : {}),
+          ...(chapterNum !== undefined ? { chapterNumber: chapterNum } : {}),
+        },
         prepared,
         { storyId },
       )
       // Nudge live viewers to refetch so the depth badge appears in near-real-time
       // (same SSE channel as patches; seq = current max so it never rewinds Last-Event-ID).
       emitTimelineEvent({ timelineId, kind: 'story', seq: maxAppliedSeq(timelineId) })
+      return {
+        ...result,
+        ...(seriesTarget ? { seriesId: seriesTarget, chapterNumber: chapterNum ?? null } : {}),
+        warnings,
+      }
+    },
+  },
+
+  {
+    name: 'patch_story',
+    title: 'Edit a story surgically',
+    description:
+      'Apply a BATCH of edits to ONE existing story (chapter) without rewriting it — the surgical companion to write_story (which REPLACES a whole story). One call = one atomic transaction of `ops`: `add_segment` (insert a beat, optionally `at` an index — default append), `update_segment` (patch named fields of a beat by `segmentId` — only the fields you pass change), `delete_segment` (remove a beat by `segmentId`), `reorder_segments` (set the full beat order by id), and `update_meta` (change title/hook/cast/coverImage/theme/status/isPublic). Beat ids come from get_timeline / the story DTO. Use this to fix a typo, add a beat, or reorder — instead of resending every beat. Returns `warnings` (dangling node ids, broken image URLs, bad theme contrast) + the new `segmentCount`; the edit is SAVED regardless. NOT on the undo/redo stack.',
+    inputSchema: {
+      storyId: z.string(),
+      ops: z
+        .array(
+          z.union([
+            z.object({
+              op: z.literal('add_segment'),
+              segment: storyBeatInput,
+              at: z.number().int().nonnegative().optional().describe('Insert position (0-based); omit to append.'),
+            }),
+            z.object({
+              op: z.literal('update_segment'),
+              segmentId: z.string(),
+              segment: storyBeatInput.partial().describe('Only the beat fields you pass are changed.'),
+            }),
+            z.object({ op: z.literal('delete_segment'), segmentId: z.string() }),
+            z.object({
+              op: z.literal('reorder_segments'),
+              order: z.array(z.string()).describe('The full list of this story\'s beat ids in the desired order.'),
+            }),
+            z.object({
+              op: z.literal('update_meta'),
+              meta: z
+                .object({
+                  title: z.string().optional(),
+                  hook: z.string().nullable().optional(),
+                  coverImage: storyImageInput.nullable().optional(),
+                  theme: timelineThemeSchema.nullable().optional(),
+                  isPublic: z.boolean().optional(),
+                })
+                .describe('Story-level fields to change (only the ones you pass).'),
+            }),
+          ]),
+        )
+        .min(1),
+    },
+    handler: async ({ storyId, ops }, { ownerId }) => {
+      // Resolve the story's timeline + run the same owner check the story tools use.
+      const timelineId = getStoryTimelineId(storyId)
+      const meta = timelineId ? getTimelineMeta(timelineId) : null
+      if (!timelineId || !meta || meta.ownerId !== ownerId) throw new Error(`story "${storyId}" not found`)
+
+      const warnings: string[] = []
+      const graph = loadGraph(timelineId)
+      const nodeIds = new Set(graph.nodes.map((n) => n.id))
+      // Collect the beats this batch adds/updates so we validate + citation-split them.
+      const beatOps = ops.filter((o: any) => o.op === 'add_segment' || o.op === 'update_segment') as any[]
+      const referenced = beatOps.flatMap((o) => (o.segment.citations ?? []).flatMap((c: any) => ('artifactId' in c ? [c.artifactId] : [])))
+      const known = existingArtifactIds(referenced, ownerId)
+      const imageUrls: string[] = []
+      const prepared: StoryOp[] = ops.map((o: any, i: number) => {
+        if (o.op === 'update_meta') {
+          if (o.meta.coverImage?.url) imageUrls.push(o.meta.coverImage.url)
+          if (o.meta.theme) warnings.push(...themeContrastWarnings(o.meta.theme))
+          return { op: 'update_meta', meta: o.meta }
+        }
+        if (o.op === 'delete_segment') return { op: 'delete_segment', segmentId: o.segmentId }
+        if (o.op === 'reorder_segments') return { op: 'reorder_segments', order: o.order }
+        // add_segment / update_segment: validate node refs, split citations, collect images.
+        const s = o.segment
+        if (s.focusNodeId && !nodeIds.has(s.focusNodeId)) warnings.push(`op ${i + 1}: focusNodeId "${s.focusNodeId}" is not a node on this timeline`)
+        for (const id of s.relatedNodeIds ?? []) if (!nodeIds.has(id)) warnings.push(`op ${i + 1}: relatedNodeId "${id}" is not a node on this timeline`)
+        if (s.widget) {
+          const missing = [...(s.widget.nodeIds ?? []), ...(s.widget.focusNodeId ? [s.widget.focusNodeId] : [])].filter((id: string) => !nodeIds.has(id))
+          if (missing.length) warnings.push(`op ${i + 1}: widget references node ids not on this timeline (${[...new Set(missing)].join(', ')})`)
+        }
+        if (s.image?.url) imageUrls.push(s.image.url)
+        const inline: any[] = []
+        const artifactCitations: { artifactId: string; excerptUsed?: string | null }[] = []
+        if (s.citations !== undefined) {
+          for (const c of s.citations ?? []) {
+            if ('artifactId' in c) {
+              if (known.has(c.artifactId)) artifactCitations.push({ artifactId: c.artifactId, excerptUsed: c.excerptUsed ?? null })
+              else warnings.push(`op ${i + 1}: artifactId "${c.artifactId}" is not a registered artifact — citation dropped`)
+            } else inline.push(c)
+          }
+        }
+        const segment = {
+          ...s,
+          ...(s.citations !== undefined ? { citations: inline, artifactCitations } : {}),
+        }
+        return o.op === 'add_segment' ? { op: 'add_segment', segment, at: o.at } : { op: 'update_segment', segmentId: o.segmentId, segment }
+      })
+      if (imageUrls.length) warnings.push(...(await imageUrlWarnings(imageUrls, 'story image URL')))
+
+      const result = patchStory(storyId, prepared, ownerId)
+      if (!result) throw new Error(`story "${storyId}" not found`)
+      emitTimelineEvent({ timelineId, kind: 'story', seq: maxAppliedSeq(timelineId) })
       return { ...result, warnings }
+    },
+  },
+
+  {
+    name: 'create_series',
+    title: 'Create a series',
+    description:
+      'Create a SERIES — an ordered sequence of chapters (each chapter is a story) inside a project (ADR 0006). A series is the narrative spine: write its chapters with write_story (`appendToSeries: <this id>`), read its order + coverage with get_series, and publish the whole season at /sr/$slug with set_series_public. Returns the new `seriesId`, `slug`, and public `url`.',
+    inputSchema: {
+      projectId: z.string(),
+      title: z.string(),
+      hook: z.string().optional().describe('One-line logline for the series.'),
+      coverImage: storyImageInput.optional().describe('The season cover (layout ignored).'),
+      theme: timelineThemeSchema.optional().describe('The series\' own visual theme (same shape as set_timeline_theme).'),
+      anchorMomentId: z.string().optional().describe('Optional "home" node for the series on the canvas.'),
+    },
+    handler: async ({ projectId, title, hook, coverImage, theme, anchorMomentId }, { ownerId, requireOwnedProject }) => {
+      ;(requireOwnedProject ?? makeRequireOwnedProject(ownerId))(projectId)
+      const warnings: string[] = []
+      if (coverImage?.url) warnings.push(...(await imageUrlWarnings([coverImage.url], 'series cover URL')))
+      if (theme) warnings.push(...themeContrastWarnings(theme))
+      const s = createSeries(projectId, ownerId, { title, hook, coverImage, theme, anchorMomentId })
+      return { seriesId: s.id, slug: s.slug, title: s.title, url: seriesUrl(s), ...(warnings.length ? { warnings } : {}) }
+    },
+  },
+
+  {
+    name: 'get_series',
+    title: 'Get a series + its coverage',
+    description:
+      'Read a series in order — the anti-duplication watermark for writing the next chapter (ADR 0006). Returns the series meta, its chapters ordered by chapterNumber (id, title, hook, status, isPublic, momentId, and the node ids each chapter already references), and a DERIVED `frontier` (the highest chapterNumber and the latest instant any covered node sits at). Read this BEFORE writing the next chapter so you enrich/advance instead of repeating. Pair it with get_layout_report (the graph-side watermark).',
+    inputSchema: { seriesId: z.string() },
+    handler: async ({ seriesId }, { ownerId }) => {
+      makeRequireOwnedSeries(ownerId)(seriesId)
+      const series = getSeries(seriesId)!
+      const { chapters, frontier } = seriesWatermark(seriesId)
+      return {
+        series: {
+          id: series.id,
+          slug: series.slug,
+          title: series.title,
+          hook: series.hook,
+          status: series.status,
+          isPublic: series.isPublic,
+          theme: series.theme ?? null,
+          url: seriesUrl(series),
+        },
+        chapters: chapters.map((c) => ({
+          storyId: c.storyId,
+          chapterNumber: c.chapterNumber,
+          title: c.title,
+          hook: c.hook,
+          status: c.status,
+          isPublic: c.isPublic,
+          momentId: c.momentId,
+          coveredNodeIds: c.coveredNodeIds,
+        })),
+        frontier,
+      }
+    },
+  },
+
+  {
+    name: 'set_series_public',
+    title: 'Publish or unpublish a series',
+    description:
+      'Flip a series\' public visibility (ADR 0006 D10). When public, its season page is live at /sr/$slug — chapters play in order. INDEPENDENT of any chapter\'s own isPublic. Returns the public `url` on success.',
+    inputSchema: { seriesId: z.string(), isPublic: z.boolean() },
+    handler: async ({ seriesId, isPublic }, { ownerId }) => {
+      const res = setSeriesShared(seriesId, ownerId, isPublic)
+      if (!res) throw new Error(`series "${seriesId}" not found`)
+      return { ok: true, isPublic, url: `${BASE_URL}/sr/${res.slug}` }
     },
   },
 
@@ -871,6 +1078,33 @@ export const toolRegistry: ToolDef[] = [
     handler: async ({ timelineId }, { requireOwned }) => {
       requireOwned(timelineId)
       return { redone: redo(timelineId), ...historyState(timelineId) }
+    },
+  },
+
+  {
+    name: 'undo_story',
+    title: 'Undo a story edit',
+    description:
+      'Undo the most recent patch_story edit to a story (ADR 0006). Stories have their OWN undo stack, SEPARATE from the timeline\'s graph ⌘Z (undo/redo) — a story edit never touches the graph history and vice-versa. Restores the story to its state before the last patch_story batch. No-op if the story has no edit history.',
+    inputSchema: { storyId: z.string() },
+    handler: async ({ storyId }, { ownerId }) => {
+      const res = undoStory(storyId, ownerId)
+      if (!res.timelineId) throw new Error(`story "${storyId}" not found`)
+      if (res.ok) emitTimelineEvent({ timelineId: res.timelineId, kind: 'story', seq: maxAppliedSeq(res.timelineId) })
+      return { undone: res.ok, ...storyHistoryState(storyId) }
+    },
+  },
+
+  {
+    name: 'redo_story',
+    title: 'Redo a story edit',
+    description: 'Redo the most recently undone patch_story edit (the story\'s own stack, separate from the graph). No-op if nothing was undone.',
+    inputSchema: { storyId: z.string() },
+    handler: async ({ storyId }, { ownerId }) => {
+      const res = redoStory(storyId, ownerId)
+      if (!res.timelineId) throw new Error(`story "${storyId}" not found`)
+      if (res.ok) emitTimelineEvent({ timelineId: res.timelineId, kind: 'story', seq: maxAppliedSeq(res.timelineId) })
+      return { redone: res.ok, ...storyHistoryState(storyId) }
     },
   },
 ]

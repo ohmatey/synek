@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, max, sql } from 'drizzle-orm'
 import { db } from './index'
-import { stories, storySegments, storyArtifacts, segmentCitations, artifacts, nodes, entities, timelines } from './schema'
-import type { Citation } from './schema'
+import { stories, storySegments, storyArtifacts, storyPatches, segmentCitations, artifacts, nodes, entities, timelines } from './schema'
+import type { Citation, ChapterEditSnapshot } from './schema'
 import type {
   DepthTier,
   HomeStoryCard,
@@ -56,6 +56,12 @@ export type NewStory = {
   // Applied only on CREATE; an update never rewrites an existing story's slug so
   // a shared /s/$slug link stays stable. Must be globally unique.
   slug?: string
+  // Serialized stories (ADR 0006): make this story a CHAPTER of a series. The
+  // registry resolves the final chapterNumber (appendToSeries → next number) and
+  // passes both here; writeStory just persists them. On UPDATE they're applied only
+  // when provided, so a plain re-write of a chapter never drops its series membership.
+  seriesId?: string | null
+  chapterNumber?: number | null
 }
 
 // The timeline a moment (node) belongs to, or null if the node doesn't exist.
@@ -123,20 +129,22 @@ export function writeStory(
     if (existing) {
       // Update in place: refresh meta, then swap the segment set.
       storyId = existing.id
-      tx.update(stories)
-        .set({
-          title: meta.title,
-          hook: meta.hook ?? null,
-          povType: meta.povType ?? 'omniscient',
-          depthTier: meta.depthTier ?? 'light',
-          estimatedMinutes: meta.estimatedMinutes ?? null,
-          coverImage: meta.coverImage ?? null,
-          cast: meta.cast ?? null,
-          theme: meta.theme ?? null,
-          updatedAt: new Date(),
-        })
-        .where(eq(stories.id, storyId))
-        .run()
+      const set: Record<string, unknown> = {
+        title: meta.title,
+        hook: meta.hook ?? null,
+        povType: meta.povType ?? 'omniscient',
+        depthTier: meta.depthTier ?? 'light',
+        estimatedMinutes: meta.estimatedMinutes ?? null,
+        coverImage: meta.coverImage ?? null,
+        cast: meta.cast ?? null,
+        theme: meta.theme ?? null,
+        updatedAt: new Date(),
+      }
+      // Series membership is applied only when provided — a plain chapter re-write
+      // (no series fields) preserves the existing seriesId/chapterNumber.
+      if (meta.seriesId !== undefined) set.seriesId = meta.seriesId
+      if (meta.chapterNumber !== undefined) set.chapterNumber = meta.chapterNumber
+      tx.update(stories).set(set).where(eq(stories.id, storyId)).run()
       tx.delete(storySegments).where(eq(storySegments.storyId, storyId)).run()
     } else {
       // Create a new story on the moment (leaves any existing stories untouched).
@@ -153,6 +161,8 @@ export function writeStory(
           coverImage: meta.coverImage ?? null,
           cast: meta.cast ?? null,
           theme: meta.theme ?? null,
+          seriesId: meta.seriesId ?? null,
+          chapterNumber: meta.chapterNumber ?? null,
           status: 'published',
         })
         .returning({ id: stories.id })
@@ -199,6 +209,317 @@ export function writeStory(
     }
   })
   return { storyId, segmentCount: segments.length }
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+// --- story snapshots (ADR 0006 D7) — for the patch_story undo stack --------
+// A full before/after capture of a story (mutable meta + ordered segments + their
+// citations). Cheaper + more faithful than per-op inversion of the rich story ops.
+
+export function captureStorySnapshot(storyId: string): ChapterEditSnapshot | null {
+  const row = db.select().from(stories).where(eq(stories.id, storyId)).get()
+  if (!row) return null
+  const segs = db.select().from(storySegments).where(eq(storySegments.storyId, storyId)).orderBy(asc(storySegments.sequence)).all()
+  const acBySeg = new Map<string, { artifactId: string; excerptUsed: string | null }[]>()
+  if (segs.length) {
+    for (const r of db
+      .select({ segmentId: segmentCitations.segmentId, artifactId: segmentCitations.artifactId, excerptUsed: segmentCitations.excerptUsed })
+      .from(segmentCitations)
+      .where(inArray(segmentCitations.segmentId, segs.map((s) => s.id)))
+      .all()) {
+      const l = acBySeg.get(r.segmentId) ?? []
+      l.push({ artifactId: r.artifactId, excerptUsed: r.excerptUsed ?? null })
+      acBySeg.set(r.segmentId, l)
+    }
+  }
+  return {
+    meta: {
+      title: row.title,
+      hook: row.hook,
+      povType: row.povType,
+      depthTier: row.depthTier,
+      estimatedMinutes: row.estimatedMinutes,
+      coverImage: row.coverImage ?? null,
+      cast: row.cast ?? null,
+      theme: row.theme ?? null,
+      status: row.status,
+      isPublic: row.isPublic,
+    },
+    segments: segs.map((s) => ({
+      sequence: s.sequence,
+      kind: s.kind,
+      bodyText: s.bodyText,
+      settingNote: s.settingNote,
+      relatedNodeIds: s.relatedNodeIds ?? null,
+      focusNodeId: s.focusNodeId ?? null,
+      lens: s.lens ?? null,
+      citations: s.citations ?? null,
+      image: s.image ?? null,
+      widget: s.widget ?? null,
+      artifactCitations: acBySeg.get(s.id) ?? [],
+    })),
+  }
+}
+
+// Restore a story to a snapshot: rewrite meta, swap the whole segment set (cascading
+// segment_citations away), re-insert segments + their citations, rebuild story_artifacts.
+function restoreStorySnapshot(tx: Tx, storyId: string, snap: ChapterEditSnapshot): void {
+  tx.update(stories).set({ ...snap.meta, updatedAt: new Date() }).where(eq(stories.id, storyId)).run()
+  tx.delete(storySegments).where(eq(storySegments.storyId, storyId)).run()
+  tx.delete(storyArtifacts).where(eq(storyArtifacts.storyId, storyId)).run()
+  const refArtifacts = new Set<string>()
+  for (const s of snap.segments) {
+    const seg = tx
+      .insert(storySegments)
+      .values({
+        storyId,
+        sequence: s.sequence,
+        kind: s.kind,
+        bodyText: s.bodyText,
+        settingNote: s.settingNote,
+        relatedNodeIds: s.relatedNodeIds,
+        focusNodeId: s.focusNodeId,
+        lens: s.lens,
+        citations: s.citations,
+        image: s.image,
+        widget: s.widget,
+      })
+      .returning({ id: storySegments.id })
+      .get()!
+    for (const ac of s.artifactCitations) {
+      tx.insert(segmentCitations).values({ segmentId: seg.id, artifactId: ac.artifactId, excerptUsed: ac.excerptUsed }).onConflictDoNothing().run()
+      refArtifacts.add(ac.artifactId)
+    }
+  }
+  for (const aid of refArtifacts) tx.insert(storyArtifacts).values({ storyId, artifactId: aid, relationship: 'referenced' }).onConflictDoNothing().run()
+}
+
+// --- patch_story: surgical, atomic chapter edits (ADR 0006 D6) -------------
+// Where writeStory REPLACES a story's whole beat set, patchStory applies a BATCH of
+// ops to one story in a single transaction WITHOUT nuking untouched beats. Models
+// the apply_patch op-batch shape. Citations arrive already split (inline vs
+// artifact-backed) like writeStory's `prepared`, so this never hits an FK error.
+// NOT undoable this pass (the story_patches stack is the deferred fast-follow,
+// ADR D7) — chapter-level revert is delete-the-story.
+
+export type StoryMetaPatch = {
+  title?: string
+  hook?: string | null
+  cast?: StoryCastMember[] | null
+  coverImage?: StoryImage | null
+  theme?: TimelineTheme | null
+  status?: StoryStatus
+  isPublic?: boolean
+}
+
+export type StoryOp =
+  | { op: 'add_segment'; segment: NewStorySegment; at?: number }
+  | { op: 'update_segment'; segmentId: string; segment: Partial<NewStorySegment> }
+  | { op: 'delete_segment'; segmentId: string }
+  | { op: 'reorder_segments'; order: string[] }
+  | { op: 'update_meta'; meta: StoryMetaPatch }
+
+// Apply a batch of story ops atomically. Owner-resolved through the story's
+// moment → timeline (mirrors setStoryTheme). Returns null (a no-op) when the story
+// isn't the caller's, so the caller surfaces a clean forbidden. Re-sequences the
+// segment set to contiguous 0..n-1 after every batch.
+export function patchStory(
+  storyId: string,
+  ops: StoryOp[],
+  ownerId: string,
+  summary?: string,
+): { storyId: string; segmentCount: number; applied: number } | null {
+  const owner = db
+    .select({ ownerId: timelines.ownerId })
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
+    .where(eq(stories.id, storyId))
+    .get()
+  if (!owner || owner.ownerId !== ownerId) return null
+
+  // Capture the story before the batch — the undo target (ADR 0006 D7).
+  const before = captureStorySnapshot(storyId)
+
+  let applied = 0
+  db.transaction((tx) => {
+    let order = tx
+      .select({ id: storySegments.id })
+      .from(storySegments)
+      .where(eq(storySegments.storyId, storyId))
+      .orderBy(asc(storySegments.sequence))
+      .all()
+      .map((r) => r.id)
+
+    // Replace a segment's artifact-backed citations (segment_citations) when the
+    // caller passed an artifactCitations array; undefined leaves them untouched.
+    const writeArtifactCites = (segmentId: string, acs?: { artifactId: string; excerptUsed?: string | null }[]) => {
+      if (acs === undefined) return
+      tx.delete(segmentCitations).where(eq(segmentCitations.segmentId, segmentId)).run()
+      for (const ac of acs)
+        tx.insert(segmentCitations)
+          .values({ segmentId, artifactId: ac.artifactId, excerptUsed: ac.excerptUsed ?? null })
+          .onConflictDoNothing()
+          .run()
+    }
+
+    for (const op of ops) {
+      if (op.op === 'update_meta') {
+        const set: Record<string, unknown> = { updatedAt: new Date() }
+        const m = op.meta
+        if (m.title !== undefined) set.title = m.title
+        if (m.hook !== undefined) set.hook = m.hook
+        if (m.cast !== undefined) set.cast = m.cast
+        if (m.coverImage !== undefined) set.coverImage = m.coverImage
+        if (m.theme !== undefined) set.theme = m.theme
+        if (m.status !== undefined) set.status = m.status
+        if (m.isPublic !== undefined) set.isPublic = m.isPublic
+        tx.update(stories).set(set).where(eq(stories.id, storyId)).run()
+      } else if (op.op === 'add_segment') {
+        const s = op.segment
+        const seg = tx
+          .insert(storySegments)
+          .values({
+            storyId,
+            sequence: order.length, // temp — re-sequenced below
+            kind: s.kind ?? 'narration',
+            bodyText: s.bodyText,
+            settingNote: s.settingNote ?? null,
+            relatedNodeIds: s.relatedNodeIds ?? null,
+            focusNodeId: s.focusNodeId ?? null,
+            lens: s.lens ?? null,
+            citations: s.citations ?? null,
+            image: s.image ?? null,
+            widget: s.widget ?? null,
+          })
+          .returning({ id: storySegments.id })
+          .get()!
+        writeArtifactCites(seg.id, s.artifactCitations)
+        const at = op.at == null ? order.length : Math.max(0, Math.min(op.at, order.length))
+        order.splice(at, 0, seg.id)
+      } else if (op.op === 'update_segment') {
+        const s = op.segment
+        const set: Record<string, unknown> = {}
+        if (s.bodyText !== undefined) set.bodyText = s.bodyText
+        if (s.kind !== undefined) set.kind = s.kind
+        if (s.settingNote !== undefined) set.settingNote = s.settingNote
+        if (s.relatedNodeIds !== undefined) set.relatedNodeIds = s.relatedNodeIds
+        if (s.focusNodeId !== undefined) set.focusNodeId = s.focusNodeId
+        if (s.lens !== undefined) set.lens = s.lens
+        if (s.citations !== undefined) set.citations = s.citations
+        if (s.image !== undefined) set.image = s.image
+        if (s.widget !== undefined) set.widget = s.widget
+        if (Object.keys(set).length)
+          tx.update(storySegments)
+            .set(set)
+            .where(and(eq(storySegments.id, op.segmentId), eq(storySegments.storyId, storyId)))
+            .run()
+        writeArtifactCites(op.segmentId, s.artifactCitations)
+      } else if (op.op === 'delete_segment') {
+        tx.delete(storySegments)
+          .where(and(eq(storySegments.id, op.segmentId), eq(storySegments.storyId, storyId)))
+          .run()
+        order = order.filter((id) => id !== op.segmentId)
+      } else if (op.op === 'reorder_segments') {
+        // Keep only known ids; append any omitted in their current order (defensive).
+        const known = new Set(order)
+        const next = op.order.filter((id) => known.has(id))
+        for (const id of order) if (!next.includes(id)) next.push(id)
+        order = next
+      }
+      applied++
+    }
+
+    // Re-sequence the surviving set to contiguous 0..n-1.
+    order.forEach((id, i) => {
+      tx.update(storySegments).set({ sequence: i }).where(eq(storySegments.id, id)).run()
+    })
+    // Any batch bumps the story's updatedAt (so the canvas/reader poll refreshes).
+    tx.update(stories).set({ updatedAt: new Date() }).where(eq(stories.id, storyId)).run()
+  })
+
+  // Record the batch on the story's own undo stack: before + after snapshot, new
+  // patch truncates the redo branch (ADR 0006 D7). Best-effort — a snapshot failure
+  // never fails the already-applied edit.
+  const after = captureStorySnapshot(storyId)
+  if (before && after) {
+    db.transaction((tx) => {
+      tx.delete(storyPatches).where(and(eq(storyPatches.storyId, storyId), eq(storyPatches.status, 'undone'))).run()
+      const top = tx.select({ m: max(storyPatches.seq) }).from(storyPatches).where(eq(storyPatches.storyId, storyId)).get()
+      const seq = (top?.m ?? 0) + 1
+      tx.insert(storyPatches)
+        .values({ storyId, ownerId, seq, summary: summary ?? `patch_story — ${ops.length} op${ops.length === 1 ? '' : 's'}`, before, after, status: 'applied' })
+        .run()
+    })
+  }
+
+  const n = db.select({ n: sql<number>`count(*)` }).from(storySegments).where(eq(storySegments.storyId, storyId)).get()?.n ?? 0
+  return { storyId, segmentCount: Number(n), applied }
+}
+
+// --- patch_story undo/redo (ADR 0006 D7) — the per-story stack -------------
+// Owner-resolved through the story's moment → timeline (like setStoryTheme). Returns
+// the timelineId so the caller can emit the live-refresh event + invalidate caches.
+
+function storyOwnerTimeline(storyId: string, ownerId: string): string | null {
+  const row = db
+    .select({ ownerId: timelines.ownerId, timelineId: timelines.id })
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
+    .where(eq(stories.id, storyId))
+    .get()
+  if (!row || row.ownerId !== ownerId) return null
+  return row.timelineId
+}
+
+export function undoStory(storyId: string, ownerId: string): { ok: boolean; timelineId: string | null } {
+  const timelineId = storyOwnerTimeline(storyId, ownerId)
+  if (!timelineId) return { ok: false, timelineId: null }
+  const p = db
+    .select()
+    .from(storyPatches)
+    .where(and(eq(storyPatches.storyId, storyId), eq(storyPatches.status, 'applied')))
+    .orderBy(desc(storyPatches.seq))
+    .limit(1)
+    .get()
+  if (!p) return { ok: false, timelineId }
+  db.transaction((tx) => {
+    restoreStorySnapshot(tx, storyId, p.before)
+    tx.update(storyPatches).set({ status: 'undone' }).where(eq(storyPatches.id, p.id)).run()
+  })
+  return { ok: true, timelineId }
+}
+
+export function redoStory(storyId: string, ownerId: string): { ok: boolean; timelineId: string | null } {
+  const timelineId = storyOwnerTimeline(storyId, ownerId)
+  if (!timelineId) return { ok: false, timelineId: null }
+  const p = db
+    .select()
+    .from(storyPatches)
+    .where(and(eq(storyPatches.storyId, storyId), eq(storyPatches.status, 'undone')))
+    .orderBy(asc(storyPatches.seq))
+    .limit(1)
+    .get()
+  if (!p) return { ok: false, timelineId }
+  db.transaction((tx) => {
+    restoreStorySnapshot(tx, storyId, p.after)
+    tx.update(storyPatches).set({ status: 'applied' }).where(eq(storyPatches.id, p.id)).run()
+  })
+  return { ok: true, timelineId }
+}
+
+export function storyHistoryState(storyId: string): { canUndo: boolean; canRedo: boolean } {
+  const applied =
+    db.select({ c: count() }).from(storyPatches).where(and(eq(storyPatches.storyId, storyId), eq(storyPatches.status, 'applied'))).get()?.c ?? 0
+  const undone = db
+    .select({ id: storyPatches.id })
+    .from(storyPatches)
+    .where(and(eq(storyPatches.storyId, storyId), eq(storyPatches.status, 'undone')))
+    .limit(1)
+    .get()
+  return { canUndo: applied > 0, canRedo: !!undone }
 }
 
 // Hydrate a `stories` row + its ordered segments into a client DTO. Shared by the
@@ -384,6 +705,8 @@ const STORY_LIST_COLUMNS = {
   coverImage: stories.coverImage,
   // Per-story public state, so the Share dialog can show + toggle each story.
   isPublic: stories.isPublic,
+  // Chapter number when the story belongs to a series (ADR 0006), else null.
+  chapterNumber: stories.chapterNumber,
 } as const
 
 // All stories on a timeline, in chronological moment order — backs the AppBar's

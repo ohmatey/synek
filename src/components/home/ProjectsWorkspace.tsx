@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react'
 import { listProjects } from '~/lib/server/projects'
 import { listTimelines } from '~/lib/server/timelines'
 import { listHomeStories } from '~/lib/server/stories'
+import { listHomeSeries } from '~/lib/server/series'
 import { listHomeEntities } from '~/lib/server/entities'
 import { listApiKeys } from '~/lib/server/api-keys'
 import { useSession } from '~/lib/auth/client'
@@ -20,8 +21,10 @@ import {
   ProjectHero,
   RecentCard,
   type RecentItem,
+  SeriesCard,
   TimelineCard,
 } from './cinematic'
+import type { HomeSeriesCard } from '~/lib/domain/types'
 
 // The signed-in workspace, served at the root `/` (Synek is a pure app — no
 // landing page or public Explore feed). Two modes:
@@ -95,13 +98,19 @@ function Workspace() {
     queryFn: () => listHomeEntities({ data: activeProjectId ? { projectId: activeProjectId } : undefined }),
     refetchInterval: 30_000,
   })
+  const { data: series = [], isLoading: srLoading } = useQuery({
+    queryKey: ['home-series', activeProjectId],
+    queryFn: () => listHomeSeries({ data: activeProjectId ? { projectId: activeProjectId } : undefined }),
+    refetchInterval: 30_000,
+  })
   const { data: apiKeys } = useQuery({ queryKey: ['api-keys'], queryFn: () => listApiKeys() })
   const hasApiKey = (apiKeys?.length ?? 0) > 0
 
-  const loading = tlLoading || stLoading || enLoading
+  const loading = tlLoading || stLoading || enLoading || srLoading
   const hasStories = stories.length > 0
   const hasTimelines = timelines.length > 0
   const hasEntities = entities.length > 0
+  const hasSeries = series.length > 0
 
   // Per-timeline current-project map for the story-card move submenu + per-project
   // counts on the list-page project cards (the story's timeline determines where it
@@ -140,7 +149,7 @@ function Workspace() {
 
   // The all-scope page is a brand-new empty when the account is bare; otherwise the
   // projects-list page. A project that's been ENTERED gets its own ProjectHero.
-  const trulyNew = !filtered && !hasTimelines && !hasStories && !hasEntities
+  const trulyNew = !filtered && !hasTimelines && !hasStories && !hasEntities && !hasSeries
 
   return (
     <div className="flex min-h-screen flex-col text-foreground">
@@ -155,6 +164,7 @@ function Workspace() {
               timelineCount={timelines.length}
               storyCount={stories.length}
               entityCount={entities.length}
+              seriesCount={series.length}
               firstTimeline={timelines[0] ?? null}
               onNewTimeline={openNewTimeline}
             />
@@ -171,6 +181,10 @@ function Workspace() {
               ) : (
                 <ProjectsGrid projects={projects} counts={projectCounts} onNewTimeline={openNewTimeline} />
               )}
+
+              {/* Series — serialized seasons (ADR 0006). Shown whenever the scope has
+                  any; each card opens its /sr/$slug season (public) or offers Share. */}
+              {hasSeries && <SeriesSection series={series} />}
 
               {/* Section 2 — the temporal feed: stories + timelines, most-recent first. */}
               {recentItems.length > 0 && (
@@ -279,6 +293,23 @@ function TimelinesSection({
           ))}
         </div>
       )}
+    </section>
+  )
+}
+
+// Series — the serialized seasons in scope, as a wrapping grid of season posters.
+// Owner-scoped + project-filtered upstream (listHomeSeries); newest first.
+function SeriesSection({ series }: { series: HomeSeriesCard[] }) {
+  return (
+    <section className="ch-row" aria-label="Series">
+      <header className="ch-row-head">
+        <h2 className="ch-row-title">Series</h2>
+      </header>
+      <div className="ch-proj-grid">
+        {series.map((s) => (
+          <SeriesCard key={s.seriesId} series={s} />
+        ))}
+      </div>
     </section>
   )
 }

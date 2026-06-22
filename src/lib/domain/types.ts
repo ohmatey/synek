@@ -380,6 +380,31 @@ export type PublicStoryDTO = {
   nodes: GraphNode[]
 }
 
+// --- Serialized stories (ADR 0006) — the public "season" page -------------
+// What /sr/$slug needs to play a series in order: series meta + its PUBLIC chapters
+// (each a full StoryDTO, ordered by chapterNumber) + the union of nodes those
+// chapters reference (no full-graph leak). `theme` is the resolved chain
+// (series.theme ?? project.theme ?? defaults).
+export type PublicSeriesChapter = { chapterNumber: number | null; story: StoryDTO }
+export type PublicSeriesDTO = {
+  series: { id: string; slug: string; title: string; hook: string | null; coverImage: StoryImage | null; theme: TimelineTheme | null }
+  chapters: PublicSeriesChapter[]
+  nodes: GraphNode[]
+  updatedAt: number
+}
+
+// A series card for the cinematic home (slice 5) — owner-scoped list row.
+export type HomeSeriesCard = {
+  seriesId: string
+  slug: string
+  title: string
+  hook: string | null
+  coverImage: StoryImage | null
+  isPublic: boolean
+  chapterCount: number
+  updatedAt: number
+}
+
 // --- Projects (ADR 0002) — the top-level owned container ------------------
 // A Project sits above timelines and holds the project-level metadata every
 // later phase reads (`kind`, `world`, `brandRef`, `theme`). Slice 1 only ever
@@ -478,4 +503,7 @@ export type StoryListItem = {
   // Per-story public visibility — lets the Share dialog show + toggle each story's
   // own public state, independent of the timeline's.
   isPublic: boolean
+  // Serialized stories (ADR 0006): the chapter number when this story belongs to a
+  // series, else null — lets the Stories popover badge "Ch. N".
+  chapterNumber: number | null
 }

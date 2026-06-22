@@ -5,12 +5,14 @@
 //
 // Seed one timeline by id: `bunx tsx scripts/seed.ts observability`
 import { randomUUID } from 'node:crypto'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../src/lib/db/index'
-import { timelines, nodes, edges, entities, stories, user, type NodeMetadata } from '../src/lib/db/schema'
+import { timelines, nodes, edges, entities, stories, storySeries, user, type NodeMetadata } from '../src/lib/db/schema'
 import type { EdgeKind, ImageAspect, NodeType, Precision, StoryImage, StoryImageLayout } from '../src/lib/domain/types'
 import { auth } from '../src/lib/auth'
 import { writeStory, type NewStory, type NewStorySegment } from '../src/lib/db/stories'
+import { createSeries } from '../src/lib/db/series'
+import { ensureDefaultProject } from '../src/lib/db/projects'
 import { seedImageUrl } from './seed-images'
 
 // The demo account that owns the seeded (public) timelines, so the open-canvas
@@ -72,8 +74,10 @@ const storyImg = (
 })
 
 // Per-timeline builder: every node/edge is scoped to `tl`, so the same helper
-// names can be reused across timelines without collisions.
-function builder(tl: string, ownerId: string) {
+// names can be reused across timelines without collisions. `projectId` hosts any
+// series the timeline's stories are bundled into (ADR 0006 — series live on the
+// project, not the timeline).
+function builder(tl: string, ownerId: string, projectId: string) {
   function node(o: {
     type: NodeType
     title: string
@@ -125,12 +129,38 @@ function builder(tl: string, ownerId: string) {
 
   // Attach a story to a moment (node). Mirrors what an MCP client does via the
   // write_story tool — stories are separate from the graph Patch stack — so the
-  // seeded canvas has a real tap-through story to play (and tests to view).
-  function story(momentId: string, meta: NewStory, beats: NewStorySegment[]) {
-    writeStory(momentId, meta, beats)
+  // seeded canvas has a real tap-through story to play (and tests to view). Pass
+  // `bind` to make this story a CHAPTER of a series (ADR 0006). Returns its id.
+  function story(
+    momentId: string,
+    meta: NewStory,
+    beats: NewStorySegment[],
+    bind?: { series: string; chapter: number },
+  ): string {
+    return writeStory(
+      momentId,
+      bind ? { ...meta, seriesId: bind.series, chapterNumber: bind.chapter } : meta,
+      beats,
+    ).storyId
   }
 
-  return { node, edge, story }
+  // Create a SERIES (a serialized season) on this owner's demo project, returning
+  // its id to bind chapters to via `story(..., { series, chapter })`. Idempotent:
+  // a prior series of the same title owned by this user is dropped first — by OWNER,
+  // not project, because the slug is GLOBALLY unique. (The demo's default project can
+  // drift across re-seeds once the e2e suite has created extra projects, so a
+  // project-scoped delete would leave a stale empty series holding the slug, forcing
+  // createSeries to dedupe to `…-2` and breaking the deterministic /sr/$slug.)
+  function series(opts: { title: string; hook?: string; coverImage?: StoryImage }): string {
+    db.delete(storySeries).where(and(eq(storySeries.ownerId, ownerId), eq(storySeries.title, opts.title))).run()
+    return createSeries(projectId, ownerId, {
+      title: opts.title,
+      hook: opts.hook ?? null,
+      coverImage: opts.coverImage ?? null,
+    }).id
+  }
+
+  return { node, edge, story, series }
 }
 
 type Seeder = {
@@ -592,7 +622,7 @@ const SEEDS: Seeder[] = [
     id: 'deep-learning',
     title: 'The rise of deep learning',
     description: 'Key milestones from the AI winter through the transformer era — and where they happened.',
-    build: ({ node, edge, story }) => {
+    build: ({ node, edge, story, series }) => {
       const winter = node({
         type: 'period',
         title: 'Second AI winter',
@@ -674,6 +704,14 @@ const SEEDS: Seeder[] = [
       edge(transformer, bert, 'influenced')
       edge(gpt, bert, 'competed_with')
 
+      // A serialized SERIES (ADR 0006): two chapters telling the deep-learning story
+      // in order. Chapter 1 = the thaw; Chapter 2 = the foundation-model era.
+      const dlSeries = series({
+        title: 'The Deep Learning Era',
+        hook: 'From an AI winter to foundation models — the rise of deep learning, one chapter at a time.',
+        coverImage: storyImg('AlexNet block diagram.svg', 'The AlexNet architecture'),
+      })
+
       // Cross-globe story: the thaw after the winter, hopping Toronto → London →
       // Seoul → the Bay Area. Opens on the placeless winter (an off-map beat).
       story(
@@ -737,6 +775,49 @@ const SEEDS: Seeder[] = [
             image: storyImg('OpenAI Logo.svg', 'OpenAI', { layout: 'inset-right' }),
           },
         ],
+        { series: dlSeries, chapter: 1 },
+      )
+
+      // Chapter 2 — what the transformer unleashed: a single architecture becomes
+      // the substrate for everything. Anchored on the foundation-model era period.
+      story(
+        era,
+        {
+          title: 'The foundation-model era',
+          hook: 'One architecture, scaled relentlessly, became the substrate for everything that came next.',
+          depthTier: 'light',
+          estimatedMinutes: 3,
+          coverImage: storyImg('ChatGPT logo.svg', 'The foundation-model era'),
+          cast: [
+            { nodeId: transformer, role: 'The architecture' },
+            { nodeId: gpt, role: 'The generative line' },
+            { nodeId: bert, role: 'The understanding line' },
+          ],
+        },
+        [
+          {
+            bodyText:
+              'The transformer was a beginning, not an end. Once you could train attention at scale, the only question left was how big you were willing to go.',
+            kind: 'narration',
+            focusNodeId: transformer,
+            image: storyImg('Transformer, full architecture.png', 'The transformer architecture', { layout: 'inset-left', aspect: 'portrait' }),
+          },
+          {
+            bodyText:
+              'Two lines split off the same trunk. OpenAI pushed generation — GPT, then GPT-2 and beyond — while Google’s BERT pushed understanding, rewiring search and NLP benchmarks overnight.',
+            kind: 'narration',
+            focusNodeId: bert,
+            image: storyImg('Google 2015 logo.svg', 'Google', { layout: 'inset-right' }),
+          },
+          {
+            bodyText:
+              'By the early 2020s the pattern had a name: foundation models. Pre-train once on the open web, adapt everywhere. The field stopped building task-specific nets and started building one model to rule them all.',
+            kind: 'narration',
+            focusNodeId: era,
+            image: storyImg('ChatGPT logo.svg', 'The foundation-model era', { layout: 'bleed' }),
+          },
+        ],
+        { series: dlSeries, chapter: 2 },
       )
     },
   },
@@ -868,7 +949,7 @@ const SEEDS: Seeder[] = [
     id: 'roman-republic',
     title: 'Fall of the Roman Republic',
     description: 'Caesar’s road from Gaul to the Ides — across the Mediterranean world.',
-    build: ({ node, edge, story }) => {
+    build: ({ node, edge, story, series }) => {
       const republic = node({
         type: 'period',
         title: 'Roman Republic',
@@ -935,6 +1016,14 @@ const SEEDS: Seeder[] = [
       edge(ides, empire, 'caused')
       edge(caesar, rubicon, 'caused')
 
+      // A serialized SERIES (ADR 0006): the fall told in two chapters — Caesar's
+      // road to the Ides, then the long aftermath that ended the Republic for good.
+      const fallSeries = series({
+        title: 'The Fall of the Republic',
+        hook: 'How Rome went from a republic to an empire — in two acts, a generation apart.',
+        coverImage: storyImg('Vincenzo Camuccini - La morte di Cesare.jpg', 'The Death of Caesar'),
+      })
+
       // Cross-globe story: Caesar’s last decade circles the Mediterranean —
       // Gaul → Italy → Greece → Egypt → Rome (GS1 sweeps the whole sea).
       story(
@@ -983,6 +1072,48 @@ const SEEDS: Seeder[] = [
             image: storyImg('Vincenzo Camuccini - La morte di Cesare.jpg', 'The Death of Caesar (Camuccini)', { layout: 'bleed' }),
           },
         ],
+        { series: fallSeries, chapter: 1 },
+      )
+
+      // Chapter 2 — the aftermath. Killing Caesar didn't save the Republic; it
+      // started the war that ended it. Anchored on Augustus taking the purple.
+      story(
+        empire,
+        {
+          title: 'After the Ides',
+          hook: 'The assassins thought they were saving the Republic. They ended it.',
+          depthTier: 'light',
+          estimatedMinutes: 3,
+          coverImage: storyImg('Statue-Augustus.jpg', 'Augustus of Prima Porta', { aspect: 'portrait' }),
+          cast: [
+            { nodeId: ides, role: 'The deed' },
+            { nodeId: empire, role: 'The heir' },
+          ],
+        },
+        [
+          {
+            bodyText:
+              'The conspirators expected to be hailed as liberators. Instead Rome recoiled. Caesar’s funeral turned into a riot, and the men who killed him fled the city they thought they had freed.',
+            kind: 'narration',
+            focusNodeId: ides,
+            image: storyImg('Vincenzo Camuccini - La morte di Cesare.jpg', 'The Death of Caesar', { layout: 'inset-left' }),
+          },
+          {
+            bodyText:
+              'What followed was thirteen years of civil war — Caesar’s heir Octavian against Mark Antony, the last of the old order grinding itself to dust from Philippi to Actium.',
+            kind: 'narration',
+            settingNote: 'From Philippi to Actium',
+            focusNodeId: empire,
+          },
+          {
+            bodyText:
+              'In 27 BCE the Senate handed Octavian a new name — Augustus — and with it, everything. The forms of the Republic survived; the substance was gone. Rome had an emperor, and would for five hundred years.',
+            kind: 'narration',
+            focusNodeId: empire,
+            image: storyImg('Statue-Augustus.jpg', 'Augustus of Prima Porta', { layout: 'bleed', aspect: 'portrait' }),
+          },
+        ],
+        { series: fallSeries, chapter: 2 },
       )
     },
   },
@@ -1182,7 +1313,7 @@ const E2E_FIXTURES: Seeder[] = [
   },
 ]
 
-function seed(s: Seeder, ownerId: string) {
+function seed(s: Seeder, ownerId: string, projectId: string) {
   // Entities are cross-timeline (ADR 0004) so the timeline-delete cascade won't drop
   // them — collect this timeline's entity ids first and delete them after, to avoid
   // orphan accumulation on re-seed.
@@ -1212,7 +1343,7 @@ function seed(s: Seeder, ownerId: string) {
   // Owned by the demo account and public, so the seeded timelines are viewable by
   // URL without login (and appear in demo's list when signed in).
   db.insert(timelines).values({ id: s.id, title: s.title, description: s.description, ownerId, isPublic: true }).run()
-  s.build(builder(s.id, ownerId))
+  s.build(builder(s.id, ownerId, projectId))
   const count = db.select().from(nodes).where(eq(nodes.timelineId, s.id)).all().length
   console.log(`  ✓ ${s.id.padEnd(16)} "${s.title}" — ${count} nodes`)
 }
@@ -1231,14 +1362,17 @@ async function main() {
   }
 
   const ownerId = await ensureDemoUser()
+  // The demo project hosts any seeded SERIES (ADR 0006 — series live on a project).
+  const projectId = ensureDefaultProject(ownerId)
   console.log(`Demo user: ${DEMO_EMAIL}`)
   console.log(`Seeding ${targets.length} timeline(s):`)
-  for (const s of targets) seed(s, ownerId)
-  // The seeded timelines are public, so publish their stories too: this is demo
-  // content meant to be shared (the /s/$slug pages gate on the per-story isPublic),
-  // and it populates the root Explore feed's "Stories" row. The seed DB only holds
-  // seeded content, so a blanket publish is safe.
+  for (const s of targets) seed(s, ownerId, projectId)
+  // The seeded timelines are public, so publish their stories AND series too: this
+  // is demo content meant to be shared (the /s/$slug + /sr/$slug pages gate on the
+  // per-story / per-series isPublic). The seed DB only holds seeded content, so a
+  // blanket publish is safe.
   db.update(stories).set({ isPublic: true }).run()
+  db.update(storySeries).set({ isPublic: true }).run()
   console.log('Done.')
 }
 

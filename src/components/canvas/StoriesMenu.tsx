@@ -114,6 +114,7 @@ export function StoriesMenu({
                       )}
                       <span className="story-card-body">
                         <span className="story-card-titlerow">
+                          {s.chapterNumber != null && <span className="story-card-tier">Ch. {s.chapterNumber}</span>}
                           <span className="story-card-title">{s.title}</span>
                           {s.depthTier === 'deep' && <span className="story-card-tier">Deep</span>}
                         </span>

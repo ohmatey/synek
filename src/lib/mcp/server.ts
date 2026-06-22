@@ -51,6 +51,12 @@ function enrich(name: string, args: any, result: any): Record<string, unknown> {
       artifact_citations: artifactCites,
     }
   }
+  if (name === 'patch_story') {
+    const ops: any[] = Array.isArray(args?.ops) ? args.ops : []
+    const counts: Record<string, number> = {}
+    for (const op of ops) if (typeof op?.op === 'string') counts[`ops_${op.op}`] = (counts[`ops_${op.op}`] ?? 0) + 1
+    return { ops_total: ops.length, ...counts }
+  }
   if (name === 'register_artifact') {
     return { has_source: !!args?.source, linked_moment: !!args?.momentId, has_transcript: !!args?.transcript }
   }

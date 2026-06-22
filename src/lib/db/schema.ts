@@ -477,9 +477,64 @@ export const stories = sqliteTable('stories', {
   // a story references ship to the public page (no full-graph leak).
   isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
   language: text('language').notNull().default('en'),
+  // --- Serialized stories (ADR 0006 D3) -----------------------------------
+  // A story becomes a CHAPTER when it joins a series. Both nullable — a standalone
+  // story (today's default) carries neither. `seriesId` SETs NULL on series delete
+  // so dissolving a series leaves its chapters as standalone stories, not deleted
+  // content (D3). `chapterNumber` is the 1-based order within the series, derived
+  // at write time (max + 1 when appending) and used to order get_series + the
+  // public /sr/$slug reader.
+  seriesId: text('series_id').references(() => storySeries.id, { onDelete: 'set null' }),
+  chapterNumber: integer('chapter_number'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
 })
+
+// --- story_series: the narrative spine (ADR 0006 D2) ----------------------
+// A first-class child of `projects` (NOT a repurposing of it): a project is a
+// world/workspace, a series is an ORDERED sequence of chapters (each chapter is a
+// `stories` row, linked via stories.seriesId + chapterNumber). One project holds
+// many series; a series orders its chapters; chapters anchor on their OWN moments
+// (D4) — the series is the link, not a shared anchor. Owner-scoped via projectId →
+// projects.ownerId, with a denormalized `ownerId` here for fail-closed checks
+// (matches every other owned table). NOT in the Patch stack — series CRUD is
+// metadata. The frontier (last chapter, last instant) is DERIVED at read, never
+// stored (D9). `isPublic` gates the public /sr/$slug "season" page, INDEPENDENT of
+// any chapter's isPublic (D10).
+export const storySeries = sqliteTable(
+  'story_series',
+  {
+    id: text('id').primaryKey().$defaultFn(newId),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    // Denormalized owner (fail-closed) — a series query never leaks if the project
+    // row vanishes. New series ALWAYS set it; reads are owner-scoped.
+    ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+    // URL handle. Global-unique (same posture as projects/stories slugs); the
+    // creating path slugifies the title and dedupes on collision. Stable across rename.
+    slug: text('slug').notNull().unique(),
+    title: text('title').notNull(),
+    hook: text('hook'),
+    // The "season cover" shown on the public page + the home Series card.
+    coverImage: text('cover_image', { mode: 'json' }).$type<StoryImage>(),
+    // The series' OWN visual theme (same TimelineTheme shape). Resolved at read as
+    // a fallback chain (series.theme ?? project.theme ?? defaults). Replace-on-write.
+    theme: text('theme', { mode: 'json' }).$type<TimelineTheme>(),
+    // Optional "home" node for the series on the canvas (soft ref, no FK — chapters
+    // anchor on their own moments, D4). Costs nothing now; a future canvas affordance.
+    anchorMomentId: text('anchor_moment_id'),
+    isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
+    status: text('status', { enum: ['active', 'concluded', 'draft'] })
+      .notNull()
+      .default('active'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  },
+  (t) => [index('story_series_project_id_idx').on(t.projectId)],
+)
+
+export type SeriesRow = typeof storySeries.$inferSelect
 
 export const storySegments = sqliteTable('story_segments', {
   id: text('id').primaryKey().$defaultFn(newId),
@@ -517,6 +572,62 @@ export const storySegments = sqliteTable('story_segments', {
   generationId: text('generation_id').references(() => generations.id),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
 })
+
+// --- story_patches: the per-story undo stack for patch_story (ADR 0006 D7) --
+// patch_story makes surgical, partial edits to a chapter's beats/meta. Like
+// entity_patches (ADR 0004), stories live OUTSIDE the graph Patch engine, so their
+// undo can't ride the per-timeline ⌘Z stack. Story ops are richer than entity ops
+// (add/update/delete/reorder segments), so rather than per-op inversion this stack
+// stores a full before/after SNAPSHOT of the story (meta + ordered segments + their
+// citations) — undo restores `before`, redo restores `after`. Faithful by
+// construction, mirroring the StorySnapshot precedent used for node-delete undo.
+// Keyed by storyId + seq; a new patch truncates the redo branch.
+// NB: distinct from the existing `StorySnapshot` (the node-delete capture used by
+// patches.ts captureStories/restoreStory) — this is the patch_story EDIT snapshot.
+export type ChapterSegmentSnapshot = {
+  sequence: number
+  kind: (typeof SEGMENT_KINDS)[number]
+  bodyText: string
+  settingNote: string | null
+  relatedNodeIds: string[] | null
+  focusNodeId: string | null
+  lens: (typeof STORY_LENSES)[number] | null
+  citations: Citation[] | null
+  image: StoryImage | null
+  widget: StoryBeatWidget | null
+  artifactCitations: { artifactId: string; excerptUsed: string | null }[]
+}
+export type ChapterEditSnapshot = {
+  meta: {
+    title: string
+    hook: string | null
+    povType: (typeof POV_TYPES)[number]
+    depthTier: (typeof DEPTH_TIERS)[number]
+    estimatedMinutes: number | null
+    coverImage: StoryImage | null
+    cast: StoryCastMember[] | null
+    theme: TimelineTheme | null
+    status: (typeof STORY_STATUS)[number]
+    isPublic: boolean
+  }
+  segments: ChapterSegmentSnapshot[]
+}
+export const storyPatches = sqliteTable('story_patches', {
+  id: text('id').primaryKey().$defaultFn(newId),
+  storyId: text('story_id')
+    .notNull()
+    .references(() => stories.id, { onDelete: 'cascade' }),
+  ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+  seq: integer('seq').notNull(), // monotonic per story — orders this story's stack
+  summary: text('summary').notNull(),
+  before: text('before', { mode: 'json' }).$type<ChapterEditSnapshot>().notNull(),
+  after: text('after', { mode: 'json' }).$type<ChapterEditSnapshot>().notNull(),
+  status: text('status', { enum: ['applied', 'undone'] })
+    .notNull()
+    .default('applied'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+})
+export type StoryPatchRow = typeof storyPatches.$inferSelect
 
 // --- S2 artifact grounding (ADR 0001) -------------------------------------
 // Reusable primary-source reference data. Sources + artifacts are CRUD (never

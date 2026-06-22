@@ -110,6 +110,9 @@ export type ClientEvent =
   // owner publishes a story's public /s/$slug link from the reader; `public_story_opened`
   // when the public page itself is played. Props documented at the call sites.
   | 'story_shared'
+  // Serialized stories (ADR 0006). `series_shared` fires when an owner publishes a
+  // series' public /sr/$slug season link.
+  | 'series_shared'
   | 'public_story_opened'
   // M.3 engagement depth (docs/product/prd/understand-app.md §M.3). Fires once per
   // live per-beat widget that actually renders on the public reader — the value

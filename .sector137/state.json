@@ -1,7 +1,7 @@
 {
   "version": 2,
   "project": "Synek",
-  "updatedAt": "2026-06-19T00:00:00.000Z",
+  "updatedAt": "2026-06-22T00:00:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -1225,6 +1225,132 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-152",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Implement M.1 + M.2 — activation funnel + retention cohorts (measure-before-pricing)",
+        "description": "Build the two remaining front-of-funnel measurement buckets together as one PostHog instrumentation pass — M.1 and M.2 share the same event/identity plumbing, so grouping is low-effort. Founder-locked discipline: measure before pricing (roadmap.md §Monetization). M.3 + M.4 already shipped; this closes the activation + retention half. Reuses distinct_id = Better Auth user id (already unifying client + MCP events).\n\n### M.1 — Activation funnel\nInstrument the ordered funnel: signup -> key connected -> first timeline -> first story -> first share.\n- **Watch the key-connection drop-off above all** — it is the single number that proves/kills the BYO-dev vs managed-creator seat split.\n- Emit named step events (or step props on one funnel event) so PostHog can render the funnel without backfill.\n\n### M.2 — Retention cohorts\nD1 / D7 / D30 return, weekly-active, and a \"created something this week\" signal (the engagement-anchored retention proxy that matters for seat SaaS, not usage).\n- Lean on PostHog cohorts where possible; emit only the supporting events the cohort math needs.\n\n### Scope guardrail\nInstrumentation only — NO billing/metering pipeline, NO NATS (roadmap.md is explicit). The usage_ledger primitive (migration 0027) is for product-intel + COGS, not billing.\n\n### Done when\nBoth funnels are queryable in PostHog from real events (key-gated; no key = nothing sent, per existing posthog seam); typecheck + build green; events documented alongside the existing M.3/M.4 events. M.5 (your-side costs) + M.6 (Understand internal app) remain separate follow-on tickets.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-153",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "P3 slice 1 — series schema + container",
+        "description": "Implements ADR 0006 (docs/engineering/adr/0006-serialized-stories.md). story_series table + stories.seriesId/chapterNumber (migration 0028, hand-edited for ON DELETE set null); db/series.ts CRUD + seriesWatermark; server/series.ts; create_series + get_series MCP tools; verify:series (22). BUILT+verified, uncommitted.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "done",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-154",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "P3 slice 2 — chapter authoring",
+        "description": "Implements ADR 0006 (docs/engineering/adr/0006-serialized-stories.md). write_story gained seriesId/appendToSeries/chapterNumber; patch_story tool + patchStory() surgical segment ops (no story_patches undo yet); shared storyBeatInput/citationInput zod; enrich() analytics. verify:series-tools (13 live MCP round-trip). BUILT+verified, uncommitted.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "done",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-155",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "P3 slice 3 — next-chapter skill",
+        "description": "Implements ADR 0006 (docs/engineering/adr/0006-serialized-stories.md). synek-plugin/skills/next-chapter/SKILL.md (sibling of watch): get_series + get_layout_report -> opt-in enrich (apply_patch) -> write_story appendToSeries. Zero app code. BUILT, uncommitted.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "done",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-156",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "P3 slice 4 — public series page",
+        "description": "Implements ADR 0006 (docs/engineering/adr/0006-serialized-stories.md). getPublicSeries + publishSeriesShare + set_series_public; src/routes/sr.$slug.tsx (SSR OG, plays chapters in order via PublicStoryReader + onNext/hasNext next-chapter CTA); ShareSeriesButton; .public-series/.psr-season CSS. Browser-verified. BUILT, uncommitted.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "done",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-157",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "P3 slice 5 — series on the cinematic home + canvas",
+        "description": "Implements ADR 0006 (docs/engineering/adr/0006-serialized-stories.md). Series hero/row in src/components/home/cinematic/ (HomeContentRow + a SeriesCard, listHomeSeries already built in server/series.ts) + ProjectHero seriesCount; series presence/badge on the canvas. The UI slice, follows the data+tools.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "done",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-158",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "P3 slice 6 — story_patches beat-level undo (ADR D7)",
+        "description": "Implements ADR 0006 (docs/engineering/adr/0006-serialized-stories.md). story_patches table + apply/invert + undo/redo wiring for patch_story, mirroring entity_patches (ADR 0004). Makes patch_story beat-level edits undoable independent of the graph stack.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "done",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-159",
         "dirty": true,
         "etag": null,
         "syncedAt": null

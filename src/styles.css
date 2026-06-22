@@ -3869,6 +3869,59 @@ body {
   color: color-mix(in oklab, var(--color-fg-primary) 36%, transparent);
 }
 
+/* Series "season" page (/sr/$slug): stack the chapter rail above the reader. */
+.public-series {
+  flex-direction: column;
+  align-items: stretch;
+}
+.psr-season {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 16px 4px;
+  max-width: 720px;
+  margin-inline: auto;
+  width: 100%;
+}
+.psr-season-title {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: color-mix(in oklab, var(--color-fg-primary) 80%, transparent);
+}
+.psr-season-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 6px;
+  scrollbar-width: thin;
+}
+.psr-season-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-fg-primary);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.psr-season-chip[data-active] {
+  border-color: var(--color-accent-story);
+  background: color-mix(in oklab, var(--color-accent-story) 14%, transparent);
+}
+.psr-season-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--color-accent-story);
+}
+.psr-season-name { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; }
+
 .psr {
   position: relative;
   width: 100%;

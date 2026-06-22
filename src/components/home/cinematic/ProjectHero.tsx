@@ -14,6 +14,7 @@ export function ProjectHero({
   timelineCount,
   storyCount,
   entityCount,
+  seriesCount = 0,
   firstTimeline,
   onNewTimeline,
 }: {
@@ -21,6 +22,7 @@ export function ProjectHero({
   timelineCount: number
   storyCount: number
   entityCount: number
+  seriesCount?: number
   // The project's first timeline, to offer an "Open" action.
   firstTimeline: { id: string; title: string } | null
   onNewTimeline: () => void
@@ -28,6 +30,9 @@ export function ProjectHero({
   const [brandingOpen, setBrandingOpen] = useState(false)
   const counts = [
     `${timelineCount} ${timelineCount === 1 ? 'timeline' : 'timelines'}`,
+    // Series sits before stories in the count line — it's the headline unit (a season
+    // of chapters). Shown only when the project has any.
+    ...(seriesCount > 0 ? [`${seriesCount} ${seriesCount === 1 ? 'series' : 'series'}`] : []),
     `${storyCount} ${storyCount === 1 ? 'story' : 'stories'}`,
     `${entityCount} ${entityCount === 1 ? 'entity' : 'entities'}`,
   ].join(' · ')

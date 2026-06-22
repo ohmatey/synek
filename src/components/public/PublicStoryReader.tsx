@@ -55,7 +55,17 @@ function timeAgo(ms: number): string {
   return `${Math.floor(mo / 12)}y ago`
 }
 
-export function PublicStoryReader({ data }: { data: PublicStoryDTO }) {
+export function PublicStoryReader({
+  data,
+  onNext,
+  hasNext,
+}: {
+  data: PublicStoryDTO
+  // Series continuation (ADR 0006 slice 4): when driven from a /sr/$slug season,
+  // the end panel offers "Next chapter →" instead of only the make-your-own CTA.
+  onNext?: () => void
+  hasNext?: boolean
+}) {
   const { story, timelineTitle, updatedAt } = data
   const beats = story.beats
   const count = beats.length
@@ -360,15 +370,27 @@ export function PublicStoryReader({ data }: { data: PublicStoryDTO }) {
           </>
         ) : ended ? (
           <div className="psr-end">
-            <span className="psr-eyebrow">The end</span>
+            <span className="psr-eyebrow">{hasNext ? 'End of chapter' : 'The end'}</span>
             <h2 className="psr-end-title">{story.title}</h2>
-            <p className="psr-end-note">
-              This story is <strong>live</strong> — it keeps updating as the world does. Want to build one like it?
-            </p>
-            <a className="psr-cta" href={sharedStorySignupHref(story.slug)}>
-              <Sparkles size={16} aria-hidden />
-              Make your own with Synek
-            </a>
+            {hasNext && onNext ? (
+              <>
+                <p className="psr-end-note">The story continues.</p>
+                <button type="button" className="psr-cta" onClick={onNext}>
+                  <ChevronRight size={16} aria-hidden />
+                  Next chapter
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="psr-end-note">
+                  This story is <strong>live</strong> — it keeps updating as the world does. Want to build one like it?
+                </p>
+                <a className="psr-cta" href={sharedStorySignupHref(story.slug)}>
+                  <Sparkles size={16} aria-hidden />
+                  Make your own with Synek
+                </a>
+              </>
+            )}
             <div className="psr-end-actions">
               <button type="button" className="psr-replay" onClick={replay}>
                 <RotateCcw size={15} aria-hidden /> Read again

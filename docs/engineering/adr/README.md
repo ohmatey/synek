@@ -9,6 +9,9 @@ Locked technical decisions for Synek. An ADR captures **one decision**, the cont
 | [0001](./0001-sources-artifacts-schema.md) | Sources / artifacts normalized schema (S2 — artifact grounding) | Accepted |
 | [0002](./0002-ssrf-egress-guard.md) | Server-side egress SSRF guard | Accepted |
 | [0003](./0003-projects-container.md) | Projects: a top-level container above timelines | Proposed |
+| [0004](./0004-shared-entities.md) | Shared entities (placements + canonical content overlay) | Proposed |
+| [0005](./0005-cull-public-discovery.md) | Cull public discovery — root `/` is the workspace | Accepted |
+| [0006](./0006-serialized-stories.md) | Serialized stories: series, chapters, the next-chapter loop | Proposed |
 
 ## Conventions
 
