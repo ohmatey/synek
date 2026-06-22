@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { BookOpenText, Sparkles } from 'lucide-react'
 import { useTheme } from '@synek/ui'
 import { getPublicSeries } from '~/lib/server/series'
 import { PublicStoryReader } from '~/components/public/PublicStoryReader'
+import { SeriesJacket } from '~/components/public/SeriesJacket'
+import { SeriesSpine, type SpineChapter } from '~/components/public/SeriesSpine'
 import { resolveThemeVars } from '~/lib/theme/resolveTimelineTheme'
 import type { PublicStoryDTO } from '~/lib/domain/types'
 
@@ -50,6 +52,7 @@ function PublicSeriesPage() {
     [data, resolvedTheme],
   )
   const [index, setIndex] = useState(0)
+  const readerRef = useRef<HTMLDivElement>(null)
 
   if (!data || data.chapters.length === 0) {
     return (
@@ -88,28 +91,41 @@ function PublicSeriesPage() {
     nodes,
   }
 
+  const spineChapters: SpineChapter[] = chapters.map((c) => ({
+    number: c.chapterNumber,
+    title: c.story.title,
+    hook: c.story.hook,
+    momentInstant: c.momentInstant,
+  }))
+
+  const selectChapter = (i: number) => {
+    setIndex(i)
+    readerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <div className="public-story public-series" style={themeVars} data-theme-scoped={series.theme ? '' : undefined}>
-      <nav className="psr-season" aria-label={`Chapters of ${series.title}`}>
-        <span className="psr-season-title">{series.title}</span>
-        <ol className="psr-season-list">
-          {chapters.map((c, i) => (
-            <li key={c.story.id}>
-              <button
-                type="button"
-                className="psr-season-chip"
-                aria-current={i === safeIndex ? 'true' : undefined}
-                data-active={i === safeIndex ? '' : undefined}
-                onClick={() => setIndex(i)}
-              >
-                <span className="psr-season-num">{c.chapterNumber ?? i + 1}</span>
-                <span className="psr-season-name">{c.story.title}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </nav>
-      <PublicStoryReader key={current.story.id} data={chapterDTO} hasNext={hasNext} onNext={() => setIndex((i) => i + 1)} />
+      <SeriesJacket
+        title={series.title}
+        hook={series.hook}
+        coverImage={series.coverImage}
+        chapterCount={chapters.length}
+        updatedAt={updatedAt}
+        onBegin={() => selectChapter(safeIndex)}
+        beginLabel={safeIndex > 0 ? 'Continue reading' : 'Begin reading'}
+      />
+      <SeriesSpine chapters={spineChapters} activeIndex={safeIndex} onSelect={selectChapter} updatedAt={updatedAt} />
+      <div ref={readerRef} className="public-series-reader">
+        <PublicStoryReader
+          key={current.story.id}
+          data={chapterDTO}
+          hasNext={hasNext}
+          onNext={() => setIndex((i) => i + 1)}
+          chapterMeta={{ number: current.chapterNumber, seriesTitle: series.title }}
+          ctaLabel="Begin chapter"
+          nextChapterTitle={chapters[safeIndex + 1]?.story.title}
+        />
+      </div>
     </div>
   )
 }

@@ -15,6 +15,7 @@ import { cn } from '~/lib/utils'
 import type { GraphNode, PublicStoryDTO, StoryBeat } from '~/lib/domain/types'
 import { POV_LABEL } from '~/lib/domain/story-labels'
 import { formatInstant } from '~/lib/domain/dates'
+import { timeAgo } from '~/lib/time-ago'
 import { getPublicStory } from '~/lib/server/stories'
 import { capture } from '~/lib/posthog/client'
 import { sharedStorySignupHref } from '~/lib/posthog/attribution'
@@ -41,31 +42,27 @@ function beatDurationMs(text: string): number {
   return Math.min(MAX_BEAT_MS, Math.max(MIN_BEAT_MS, ms))
 }
 
-function timeAgo(ms: number): string {
-  const s = Math.max(0, Math.floor((Date.now() - ms) / 1000))
-  if (s < 60) return 'just now'
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  if (d < 30) return `${d}d ago`
-  const mo = Math.floor(d / 30)
-  if (mo < 12) return `${mo}mo ago`
-  return `${Math.floor(mo / 12)}y ago`
-}
-
 export function PublicStoryReader({
   data,
   onNext,
   hasNext,
+  chapterMeta,
+  ctaLabel,
+  nextChapterTitle,
 }: {
   data: PublicStoryDTO
   // Series continuation (ADR 0006 slice 4): when driven from a /sr/$slug season,
   // the end panel offers "Next chapter →" instead of only the make-your-own CTA.
   onNext?: () => void
   hasNext?: boolean
+  // "Evolving book" chapter framing (local-162). When present, the cover renders as
+  // a CHAPTER OPENER: an "Chapter N · {series}" eyebrow, book-language CTA, and the
+  // production "beats" chip is dropped. The end panel names the next chapter.
+  chapterMeta?: { number: number | null; seriesTitle: string }
+  ctaLabel?: string
+  nextChapterTitle?: string
 }) {
+  const inSeries = !!chapterMeta
   const { story, timelineTitle, updatedAt } = data
   const beats = story.beats
   const count = beats.length
@@ -106,9 +103,11 @@ export function PublicStoryReader({
     return () => mq.removeEventListener('change', update)
   }, [])
 
-  // Keep keyboard nav + Esc-less flow working without a click first.
+  // Keep keyboard nav + Esc-less flow working without a click first. preventScroll
+  // so focusing the reader doesn't yank the page past the season jacket/spine on a
+  // /sr/$slug load (the reader sits below them in the document).
   useEffect(() => {
-    rootRef.current?.focus()
+    rootRef.current?.focus({ preventScroll: true })
   }, [started])
 
   const goNext = useCallback(() => {
@@ -370,11 +369,13 @@ export function PublicStoryReader({
           </>
         ) : ended ? (
           <div className="psr-end">
-            <span className="psr-eyebrow">{hasNext ? 'End of chapter' : 'The end'}</span>
+            <span className="psr-eyebrow">
+              {hasNext ? (chapterMeta?.number != null ? `End of Chapter ${chapterMeta.number}` : 'End of chapter') : 'The end'}
+            </span>
             <h2 className="psr-end-title">{story.title}</h2>
             {hasNext && onNext ? (
               <>
-                <p className="psr-end-note">The story continues.</p>
+                <p className="psr-end-note">{nextChapterTitle ? `Next: ${nextChapterTitle}` : 'The story continues.'}</p>
                 <button type="button" className="psr-cta" onClick={onNext}>
                   <ChevronRight size={16} aria-hidden />
                   Next chapter
@@ -401,14 +402,26 @@ export function PublicStoryReader({
             </div>
           </div>
         ) : (
-          <div className="psr-cover">
+          <div className="psr-cover" data-in-series={inSeries || undefined}>
             {story.coverImage && (
               <figure className={cn('psr-cover-art', story.coverImage.aspect === 'portrait' && 'is-portrait')}>
                 <img src={story.coverImage.url} alt={story.coverImage.alt ?? ''} />
               </figure>
             )}
             <div className="psr-cover-body">
-              <h1 className="psr-title">{story.title}</h1>
+              {chapterMeta && (
+                <span className="psr-chapter-eyebrow">
+                  {chapterMeta.number != null ? `Chapter ${chapterMeta.number} · ` : ''}
+                  {chapterMeta.seriesTitle}
+                </span>
+              )}
+              {/* In a series the jacket owns the page <h1>; the chapter title is an
+                  <h2> so the season page keeps a single top-level heading. */}
+              {chapterMeta ? (
+                <h2 className="psr-title">{story.title}</h2>
+              ) : (
+                <h1 className="psr-title">{story.title}</h1>
+              )}
               {story.hook && <p className="psr-hook">{story.hook}</p>}
               {story.cast.length > 0 && (
                 <div className="psr-cast" aria-label="Cast">
@@ -429,13 +442,16 @@ export function PublicStoryReader({
                 </span>
                 {story.povType !== 'omniscient' && <span className="psr-chip">{POV_LABEL[story.povType]}</span>}
                 {story.estimatedMinutes != null && <span className="psr-chip">~{story.estimatedMinutes} min</span>}
-                <span className="psr-chip">
-                  {count} {count === 1 ? 'beat' : 'beats'}
-                </span>
+                {/* "Beats" is production vocabulary — dropped inside a series (book language). */}
+                {!inSeries && (
+                  <span className="psr-chip">
+                    {count} {count === 1 ? 'beat' : 'beats'}
+                  </span>
+                )}
               </div>
               <button type="button" className="psr-play" onClick={begin} disabled={count === 0}>
                 <Play aria-hidden />
-                Play story
+                {ctaLabel ?? 'Play story'}
               </button>
             </div>
           </div>

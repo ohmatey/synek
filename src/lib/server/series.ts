@@ -18,6 +18,8 @@ import type {
   HomeSeriesCard,
   PublicSeriesChapter,
   PublicSeriesDTO,
+  SeriesDetailChapter,
+  SeriesDetailDTO,
   StoryDTO,
 } from '~/lib/domain/types'
 
@@ -76,6 +78,60 @@ export const getSeries = createServerFn({ method: 'GET' })
     return { series, chapters, frontier }
   })
 
+// The in-app series detail (local-161 slice B) — owner-scoped. ALL chapters incl.
+// drafts (each with status + a resolved dateline), the derived frontier, and the
+// parent project for the breadcrumb. Returns null (indistinguishably) when the
+// viewer isn't signed in or doesn't own the series, so the route renders one clean
+// "not available" state. Distinct from getPublicSeries (no auth, public-only).
+export const getSeriesDetail = createServerFn({ method: 'GET' })
+  .inputValidator((id: string) => z.string().parse(id))
+  .handler(async ({ data: id }): Promise<SeriesDetailDTO | null> => {
+    let user
+    try {
+      user = await requireUser()
+    } catch {
+      return null
+    }
+    try {
+      makeRequireOwnedSeries(user.id)(id)
+    } catch {
+      return null
+    }
+    const series = dbGetSeries(id)
+    if (!series) return null
+    const { frontier } = seriesWatermark(id)
+    const chapters: SeriesDetailChapter[] = getSeriesChapters(id).map((row) => {
+      const tl = getMomentTimelineId(row.momentId)
+      const momentInstant = tl ? (nodesByIds(tl, [row.momentId])[0]?.startInstant ?? null) : null
+      return {
+        storyId: row.storyId,
+        number: row.chapterNumber,
+        title: row.title,
+        hook: row.hook,
+        momentInstant,
+        status: row.status,
+        isPublic: row.isPublic,
+        slug: row.slug,
+      }
+    })
+    const project = getProjectMeta(series.projectId)
+    return {
+      series: {
+        id: series.id,
+        slug: series.slug,
+        title: series.title,
+        hook: series.hook,
+        coverImage: series.coverImage ?? null,
+        theme: series.theme ?? null,
+        isPublic: series.isPublic,
+      },
+      project: project ? { slug: project.slug, title: project.title } : null,
+      chapters,
+      frontier,
+      updatedAt: series.updatedAt?.getTime() ?? 0,
+    }
+  })
+
 // Owner-gated publish toggle for the /sr/$slug page. Returns the slug on success.
 export const publishSeriesShare = createServerFn({ method: 'POST' })
   .inputValidator((d: { seriesId: string; isPublic: boolean }) =>
@@ -104,7 +160,11 @@ export const getPublicSeries = createServerFn({ method: 'GET' })
     const chapters: PublicSeriesChapter[] = []
     for (const row of chapterRows) {
       const story = getStoryById(row.storyId)
-      if (story) chapters.push({ chapterNumber: row.chapterNumber, story })
+      if (!story) continue
+      // Resolve the chapter's anchor-moment instant for the spine dateline.
+      const tl = getMomentTimelineId(story.momentId)
+      const momentInstant = tl ? (nodesByIds(tl, [story.momentId])[0]?.startInstant ?? null) : null
+      chapters.push({ chapterNumber: row.chapterNumber, momentInstant, story })
     }
     // Union the nodes every chapter references, fetched per their timeline (one
     // timeline per project in practice; grouped defensively for safety).

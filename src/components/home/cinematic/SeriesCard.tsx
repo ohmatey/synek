@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Layers, Play, PenLine } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { BookOpen, Layers, Play, PenLine } from 'lucide-react'
 import type { HomeSeriesCard } from '~/lib/domain/types'
 import { ShareSeriesButton } from '~/components/public/ShareSeriesButton'
 import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
@@ -85,6 +86,15 @@ export function SeriesCard({ series }: { series: HomeSeriesCard }) {
           <span className="px-2 text-xs font-medium text-muted-foreground">Draft</span>
         )}
         <span className="flex items-center gap-1">
+          <Link
+            to="/series/$id"
+            params={{ id: series.seriesId }}
+            className={ICON_BTN}
+            aria-label={`View “${series.title}” in your workspace`}
+            title="View series"
+          >
+            <BookOpen aria-hidden="true" className="size-4" />
+          </Link>
           <button
             type="button"
             className={ICON_BTN}

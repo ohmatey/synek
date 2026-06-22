@@ -34,3 +34,27 @@ test('a SeriesCard offers "Write the next chapter", which opens the paste-ready 
   // Copy-only (no Run): the local-first default action is present.
   await expect(dialog.getByRole('button', { name: /Copy prompt/ })).toBeVisible()
 })
+
+test('a SeriesCard "View series" link opens the in-app series detail (slice B)', async ({ page }) => {
+  await loginAsDemo(page)
+
+  // The secondary "View series" link goes to the creator workspace (/series/$id);
+  // the card's primary action still points at the public season.
+  const view = page.getByRole('link', { name: /^View .* in your workspace$/ }).first()
+  await expect(view).toBeVisible()
+  await view.click()
+
+  await expect(page).toHaveURL(/\/series\//)
+  // The jacket renders (some series title as the page heading) + the spine.
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Table of contents' })).toBeVisible()
+  // The frontier line + the primary "Write the next chapter" CTA.
+  await expect(page.getByText(/Frontier:|No chapters yet/)).toBeVisible()
+  const write = page.getByRole('button', { name: 'Write the next chapter' })
+  await expect(write).toBeVisible()
+
+  // The CTA opens the same paste-ready prompt as the card.
+  await write.click()
+  const dialog = page.getByRole('dialog', { name: 'Write the next chapter' })
+  await expect(dialog.getByText(/appendToSeries/)).toBeVisible()
+})

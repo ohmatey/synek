@@ -385,11 +385,42 @@ export type PublicStoryDTO = {
 // (each a full StoryDTO, ordered by chapterNumber) + the union of nodes those
 // chapters reference (no full-graph leak). `theme` is the resolved chain
 // (series.theme ?? project.theme ?? defaults).
-export type PublicSeriesChapter = { chapterNumber: number | null; story: StoryDTO }
+// `momentInstant` is the chapter's anchor-moment instant (epoch-ms) — the spine's
+// dateline (right column). null when the moment has no resolvable date.
+export type PublicSeriesChapter = { chapterNumber: number | null; momentInstant: number | null; story: StoryDTO }
 export type PublicSeriesDTO = {
   series: { id: string; slug: string; title: string; hook: string | null; coverImage: StoryImage | null; theme: TimelineTheme | null }
   chapters: PublicSeriesChapter[]
   nodes: GraphNode[]
+  updatedAt: number
+}
+
+// The in-app (owner) series detail view (local-161 slice B). ALL chapters incl.
+// drafts, each with status + dateline; the derived frontier; and the parent project
+// for the breadcrumb. Distinct from PublicSeriesDTO (no auth, public chapters only).
+export type SeriesDetailChapter = {
+  storyId: string
+  number: number | null
+  title: string
+  hook: string | null
+  momentInstant: number | null
+  status: StoryStatus
+  isPublic: boolean
+  slug: string
+}
+export type SeriesDetailDTO = {
+  series: {
+    id: string
+    slug: string
+    title: string
+    hook: string | null
+    coverImage: StoryImage | null
+    theme: TimelineTheme | null
+    isPublic: boolean
+  }
+  project: { slug: string; title: string } | null
+  chapters: SeriesDetailChapter[]
+  frontier: { lastChapterNumber: number | null; lastInstant: number | null }
   updatedAt: number
 }
 
