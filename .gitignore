@@ -15,6 +15,10 @@ e2e.db-*
 /test-results
 /playwright-report
 
+# Local preview server throwaway database (.claude/launch.json synek-preview)
+preview.db
+preview.db-*
+
 # Data-layer check throwaway databases (bun run verify:*)
 verify-story.db
 verify-story.db-*

@@ -34,6 +34,10 @@ export default defineConfig({
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { PORT: String(PORT), DATABASE_URL: E2E_DB },
+    // The built server forces NODE_ENV=production, which trips the "exposed deploy"
+    // auth-secret guard (src/lib/auth/index.ts). This is a localhost test server, so
+    // supply a throwaway non-fallback secret to satisfy the guard (any value but the
+    // known dev fallback). Real deploys provide a real one via sealed secrets.
+    env: { PORT: String(PORT), DATABASE_URL: E2E_DB, BETTER_AUTH_SECRET: 'synek-e2e-test-secret-not-for-production-0001' },
   },
 })

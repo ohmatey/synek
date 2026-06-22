@@ -4,6 +4,7 @@ import { bearer, mcp } from 'better-auth/plugins'
 import { db } from '~/lib/db'
 import * as schema from '~/lib/db/schema'
 import { sendEmail, verificationEmailTemplate, resetPasswordEmailTemplate } from './email'
+import { isLocalMode } from './local-mode'
 
 // Full Better Auth, single local user. Two credential paths to the MCP endpoint:
 //  1. The `mcp` plugin makes this app a loopback OAuth provider — Claude Code
@@ -90,9 +91,10 @@ function resolveAuthSecret(): string {
 // is the safe state. Local dev is untouched: SYNEK_LOCAL_MODE on a localhost origin
 // is not "exposed", so the guard never trips.
 function assertLocalModeNotExposed(): void {
-  const localMode = process.env.SYNEK_LOCAL_MODE?.trim()
-  const localModeOn = localMode === '1' || localMode?.toLowerCase() === 'true'
-  if (localModeOn && isExposedDeploy()) {
+  // Reuse isLocalMode() — the SAME parse the auto-sign-in gate uses (local-mode.ts).
+  // A divergent inline check here would let a flag value the gate honours (e.g. "yes")
+  // slip past the guard, re-opening the exact bypass this exists to close.
+  if (isLocalMode() && isExposedDeploy()) {
     throw new Error(
       '[synek] SYNEK_LOCAL_MODE is set on an exposed deploy (NODE_ENV=production or a ' +
         'non-localhost BETTER_AUTH_URL). It skips the login wall and signs every visitor in ' +
