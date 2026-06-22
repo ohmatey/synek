@@ -61,15 +61,25 @@ An **exposed deploy** is detected at boot when `NODE_ENV=production` (the prod D
 
 These are the steps to go live. The manifests are already scaffolded in `sector137-infra`; what remains is the cluster-side, secret-bearing, irreversible-ish work that only the operator can do. **Order matters.**
 
-### 1. DNS — point `synek.sector137.io` at the cluster
+### 1. Route `synek.sector137.io` publicly through the Cloudflare tunnel
 
-Add a DNS record (Cloudflare, the `sector137.io` zone) for `synek` pointing at the cluster's Traefik LoadBalancer IP (the same `192.168.1.120` the other `*.sector137.io` hosts resolve to — confirm against an existing host).
+Synek is exposed **publicly via the cluster's Cloudflare tunnel** (`cloudflared`), the same path as `docs`/`app`/`loha`/`realscript` — **not** a public `A` record to the private Traefik LB (that is the LAN-only model and trips DNS-rebinding; see `sector137-infra/docs/DNS_TLS.md`). The browser-facing TLS is Cloudflare's edge cert, so no per-host `Certificate` is needed; the Traefik ingress is just the tunnel's in-cluster origin (it serves the `*.sector137.io` wildcard, which `noTLSVerify` skips).
+
+Two parts, both in `sector137-infra`:
+
+1. **Tunnel ingress rule (committed):** a `synek.sector137.io` rule is added to `kubernetes/overlays/homelab/cloudflared/configmap.yaml` (public tier — routable, **no** Cloudflare Access policy). That ConfigMap is the authored source of truth, but the tunnel is remotely-managed, so the rule only takes effect once pushed to the edge.
+
+2. **Proxied DNS record + push to edge** (operator — needs Cloudflare creds; confirm the tunnel name with `cloudflared tunnel list`, the configmap calls it `homelab`):
 
 ```
-synek.sector137.io  →  CLUSTER_TRAEFIK_LB_IP
+cloudflared tunnel route dns homelab synek.sector137.io
 ```
-
-The wildcard `*.sector137.io` TLS cert already covers this host (Traefik `TLSStore` default), so there is **no per-host Certificate to create**. TLS is automatic once DNS resolves and the ingress syncs.
+```
+cd ~/Documents/projects/sector137-infra
+```
+```
+./scripts/cloudflared-sync-config.sh
+```
 
 ### 2. Seal the secrets (plaintext never enters git)
 

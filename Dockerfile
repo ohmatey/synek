@@ -84,7 +84,7 @@ EXPOSE 3001
 USER 10001:10001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Invoke tsx directly (not `npm start`) so the image is self-contained and does not
 # depend on package.json scripts. tsx is installed into node_modules above.
