@@ -33,14 +33,56 @@ function rgba(hex: string, alpha: number): string {
 }
 
 // WCAG relative luminance, 0 (black) … 1 (white).
-function luminance(hex: string): number {
-  const rgb = parseHex(hex)
-  if (!rgb) return 0
+function luminanceRgb(rgb: [number, number, number]): number {
   const [r, g, b] = rgb.map((c) => {
     const s = c / 255
     return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
   })
   return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+}
+
+function luminance(hex: string): number {
+  const rgb = parseHex(hex)
+  return rgb ? luminanceRgb(rgb) : 0
+}
+
+function contrast(l1: number, l2: number): number {
+  const hi = Math.max(l1, l2)
+  const lo = Math.min(l1, l2)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+function toHex(rgb: [number, number, number]): string {
+  return '#' + rgb.map((c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, '0')).join('')
+}
+
+// Reference wash luminance per scheme — mirrors --color-bg-base in tokens.css.
+// The curated --color-accent-*-text tokens are tuned to clear AA on these.
+const WASH_LUM: Record<ColorScheme, number> = {
+  light: luminance('#fafbfc'),
+  dark: luminance('#08090c'),
+}
+
+// Darken (light) or lighten (dark) an accent until small text on the scheme's
+// wash clears WCAG AA (4.5:1). Lets a theme-overridden accent feed the readable
+// --color-accent-*-text tokens the curated defaults provide out of the box.
+function readableOnWash(hex: string, scheme: ColorScheme): string {
+  const rgb = parseHex(hex)
+  if (!rgb) return hex
+  const target = scheme === 'dark' ? 255 : 0
+  let cur: [number, number, number] = [...rgb]
+  for (let i = 0; i < 24 && contrast(luminanceRgb(cur), WASH_LUM[scheme]) < 4.5; i++) {
+    cur = cur.map((c) => c + (target - c) * 0.12) as [number, number, number]
+  }
+  return toHex(cur)
+}
+
+// Pick the ink (dark or white) that reads best ON an accent FILL — mirrors the
+// curated --color-on-story choice for buttons/chips painted with the accent.
+function inkOn(hex: string): string {
+  const l = luminance(hex)
+  const dark = '#1a1205'
+  return contrast(luminance(dark), l) >= contrast(luminance('#ffffff'), l) ? dark : '#ffffff'
 }
 
 // Brand-default hex per slot and scheme — mirrors tokens.css (accents) and
@@ -120,6 +162,9 @@ export function resolveThemeVars(theme: TimelineTheme | null, scheme: ColorSchem
     vars['--color-story-soft'] = rgba(story, softAlpha) // tinted fills, derived in JS
     vars['--story-glow'] = rgba(story, 0.5) // story-lens glow (styles.css hook)
     vars['--story-soft-trans'] = rgba(story, 0.12) // lens-bar fill (styles.css hook)
+    // Keep the readable derivatives AA against the wash for the overridden accent.
+    vars['--color-accent-story-text'] = readableOnWash(story, scheme) // small accent text
+    vars['--color-on-story'] = inkOn(story) // ink on the accent fill (buttons/chips)
   }
 
   const influence = slot(theme, scheme, 'accentInfluence', true)
@@ -135,7 +180,10 @@ export function resolveThemeVars(theme: TimelineTheme | null, scheme: ColorSchem
   }
 
   const era = slot(theme, scheme, 'accentEra', true)
-  if (era) vars['--color-accent-era'] = era
+  if (era) {
+    vars['--color-accent-era'] = era
+    vars['--color-accent-era-text'] = readableOnWash(era, scheme) // small accent text
+  }
 
   const bg = slot(theme, scheme, 'canvasBg', false)
   if (bg) {

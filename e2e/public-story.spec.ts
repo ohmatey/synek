@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { assertTopAligned } from './helpers/layout-invariants'
+import { expectNoA11yViolations } from './helpers/a11y'
 
 // The sharable public story page (/s/$slug). The seeded `stoicism` timeline is
 // public and its flagship story carries a pinned slug ('from-shipwreck-to-throne')
@@ -18,9 +19,13 @@ test('the public page renders the cover, OpenGraph tags, and a live stamp', asyn
   // in the viewport, the page loads at scrollY 0, and there is exactly one <h1> (the
   // story title). The Reels reader focus()es its root on mount — this guards that it
   // doesn't auto-scroll the page past the cover, plus the off-screen / double-h1 class.
-  // (The full axe contrast pass for this reader lands with the coupled theme-token
-  // work — its accent colors flow through tokens that ship in that change.)
   await assertTopAligned(page)
+
+  // Accessibility pass (Technique 2): no structural/ARIA violations on the public
+  // reader — landmarks, roles, alt text, heading order (catches a double <h1>), and
+  // color-contrast (the reader's accent text flows through the readable
+  // --color-accent-*-text / --color-on-* tokens, so AA holds against page code).
+  await expectNoA11yViolations(page)
 
   // SSR head: title + OG image carry the story into link unfurls.
   await expect(page).toHaveTitle(/From a shipwreck to the throne · Synek/)

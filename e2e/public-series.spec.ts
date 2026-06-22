@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import { assertTopAligned } from './helpers/layout-invariants'
+import { expectNoA11yViolations } from './helpers/a11y'
 
 // The sharable public SERIES page (/sr/$slug) — the "evolving book" season reader
 // (ADR 0006 + local-162). The seeded `roman-republic` timeline carries a public
@@ -14,6 +16,19 @@ const CH1_BEATS = 5
 
 test('the season page renders OpenGraph, the jacket, the spine, and chapter one', async ({ page }) => {
   await page.goto(`/sr/${SLUG}`)
+
+  // Layout/scroll invariants (foundry visual-testing Technique 1): the jacket hero
+  // must be in the viewport and the page must load at scrollY 0 with a single <h1>.
+  // This guards the exact regressions a green functional suite once missed — an
+  // off-screen hero, a reader auto-scrolling past the jacket on mount, and a double
+  // <h1> (the jacket owns the page heading; the chapter title is an <h2>).
+  await assertTopAligned(page)
+
+  // Accessibility pass (Technique 2): no structural/ARIA violations on the public
+  // reader. `color-contrast` is now enforced too — the themed accents flow through the
+  // readable --color-accent-*-text / --color-on-* tokens, so AA holds on page code.
+  // axe also guards landmarks, roles, alt text, and heading order (catches a double <h1>).
+  await expectNoA11yViolations(page)
 
   // SSR head: title + OG carry the season into link unfurls.
   await expect(page).toHaveTitle(/The Fall of the Republic · Synek/)

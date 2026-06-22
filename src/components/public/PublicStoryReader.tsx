@@ -245,7 +245,6 @@ export function PublicStoryReader({
       ref={rootRef}
       className="psr"
       data-ended={ended || undefined}
-      role="application"
       aria-label={`Story: ${story.title}`}
       tabIndex={-1}
       onKeyDown={onKeyDown}

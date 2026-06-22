@@ -67,6 +67,12 @@
      the card surface), so this is overridden lighter only under [data-theme]. */
   --color-accent-story-text: #e0a458;
 
+  /* Darker teal for small era-accent TEXT on a light surface — the bright era
+     accent (#2f9389) is only 3.58:1 on the light wash. Dark theme keeps the
+     bright teal (high contrast on the near-black surface), so this is overridden
+     darker only under [data-theme='light']. */
+  --color-accent-era-text: #45b8ac;
+
   /* Active project-rail chip: brand-blue text on a faint blue tint. The plain
      accent-primary text is only 3.88:1 on its 15% tint in dark — so dark uses a
      brighter blue (#7aa2ff → 5.6:1 on the 22% tint). Light keeps a deep blue
@@ -133,6 +139,8 @@
   /* --color-on-story stays the constant warm ink (clears AA on light amber too). */
   /* Darker amber so small story-accent text clears AA on light surfaces (~6:1). */
   --color-accent-story-text: #8a560f;
+  /* Darker teal so small era-accent text clears AA on the light wash (~6.2:1). */
+  --color-accent-era-text: #176a5f;
   /* Light rail chip: deep blue text (the 22% tint inherits the light primary). */
   --color-chip-active-fg: #1d4096;
 
