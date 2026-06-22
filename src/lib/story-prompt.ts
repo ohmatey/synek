@@ -58,3 +58,38 @@ export function buildContinueStoryPrompt(input: {
     `entity on this timeline so the canvas tours through it as the reader reaches that beat.`
   )
 }
+
+// The "write the next chapter" prompt — the morning-chapter loop's headline action,
+// handed to the user's connected Claude (the app holds no AI). Unlike
+// buildContinueStoryPrompt (which UPDATES one story in place), this APPENDS a new
+// chapter to a SERIES. It is self-sufficient: it tells the client to read the series
+// watermark itself (get_series), so the caller only needs the id, title, and count —
+// no need to ship the frontier. Mirrors synek-plugin/skills/next-chapter/SKILL.md.
+export function buildNextChapterPrompt(input: {
+  seriesId: string
+  seriesTitle: string
+  chapterCount: number
+}): string {
+  const { seriesId, seriesTitle, chapterCount } = input
+  const where =
+    chapterCount === 0
+      ? `This series has no chapters yet — write Chapter I and set the world in motion.`
+      : `This series has ${chapterCount} ${chapterCount === 1 ? 'chapter' : 'chapters'} so far — write the next one.`
+  return (
+    `Using the Synek MCP tools, write the NEXT CHAPTER of the series “${seriesTitle}”.\n` +
+    `- seriesId: ${seriesId}\n\n` +
+    `${where}\n\n` +
+    `1. FIRST call get_series("${seriesId}") to read the chapters in order and the derived frontier (the latest ` +
+    `chapter number and the latest instant any covered node sits at). That is your anti-duplication watermark.\n` +
+    `2. Decide ONE clear thing that happens next — the next era, the consequence of the last chapter, or a parallel ` +
+    `thread now due. Advance PAST the frontier; never retell what an earlier chapter already covered.\n` +
+    `3. Write it with write_story using appendToSeries: "${seriesId}" (this links it as the next chapter and ` +
+    `auto-numbers it). Anchor it on a moment (momentId) — an existing timeline node, or one you add first.\n` +
+    `4. Make it a real chapter: beats that move, every factual beat grounded in a real citation (title + url + a ` +
+    `short verbatim quote), a cast of the key figures, per-beat focusNodeId/lens to choreograph the canvas, and the ` +
+    `SAME voice and depth as the earlier chapters.\n\n` +
+    `If the next chapter needs events or people not on the timeline yet, research them on the web first, then add ` +
+    `them as ONE cited apply_patch batch BEFORE writing the chapter. If there is genuinely nothing new to tell yet, ` +
+    `say so rather than invent — a fabricated chapter is worse than a thinner season.`
+  )
+}

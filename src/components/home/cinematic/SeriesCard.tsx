@@ -1,7 +1,13 @@
-import { Layers, Play } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Layers, Play, PenLine } from 'lucide-react'
 import type { HomeSeriesCard } from '~/lib/domain/types'
 import { ShareSeriesButton } from '~/components/public/ShareSeriesButton'
+import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
+import { buildNextChapterPrompt } from '~/lib/story-prompt'
 import { hueFromString } from './hue'
+
+const ICON_BTN =
+  'grid size-8 place-items-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60'
 
 // One series in the home "Series" row (ADR 0006 slice 5) — a poster for a whole
 // serialized season. When the series is public the card opens its /sr/$slug season
@@ -9,6 +15,28 @@ import { hueFromString } from './hue'
 // control to publish. Mirrors StoryCard's .ch-card shell.
 export function SeriesCard({ series }: { series: HomeSeriesCard }) {
   const href = `/sr/${series.slug}`
+  const [promptOpen, setPromptOpen] = useState(false)
+
+  // The headline action: hand the connected Claude a ready-made prompt to write the
+  // next chapter onto this series (copy-only — Run needs a per-series timeline, a
+  // follow-up). Reuses the shared PromptDialog/PromptActions inversion seam.
+  const nextChapterSpec = useMemo<PromptSpec>(
+    () => ({
+      title: 'Write the next chapter',
+      description: `Hand this to your connected Claude — it reads “${series.title}” so far and writes the next chapter onto your timeline.`,
+      params: [
+        { label: 'Series', value: series.title },
+        { label: 'Chapters', value: String(series.chapterCount) },
+      ],
+      prompt: buildNextChapterPrompt({
+        seriesId: series.seriesId,
+        seriesTitle: series.title,
+        chapterCount: series.chapterCount,
+      }),
+      analytics: { event: 'story_prompt_copied', props: { mode: 'next_chapter', series_id: series.seriesId } },
+    }),
+    [series.seriesId, series.title, series.chapterCount],
+  )
   const cover = (
     <>
       <span
@@ -56,12 +84,20 @@ export function SeriesCard({ series }: { series: HomeSeriesCard }) {
         ) : (
           <span className="px-2 text-xs font-medium text-muted-foreground">Draft</span>
         )}
-        <ShareSeriesButton
-          seriesId={series.seriesId}
-          shared={series.isPublic}
-          className="grid size-8 place-items-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60"
-        />
+        <span className="flex items-center gap-1">
+          <button
+            type="button"
+            className={ICON_BTN}
+            onClick={() => setPromptOpen(true)}
+            aria-label={`Write the next chapter of “${series.title}”`}
+            title="Write the next chapter"
+          >
+            <PenLine aria-hidden="true" className="size-4" />
+          </button>
+          <ShareSeriesButton seriesId={series.seriesId} shared={series.isPublic} className={ICON_BTN} />
+        </span>
       </div>
+      <PromptDialog open={promptOpen} onOpenChange={setPromptOpen} spec={nextChapterSpec} />
     </article>
   )
 }
