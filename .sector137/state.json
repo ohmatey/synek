@@ -1174,10 +1174,10 @@
     {
       "data": {
         "title": "Guard SYNEK_LOCAL_MODE on exposed deploys (boot-refuse)",
-        "description": "Found during local-100 (Rook). SYNEK_LOCAL_MODE=1 auto-signs-in the deterministic shared local user on the SSR document to skip the login wall for local downloads. On an EXPOSED/multi-tenant deploy it would sign EVERY visitor in as the one shared local user — total per-user-isolation bypass. Same class as the BETTER_AUTH_SECRET forgery hole local-100 just closed; no runtime guard exists today (only a docs warning).\n\n### Tasks\n- Add a boot-time guard: refuse to boot (fail loud) if SYNEK_LOCAL_MODE is truthy AND the instance is in exposed mode (reuse local-100s isExposedDeploy() in src/lib/auth/index.ts — NODE_ENV=production OR non-localhost BETTER_AUTH_URL).\n- Keep local dev intact: SYNEK_LOCAL_MODE on localhost is unchanged.\n\n### Done when\nA deploy with NODE_ENV=production (or a public BETTER_AUTH_URL) and SYNEK_LOCAL_MODE set crash-loops loudly instead of serving a shared-identity instance.\n\n[2026-06-19 BUILD-COMPLETE via Rook — sector137 platform delivery] assertLocalModeNotExposed() added to src/lib/auth/index.ts (module-load) — refuses to boot if SYNEK_LOCAL_MODE truthy AND isExposedDeploy(). Closes per-user-isolation bypass. typecheck+build green. DONE.",
+        "description": "Found during local-100 (Rook). SYNEK_LOCAL_MODE=1 auto-signs-in the deterministic shared local user on the SSR document to skip the login wall for local downloads. On an EXPOSED/multi-tenant deploy it would sign EVERY visitor in as the one shared local user — total per-user-isolation bypass. Same class as the BETTER_AUTH_SECRET forgery hole local-100 just closed; no runtime guard exists today (only a docs warning).\n\n### Tasks\n- Add a boot-time guard: refuse to boot (fail loud) if SYNEK_LOCAL_MODE is truthy AND the instance is in exposed mode (reuse local-100s isExposedDeploy() in src/lib/auth/index.ts — NODE_ENV=production OR non-localhost BETTER_AUTH_URL).\n- Keep local dev intact: SYNEK_LOCAL_MODE on localhost is unchanged.\n\n### Done when\nA deploy with NODE_ENV=production (or a public BETTER_AUTH_URL) and SYNEK_LOCAL_MODE set crash-loops loudly instead of serving a shared-identity instance.\n\n[2026-06-19 BUILD-COMPLETE via Rook — sector137 platform delivery] assertLocalModeNotExposed() added to src/lib/auth/index.ts (module-load) — refuses to boot if SYNEK_LOCAL_MODE truthy AND isExposedDeploy(). Closes per-user-isolation bypass. typecheck+build green. DONE.\n\n---\nResolved 2026-06-22: guard already implemented (assertLocalModeNotExposed in src/lib/auth/index.ts, invoked at module load). Fixed a residual hole — the guard re-implemented a narrower flag parse than isLocalMode() (missed \"yes\"/other truthy values the auto-sign-in gate honours); now reuses isLocalMode() as the single source of truth. Verified: exposed+yes refuses boot, localhost+yes boots. typecheck green.",
         "horizon": "now",
         "type": "fix",
-        "status": "open",
+        "status": "done",
         "dependencies": [
           "local-100"
         ]
@@ -1354,6 +1354,63 @@
         "dirty": true,
         "etag": null,
         "syncedAt": null
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-160",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Subscribe to series updates (follow + email + RSS)",
+        "description": "Audience-retention loop for serialized stories (feeds bet B6). Signed-in users FOLLOW a series and are emailed on each new chapter; a public per-series RSS feed gives an account-less channel. Email fires on chapter publish (no cron); RSS is pull-based.\n\n### Scope (v1)\n- migration 0030: series_subscriptions (seriesId, userId, unsubscribeToken, UNIQUE(seriesId,userId), ON DELETE cascade hand-edited)\n- db/subscriptions.ts + server/subscriptions.ts (follow/unfollow/unfollowByToken/listFollowers excl. owner/isFollowing)\n- notify seam in write_story appendToSeries: fire-and-forget sendEmail per follower (best-effort, no queue/retry; no-ops without RESEND_API_KEY)\n- public RSS feed route /api/sr/$slug/feed.xml gated on series.isPublic + <link rel=alternate> from sr.$slug.tsx\n- Follow button on /sr/$slug (signed-in toggle; signed-out -> RSS+sign-in nudge) + in-app series view\n- public /unsubscribe?token route (no login)\n- newChapterEmailTemplate in auth/email.ts\n- verify:subscriptions + typecheck\n\n### Out of v1\ndigest batching, anonymous email capture, per-channel prefs, web-push.\n\nDecisions (founder, 2026-06-22): signed-in-only subscribers; both email + RSS; on-publish trigger.",
+        "horizon": "now",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "P3 serialized stories (story_series, write_story appendToSeries) — commit 262ac0a"
+        ]
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-161",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Next-chapter loop polish — in-app creator surfaces (slices A-E)",
+        "description": "Round out the in-app serialized-story loop (public reader already solid + e2e-covered).\n\n- A. \"Write next chapter\" action — buildNextChapterPrompt (mirrors buildContinueStoryPrompt) via shared PromptDialog/PromptActions (copy-only; Run needs series->timeline, follow-up), on SeriesCard. DONE 2026-06-22: story-prompt.ts + SeriesCard.tsx + e2e/series-loop.spec.ts; typecheck + e2e green.\n- B. In-app series detail (/series/$id): chapters in order, status, frontier, Slice-A CTA. TODO.\n- C. Reader continuity in-app: \"next chapter ->\" when a successor exists. TODO.\n- D. Empty/first-chapter states + draft-season preview. TODO.\n- E. ProjectHero surfaces latest series; consistent chapter badges. TODO.",
+        "horizon": "now",
+        "type": "feature",
+        "status": "in_progress",
+        "dependencies": [
+          "P3 serialized stories (commit 262ac0a)"
+        ]
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-162",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "SR season page — \"evolving book\" redesign",
+        "description": "The /sr/$slug season page reads as a single story card + tab strip; it does not feel like a living, growing book. Direction (Wren pass recommended):\n- Jacket/title spread entry: large cover, series title in display serif, hook as tagline, \"Season - N chapters - updated Xd ago\", one \"Begin reading\" CTA.\n- Chapter spine / table of contents conveying sequence + shape (Chapter I/II, hooks, thin era/time ribbon); new chapters land at the bottom with a \"New\" marker so the book visibly grows.\n- Chapter openers styled like book pages (eyebrow \"Chapter II\", drop cap, serif, generous measure); demote beats/min from chips to a quiet footer.\n- Persistent spine progress indicator + page-turn feel on Next chapter.\n- Surface recency (\"Chapter 5 - added 2 days ago\").\nUses the theme system display font + texture (unused here). Owner-only \"Write next chapter\" can also land here (Slice A on the public page for owners).",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": [
+          "next-chapter loop polish"
+        ]
       }
     }
   ],
