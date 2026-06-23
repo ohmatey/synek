@@ -29,6 +29,13 @@
 # consent at run time:  -e SYNEK_TELEMETRY=1
 #   docker build --build-arg SYNEK_TELEMETRY_KEY=phc_xxx -t synek .   # publisher
 #   docker run ... -e SYNEK_TELEMETRY=1 synek                          # operator opts in
+#
+# IMAGE SIZE: the runtime stage carries ONLY production node_modules (dev tooling —
+# vite, playwright, typescript, tailwind, drizzle-kit, @types — is pruned after the
+# build) plus the built dist/, migrations, and the tsx entry script. This keeps every
+# layer small enough to push through a size-capped ingress (e.g. Cloudflare's ~100MB
+# request limit); a single fat node_modules layer would 413. tsx is a *runtime*
+# dependency here (it launches the server), so it lives in package.json dependencies.
 
 # ---- build stage: full toolchain, compile native deps, produce dist/ ----
 FROM node:22-bookworm-slim AS build
@@ -48,7 +55,12 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-# ---- runtime stage: no compilers, just the built app + node_modules ----
+# Drop dev-only dependencies so the runtime node_modules is lean. better-sqlite3's
+# compiled .node and tsx survive (both are production deps); migrations run via
+# drizzle-orm's migrator at boot, NOT the drizzle-kit CLI, so pruning it is safe.
+RUN npm prune --omit=dev
+
+# ---- runtime stage: no compilers, only the built app + production node_modules ----
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 # Project-owned PostHog ingest key for the opt-in heartbeat (blank = an image that
@@ -68,10 +80,19 @@ ENV NODE_ENV=production \
 RUN groupadd --system --gid 10001 synek \
   && useradd --system --uid 10001 --gid synek synek
 
-# Whole tree carried over: dist/, drizzle/ (migrations applied on boot), node_modules
-# (incl. the Node-ABI better-sqlite3 binary + tsx), scripts/serve-build.ts. No *.db
-# or .env are copied (see .dockerignore) — data comes from the mounted volume.
-COPY --from=build /app /app
+# Copy ONLY what the server needs at runtime, each as its own layer so none is huge:
+#   node_modules — pruned to prod deps (incl. the better-sqlite3 .node + tsx)
+#   dist/        — vite build output (client assets + server bundle)
+#   drizzle/     — migrations applied on boot via drizzle-orm
+#   scripts/     — serve-build.ts entry
+#   src/         — TS imported by the entry at runtime (e.g. telemetry/heartbeat)
+#   package.json — ESM "type":"module" resolution for tsx
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/drizzle ./drizzle
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/src ./src
+COPY --from=build /app/package.json ./package.json
 
 # /data is group-writable (0775, gid 10001) so the non-root user can write the
 # SQLite file + WAL — both via the baked owner locally and via k8s fsGroup:10001.
@@ -87,5 +108,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Invoke tsx directly (not `npm start`) so the image is self-contained and does not
-# depend on package.json scripts. tsx is installed into node_modules above.
+# depend on package.json scripts. tsx is a production dependency (see note above).
 CMD ["./node_modules/.bin/tsx", "scripts/serve-build.ts"]
