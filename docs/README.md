@@ -21,7 +21,7 @@ Standardized docs structure (crew-managed, see `/docs-ops`). Migrated from the l
 |---|---|---|
 | [product/](product/) | Margot | Product strategy, roadmap, PRDs |
 | [engineering/](engineering/) | Kael | ADRs, technical plans |
-| [ux/](ux/) | Wren | Research, personas, design reviews (empty — seeded on first engagement) |
+| [ux/](ux/) | Wren | Design system ([principles](ux/design-principles.md) · [doc](ux/design-doc.md)), research, personas, design reviews |
 | [project/](project/) | Sal + Mira | Pipeline state notes; work queue lives in `.sector137/state.json` |
 | [workflows/](workflows/) | Sal | Cross-cutting process docs, decision log |
 | [finance/](finance/) | Sable | Financial model (xlsx), monthly-review cadence + template, dated reviews |
