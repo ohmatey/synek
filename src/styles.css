@@ -3869,15 +3869,135 @@ body {
   color: color-mix(in oklab, var(--color-fg-primary) 36%, transparent);
 }
 
-/* Series "season" page (/sr/$slug): stack the chapter rail above the reader. */
+/* Series "season" page (/sr/$slug): a two-panel READING SURFACE, not a tall stack.
+   Mobile (default): a full-width jacket band, the reader, and a chapter SHEET behind
+   a "Chapters" toggle. Desktop (≥880px): a pinned chapter rail beside the reader, so
+   one chapter swaps to the next with almost no vertical scrolling. */
 .public-series {
   flex-direction: column;
   align-items: stretch;
-  /* A season is a scrollable document, not a single centered card — top-align it
-     (the base .public-story centers the lone /s/$slug reader). */
   justify-content: flex-start;
 }
 .public-series-reader { width: 100%; scroll-margin-top: 12px; }
+.ps-rail { width: 100%; min-width: 0; }
+
+/* --- Mobile: the spine is an overlay sheet toggled from the jacket ---------- */
+.ps-chapters-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-fg-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ps-chapters-toggle:hover { background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent); }
+
+.ps-spine {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  max-height: 80dvh;
+  overflow-y: auto;
+  padding-bottom: 8px;
+  background: var(--color-bg-surface);
+  border-top: 1px solid var(--color-border-default);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -12px 40px color-mix(in oklab, var(--color-fg-primary) 18%, transparent);
+  transform: translateY(100%);
+  visibility: hidden;
+  transition: transform 220ms ease, visibility 220ms;
+}
+.ps-spine[data-open] {
+  transform: translateY(0);
+  visibility: visible;
+  transition: transform 220ms ease;
+}
+.ps-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 18px 2px;
+}
+.ps-sheet-title { font-size: 15px; font-weight: 650; color: var(--color-fg-primary); }
+.ps-sheet-close {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--color-fg-primary);
+  cursor: pointer;
+}
+.ps-sheet-close:hover { background: color-mix(in oklab, var(--color-fg-primary) 10%, transparent); }
+.ps-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  border: none;
+  background: color-mix(in oklab, var(--color-fg-primary) 45%, transparent);
+  cursor: pointer;
+}
+
+/* --- Desktop: pin the rail beside the reader; the spine returns inline -------- */
+@media (min-width: 880px) {
+  .public-series {
+    display: grid;
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    align-items: start;
+    max-width: 1240px;
+    margin-inline: auto;
+    width: 100%;
+  }
+  .ps-rail {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-height: 100dvh;
+    overflow-y: auto;
+    padding-bottom: 20px;
+    border-right: 1px solid var(--color-border-default);
+  }
+  /* Spine becomes an always-visible inline list inside the rail. */
+  .ps-spine {
+    position: static;
+    transform: none;
+    visibility: visible;
+    max-height: none;
+    overflow: visible;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    transition: none;
+  }
+  .ps-chapters-toggle,
+  .ps-sheet-head,
+  .ps-sheet-backdrop { display: none; }
+  .public-series-reader {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+  }
+  .public-series-reader .psr {
+    height: 100%;
+    max-width: 600px;
+    margin-inline: auto;
+  }
+  /* Unify the width seam: jacket + spine fill the rail (no standalone 720px cap),
+     while the reader fills the main column — no width break between sections. */
+  .ps-rail .sj-jacket,
+  .ps-rail .sb-spine { max-width: none; margin-inline: 0; }
+}
 
 /* --- Series jacket: the book's front face (local-162) -------------------- */
 .sj-jacket { width: 100%; max-width: 720px; margin-inline: auto; padding: 16px 16px 0; }

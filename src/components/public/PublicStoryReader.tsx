@@ -49,6 +49,8 @@ export function PublicStoryReader({
   chapterMeta,
   ctaLabel,
   nextChapterTitle,
+  startSignal,
+  hideCoverCta,
 }: {
   data: PublicStoryDTO
   // Series continuation (ADR 0006 slice 4): when driven from a /sr/$slug season,
@@ -61,6 +63,12 @@ export function PublicStoryReader({
   chapterMeta?: { number: number | null; seriesTitle: string }
   ctaLabel?: string
   nextChapterTitle?: string
+  // Season page (/sr/$slug): the parent owns the single "Begin reading" CTA and the
+  // chapter rail. Bumping `startSignal` begins playback of this chapter from the top
+  // (the imperative entry point); `hideCoverCta` drops the reader's own cover play
+  // button so the jacket/spine are the sole start controls — no competing CTA.
+  startSignal?: number
+  hideCoverCta?: boolean
 }) {
   const inSeries = !!chapterMeta
   const { story, timelineTitle, updatedAt } = data
@@ -120,6 +128,19 @@ export function PublicStoryReader({
     if (speak) warmUpSpeech()
     setStarted(true)
   }, [speak])
+
+  // Imperative start from the season page: a bumped `startSignal` (jacket "Begin
+  // reading" or a spine row tap) plays this chapter from the top. The reader is
+  // re-keyed per chapter, so a fresh mount carrying a non-zero signal autostarts the
+  // newly selected chapter too. Guarded on >0 so the initial mount stays on the cover.
+  useEffect(() => {
+    if (!startSignal) return
+    if (speak) warmUpSpeech()
+    setIndex(0)
+    setEnded(false)
+    setStarted(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startSignal])
 
   const replay = useCallback(() => {
     if (speak) warmUpSpeech()
@@ -448,10 +469,12 @@ export function PublicStoryReader({
                   </span>
                 )}
               </div>
-              <button type="button" className="psr-play" onClick={begin} disabled={count === 0}>
-                <Play aria-hidden />
-                {ctaLabel ?? 'Play story'}
-              </button>
+              {!hideCoverCta && (
+                <button type="button" className="psr-play" onClick={begin} disabled={count === 0}>
+                  <Play aria-hidden />
+                  {ctaLabel ?? 'Play story'}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -484,9 +507,19 @@ function BeatPanel({
       )}
       <article className={cn('psr-beat', `psr-beat-${beat.kind}`)} key={beat.id}>
         {beat.widget && <BeatWidget widget={beat.widget} nodeById={nodeById} />}
-        {beat.image && !bleed && (
+        {beat.image?.url && !bleed && (
           <figure className={cn('psr-img', `psr-img-${beat.image.layout ?? 'full'}`, beat.image.aspect === 'portrait' && 'is-portrait')}>
-            <img src={beat.image.url} alt={beat.image.alt ?? ''} loading="lazy" />
+            {/* A broken/blocked image URL would otherwise leave an empty captioned frame;
+                hide the whole figure when the image fails to load. */}
+            <img
+              src={beat.image.url}
+              alt={beat.image.alt ?? ''}
+              loading="lazy"
+              onError={(e) => {
+                const fig = e.currentTarget.closest('figure')
+                if (fig) (fig as HTMLElement).style.display = 'none'
+              }}
+            />
             {beat.image.alt?.trim() && <figcaption>{beat.image.alt}</figcaption>}
           </figure>
         )}
