@@ -142,7 +142,10 @@ function SeriesDetailPage() {
               <PenLine aria-hidden />
               Write the next chapter
             </Button>
-            <BrandPicker value={brandId} onChange={(id) => void applyBrand(id)} />
+            <span className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Brand</span>
+              <BrandPicker value={brandId} onChange={(id) => void applyBrand(id)} />
+            </span>
             {series.isPublic && (
               <a className="sd-open-season" href={`/sr/${series.slug}`} target="_blank" rel="noreferrer">
                 Open public season ↗

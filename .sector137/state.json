@@ -1486,6 +1486,82 @@
           "local-163"
         ]
       }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-168",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Brand library: wire as a Home row + a11y/UX polish",
+        "description": "Inspection 28f2e1d follow-ups (Margot P1 verified + Wren P1/P2/P3).\n\n- **Home row (ADR-0007 fork #4, not delivered):** the brand library is reachable only via ProfileMenu; the ADR locked it as a Home row (\"Brand kits\"). No brand row exists in src/components/home/ (verified). Wire BrandLibraryDialog as a HomeContentRow on ProjectsWorkspace.\n- **A11y (P1, verified):** back button at BrandLibraryDialog.tsx:233 has hover:bg-accent but no focus-visible ring (axe doesn't auto-catch focus-appearance, so e2e is green but keyboard users get no indicator). Add focus-visible:ring-2 focus-visible:ring-ring/60.\n- **Set-default label (P2):** the Check/Star toggle's \"Default\" state doubles as the clear action with no signal it's clickable — relabel the active state \"Clear default\".\n- **Mobile delete copy (P2):** \"Delete? (keeps the look, loses the link)\" is `hidden sm:inline` — the load-bearing reassurance vanishes on mobile. Show a short form instead of hiding.\n- **Series-detail picker unlabeled (P2):** BrandPicker in series.$id.tsx:142 has no label (story dialog gives it a \"Brand\" label) — add a label/tooltip.\n- **Token drift (P3):** swatch ring-black/10 -> ring-foreground/15 (survives dark mode).\n\n### Done (commit pending)\n- Brand kits HOME ROW: BrandKitsSection + BrandKitCard (palette swatches + name + Default badge) on ProjectsWorkspace, always shown on the populated home (empty state when no kits), card -> kit editor via new BrandLibraryDialog.initialEditId, header 'New brand' -> autoCreate. New .ch-brand-grid.\n- A11y: back-button focus-visible ring (BrandLibraryDialog:233). Set-default active label -> 'Clear default'. Mobile delete copy shown (short form). Series-detail BrandPicker gets a visible 'Brand' label. Swatch ring-black/10 -> ring-foreground/15.\n- Verified: typecheck green; e2e 20/20 (home/brand-kit/series-loop/public-series/cinematic-home); browser-confirmed the row renders (18 backfilled kits), card->editor, focus ring live.",
+        "horizon": "next",
+        "type": "fix",
+        "status": "done",
+        "dependencies": [
+          "local-165"
+        ]
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-169",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "deriveThemeFromBrand: per-scheme color adaptation + fuller voice encoding",
+        "description": "Inspection 28f2e1d follow-ups (Lyra P1 x2).\n\n- **Dark/light identical palette (P1):** deriveColors applies the same hex slots to both schemes; resolveThemeVars only adjusts text contrast, not accent hue. A dark-built brand palette can be low-contrast on a light canvas. Derive a per-scheme variant, or populate only the scheme the palette reads as and leave the other undefined (safe fallback).\n- **Voice directive gaps (P1, verify pre-existing):** brandVoiceDirective omits voiceSchema.contentTypeVariations (per-channel guidance) and kit.keyMessages (strategic throughlines) — an agent writing \"in brand voice\" gets tone but no purpose/channel anchor. Add both (capped for prompt hygiene). Confirm whether this predates 28f2e1d.\n- **mapFont (P2):** matches on concatenated family+name; the name field (often a weight label) adds noise — match on family only.",
+        "horizon": "next",
+        "type": "fix",
+        "status": "open",
+        "dependencies": [
+          "28f2e1d"
+        ]
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-170",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Brand usage analytics events",
+        "description": "Inspection 28f2e1d (Margot P2). No brand events exist — can't measure the Realscript-companion bet. Add brand_applied_to_story { brand_id, source: picker|mcp } + brand_applied_to_series, emitted from applyBrandToStory / applyBrandToSeries (+ optionally brand_created / brand_set_default). ClientEvent in posthog/client.ts.",
+        "horizon": "next",
+        "type": "chore",
+        "status": "open",
+        "dependencies": [
+          "28f2e1d"
+        ]
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-171",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Brand backend nits: atomic story+theme seed + migration guard",
+        "description": "Inspection 28f2e1d (Kael P2 + Rook P2, both low blast radius).\n\n- **Atomicity:** applyBrandToStory + set_story_brand do setStoryBrand then setStoryTheme as two separate writes; a crash leaves brand set but theme unseeded. Wrap in one db.transaction (series path is already atomic via updateSeries).\n- **Migration belt:** 0030's backfill INSERT lacks the house `AND NOT EXISTS (SELECT 1 FROM brands WHERE slug=...)` guard used by 0019/0020 — add it to survive a backup/restore-onto-ledger edge. (Hash ledger makes normal re-run a non-issue; UUID slug makes collision improbable.)\n- **getStoryBrandContext (P3):** not owner-scoped at the DB layer (caller guards) — add ownerId to the select for defense-in-depth.\n- **Postgres portability (note):** 0030 backfill uses SQLite-only randomblob/json_extract — accepted debt shared with 0019/0020; flag for the PG cut-over.",
+        "horizon": "next",
+        "type": "chore",
+        "status": "open",
+        "dependencies": [
+          "28f2e1d"
+        ]
+      }
     }
   ],
   "tasks": [],
@@ -1950,6 +2026,19 @@
         "dirty": true,
         "etag": null,
         "syncedAt": null
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-167",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Inspection 28f2e1d — brand slice: APPROVE-WITH-NITS",
+        "body": "Inspection of commit 28f2e1d (ADR-0007 brand slice) — 5 lenses fanned out (Kael/Rook/Wren/Lyra/Margot), consolidated + adversarially verified.\n\nVERDICT: APPROVE-WITH-NITS (unanimous; no P0). Already committed + e2e-green; nits are follow-ups, not blockers.\n\nSOUND (verified): owner-scoping is tight — Kael found no cross-owner hole; every brand write double-checks target AND brand, fail-closed. Migration 0030 is additive + non-destructive (inline projects.brand KEPT) + reversible; FK `ON DELETE SET NULL` IS enforced (db/index.ts:15 sets pragma foreign_keys=ON — Rook's P1 confirmed a NON-ISSUE). Cascade story.brandId ?? series.brandId ?? project.brandId resolves voice live; one-shot theme seed vs live voice boundary correct. Spec mostly delivered; no scope creep into deferred items; plumbing (projects table/FKs/MCP/p-slug) preserved.\n\nFOLLOW-UPS filed: local-168 (home-row + UI a11y/UX), local-169 (per-scheme theme + voice encoding), local-170 (brand analytics), local-171 (backend nits). All horizon:next, none blocking."
       }
     }
   ],

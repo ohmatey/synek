@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { BookOpen, BookOpenText, Layers, Play, Plus } from 'lucide-react'
+import { BookOpen, BookOpenText, Layers, Palette, Play, Plus } from 'lucide-react'
 import { listTimelines } from '~/lib/server/timelines'
 import { listHomeStories } from '~/lib/server/stories'
 import { listHomeSeries } from '~/lib/server/series'
 import { listHomeEntities } from '~/lib/server/entities'
 import { listApiKeys } from '~/lib/server/api-keys'
+import { listBrands, getDefaultBrandId, type BrandSummary } from '~/lib/server/brands'
 import { useSession } from '~/lib/auth/client'
 import type { HomeSeriesCard, HomeStoryCard, TimelineSummary } from '~/lib/domain/types'
+import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { BrandLibraryDialog } from '~/components/brand/BrandLibraryDialog'
 import { AppHeader } from './AppHeader'
 import { NewTimelineDialog } from './NewTimelineDialog'
 import { NewStoryDialog, type CreateMode } from './NewStoryDialog'
@@ -67,6 +70,9 @@ function Workspace() {
   // The "New story" / "New series" flow (empty-state starters + the library action
   // bar). Null when closed; carries the mode + any starter preset while open.
   const [create, setCreate] = useState<{ mode: CreateMode; title: string; topic: string } | null>(null)
+  // The Brand kits library (ADR-0007 home row). Null = closed; `editId` jumps to a
+  // kit's editor (card click), `create` opens a fresh kit (the "New brand" action).
+  const [brandDialog, setBrandDialog] = useState<{ editId: string | null; create: boolean } | null>(null)
 
   const { data: timelines = [], isLoading: tlLoading } = useQuery({
     queryKey: ['timelines'],
@@ -90,6 +96,8 @@ function Workspace() {
   })
   const { data: apiKeys } = useQuery({ queryKey: ['api-keys'], queryFn: () => listApiKeys() })
   const hasApiKey = (apiKeys?.length ?? 0) > 0
+  const { data: brands = [] } = useQuery({ queryKey: ['brands'], queryFn: () => listBrands(), refetchInterval: 30_000 })
+  const { data: defaultBrandId = null } = useQuery({ queryKey: ['default-brand'], queryFn: () => getDefaultBrandId() })
 
   const loading = tlLoading || stLoading || enLoading || srLoading
   const hasStories = stories.length > 0
@@ -142,6 +150,15 @@ function Workspace() {
               {/* Series — serialized seasons (ADR 0006). */}
               {hasSeries && <SeriesSection series={series} />}
 
+              {/* Brand kits — the identity layer stories/series dress in (ADR 0007).
+                  Always on the populated home (incl. empty) so it stays discoverable. */}
+              <BrandKitsSection
+                brands={brands}
+                defaultBrandId={defaultBrandId}
+                onOpen={(editId) => setBrandDialog({ editId, create: false })}
+                onNew={() => setBrandDialog({ editId: null, create: true })}
+              />
+
               {/* All timelines (the substrate). */}
               {hasTimelines && <TimelinesSection timelines={timelines} onNewTimeline={openNewTimeline} />}
 
@@ -162,7 +179,84 @@ function Workspace() {
           if (!o) setCreate(null)
         }}
       />
+      <BrandLibraryDialog
+        open={!!brandDialog}
+        onOpenChange={(o) => {
+          if (!o) setBrandDialog(null)
+        }}
+        initialEditId={brandDialog?.editId ?? null}
+        autoCreate={brandDialog?.create ?? false}
+      />
     </div>
+  )
+}
+
+// Brand kits as a home row (ADR-0007 fork #4): the identity layer surfaced beside
+// stories/series, not buried in a settings dropdown. Each card opens the kit's editor;
+// the header action creates a new one. Both routes share the BrandLibraryDialog.
+function BrandKitsSection({
+  brands,
+  defaultBrandId,
+  onOpen,
+  onNew,
+}: {
+  brands: BrandSummary[]
+  defaultBrandId: string | null
+  onOpen: (brandId: string) => void
+  onNew: () => void
+}) {
+  return (
+    <section className="ch-row" aria-label="Brand kits">
+      <header className="ch-row-head">
+        <h2 className="ch-row-title">Brand kits</h2>
+        <div className="ch-row-head-actions">
+          <button type="button" className="ch-chip-new" onClick={onNew}>
+            <Plus className="size-3.5" />
+            New brand
+          </button>
+        </div>
+      </header>
+      {brands.length === 0 ? (
+        <p className="ch-row-empty">No brand kits yet — create one to dress your stories and series on-brand.</p>
+      ) : (
+        <div className="ch-brand-grid">
+          {brands.map((b) => (
+            <BrandKitCard key={b.id} brand={b} isDefault={b.id === defaultBrandId} onOpen={() => onOpen(b.id)} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function BrandKitCard({ brand, isDefault, onOpen }: { brand: BrandSummary; isDefault: boolean; onOpen: () => void }) {
+  const swatches = (brand.kit?.colors ?? []).filter((c) => /^#[0-9a-fA-F]{3,8}$/.test(c)).slice(0, 5)
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full flex-col gap-2 rounded-lg border border-border/60 bg-card/40 p-3 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60"
+      aria-label={`Edit brand kit ${brand.name}`}
+    >
+      <span className="flex items-center gap-2 text-sm font-medium">
+        <Palette className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">{brand.name}</span>
+        {isDefault && (
+          <Badge variant="secondary" className="rounded-full">
+            Default
+          </Badge>
+        )}
+      </span>
+      {swatches.length > 0 ? (
+        <span className="flex items-center gap-1" aria-hidden="true">
+          {swatches.map((c, i) => (
+            <span key={i} className="size-3.5 rounded-full ring-1 ring-inset ring-foreground/15" style={{ background: c }} />
+          ))}
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground">{brand.kit ? 'No palette yet' : 'Empty kit'}</span>
+      )}
+    </button>
   )
 }
 

@@ -40,11 +40,15 @@ export function BrandLibraryDialog({
   // the caller can reference it immediately.
   autoCreate = false,
   onCreated,
+  // When set, opening jumps straight to this brand's editor (the Home "Brand kits"
+  // row's card click) instead of the list.
+  initialEditId,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   autoCreate?: boolean
   onCreated?: (brandId: string) => void
+  initialEditId?: string | null
 }) {
   const qc = useQueryClient()
   const [editId, setEditId] = useState<string | null>(null)
@@ -54,12 +58,13 @@ export function BrandLibraryDialog({
   const brands = useQuery({ queryKey: ['brands'], queryFn: () => listBrands(), enabled: open })
   const defaultId = useQuery({ queryKey: ['default-brand'], queryFn: () => getDefaultBrandId(), enabled: open })
 
-  // Reset to the list each time the dialog opens.
+  // On open, jump to a requested kit's editor (Home card click), else the list.
   useEffect(() => {
     if (open) {
-      setEditId(null)
+      setEditId(initialEditId ?? null)
       setConfirmId(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const refresh = () =>
@@ -140,7 +145,7 @@ export function BrandLibraryDialog({
                               {swatches.map((c, i) => (
                                 <span
                                   key={i}
-                                  className="size-3 rounded-full ring-1 ring-inset ring-black/10"
+                                  className="size-3 rounded-full ring-1 ring-inset ring-foreground/15"
                                   style={{ background: c }}
                                 />
                               ))}
@@ -151,6 +156,7 @@ export function BrandLibraryDialog({
                         </div>
                         {confirmId === b.id ? (
                           <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="sm:hidden">Delete?</span>
                             <span className="hidden sm:inline">Delete? (keeps the look, loses the link)</span>
                             <Button variant="ghost" size="sm" onClick={() => setConfirmId(null)}>Cancel</Button>
                             <Button variant="destructive" size="sm" onClick={() => void remove(b.id)}>Delete</Button>
@@ -164,7 +170,7 @@ export function BrandLibraryDialog({
                               title={isDefault ? 'Clear default' : 'Set as default'}
                             >
                               {isDefault ? <Check className="size-4" /> : <Star className="size-4" />}
-                              {isDefault ? 'Default' : 'Set default'}
+                              {isDefault ? 'Clear default' : 'Set default'}
                             </Button>
                             <Button variant="outline" size="sm" onClick={() => setEditId(b.id)}>Edit</Button>
                             <Button variant="ghost" size="icon" aria-label={`Delete ${b.name}`} onClick={() => setConfirmId(b.id)}>
@@ -230,7 +236,7 @@ function BrandEditor({ brandId, onBack, onSaved }: { brandId: string; onBack: ()
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <button type="button" onClick={onBack} className="grid size-7 place-items-center rounded-md hover:bg-accent" aria-label="Back to brands">
+          <button type="button" onClick={onBack} className="grid size-7 place-items-center rounded-md outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60" aria-label="Back to brands">
             <ArrowLeft className="size-4" />
           </button>
           Edit brand

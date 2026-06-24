@@ -5626,6 +5626,14 @@ body {
   width: auto;
   max-width: none;
 }
+/* Brand kits row — a wrapping grid of compact identity cards (palette + name),
+   shorter than the poster rows. Cards are Tailwind-styled (see BrandKitCard). */
+.ch-brand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  padding: 0 24px;
+}
 /* Inline rename box (timeline cards) replaces the poster face while editing. */
 .ch-card-rename {
   display: flex;
