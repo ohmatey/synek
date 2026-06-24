@@ -1,5 +1,8 @@
-# Rebuilt inside the image — never ship the host's copies.
-node_modules
+# Rebuilt inside the image — never ship the host's copies. `**/` is required so
+# nested workspace installs (e.g. packages/ui/node_modules, which under bun are
+# symlinks into the root .bun store) don't leak in as dangling links and break
+# `npm install`/`npm prune` in the build stage.
+**/node_modules
 dist
 .output
 .nitro
