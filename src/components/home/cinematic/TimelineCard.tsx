@@ -12,27 +12,16 @@ import {
 import { Badge } from '~/components/ui/badge'
 import { Input } from '~/components/ui/input'
 import { deleteTimeline, renameTimeline } from '~/lib/server/timelines'
-import type { ProjectSummary, TimelineSummary } from '~/lib/domain/types'
-import { MoveToProjectSubmenu } from './MoveToProjectSubmenu'
-import { useMoveTimeline } from './useMoveTimeline'
+import type { TimelineSummary } from '~/lib/domain/types'
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
-// One timeline in the home "Timelines" carousel (Wren §5). The card opens the
-// canvas; the overflow menu carries Rename / Move to project / Delete. This is a
-// deliberate standalone menu (a fresh DropdownMenu, not RowMenu) — folding it back
-// into the shared RowMenu is a documented fast-follow (local-126), not done here.
-// Inline rename uses the same draft/blur/Enter pattern as TimelinesSection.
-export function TimelineCard({
-  timeline,
-  projects,
-}: {
-  timeline: TimelineSummary
-  projects: ProjectSummary[]
-}) {
+// One timeline in the home "Timelines" grid. The card opens the canvas; the overflow
+// menu carries Rename / Delete. (Projects are invisible plumbing now — there is no
+// "move to project" action.) Inline rename uses the draft/blur/Enter pattern.
+export function TimelineCard({ timeline }: { timeline: TimelineSummary }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const move = useMoveTimeline()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(timeline.title)
 
@@ -54,8 +43,6 @@ export function TimelineCard({
       qc.invalidateQueries({ queryKey: ['home-stories'] }),
     ])
   }
-
-  const showMove = projects.length > 1
 
   return (
     <article className="ch-tl-card">
@@ -112,21 +99,6 @@ export function TimelineCard({
               <Pencil />
               Rename
             </DropdownMenuItem>
-            {showMove && (
-              <MoveToProjectSubmenu
-                projects={projects}
-                currentProjectId={timeline.projectId}
-                onMove={(target) =>
-                  void move({
-                    timelineId: timeline.id,
-                    fromProjectId: timeline.projectId,
-                    targetProjectId: target.id,
-                    targetProjectTitle: target.title,
-                    itemLabel: timeline.title,
-                  })
-                }
-              />
-            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => void remove()}>
               <Trash2 />

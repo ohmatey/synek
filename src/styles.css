@@ -2934,7 +2934,9 @@ body {
   font-size: 12px;
   font-style: italic;
   letter-spacing: 0.02em;
-  color: var(--color-fg-subtle);
+  /* fg-secondary (not the fainter fg-subtle) so the dateline clears AA on the
+     translucent reader panel, esp. in dark mode. */
+  color: var(--color-fg-secondary);
 }
 .sv-text {
   margin: 0;
@@ -4398,7 +4400,8 @@ body {
   font-size: 12.5px;
   font-style: italic;
   letter-spacing: 0.01em;
-  color: color-mix(in oklab, var(--color-fg-primary) 62%, transparent);
+  /* Raised from 62% so the dateline clears AA against the near-black reels reader. */
+  color: color-mix(in oklab, var(--color-fg-primary) 75%, transparent);
 }
 .psr-text {
   font-size: 17px;
@@ -5007,6 +5010,14 @@ body {
   justify-content: center;
   text-align: center;
 }
+/* The populated home's featured-story banner — reduced-height so it leads the page
+   without crowding out the Create bar + rows below it (design Principle 2). Stays
+   bottom-anchored (the inherited align-items: flex-end) so the text sits over the
+   cover's scrim. */
+.ch-hero[data-featured] {
+  min-height: 40vh;
+  max-height: 48vh;
+}
 .ch-hero-img {
   position: absolute;
   inset: 0;
@@ -5448,7 +5459,6 @@ body {
   width: 13px;
   height: 13px;
 }
-
 /* Draft-card headline action — "Publish to share". The amber story accent rides as
    a carrier (AA-safe text token + a hairline border + a faint fill), never a colored
    perimeter on the card itself (design-doc carrier rule). Signals that publishing is
@@ -5831,6 +5841,180 @@ body {
   font-size: 15px;
   line-height: 1.55;
   color: color-mix(in oklab, var(--color-fg-primary) 72%, transparent);
+}
+/* "or start with a timeline" — the demoted substrate path under the story/series CTAs. */
+.ch-empty-sub {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--color-fg-muted);
+}
+.ch-textlink {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-fg-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ch-textlink:hover {
+  color: var(--color-accent-primary);
+}
+.ch-textlink:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* The new-creator onboarding block below the empty hero: connect nudge + starters. */
+.ch-onboard {
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 8px 24px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* Connect-MCP nudge — the onboarding backbone (shown until an API key exists). */
+.ch-nudge {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in oklab, var(--color-accent-primary) 32%, transparent);
+  background: color-mix(in oklab, var(--color-accent-primary) 7%, var(--color-bg-surface));
+}
+.ch-nudge-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  color: var(--color-accent-primary);
+}
+.ch-nudge-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--color-fg-primary);
+}
+.ch-nudge-body {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-fg-muted);
+}
+.ch-nudge-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent-primary);
+  text-decoration: none;
+}
+.ch-nudge-link:hover {
+  text-decoration: underline;
+}
+.ch-nudge-link svg {
+  width: 13px;
+  height: 13px;
+}
+.ch-nudge-link:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Story starters — prompt scaffolds that open the create dialog pre-filled. */
+.ch-starters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ch-starters-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-fg-muted);
+}
+.ch-starter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.ch-starter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  text-align: left;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-surface);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+.ch-starter:hover {
+  border-color: color-mix(in oklab, var(--color-fg-primary) 30%, transparent);
+  transform: translateY(-2px);
+}
+.ch-starter:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+.ch-starter-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--color-accent-story) 18%, transparent);
+  color: var(--color-accent-story);
+}
+.ch-starter-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.ch-starter-icon[data-tone='blue'] {
+  background: color-mix(in oklab, var(--color-accent-primary) 16%, transparent);
+  color: var(--color-accent-primary);
+}
+.ch-starter-icon[data-tone='teal'] {
+  background: color-mix(in oklab, var(--color-accent-era) 18%, transparent);
+  color: var(--color-accent-era);
+}
+.ch-starter-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--color-fg-primary);
+}
+.ch-starter-body {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-fg-muted);
+}
+.ch-starter-tag {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-accent-story) 16%, transparent);
+  color: var(--color-accent-story);
+}
+.ch-starter-tag[data-tone='blue'] {
+  background: color-mix(in oklab, var(--color-accent-primary) 14%, transparent);
+  color: var(--color-accent-primary);
+}
+.ch-starter-tag[data-tone='teal'] {
+  background: color-mix(in oklab, var(--color-accent-era) 16%, transparent);
+  color: var(--color-accent-era);
 }
 
 /* Move-to-project popover radio list. */

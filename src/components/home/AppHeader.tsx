@@ -1,13 +1,12 @@
 import { Link } from '@tanstack/react-router'
-import { FolderKanban } from 'lucide-react'
 import { ClientOnly } from '@synek/ui'
 import { Button } from '~/components/ui/button'
 import { ProfileMenu } from '~/components/ProfileMenu'
 import { useSession } from '~/lib/auth/client'
 
 // The right side of the global app header. Signed out: a Sign-in entry point.
-// Signed in: a Projects button (returns to the workspace list at `/`, clearing any
-// active project scope) + the account menu (which carries the theme switcher).
+// Signed in: just the account menu (which carries the theme switcher). Projects are
+// invisible plumbing now — there is no projects nav.
 function HeaderActions() {
   const { data: session, isPending } = useSession()
 
@@ -20,17 +19,7 @@ function HeaderActions() {
       </Button>
     )
 
-  return (
-    <div className="flex items-center gap-2">
-      <Button asChild variant="outline" size="sm">
-        <Link to="/">
-          <FolderKanban className="size-4" />
-          Projects
-        </Link>
-      </Button>
-      <ProfileMenu />
-    </div>
-  )
+  return <ProfileMenu />
 }
 
 // The global header shown above the workspace (root /) and the settings pages.

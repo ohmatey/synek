@@ -11,9 +11,7 @@ import {
 } from '~/components/ui/dropdown-menu'
 import { Input } from '~/components/ui/input'
 import { deleteTimeline, renameTimeline } from '~/lib/server/timelines'
-import type { HomeStoryCard, ProjectSummary, TimelineSummary } from '~/lib/domain/types'
-import { MoveToProjectSubmenu } from './MoveToProjectSubmenu'
-import { useMoveTimeline } from './useMoveTimeline'
+import type { HomeStoryCard, TimelineSummary } from '~/lib/domain/types'
 import { useStoryActions } from './useStoryActions'
 import { hueFromString } from './hue'
 
@@ -95,21 +93,11 @@ function Poster({
 const MENU_TRIGGER_CLASS =
   'grid size-8 place-items-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60 data-[state=open]:bg-accent'
 
-export function RecentCard({
-  item,
-  projects,
-  currentProjectId,
-}: {
-  item: RecentItem
-  projects: ProjectSummary[]
-  // The project the item's timeline currently belongs to — for the story Move
-  // submenu's "current" marker + undo path. Timelines read their own projectId.
-  currentProjectId: string | null
-}) {
+export function RecentCard({ item }: { item: RecentItem }) {
   return item.kind === 'story' ? (
-    <StoryRecent story={item.story} id={item.id} updatedAt={item.updatedAt} projects={projects} currentProjectId={currentProjectId} />
+    <StoryRecent story={item.story} id={item.id} updatedAt={item.updatedAt} />
   ) : (
-    <TimelineRecent timeline={item.timeline} id={item.id} updatedAt={item.updatedAt} projects={projects} />
+    <TimelineRecent timeline={item.timeline} id={item.id} updatedAt={item.updatedAt} />
   )
 }
 
@@ -117,18 +105,12 @@ function StoryRecent({
   story,
   id,
   updatedAt,
-  projects,
-  currentProjectId,
 }: {
   story: HomeStoryCard
   id: string
   updatedAt: number
-  projects: ProjectSummary[]
-  currentProjectId: string | null
 }) {
-  const move = useMoveTimeline()
-  const { play, continueWriting, openCanvas, share } = useStoryActions(story, currentProjectId, 'card')
-  const showMove = projects.length > 1
+  const { play, continueWriting, openCanvas, share } = useStoryActions(story, null, 'card')
 
   return (
     <article className="ch-card">
@@ -173,24 +155,6 @@ function StoryRecent({
               <Share2 />
               Share
             </DropdownMenuItem>
-            {showMove && (
-              <>
-                <DropdownMenuSeparator />
-                <MoveToProjectSubmenu
-                  projects={projects}
-                  currentProjectId={currentProjectId}
-                  onMove={(target) =>
-                    void move({
-                      timelineId: story.timelineId,
-                      fromProjectId: currentProjectId,
-                      targetProjectId: target.id,
-                      targetProjectTitle: target.title,
-                      itemLabel: story.title,
-                    })
-                  }
-                />
-              </>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -202,18 +166,14 @@ function TimelineRecent({
   timeline,
   id,
   updatedAt,
-  projects,
 }: {
   timeline: TimelineSummary
   id: string
   updatedAt: number
-  projects: ProjectSummary[]
 }) {
   const qc = useQueryClient()
-  const move = useMoveTimeline()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(timeline.title)
-  const showMove = projects.length > 1
 
   async function saveRename() {
     const t = draft.trim()
@@ -285,21 +245,6 @@ function TimelineRecent({
               <Pencil />
               Rename
             </DropdownMenuItem>
-            {showMove && (
-              <MoveToProjectSubmenu
-                projects={projects}
-                currentProjectId={timeline.projectId}
-                onMove={(target) =>
-                  void move({
-                    timelineId: timeline.id,
-                    fromProjectId: timeline.projectId,
-                    targetProjectId: target.id,
-                    targetProjectTitle: target.title,
-                    itemLabel: timeline.title,
-                  })
-                }
-              />
-            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => void remove()}>
               <Trash2 />
