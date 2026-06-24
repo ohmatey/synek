@@ -12,7 +12,7 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": [
         "-c",
-        "export PATH=$HOME/.nvm/versions/node/v22.13.1/bin:$PATH; PORT=3005 DATABASE_URL=e2e.db npx tsx scripts/serve-build.ts"
+        "export PATH=$HOME/.nvm/versions/node/v22.13.1/bin:$PATH; PORT=3005 DATABASE_URL=e2e.db BETTER_AUTH_SECRET=synek-e2e-test-secret-not-for-production-0001 npx tsx scripts/serve-build.ts"
       ],
       "port": 3005
     },

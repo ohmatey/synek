@@ -49,7 +49,8 @@ export function PublicStoryReader({
   chapterMeta,
   ctaLabel,
   nextChapterTitle,
-  startSignal,
+  startImmediately,
+  playSignal,
   hideCoverCta,
 }: {
   data: PublicStoryDTO
@@ -63,11 +64,16 @@ export function PublicStoryReader({
   chapterMeta?: { number: number | null; seriesTitle: string }
   ctaLabel?: string
   nextChapterTitle?: string
-  // Season page (/sr/$slug): the parent owns the single "Begin reading" CTA and the
-  // chapter rail. Bumping `startSignal` begins playback of this chapter from the top
-  // (the imperative entry point); `hideCoverCta` drops the reader's own cover play
-  // button so the jacket/spine are the sole start controls — no competing CTA.
-  startSignal?: number
+  // Season page (/sr/$slug): the parent owns the single start CTA and the chapter
+  // rail, and re-keys this reader per chapter. `startImmediately` makes the fresh
+  // mount open already PLAYING (auto-continue into the next chapter) vs. on the chapter
+  // OPENER (a spine-row pick, which previews before reading). `playSignal` starts the
+  // CURRENT chapter in place (the jacket "Begin/Continue reading" CTA on a shown
+  // opener) without a remount — so a single chapter open stays a single analytics
+  // impression. `hideCoverCta` drops the reader's own cover play button so the jacket
+  // is the sole start control — no competing CTA.
+  startImmediately?: boolean
+  playSignal?: number
   hideCoverCta?: boolean
 }) {
   const inSeries = !!chapterMeta
@@ -78,7 +84,7 @@ export function PublicStoryReader({
 
   const rootRef = useRef<HTMLElement>(null)
   const [index, setIndex] = useState(0)
-  const [started, setStarted] = useState(false)
+  const [started, setStarted] = useState(!!startImmediately)
   const [ended, setEnded] = useState(false)
   const [paused, setPaused] = useState(false)
   const [speak, setSpeak] = useState(false)
@@ -129,18 +135,19 @@ export function PublicStoryReader({
     setStarted(true)
   }, [speak])
 
-  // Imperative start from the season page: a bumped `startSignal` (jacket "Begin
-  // reading" or a spine row tap) plays this chapter from the top. The reader is
-  // re-keyed per chapter, so a fresh mount carrying a non-zero signal autostarts the
-  // newly selected chapter too. Guarded on >0 so the initial mount stays on the cover.
+  // Start the current chapter in place when the parent bumps `playSignal` (jacket CTA
+  // on a shown opener). The ref guard skips the initial mount so the opener stays put
+  // until the user acts — only an actual bump begins playback (no remount, one open).
+  const lastPlay = useRef(playSignal)
   useEffect(() => {
-    if (!startSignal) return
+    if (playSignal === lastPlay.current) return
+    lastPlay.current = playSignal
     if (speak) warmUpSpeech()
     setIndex(0)
     setEnded(false)
     setStarted(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startSignal])
+  }, [playSignal])
 
   const replay = useCallback(() => {
     if (speak) warmUpSpeech()

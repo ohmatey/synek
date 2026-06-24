@@ -3966,7 +3966,7 @@ body {
     align-self: start;
     max-height: 100dvh;
     overflow-y: auto;
-    padding-bottom: 20px;
+    padding: 16px 22px 32px;
     border-right: 1px solid var(--color-border-default);
   }
   /* Spine becomes an always-visible inline list inside the rail. */
@@ -3996,9 +3996,31 @@ body {
     margin-inline: auto;
   }
   /* Unify the width seam: jacket + spine fill the rail (no standalone 720px cap),
-     while the reader fills the main column — no width break between sections. */
+     while the reader fills the main column — no width break between sections. The
+     rail's own padding is the gutter, so trim the inner side padding. A divider sets
+     the spine apart from the jacket above it (breathing room). */
   .ps-rail .sj-jacket,
-  .ps-rail .sb-spine { max-width: none; margin-inline: 0; }
+  .ps-rail .sb-spine { max-width: none; margin-inline: 0; padding-inline: 2px; }
+  .ps-rail .ps-spine {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--color-border-default);
+  }
+}
+
+/* Med-1 (UX walkthrough): on mobile the reader sits BELOW the jacket band, so its
+   default vertically-centered cover left the chapter opener stranded near the bottom
+   of the viewport. Top-align the opener/end panels in series mode so the opener peeks
+   right under the jacket without a scroll. Desktop keeps the centered, balanced card. */
+@media (max-width: 879px) {
+  /* Clear the absolutely-positioned reader header (top:24 + 32 tall), then top-align
+     so the opener rises right under the jacket instead of centering near the bottom. */
+  .public-series-reader .psr-cover,
+  .public-series-reader .psr-end {
+    justify-content: flex-start;
+    padding-top: 68px;
+    padding-bottom: 32px;
+  }
 }
 
 /* --- Series jacket: the book's front face (local-162) -------------------- */
@@ -4010,7 +4032,9 @@ body {
   overflow: hidden;
   background: color-mix(in oklab, var(--color-accent-story) 12%, var(--color-bg-base));
 }
-.sj-cover img { display: block; width: 100%; max-height: 55dvh; object-fit: cover; }
+/* Cap the cover so it leads rather than dominates — on the in-app detail (centered,
+   wide) the old 55dvh hero pushed the frontier + spine below the fold. */
+.sj-cover img { display: block; width: 100%; max-height: 42dvh; object-fit: cover; }
 .sj-cover-fallback {
   display: grid;
   place-items: center;
@@ -4018,7 +4042,7 @@ body {
   color: color-mix(in oklab, var(--color-accent-story) 60%, var(--color-fg-primary));
 }
 .sj-cover-fallback svg { width: 40px; height: 40px; opacity: 0.6; }
-.sj-body { display: flex; flex-direction: column; gap: 10px; padding: 16px 4px 4px; }
+.sj-body { display: flex; flex-direction: column; gap: 12px; padding: 20px 4px 6px; }
 .sj-title {
   font-family: var(--font-display, inherit);
   font-size: clamp(28px, 5vw, 44px);
@@ -4067,7 +4091,7 @@ body {
   gap: 12px;
   width: 100%;
   text-align: left;
-  padding: 14px 6px;
+  padding: 16px 8px;
   background: transparent;
   border: none;
   color: inherit;

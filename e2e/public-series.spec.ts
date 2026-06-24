@@ -81,12 +81,18 @@ test('finishing a chapter offers "Next chapter", which advances in order', async
   await expect(page.getByText(/The conspirators expected to be hailed as liberators/)).toBeVisible()
 })
 
-test('a spine row jumps to a later chapter and starts it', async ({ page }) => {
+test('a spine row opens a later chapter on its opener; the jacket starts it', async ({ page }) => {
   await page.goto(`/sr/${SLUG}`)
   const spine = page.getByRole('navigation', { name: 'Table of contents' })
   await spine.getByRole('button', { name: /Chapter 2: After the Ides/ }).click()
 
-  // The reader swaps to chapter two and begins playing it.
+  // Picking a chapter PREVIEWS it on the opener (its <h2>) — not mid-playback.
+  await expect(page.getByRole('heading', { name: 'After the Ides' })).toBeVisible()
+  await expect(page.getByText(/The conspirators expected to be hailed as liberators/)).toHaveCount(0)
+
+  // The single jacket CTA (now "Continue reading", since a later chapter is selected)
+  // starts the previewed chapter.
+  await page.getByRole('button', { name: 'Continue reading' }).click()
   await expect(page.getByText(/The conspirators expected to be hailed as liberators/)).toBeVisible()
 })
 
@@ -100,11 +106,14 @@ test('on mobile the spine is an overlay sheet behind a "Chapters" toggle', async
   const toggle = page.getByRole('button', { name: /^Chapters \(/ })
   await expect(toggle).toBeVisible()
 
-  // Opening the sheet reveals the chapter list; picking a chapter closes it and starts.
+  // Opening the sheet reveals the chapter list; picking a chapter closes the sheet and
+  // previews that chapter on its opener; the jacket CTA then starts it.
   await toggle.click()
   await expect(spine).toBeVisible()
   await spine.getByRole('button', { name: /Chapter 2: After the Ides/ }).click()
   await expect(spine).not.toBeVisible()
+  await expect(page.getByRole('heading', { name: 'After the Ides' })).toBeVisible()
+  await page.getByRole('button', { name: 'Continue reading' }).click()
   await expect(page.getByText(/The conspirators expected to be hailed as liberators/)).toBeVisible()
 })
 

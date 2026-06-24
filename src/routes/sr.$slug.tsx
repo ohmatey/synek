@@ -52,9 +52,11 @@ function PublicSeriesPage() {
     [data, resolvedTheme],
   )
   const [index, setIndex] = useState(0)
-  // Bumped on every chapter pick — drives the reader to begin playback (the single
-  // start path; the reader's own cover CTA is suppressed in series mode).
-  const [startNonce, setStartNonce] = useState(0)
+  // The reader is re-keyed per chapter. `autostart` decides whether a chapter SWAP
+  // opens playing (auto-continue) or on the opener (a spine pick — preview); `playNonce`
+  // starts the CURRENT chapter in place from the jacket CTA (no remount → one open).
+  const [autostart, setAutostart] = useState(false)
+  const [playNonce, setPlayNonce] = useState(0)
   // Mobile: the spine is an overlay sheet (desktop pins it as a sidebar instead).
   const [sheetOpen, setSheetOpen] = useState(false)
   const readerRef = useRef<HTMLDivElement>(null)
@@ -76,13 +78,30 @@ function PublicSeriesPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [sheetOpen])
 
-  // Pick a chapter: swap the reader to it, start playback, close the mobile sheet,
-  // and pull the reader into view (no-op on desktop where it's already pinned).
+  // Pick a chapter from the spine: swap the reader to that chapter's OPENER (preview,
+  // not playing), close the mobile sheet, and scroll to the top so the jacket's start
+  // CTA + the opener are both in view on mobile (no-op on desktop where both are
+  // already pinned side by side).
   const selectChapter = useCallback((i: number) => {
     setIndex(i)
-    setStartNonce((n) => n + 1)
+    setAutostart(false)
+    setSheetOpen(false)
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  // The single start CTA (jacket "Begin/Continue reading"): play the CURRENT chapter
+  // in place and pull the reader into view on mobile.
+  const startCurrent = useCallback(() => {
+    setPlayNonce((n) => n + 1)
     setSheetOpen(false)
     readerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  // End-of-chapter "Next chapter": auto-continue straight into the next chapter
+  // (Netflix-style), opening it already playing — no opener stop.
+  const continueNext = useCallback(() => {
+    setIndex((i) => i + 1)
+    setAutostart(true)
   }, [])
 
   if (!data || data.chapters.length === 0) {
@@ -140,7 +159,7 @@ function PublicSeriesPage() {
           coverImage={series.coverImage}
           chapterCount={chapters.length}
           updatedAt={updatedAt}
-          onBegin={() => selectChapter(safeIndex)}
+          onBegin={startCurrent}
           beginLabel={safeIndex > 0 ? 'Continue reading' : 'Begin reading'}
           actions={
             <button
@@ -194,9 +213,10 @@ function PublicSeriesPage() {
           key={current.story.id}
           data={chapterDTO}
           hasNext={hasNext}
-          onNext={() => setIndex((i) => i + 1)}
+          onNext={continueNext}
           chapterMeta={{ number: current.chapterNumber, seriesTitle: series.title }}
-          startSignal={startNonce}
+          startImmediately={autostart}
+          playSignal={playNonce}
           hideCoverCta
           nextChapterTitle={chapters[safeIndex + 1]?.story.title}
         />
