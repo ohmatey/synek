@@ -1,7 +1,7 @@
 {
   "version": 2,
   "project": "Synek",
-  "updatedAt": "2026-06-22T00:00:00.000Z",
+  "updatedAt": "2026-06-24T00:00:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -1410,6 +1410,80 @@
         "status": "done",
         "dependencies": [
           "next-chapter loop polish"
+        ]
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-163",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "SR season page — two-panel reading surface + single \"Begin reading\" CTA",
+        "description": "Design-review highest-severity finding: the public /sr/$slug season page read as a tall vertical stack (jacket -> full chapter TOC -> reader far below the fold) with TWO competing CTAs (jacket \"Begin reading\" showed a list; reader \"Begin chapter\" started reading).\n\n### Done 2026-06-24 (commit fb8eee5)\n- Two-panel reading surface: desktop (>=880px) pins a chapter rail (jacket + spine) beside a sticky chapter reader; picking a chapter swaps the reader in place with almost no vertical scroll.\n- Mobile: the spine is an overlay sheet behind a \"Chapters\" toggle (disclosure pattern w/ backdrop, Esc-to-close, focus management) so the reader owns the screen by default.\n- ONE CTA: jacket \"Begin reading\" drives playback of chapter 1 via new PublicStoryReader `startSignal`; the reader's competing cover play button is suppressed in series mode (`hideCoverCta`). Spine rows start the picked chapter the same way.\n- Width-seam fix: rail-scoped overrides drop the 720px cap on jacket/spine so they fill the rail while the reader fills the main column (the standalone in-app /series/$id jacket keeps its cap).\n- e2e/public-series.spec.ts updated for the single-CTA DOM + new mobile-sheet test. typecheck + public-series (6/6) + series-loop (3/3) green; desktop/mobile screenshots verified.\n\nIn-app /series/$id left as-is (no reader to pin; two-panel doesn't transfer cheaply).",
+        "horizon": "next",
+        "type": "feature",
+        "status": "done",
+        "dependencies": [
+          "local-162"
+        ]
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-164",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Draft series cards lead with \"Publish to share\" (home Series row)",
+        "description": "Design-review finding (Principle 5 — build for the creator-publisher): a DRAFT series card on the home Series row showed an inert cover and a passive muted \"Draft\" label, with publishing buried in a row of three equal-weight icon buttons. A creator returning after Claude built a series saw \"Draft\" with no obvious next step — no signal that sharing is the action that UNLOCKS the series for readers.\n\n### Done 2026-06-24 (commit bf3611f)\n- Draft cards now lead the primary-action slot with a prominent \"Publish to share\" text+icon button on the amber story accent (`--color-accent-story`) — a CARRIER (AA-safe `--color-accent-story-text` + hairline border + faint 12% fill), not a colored perimeter, per the design-doc carrier rule.\n- Clicking it publishes the series (makes it public) and surfaces the public `/sr/$slug` link, reusing the existing `publishSeriesShare` flow via a new `prominent` variant on `ShareSeriesButton` (no publish logic duplicated).\n- Public series keep the Open-season + copy-link affordances unchanged; the now-redundant icon share is omitted on drafts.\n- styles.css: new `.ch-card-publish` carrier styling.\n- seed.ts: e2e-only draft-series fixture (\"Unpublished Draft Saga\", isPublic=false).\n- e2e/series-loop.spec.ts: new publish test (grants clipboard, asserts publish + \"Series is public — link copied\" toast); pinned the View-series locator to a chaptered series so it survives card-ordering changes.\n\n### Verify\n- `bun run typecheck` clean for all touched files (the lone FeaturedHero error is a concurrent session's uncommitted ProjectsWorkspace WIP).\n- `bun run test:e2e -- series-loop.spec.ts --workers=2` → 3/3 green (incl. axe a11y on the series detail).\n\n### Notes\n- Committed via an isolated GIT_INDEX_FILE to avoid sweeping the concurrent session's shared-index WIP (their fb8eee5 season-page work landed on main mid-session). Commit contains exactly the 5 intended files.",
+        "horizon": "now",
+        "status": "done",
+        "type": "feature",
+        "dependencies": []
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-166",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Featured-story hero on the populated home + ADR-0007 projects-UI cull",
+        "description": "Design review (design-doc Principle 2 \"cinematic gravity at the top, practical navigation below\" + Principle 1 \"the story is the destination\"): the populated home opened on a utility Create bar with no cinematic hero for creators who already have content — only truly-empty accounts got a hero.\n\n### Done 2026-06-24 (commit bcb411e)\n- New FeaturedHero on the populated workspace (src/components/home/ProjectsWorkspace.tsx): reduced-height (~40vh) banner above the Create bar showing the owner's most-recently-updated story (stories[0], server-sorted desc(updatedAt)).\n- Cover art when present, else the branded amber --color-accent-story wash; eyebrow (Featured story / timeline), title, hook, cast chips, beats/min-read meta, Play (autoplay) + Read (open on cover) CTAs via useStoryActions.\n- Reuses the .ch-hero shell the deleted ProjectHero left behind; one new CSS rule .ch-hero[data-featured] caps the height (src/styles.css). AA contrast holds over wash + cover (axe in e2e); reduced-motion respected by the global reset.\n- Chose the PREFERRED option (build the hero), not the design-doc override path — no Principle-2 override recorded.\n- e2e/cinematic-home.spec.ts: new featured-hero test (region + Play/Read + Play deep-links the reader). typecheck green; cinematic-home.spec + home.spec 10/10 green under the prod-build e2e server.\n\nLanded alongside the previously-uncommitted ADR-0007 stories-first home cull (projects removed from the UI: deleted ProjectHero/ProjectCard/StoryCard/NewProjectDialog/MoveToProjectSubmenu/useMoveTimeline, trimmed cinematic index, new home NewStoryDialog + empty-state onboarding/starters) — committed as one coherent home unit per the founder scoping call.\n\nNB: a concurrent session committed P3-series work (fb8eee5) mid-commit, racing the shared git index twice; the staged set was reset + re-verified immediately before the successful atomic commit. P3-series/brands/schema/migration work remains uncommitted for its owners.",
+        "horizon": "now",
+        "type": "feature",
+        "status": "done",
+        "dependencies": [
+          "local-129"
+        ]
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-165",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "SR season page — per-chapter openers (Med-2) + mobile opener fix (Med-1) + breathing room",
+        "description": "UX-walkthrough follow-ups on the public season page /sr/$slug (Wren's two Medium findings) + an overall spacing pass; also tightened the in-app /series/$id detail.\n\n### Done 2026-06-24 (commit ec5b341)\n- **Med-2 — per-chapter openers, one CTA:** picking a chapter from the spine now PREVIEWS it on its opener (cast/hook/time) instead of jumping into beat 1; the single jacket CTA (\"Begin/Continue reading\") starts the shown chapter; finishing a chapter still auto-continues into the next. Reader `startSignal` -> `startImmediately` (mount-time play) + `playSignal` (start current chapter in place); keyed per chapter so one chapter open = one `public_story_opened` impression.\n- **Med-1 — mobile opener no longer stranded:** the reader cover was vertically centered (opener landed near the viewport bottom under the jacket). In series mode on mobile it now top-aligns (clearing the absolute header), so the opener peeks right under the jacket. Desktop keeps the centered card.\n- **Breathing room + cover:** more rail gutter/padding, a divider between the jacket CTA and the spine, roomier spine rows + jacket body; capped the shared cover at 42dvh (was 55dvh) so the in-app /series/$id hero leads rather than dominates (frontier + Write-next-chapter CTA + chapter list now above the fold).\n- Also: test BETTER_AUTH_SECRET added to .claude/launch.json `e2e-build` so the prod-build preview boots (vite-dev can't serve this app's authed shell here).\n\nVerified: typecheck + public-series (6/6, updated for the opener flow) + series-loop (3/3); browser-walked both pages on desktop + mobile (Preview MCP, prod build). design-doc.md §8 open issues (mobile jacket height, opener suppression) are now both RESOLVED.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "done",
+        "dependencies": [
+          "local-163"
         ]
       }
     }

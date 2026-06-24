@@ -32,6 +32,58 @@ export function buildStoryPrompt(input: {
   )
 }
 
+// Home "New story" — for a fresh, empty timeline (the new-creator empty state). The
+// app holds no AI, so it hands the connected Claude a prompt that does BOTH halves in
+// one sitting: build a small cited timeline, then write a story onto its most pivotal
+// moment. So a brand-new user gets a populated canvas + a readable story from a single
+// paste, rather than an empty timeline they then have to ask to fill.
+export function buildNewStoryPrompt(input: {
+  timelineId: string
+  title: string
+  topic?: string | null
+}): string {
+  const topic = input.topic?.trim()
+  return (
+    `Using the Synek MCP tools, build this timeline and write a story onto it.\n` +
+    `- timelineId: ${input.timelineId}\n` +
+    `- title: "${input.title}"\n` +
+    (topic ? `- about: ${topic}\n` : '') +
+    `1. FIRST add the key moments, people, organizations and periods as typed nodes with apply_patch — ` +
+    `anchor each to a real date (use the right precision) and cite freely (title + url + a short verbatim quote). ` +
+    `One batch = one undoable Patch.\n` +
+    `2. THEN pick the most pivotal moment and call write_story on it: 3–5 beats, a cast of the key figures, and a ` +
+    `per-beat focusNodeId/lens so the canvas tours through them as the reader reads. Ground every factual beat with ` +
+    `a real citation. Keep it readable and faithful to what actually happened.`
+  )
+}
+
+// Home "New series" — a fresh series with no chapters yet (the new-creator empty
+// state, series mode). Asks the connected Claude to set the opening world in motion
+// and write Chapter I, appending it to the series so the season auto-numbers from 1.
+// Differs from buildNextChapterPrompt: that one reads an EXISTING watermark; this
+// bootstraps an empty series and tells the client which timeline to populate.
+export function buildNewSeriesPrompt(input: {
+  seriesId: string
+  timelineId: string
+  title: string
+  topic?: string | null
+}): string {
+  const topic = input.topic?.trim()
+  return (
+    `Using the Synek MCP tools, start the serialized series “${input.title}” — set the world in motion and write Chapter I.\n` +
+    `- seriesId: ${input.seriesId}\n` +
+    `- timelineId: ${input.timelineId}\n` +
+    (topic ? `- about: ${topic}\n` : '') +
+    `1. FIRST add the opening era's moments, people, organizations and periods as typed nodes on the timeline with ` +
+    `apply_patch — anchor each to a real date (right precision) and cite freely (title + url + a short verbatim quote).\n` +
+    `2. THEN write Chapter I with write_story using appendToSeries: "${input.seriesId}" (this links it as the first ` +
+    `chapter and auto-numbers it). Anchor it on the pivotal opening moment (momentId). Use beats that move, a cast of ` +
+    `the key figures, and per-beat focusNodeId/lens to choreograph the canvas. Ground every factual beat with a real ` +
+    `citation.\n` +
+    `Write later chapters from the series — each picks up past the frontier so the season never repeats itself.`
+  )
+}
+
 // The reader's end panel hands the user a prompt to EXTEND the story they just
 // finished. write_story replaces a story's beats when passed an existing storyId,
 // so the prompt embeds the beats so far verbatim and asks Claude to re-supply them

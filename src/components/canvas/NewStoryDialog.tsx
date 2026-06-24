@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, Check, Palette, Search, Shirt, X } from 'lucide-react'
+import { BookOpen, Check, Palette, Search, X } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -14,10 +14,11 @@ import { Textarea } from '~/components/ui/textarea'
 import { PromptActions } from '~/components/PromptActions'
 import { DepthControl, GenreControl } from '~/components/PromptKnobs'
 import { ThemeEditorDialog } from '~/components/canvas/ThemeEditorDialog'
-import { ProjectBrandingDialog } from '~/components/brand/ProjectBrandingDialog'
+import { BrandPicker } from '~/components/brand/BrandPicker'
 import { buildStoryPrompt } from '~/lib/story-prompt'
-import { composeStoryKnobs, genrePreset, type Depth, type Genre } from '~/lib/prompt-knobs'
-import { getTimelineBrandInfo } from '~/lib/server/brands'
+import { composeStoryKnobs, genrePreset, brandVoiceDirective, type Depth, type Genre } from '~/lib/prompt-knobs'
+import { deriveThemeFromBrand } from '~/lib/theme/deriveThemeFromBrand'
+import { getTimelineBrandInfo, getBrand } from '~/lib/server/brands'
 import { capture } from '~/lib/posthog/client'
 import { cn } from '~/lib/utils'
 import type { TimelineTheme } from '~/lib/domain/types'
@@ -58,16 +59,25 @@ export function NewStoryDialog({
   // via write_story's `theme` field so a story carries its own look.
   const [genre, setGenre] = useState<Genre | null>(null)
   const [depth, setDepth] = useState<Depth>('standard')
-  const [brandOn, setBrandOn] = useState(false)
+  // The brand referenced for this story — its voice rides the prompt and its palette
+  // seeds the story theme. Defaults to the workspace-default brand; pick another (or
+  // none) from the library.
+  const [brandId, setBrandId] = useState<string | null>(null)
+  const brandTouched = useRef(false)
   const [storyTheme, setStoryTheme] = useState<TimelineTheme | null>(null)
   const [themeOpen, setThemeOpen] = useState(false)
-  const [brandManagerOpen, setBrandManagerOpen] = useState(false)
 
-  // The brand the story's project is dressed by (for the "brand costume" row).
+  // The timeline's default brand (workspace/project default) — seeds the picker.
   const brand = useQuery({
     queryKey: ['timeline-brand', timelineId],
     queryFn: () => getTimelineBrandInfo({ data: timelineId }),
     enabled: open,
+  })
+  // The kit of whichever brand is picked — for the voice directive + theme seed.
+  const pickedBrand = useQuery({
+    queryKey: ['brand', brandId],
+    queryFn: () => (brandId ? getBrand({ data: brandId }) : null),
+    enabled: open && !!brandId,
   })
 
   // Seed (or clear) the picker each time the dialog opens, anchored to the entity it
@@ -80,9 +90,29 @@ export function NewStoryDialog({
     setAngle('')
     setGenre(null)
     setDepth('standard')
-    setBrandOn(false)
+    setBrandId(null)
+    brandTouched.current = false
     setStoryTheme(null)
   }, [open, initialAnchorId])
+
+  // Seed the picker to the workspace/project default once it loads, unless the user
+  // has already chosen a brand.
+  useEffect(() => {
+    if (!open || brandTouched.current) return
+    setBrandId(brand.data?.brandId ?? null)
+  }, [open, brand.data?.brandId])
+
+  // Picking a brand seeds the story theme from its palette/fonts (tweakable after).
+  const onBrandChange = (id: string | null) => {
+    brandTouched.current = true
+    setBrandId(id)
+  }
+  // When the picked brand's kit loads, seed the theme from it.
+  useEffect(() => {
+    if (!brandTouched.current) return
+    setStoryTheme(deriveThemeFromBrand(pickedBrand.data?.kit ?? null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickedBrand.data])
 
   // Picking a genre seeds its suggested theme (so "genre suggests a theme"); clearing
   // it clears the seeded theme. The user can then fine-tune via the theme editor.
@@ -137,7 +167,7 @@ export function NewStoryDialog({
       const n = byId.get(id)
       return n ? [{ id: n.id, title: n.title }] : []
     })
-  const brandVoice = brandOn ? (brand.data?.voice ?? null) : null
+  const brandVoice = pickedBrand.data?.kit ? brandVoiceDirective(pickedBrand.data.kit) : null
   const prompt = anchor
     ? composeStoryKnobs(
         buildStoryPrompt({ nodeId: anchor.id, timelineId, title: anchor.title, angle, featured }),
@@ -317,48 +347,12 @@ export function NewStoryDialog({
           </p>
         </section>
 
-        {/* Brand costume — dress the story in the project's brand voice, or set one up. */}
-        {brand.data?.voice ? (
-          <button
-            type="button"
-            onClick={() => setBrandOn((v) => !v)}
-            aria-pressed={brandOn}
-            className={cn(
-              'flex items-center gap-2.5 rounded-md border p-2.5 text-left transition-colors',
-              brandOn ? 'border-primary bg-accent/40' : 'border-border hover:bg-accent/30',
-            )}
-          >
-            <Shirt aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-            <span className="flex-1">
-              <span className="block text-sm font-medium">Brand costume</span>
-              <span className="block text-xs text-muted-foreground">
-                Write in {brand.data.brandName}’s voice
-              </span>
-            </span>
-            <span
-              className={cn(
-                'flex size-4 shrink-0 items-center justify-center rounded border',
-                brandOn ? 'border-primary bg-primary text-primary-foreground' : 'border-border',
-              )}
-            >
-              {brandOn && <Check aria-hidden="true" className="size-3" />}
-            </span>
-          </button>
-        ) : brand.data?.projectId ? (
-          <button
-            type="button"
-            onClick={() => setBrandManagerOpen(true)}
-            className="flex items-center gap-2.5 rounded-md border border-dashed border-border p-2.5 text-left hover:bg-accent/30"
-          >
-            <Shirt aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-            <span className="flex-1">
-              <span className="block text-sm font-medium">Brand costume</span>
-              <span className="block text-xs text-muted-foreground">
-                Set up a brand voice for this project
-              </span>
-            </span>
-          </button>
-        ) : null}
+        {/* Brand — reference a brand kit so the story writes in its voice and inherits
+            its look (seeds the story theme). Manage kits in the Brand kits library. */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-medium">Brand</span>
+          <BrandPicker value={brandId} onChange={onBrandChange} align="end" />
+        </div>
 
         <DepthControl value={depth} onChange={setDepth} />
 
@@ -375,7 +369,7 @@ export function NewStoryDialog({
               mode: 'new',
               genre: genre ?? undefined,
               depth,
-              brand: brandOn,
+              brand: !!brandId,
               themed: Boolean(storyTheme),
             })
           }
@@ -385,7 +379,7 @@ export function NewStoryDialog({
             verb_id: 'write-story',
             genre: genre ?? undefined,
             depth,
-            brand: brandOn,
+            brand: !!brandId,
           }}
         />
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -406,19 +400,6 @@ export function NewStoryDialog({
         description="A look for this story alone — it renders on the shared story page, independent of the timeline's theme."
         onSave={async (t) => setStoryTheme(t)}
       />
-
-      {/* Set up the project's built-in brand voice, then re-read so the costume row updates. */}
-      {brand.data?.projectId && (
-        <ProjectBrandingDialog
-          open={brandManagerOpen}
-          onOpenChange={(o) => {
-            setBrandManagerOpen(o)
-            if (!o) void qc.invalidateQueries({ queryKey: ['timeline-brand', timelineId] })
-          }}
-          projectId={brand.data.projectId}
-          initialTab="voice"
-        />
-      )}
     </>
   )
 }

@@ -416,6 +416,7 @@ export type SeriesDetailDTO = {
     hook: string | null
     coverImage: StoryImage | null
     theme: TimelineTheme | null
+    brandId: string | null
     isPublic: boolean
   }
   project: { slug: string; title: string } | null

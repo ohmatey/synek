@@ -110,7 +110,9 @@ function ViewportInit({ timelineId, nodeCount }: { timelineId: string; nodeCount
     done.current = true
     const saved = loadViewport(timelineId)
     if (saved) rf.setViewport(saved)
-    else rf.fitView({ padding: 0.2, duration: 0 })
+    // Cap the zoom so a sparse graph (one or two nodes) frames at a sane scale instead
+    // of magnifying a single node — otherwise the canvas opens looking near-empty.
+    else rf.fitView({ padding: 0.2, duration: 0, maxZoom: 1.2 })
   }, [timelineId, nodeCount, rf])
   return null
 }

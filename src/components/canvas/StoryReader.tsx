@@ -436,7 +436,7 @@ export function StoryReader({
                 )}
                 key={beat.id}
               >
-                {beat.image && beat.image.layout !== 'bleed' && (
+                {beat.image?.url && beat.image.layout !== 'bleed' && (
                   <figure
                     className={cn(
                       'sv-img',
@@ -444,7 +444,15 @@ export function StoryReader({
                       beat.image.aspect === 'portrait' && 'is-portrait',
                     )}
                   >
-                    <img src={beat.image.url} alt={beat.image.alt ?? ''} loading="lazy" />
+                    <img
+                      src={beat.image.url}
+                      alt={beat.image.alt ?? ''}
+                      loading="lazy"
+                      onError={(e) => {
+                        const fig = e.currentTarget.closest('figure')
+                        if (fig) (fig as HTMLElement).style.display = 'none'
+                      }}
+                    />
                     {beat.image.alt?.trim() && <figcaption>{beat.image.alt}</figcaption>}
                   </figure>
                 )}

@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { BookOpenText, ChevronRight, PenLine } from 'lucide-react'
+import { toast } from 'sonner'
 import { useTheme } from '@synek/ui'
 import { getSeriesDetail } from '~/lib/server/series'
+import { applyBrandToSeries } from '~/lib/server/brands'
+import { BrandPicker } from '~/components/brand/BrandPicker'
 import { AppHeader } from '~/components/home/AppHeader'
 import { SeriesJacket } from '~/components/public/SeriesJacket'
 import { SeriesSpine, type SpineChapter } from '~/components/public/SeriesSpine'
@@ -33,8 +36,22 @@ export const Route = createFileRoute('/series/$id')({
 
 function SeriesDetailPage() {
   const data = Route.useLoaderData()
+  const router = useRouter()
   const { resolvedTheme } = useTheme()
   const [promptOpen, setPromptOpen] = useState(false)
+  const [brandId, setBrandId] = useState<string | null>(data?.series.brandId ?? null)
+
+  const applyBrand = async (id: string | null) => {
+    if (!data) return
+    setBrandId(id)
+    const res = await applyBrandToSeries({ data: { seriesId: data.series.id, brandId: id } })
+    if ('error' in res) {
+      toast.error('Couldn’t apply the brand')
+      return
+    }
+    toast.success(id ? 'Brand applied — series theme seeded' : 'Brand cleared')
+    void router.invalidate()
+  }
 
   const themeVars = useMemo(
     () => (data ? resolveThemeVars(data.series.theme, resolvedTheme) : {}),
@@ -77,7 +94,7 @@ function SeriesDetailPage() {
     )
   }
 
-  const { series, project, chapters, frontier } = data
+  const { series, chapters, frontier } = data
   const spineChapters: SpineChapter[] = chapters.map((c) => ({
     number: c.number,
     title: c.title,
@@ -98,14 +115,6 @@ function SeriesDetailPage() {
       <main className="sd-page" style={themeVars} data-theme-scoped={series.theme ? '' : undefined}>
         <nav className="sd-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Workspace</Link>
-          {project && (
-            <>
-              <ChevronRight size={14} aria-hidden />
-              <Link to="/" search={{ project: project.slug }}>
-                {project.title}
-              </Link>
-            </>
-          )}
           <ChevronRight size={14} aria-hidden />
           <span aria-current="page">{series.title}</span>
         </nav>
@@ -133,6 +142,7 @@ function SeriesDetailPage() {
               <PenLine aria-hidden />
               Write the next chapter
             </Button>
+            <BrandPicker value={brandId} onChange={(id) => void applyBrand(id)} />
             {series.isPublic && (
               <a className="sd-open-season" href={`/sr/${series.slug}`} target="_blank" rel="noreferrer">
                 Open public season ↗

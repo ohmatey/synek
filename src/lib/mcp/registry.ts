@@ -29,6 +29,7 @@ import {
   getStoriesForMoment,
   storyDepthByMoment,
   setStoryTheme,
+  setStoryBrand,
   getStoryTimelineId,
   type StoryOp,
 } from '~/lib/db/stories'
@@ -38,8 +39,11 @@ import {
   seriesWatermark,
   setSeriesShared,
   makeRequireOwnedSeries,
+  updateSeries,
   nextChapterNumber,
 } from '~/lib/db/series'
+import { listBrands, getBrand, makeRequireOwnedBrand } from '~/lib/db/brands'
+import { deriveThemeFromBrand } from '~/lib/theme/deriveThemeFromBrand'
 import { registerArtifact, searchArtifacts, existingArtifactIds } from '~/lib/db/artifacts'
 import { emitTimelineEvent } from '~/lib/server/bus'
 import {
@@ -910,15 +914,74 @@ export const toolRegistry: ToolDef[] = [
       hook: z.string().optional().describe('One-line logline for the series.'),
       coverImage: storyImageInput.optional().describe('The season cover (layout ignored).'),
       theme: timelineThemeSchema.optional().describe('The series\' own visual theme (same shape as set_timeline_theme).'),
+      brandId: z.string().optional().describe('A brand to dress the whole series in (list_brands). Sets the reference (drives chapter voice) and SEEDS the series theme from the kit unless an explicit `theme` is given.'),
       anchorMomentId: z.string().optional().describe('Optional "home" node for the series on the canvas.'),
     },
-    handler: async ({ projectId, title, hook, coverImage, theme, anchorMomentId }, { ownerId, requireOwnedProject }) => {
+    handler: async ({ projectId, title, hook, coverImage, theme, brandId, anchorMomentId }, { ownerId, requireOwnedProject }) => {
       ;(requireOwnedProject ?? makeRequireOwnedProject(ownerId))(projectId)
+      if (brandId) makeRequireOwnedBrand(ownerId)(brandId)
+      const seedTheme = theme ?? (brandId ? deriveThemeFromBrand(getBrand(brandId, ownerId)?.kit ?? null) ?? undefined : undefined)
       const warnings: string[] = []
       if (coverImage?.url) warnings.push(...(await imageUrlWarnings([coverImage.url], 'series cover URL')))
-      if (theme) warnings.push(...themeContrastWarnings(theme))
-      const s = createSeries(projectId, ownerId, { title, hook, coverImage, theme, anchorMomentId })
+      if (seedTheme) warnings.push(...themeContrastWarnings(seedTheme))
+      const s = createSeries(projectId, ownerId, { title, hook, coverImage, theme: seedTheme, anchorMomentId })
+      if (brandId) updateSeries(s.id, ownerId, { brandId })
       return { seriesId: s.id, slug: s.slug, title: s.title, url: seriesUrl(s), ...(warnings.length ? { warnings } : {}) }
+    },
+  },
+
+  {
+    name: 'list_brands',
+    title: 'List brand kits',
+    description:
+      'List the owner\'s brand kits — reusable identity+voice+palette kits that dress stories and series. Returns each brand\'s id, slug, name, and whether it has a kit. Reference a returned id from set_story_brand / set_series_brand / create_series(brandId) to apply it. Brands are owner-scoped; this never leaks another user\'s.',
+    inputSchema: {},
+    handler: async (_args, { ownerId }) => {
+      return {
+        brands: listBrands(ownerId).map((b) => ({ id: b.id, slug: b.slug, name: b.name, hasKit: !!b.kit })),
+      }
+    },
+  },
+
+  {
+    name: 'set_story_brand',
+    title: 'Dress a story in a brand',
+    description:
+      'Reference a brand on ONE story (from list_brands). Sets the brand link (drives the AI voice) and SEEDS the story\'s visual theme from the kit\'s palette/fonts (one-shot — tweak with set_story_theme after). Pass brandId: null to clear the link (the theme is left as-is). Owner-scoped.',
+    inputSchema: {
+      storyId: z.string(),
+      brandId: z.string().nullable().describe('A brand id from list_brands, or null to unlink.'),
+    },
+    handler: async ({ storyId, brandId }, { ownerId, requireOwned }) => {
+      const timelineId = getStoryTimelineId(storyId)
+      if (!timelineId) throw new Error(`story "${storyId}" not found`)
+      requireOwned(timelineId)
+      if (brandId !== null) makeRequireOwnedBrand(ownerId)(brandId)
+      setStoryBrand(storyId, ownerId, brandId)
+      const kit = brandId ? getBrand(brandId, ownerId)?.kit ?? null : null
+      const derived = deriveThemeFromBrand(kit)
+      if (derived) setStoryTheme(storyId, ownerId, derived)
+      emitTimelineEvent({ timelineId, kind: 'story', seq: maxAppliedSeq(timelineId) })
+      return { ok: true, brandId, theme: derived ?? null }
+    },
+  },
+
+  {
+    name: 'set_series_brand',
+    title: 'Dress a series in a brand',
+    description:
+      'Reference a brand on a whole SERIES (from list_brands). Sets the brand link (drives every chapter\'s voice) and SEEDS the series theme from the kit. Pass brandId: null to clear. Owner-scoped.',
+    inputSchema: {
+      seriesId: z.string(),
+      brandId: z.string().nullable().describe('A brand id from list_brands, or null to unlink.'),
+    },
+    handler: async ({ seriesId, brandId }, { ownerId }) => {
+      makeRequireOwnedSeries(ownerId)(seriesId)
+      if (brandId !== null) makeRequireOwnedBrand(ownerId)(brandId)
+      const kit = brandId ? getBrand(brandId, ownerId)?.kit ?? null : null
+      const derived = deriveThemeFromBrand(kit)
+      updateSeries(seriesId, ownerId, { brandId, ...(derived ? { theme: derived } : {}) })
+      return { ok: true, brandId, theme: derived ?? null }
     },
   },
 

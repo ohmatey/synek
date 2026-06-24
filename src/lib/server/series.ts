@@ -123,6 +123,7 @@ export const getSeriesDetail = createServerFn({ method: 'GET' })
         hook: series.hook,
         coverImage: series.coverImage ?? null,
         theme: series.theme ?? null,
+        brandId: series.brandId ?? null,
         isPublic: series.isPublic,
       },
       project: project ? { slug: project.slug, title: project.title } : null,

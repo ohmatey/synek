@@ -10,7 +10,7 @@ async function loginAsDemo(page: Page) {
   await page.getByRole('button', { name: 'Log in' }).click()
   // Wait until signed in before navigating. The workspace list page (328e633)
   // leads with a "Projects" grid — that heading is the stable signed-in marker.
-  await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible()
 }
 
 async function openDarwinPanel(page: Page) {

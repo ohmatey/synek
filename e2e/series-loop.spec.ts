@@ -16,7 +16,7 @@ async function loginAsDemo(page: Page) {
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
   await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible()
 }
 
 test('a SeriesCard offers "Write the next chapter", which opens the paste-ready prompt', async ({ page }) => {

@@ -469,6 +469,12 @@ export const stories = sqliteTable('stories', {
   // carry its own look or inherit the timeline's. Replace-on-write, null clears,
   // NOT on the Patch stack — set via the set_story_theme tool / setStoryTheme RPC.
   theme: text('theme', { mode: 'json' }).$type<TimelineTheme>(),
+  // The brand kit this story is dressed by (brand-entity decoupling). Owner-scoped
+  // FK to `brands`, SET NULL on brand delete (deleting a kit unlinks, never deletes
+  // the story). Drives the AI VOICE live (resolved story.brandId ?? series.brandId ??
+  // project.brandId); the VISUAL theme is seeded ONE-SHOT into `theme` above when the
+  // brand is applied (then freely tweakable), not bound live.
+  brandId: text('brand_id').references(() => brands.id, { onDelete: 'set null' }),
   status: text('status', { enum: STORY_STATUS }).notNull().default('draft'),
   // Per-story PUBLIC visibility — INDEPENDENT of timelines.isPublic. The /s/$slug
   // page gates on THIS, so sharing one story never exposes its whole timeline, and
@@ -521,6 +527,11 @@ export const storySeries = sqliteTable(
     // The series' OWN visual theme (same TimelineTheme shape). Resolved at read as
     // a fallback chain (series.theme ?? project.theme ?? defaults). Replace-on-write.
     theme: text('theme', { mode: 'json' }).$type<TimelineTheme>(),
+    // The brand kit this whole series is dressed by (brand-entity decoupling).
+    // Owner-scoped FK to `brands`, SET NULL on delete. Drives the AI VOICE live for
+    // every chapter (chapter resolves story.brandId ?? series.brandId ?? project.brandId);
+    // the VISUAL theme is seeded ONE-SHOT into `theme` above when the brand is applied.
+    brandId: text('brand_id').references(() => brands.id, { onDelete: 'set null' }),
     // Optional "home" node for the series on the canvas (soft ref, no FK — chapters
     // anchor on their own moments, D4). Costs nothing now; a future canvas affordance.
     anchorMomentId: text('anchor_moment_id'),

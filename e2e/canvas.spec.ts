@@ -152,7 +152,7 @@ test('owner canvas chrome: account far right, share to its left, no mcp dot, no 
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
   // The home's "Projects" grid heading is the stable signed-in list-page marker.
-  await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible()
 
   await page.goto('/timelines/figures')
 

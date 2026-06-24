@@ -146,6 +146,8 @@ export type ClientEvent =
   //   home_project_filter_selected { project_id }
   //   home_move_to_project      { from_project_id?, to_project_id }
   //   home_new_project_created  { project_id }
+  //   home_new_story_created    { timeline_id, series_id, source }
+  //   home_new_series_created   { timeline_id, series_id, source }
   | 'home_hero_play_clicked'
   | 'home_story_card_clicked'
   | 'home_story_play_clicked'
@@ -153,6 +155,8 @@ export type ClientEvent =
   | 'home_project_filter_selected'
   | 'home_move_to_project'
   | 'home_new_project_created'
+  | 'home_new_story_created'
+  | 'home_new_series_created'
 
 /** Typed, gated capture. Safe to call from anywhere — no-ops until init + opt-in. */
 export function capture(event: ClientEvent | '$pageview', props?: Record<string, unknown>): void {

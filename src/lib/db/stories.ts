@@ -101,6 +101,23 @@ export function setStoryTheme(storyId: string, ownerId: string, theme: TimelineT
   return true
 }
 
+// Owner-scoped: set (or clear, null) the brand a story references. Ownership resolved
+// through moment → timeline.ownerId, like setStoryTheme. Returns false (no-op) when
+// the story isn't the caller's. The brand's own-check is the caller's responsibility
+// (the server applyBrandToStory own-checks the brand before calling this).
+export function setStoryBrand(storyId: string, ownerId: string, brandId: string | null): boolean {
+  const owner = db
+    .select({ ownerId: timelines.ownerId })
+    .from(stories)
+    .innerJoin(nodes, eq(stories.momentId, nodes.id))
+    .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
+    .where(eq(stories.id, storyId))
+    .get()
+  if (!owner || owner.ownerId !== ownerId) return false
+  db.update(stories).set({ brandId, updatedAt: new Date() }).where(eq(stories.id, storyId)).run()
+  return true
+}
+
 const slugify = (s: string): string =>
   s
     .toLowerCase()
@@ -621,6 +638,20 @@ export function getStoryForMoment(momentId: string): StoryDTO | null {
 export function getStoryById(storyId: string): StoryDTO | null {
   const story = db.select().from(stories).where(eq(stories.id, storyId)).get()
   return story ? hydrateStory(story) : null
+}
+
+// Raw fields needed to resolve a story's effective brand (the cascade walks
+// story.brandId ?? series.brandId ?? project.brandId). Returns null when missing.
+export function getStoryBrandContext(
+  storyId: string,
+): { momentId: string; seriesId: string | null; brandId: string | null } | null {
+  return (
+    db
+      .select({ momentId: stories.momentId, seriesId: stories.seriesId, brandId: stories.brandId })
+      .from(stories)
+      .where(eq(stories.id, storyId))
+      .get() ?? null
+  )
 }
 
 // Resolve a story by its public slug → the DTO (which carries the story's own

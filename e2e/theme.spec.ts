@@ -19,7 +19,7 @@ async function loginAsOwner(page: Page) {
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
   // The home's "Projects" grid heading is the stable signed-in list-page marker.
-  await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible()
 }
 
 // Timeline settings is now a tabbed dialog (Display / Playback / Theme). The theme

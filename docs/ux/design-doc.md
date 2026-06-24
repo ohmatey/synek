@@ -13,7 +13,7 @@ links: [design-principles.md, cinematic-home.md, ../product/product-strategy.md,
 - The applied design system: **tokens, typography, layout, component patterns, motion, and IA** as actually shipped. The WHY lives in [design-principles.md](design-principles.md); this is the WHAT/HOW.
 - **Stack:** shadcn/ui (new-york, Radix + CVA) on **Tailwind v4**, semantic tokens in `@synek/ui` (`packages/ui/src/theme/tokens.css`), `cn()` in `src/lib/utils.ts`, toasts via `sonner`. Canvas is React Flow (`@xyflow/react` v12), client-only.
 - **Accent system:** story = amber `--color-accent-story`, era = teal `--color-accent-era`, applied as *carriers* (text/border/small fills), never colored perimeters.
-- **Layout spine:** two-level IA — home `/` (project rail + cinematic hero + content rows, deep-linked via `?project=<slug>`) and canvas `/timelines/$id` (the immersive viewer). Public reader at `/s/$slug`.
+- **Layout spine:** two-level IA — home `/` (stories-first workspace: cinematic hero for new creators, else a "Your library" action bar + **Recently updated → Series → Timelines → Entities** rows) and canvas `/timelines/$id` (the immersive viewer). Public reader at `/s/$slug`. **Projects are invisible plumbing** (ADR 0007) — no project surfaces in the UI; `projectId` still scopes data. **Brands** are a first-class entity (a "Brand kits" library row), referenced by stories/series via a `BrandPicker`.
 - **No new tokens for new surfaces** — compose the existing palette and the shipped patterns (`psr-cast-chip`, scrim, `segmentSurface`, `segmentSurface` rail chips).
 
 ---
@@ -139,7 +139,7 @@ The global `prefers-reduced-motion` reset in `styles.css` (≈lines 45–54) col
 
 Two-level navigation, no new route needed (per the cinematic-home proposal and ADR 0005's per-story-sharing decision):
 
-- **Level 1 — home `/`** (`ProjectsWorkspace`, auth-gated, owner-scoped): project rail + cinematic hero + content rows. Filtered by `?project=<slug>` (TanStack Router `validateSearch` + `useSearch`; unknown/foreign slug soft-falls-back to "All", never 404s). Bare `/` = projects-list; `?project=<slug>` = that project's `ProjectHero` + rows. Login lands here.
+- **Level 1 — home `/`** (`ProjectsWorkspace`, auth-gated, owner-scoped): **two states** — (a) *truly empty account* → `CinematicHero` (full-bleed wash, "New story" primary CTA, "New series" secondary CTA, "start with a timeline" text link, connect-MCP nudge when no API key, three story starters); (b) *populated account* → `LibraryActions` action bar ("Your library" heading + New story / New series / New timeline / Brand kits chip buttons) + content rows. Projects are invisible plumbing (ADR 0007) — no project surfaces in the UI.
 - **Level 2 — canvas `/timelines/$id`**: the immersive viewer. Project context surfaces in the AppHeader; the canvas reads `timelines.projectId` only to resolve the breadcrumb.
 - **Public — `/s/$slug`**: the no-auth, mobile, widget-rich `PublicStoryReader` (per-story sharing; gated on `timeline.isPublic`). SSR OpenGraph for link previews.
 - **Public — `/p/$slug`**: owner-scoped project-handle resolver → `/?project=<slug>`.
@@ -150,10 +150,10 @@ Two-level navigation, no new route needed (per the cinematic-home proposal and A
 
 | # | Row | Contents | Rule |
 |---|---|---|---|
-| 1 | Continue | stories `updatedAt` < 14 days, newest first | hidden if none recent |
-| 2 | Your stories | all stories, `updatedAt` desc | primary creator row |
-| 3 | Timelines | timelines in scope | world-building surface |
-| 4 | Cast & entities | `person`/`org`/`place` nodes in scope | hidden if none; ghost-chip empty state |
+| 1 | Recently updated | stories + timelines merged, `updatedAt` desc, max 12 | always shown when content exists (temporal "what changed" feed) |
+| 2 | Series | serialized seasons, `updatedAt` desc | hidden if none; `SeriesCard` poster with draft vs. published states |
+| 3 | Timelines | all timelines in scope | world-building substrate row |
+| 4 | Cast & entities | `person`/`org`/`place` nodes in scope | hidden if none; `EntitiesDisclosure` (aria-expanded toggle) |
 
 ---
 
@@ -166,7 +166,30 @@ Two-level navigation, no new route needed (per the cinematic-home proposal and A
 
 ---
 
-## 7. Component reuse map
+## 7. Brand system (first-class entity, ADR 0007)
+
+Brands are reusable workspace-level kits, not folded into a project. The pattern: **library → picker → one-shot seed**.
+
+- **`BrandLibraryDialog`** (`src/components/brand/BrandLibraryDialog.tsx`): list → inline editor navigation. Two modes within one Dialog: the list (create / set-default / edit / delete) and the editor (Identity · Visual · Voice tabs, name field). Back-arrow in the dialog header returns to the list. A "Default" badge + `Check`/`Star` toggle for the workspace-default kit.
+- **`BrandPicker`** (`src/components/brand/BrandPicker.tsx`): compact `DropdownMenu` trigger (Palette icon + truncated name + chevron). Lists owner's kits; "No brand" clears the link. Reused in the story dialog and the series detail page. When the list is empty, no inline creation path exists (open design issue — recommendation: add a "New brand" item at the bottom).
+- **Brand application model:** one-shot seed via `deriveThemeFromBrand` (`src/lib/theme/deriveThemeFromBrand.ts`) — maps palette → five accent slots, font family → nearest curated `ThemeFont`, `visualAesthetic` → `imageStyle`, `brandAttributes` → `mood`. Returns `null` when the kit has nothing visual (caller leaves existing theme untouched). After seeding, the theme is freely editable; the brand reference persists for voice.
+- **Resolution cascade:** `story.brandId ?? series.brandId ?? project.brandId`. Voice is live (applied at prompt-build time); theme is seeded once on apply.
+- **`SeriesCard` states:** draft series card has an inert cover (no `href`), a "Draft" label in `text-muted-foreground`, and a `ShareSeriesButton` icon as the publish affordance. Public series card has an `<a>` cover linking to `/sr/$slug` and an "Open season" primary action. Both carry `BookOpen` (view series detail) and `PenLine` (write next chapter prompt) icon buttons.
+
+## 8. Season page layout (`/sr/$slug`)
+
+The public, no-auth series season page. Prefix: `.sj-*` (jacket), `.sb-*` (spine), `.public-series`.
+
+- **Two-panel grid (desktop, committed fb8eee5):** CSS grid `360px 1fr` — LEFT rail (`.sj-jacket` + `.sb-spine`, pinned) beside RIGHT reader (`.public-series-reader`, sticky/full-height). The rail does not scroll with the reader. Single "Begin reading" amber CTA in the jacket; no competing CTA in the reader itself. CTA label updates to "Continue reading" once the reader has advanced past beat 0 (`safeIndex > 0`).
+  - `.sj-jacket`: cover image (`object-fit: cover; object-position: center top`) or amber fallback wash (`--color-accent-story`). Title (`h1`, display font), italic hook tagline, season meta ("Season · N chapters · updated X ago"), amber "Begin reading" CTA button.
+  - `.sb-spine`: TOC beneath the jacket in the same rail. Roman-numeral `.sb-num` (display font, amber), `.sb-title`, `.sb-hook` (truncated, `max-width: 46ch`), `.sb-dateline` (era teal text), `.sb-new` badge (uppercase amber, "NEW · Nd AGO" for the most recent chapter). Draft chapters at `opacity: 0.62` with a `.sb-status-draft` pill. TOC hover: `.sb-row-btn:hover` = 7% amber wash; `.sb-row.is-active` = 10% amber wash for current chapter.
+- **Mobile (single-column):** jacket band (full-width) stacked above reader. TOC moved to a bottom-sheet overlay (dimmed backdrop, close button, `aria-expanded` toggle, Esc + backdrop-click-to-close). "Chapters (N)" outlined toggle button in the jacket band opens the sheet. The inline spine is hidden on mobile.
+  - **Mobile jacket height (resolved ec5b341):** the bulk wasn't the cover — the reader's `.psr-cover` was vertically *centered*, stranding the opener near the bottom of the reader frame. In series mode on mobile (`@media (max-width: 879px)`) the reader cover now `justify-content: flex-start` (clearing the absolute `.psr-head`), so the chapter-1 opener peeks right under the jacket band without scrolling. Desktop keeps the centered, balanced card. The shared `.sj-cover` is also capped at `42dvh` (was `55dvh`) so it leads rather than dominates.
+- **Per-chapter openers + one CTA (resolved ec5b341):** picking a chapter from the spine/sheet now PREVIEWS it on its opener (cast / hook / time) rather than auto-starting; the single jacket CTA ("Begin/Continue reading") starts the shown chapter; finishing a chapter still auto-continues into the next (Netflix-style). Mechanically the reader takes `startImmediately` (mount-time play, for auto-continue) + `playSignal` (start the current chapter in place, for the jacket CTA), keyed per chapter so one chapter open stays one `public_story_opened` impression. This gives every chapter the same threshold moment as chapter 1 while keeping a single start control.
+
+---
+
+## 9. Component reuse map
 
 The cinematic home shipped composing existing pieces (full map in [cinematic-home.md §10](cinematic-home.md)):
 
@@ -176,9 +199,14 @@ The cinematic home shipped composing existing pieces (full map in [cinematic-hom
 
 ---
 
+---
+
 ## Change Log
 
 | Date | Change |
 |---|---|
+| 2026-06-24 | **Season page Med findings resolved** (ec5b341). §8 updated: the mobile jacket-height issue (reader cover now top-aligns in series mode so the opener peeks under the jacket; `.sj-cover` capped at 42dvh) and the chapter-2+ opener-suppression trade-off (spine pick now previews each chapter on its opener; one jacket CTA starts it; auto-continue between chapters). Both prior "open design issues" are now closed. |
+| 2026-06-24 | **Season page two-panel review** (Wren, UX review of fb8eee5). Rewrote §8 to reflect the shipped two-panel grid (desktop `360px 1fr`, mobile sheet-gated TOC). Removed the stale "known layout tension" note (resolved by the two-panel layout). Recorded two open design issues: mobile jacket-band height cap and the chapter-2+ opener suppression trade-off. |
+| 2026-06-24 | **ADR 0007 — Stories-first + Brand Kits slice** (Wren, UX review). Updated §5 home IA to document the two-state populated/empty home (utility-first `LibraryActions` bar on populated accounts; `CinematicHero` for truly-empty). Updated content row taxonomy to match shipped rows (Recently updated / Series / Timelines / Entities). Added §7 Brand system (library → picker → one-shot seed pattern, `BrandLibraryDialog`, `BrandPicker`, `SeriesCard` states, `deriveThemeFromBrand`). Added §8 Season page layout (`.sj-*` / `.sb-*`, container-width tension flagged as open issue). Renumbered Component reuse map → §9. |
 | 2026-06-23 | Initial design-system doc established (Wren). Tokens, layout, patterns, motion, and IA extracted from the shipped product, `@synek/ui` tokens, and `CLAUDE.md`. |
 | 2026-06-14 | **Cinematic stories-first home proposal** ([cinematic-home.md](cinematic-home.md)) — established the two-zone home (project rail + cinematic hero + content rows), the scrim/`psr-cast-chip`/`segmentSurface` reuse patterns, carousel mechanics, move-to-project affordance, motion guidance (§9), and two-level IA. The structural basis for §2, §3, §4, and §5 above. |

@@ -7,13 +7,27 @@ import {
   updateBrand as dbUpdateBrand,
   deleteBrand as dbDeleteBrand,
   setProjectBrand as dbSetProjectBrand,
+  makeRequireOwnedBrand,
 } from '~/lib/db/brands'
-import { getProject as dbGetProject } from '~/lib/db/projects'
+import { getProject as dbGetProject, ensureDefaultProject } from '~/lib/db/projects'
 import { getTimelineMeta } from '~/lib/db/graph'
+import { setStoryBrand as dbSetStoryBrand, setStoryTheme as dbSetStoryTheme, getStoryBrandContext, getMomentTimelineId } from '~/lib/db/stories'
+import { getSeries as dbGetSeries, updateSeries as dbUpdateSeries } from '~/lib/db/series'
 import { requireUser } from '~/lib/auth/session'
 import { brandKitSchema, type BrandKit } from '~/lib/domain/brand'
+import type { TimelineTheme } from '~/lib/domain/types'
+import { timelineThemeSchema } from '~/lib/domain/theme'
+import { deriveThemeFromBrand } from '~/lib/theme/deriveThemeFromBrand'
 import { brandVoiceDirective } from '~/lib/prompt-knobs'
 import type { BrandRow } from '~/lib/db/schema'
+
+// Resolve the effective brand kit for a scope, walking the cascade. Owner-scoped
+// kit reads (dbGetBrand fail-closes). Returns { brandId, kit } or nulls.
+function resolveBrandKit(brandId: string | null | undefined, ownerId: string): { brandId: string | null; kit: BrandKit | null } {
+  if (!brandId) return { brandId: null, kit: null }
+  const row = dbGetBrand(brandId, ownerId)
+  return { brandId: row ? brandId : null, kit: row?.kit ?? null }
+}
 
 // All brand RPCs are scoped to the signed-in user — you only see and manage your
 // own brand kits. Create/rename/edit/delete + project-link are owner-checked in the
@@ -117,9 +131,13 @@ export const setProjectBrand = createServerFn({ method: 'POST' })
 export type TimelineBrandInfo = {
   projectId: string | null
   projectTitle: string | null
+  // The workspace-default brand (the timeline's project's brandId → brands kit) — the
+  // baseline a NEW story inherits unless a different brand is picked. brandId lets the
+  // story-dialog brand picker preselect it.
+  brandId: string | null
   brandName: string | null
   // The compact voice directive to inject into a story prompt, or null when the
-  // project's kit carries nothing voice-shaping (or no kit is set).
+  // resolved kit carries nothing voice-shaping (or no brand is set).
   voice: string | null
 }
 
@@ -132,6 +150,7 @@ export const getTimelineBrandInfo = createServerFn({ method: 'GET' })
     const empty: TimelineBrandInfo = {
       projectId: meta.projectId ?? null,
       projectTitle: null,
+      brandId: null,
       brandName: null,
       voice: null,
     }
@@ -139,13 +158,112 @@ export const getTimelineBrandInfo = createServerFn({ method: 'GET' })
     const project = dbGetProject(meta.projectId)
     if (!project || project.ownerId !== user.id) return empty
     empty.projectTitle = project.title
-    if (!project.brand) return empty
+    const { brandId, kit } = resolveBrandKit(project.brandId, user.id)
+    if (!kit) return { ...empty, brandId }
     return {
       projectId: meta.projectId,
       projectTitle: project.title,
-      brandName: project.brand.name,
-      voice: brandVoiceDirective(project.brand),
+      brandId,
+      brandName: kit.name,
+      voice: brandVoiceDirective(kit),
     }
+  })
+
+// Voice/brand resolution for an EXISTING story, walking story.brandId ?? series.brandId
+// ?? project.brandId. Used by the continue-story prompt + the story brand picker to
+// reflect the live voice. null when the story isn't the caller's.
+export type ScopeBrandInfo = { brandId: string | null; brandName: string | null; voice: string | null }
+
+export const getStoryBrandInfo = createServerFn({ method: 'GET' })
+  .inputValidator((d: string) => z.string().parse(d))
+  .handler(async ({ data: storyId }): Promise<ScopeBrandInfo | null> => {
+    const user = await requireUser()
+    const story = getStoryBrandContext(storyId)
+    if (!story) return null
+    const tl = getMomentTimelineId(story.momentId)
+    const meta = tl ? getTimelineMeta(tl) : null
+    if (!meta || meta.ownerId !== user.id) return null
+    const seriesBrandId = story.seriesId ? (dbGetSeries(story.seriesId)?.brandId ?? null) : null
+    const projectBrandId = meta.projectId ? (dbGetProject(meta.projectId)?.brandId ?? null) : null
+    const { brandId, kit } = resolveBrandKit(story.brandId ?? seriesBrandId ?? projectBrandId, user.id)
+    return { brandId, brandName: kit?.name ?? null, voice: kit ? brandVoiceDirective(kit) : null }
+  })
+
+// Apply a brand to a story (one-shot seed): set story.brandId AND write a derived
+// theme into story.theme (tweakable after). Pass brandId null to clear the brand
+// (theme is left as-is). Double owner-check; { error } when the story/brand isn't the
+// caller's. Returns the derived theme so the UI can preview without a refetch.
+export const applyBrandToStory = createServerFn({ method: 'POST' })
+  .inputValidator((d: { storyId: string; brandId: string | null }) =>
+    z.object({ storyId: z.string(), brandId: z.string().nullable() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true; theme: TimelineTheme | null } | { error: 'forbidden' }> => {
+    const user = await requireUser()
+    if (data.brandId !== null) {
+      try {
+        makeRequireOwnedBrand(user.id)(data.brandId)
+      } catch {
+        return { error: 'forbidden' }
+      }
+    }
+    if (!dbSetStoryBrand(data.storyId, user.id, data.brandId)) return { error: 'forbidden' }
+    const kit = data.brandId ? dbGetBrand(data.brandId, user.id)?.kit ?? null : null
+    const derived = deriveThemeFromBrand(kit)
+    if (derived) dbSetStoryTheme(data.storyId, user.id, derived)
+    return { ok: true as const, theme: derived }
+  })
+
+// Apply a brand to a whole series (one-shot seed): set series.brandId AND seed
+// series.theme. Owner-scoped via updateSeries (non-owner no-ops).
+export const applyBrandToSeries = createServerFn({ method: 'POST' })
+  .inputValidator((d: { seriesId: string; brandId: string | null }) =>
+    z.object({ seriesId: z.string(), brandId: z.string().nullable() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true } | { error: 'forbidden' }> => {
+    const user = await requireUser()
+    if (data.brandId !== null) {
+      try {
+        makeRequireOwnedBrand(user.id)(data.brandId)
+      } catch {
+        return { error: 'forbidden' }
+      }
+    }
+    const kit = data.brandId ? dbGetBrand(data.brandId, user.id)?.kit ?? null : null
+    const derived = deriveThemeFromBrand(kit)
+    dbUpdateSeries(data.seriesId, user.id, { brandId: data.brandId, ...(derived ? { theme: derived } : {}) })
+    return { ok: true as const }
+  })
+
+// Owner-only: set/clear a series' OWN theme post-creation (the series editor previously
+// had no way to do this — only create_series accepted a theme).
+export const setSeriesTheme = createServerFn({ method: 'POST' })
+  .inputValidator((d: { seriesId: string; theme: unknown }) =>
+    z.object({ seriesId: z.string(), theme: timelineThemeSchema.nullable() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    dbUpdateSeries(data.seriesId, user.id, { theme: data.theme })
+    return { ok: true as const }
+  })
+
+// The WORKSPACE-DEFAULT brand — the brand the owner's default project points at. With
+// projects hidden from the UI, this is how the brand library exposes "the default brand
+// for new stories/series" without surfacing the project concept. Returns its id or null.
+export const getDefaultBrandId = createServerFn({ method: 'GET' }).handler(async (): Promise<string | null> => {
+  const user = await requireUser()
+  const projectId = ensureDefaultProject(user.id)
+  return dbGetProject(projectId)?.brandId ?? null
+})
+
+// Set (or clear, null) the workspace-default brand — writes the default project's
+// brandId. Own-checked in dbSetProjectBrand (brand must be the caller's).
+export const setDefaultBrand = createServerFn({ method: 'POST' })
+  .inputValidator((d: { brandId: string | null }) => z.object({ brandId: z.string().nullable() }).parse(d))
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    const projectId = ensureDefaultProject(user.id)
+    dbSetProjectBrand(projectId, user.id, data.brandId)
+    return { ok: true as const, brandId: data.brandId }
   })
 
 // Owner-scoped read of the brand a project is currently linked to (its brandId),

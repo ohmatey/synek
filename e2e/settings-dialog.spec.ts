@@ -9,7 +9,7 @@ async function loginAsDemo(page: Page) {
   await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
   await page.getByRole('button', { name: 'Log in' }).click()
-  await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible()
 }
 
 test('profile menu opens the settings dialog on the Account tab', async ({ page }) => {

@@ -12,7 +12,7 @@ async function loginAsDemo(page: Page) {
   // swap). The "Projects" grid heading is the stable signed-in list-page marker
   // (every owner has ≥1 project; the per-type rows were replaced by a projects
   // grid + a "Recently updated" feed).
-  await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible()
 }
 
 test('home surfaces the demo timelines in Recently updated and opens one (after login)', async ({ page }) => {
@@ -31,13 +31,8 @@ test('home surfaces the demo timelines in Recently updated and opens one (after 
 test('creating a timeline opens it (after login)', async ({ page }) => {
   await loginAsDemo(page)
 
-  // Timelines belong to a project, so creation now lives inside the project view's
-  // "Timelines" section (not the list page). Enter the first project, then create:
-  // open the "New timeline" dialog, name it, create it, open the fresh canvas.
-  await page.getByRole('region', { name: 'Projects' }).getByRole('link').first().click()
-  await expect(page).toHaveURL(/\?project=/)
-  const timelines = page.getByRole('region', { name: 'Timelines' })
-  await timelines.getByRole('button', { name: 'New timeline' }).click()
+  // "New timeline" lives in the "Your library" action bar now (projects have no UI).
+  await page.getByRole('region', { name: 'Create' }).getByRole('button', { name: 'New timeline' }).click()
   // Scope to the open dialog by role only — its accessible name flips from
   // "New timeline" to "… is ready" after the create step, so don't pin the name.
   const dialog = page.getByRole('dialog')
@@ -59,10 +54,11 @@ test('after sign-up, the API keys page exposes the endpoint and creates an API k
   await page.getByRole('button', { name: 'Create account', exact: true }).click()
 
   // A brand-new account has no keys + no content, so the cinematic home shows its
-  // new-creator empty state — "Your world starts here" + a "Connect MCP" CTA (the
-  // ConnectCta is absorbed into the hero now, key-gated on having no API key).
-  await expect(page.getByText('Your world starts here.')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Connect MCP' })).toBeVisible()
+  // redesigned new-creator empty state — a story-first hero + a connect-MCP nudge
+  // ("Get your key", key-gated on having no API key).
+  await expect(page.getByText('Every history starts with a story.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'New story' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Get your key' })).toBeVisible()
 
   // Open the API keys page; it shows the MCP endpoint. (The "Connect an MCP
   // client" title is a shadcn CardTitle <div>, not a heading role.)

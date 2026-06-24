@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Check, KeyRound, LogOut, Monitor, Moon, Palette, Sun, User } from 'lucide-react'
+import { Brush, Check, KeyRound, LogOut, Monitor, Moon, Palette, Sun, User } from 'lucide-react'
 import { useThemeContext, type Theme } from '@synek/ui'
 import {
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
 import { SettingsDialog, type SettingsTab } from '~/components/account/SettingsDialog'
+import { BrandLibraryDialog } from '~/components/brand/BrandLibraryDialog'
 import { signOut, useSession } from '~/lib/auth/client'
 import { setUserTheme } from '~/lib/server/preferences'
 import { cn } from '~/lib/utils'
@@ -34,6 +35,7 @@ export function ProfileMenu({ className }: { className?: string }) {
   // Which settings tab is open (null = dialog closed). Opening from a menu item
   // closes the dropdown (default onSelect) and opens the dialog at that tab.
   const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null)
+  const [brandsOpen, setBrandsOpen] = useState(false)
   const user = session?.user
   if (!user) return null
 
@@ -91,6 +93,10 @@ export function ProfileMenu({ className }: { className?: string }) {
           <KeyRound />
           API keys
         </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setBrandsOpen(true)}>
+          <Brush />
+          Brand kits
+        </DropdownMenuItem>
 
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="gap-2">
@@ -130,6 +136,7 @@ export function ProfileMenu({ className }: { className?: string }) {
       }}
       onTabChange={setSettingsTab}
     />
+    <BrandLibraryDialog open={brandsOpen} onOpenChange={setBrandsOpen} />
     </>
   )
 }

@@ -152,13 +152,14 @@ export function getSeriesProjectId(id: string): string | null {
 export function updateSeries(
   id: string,
   ownerId: string,
-  patch: { title?: string; hook?: string | null; coverImage?: StoryImage | null; theme?: TimelineTheme | null; status?: SeriesRow['status'] },
+  patch: { title?: string; hook?: string | null; coverImage?: StoryImage | null; theme?: TimelineTheme | null; brandId?: string | null; status?: SeriesRow['status'] },
 ): void {
   const set: Record<string, unknown> = { updatedAt: new Date() }
   if (patch.title !== undefined) set.title = patch.title
   if (patch.hook !== undefined) set.hook = patch.hook
   if (patch.coverImage !== undefined) set.coverImage = patch.coverImage
   if (patch.theme !== undefined) set.theme = patch.theme
+  if (patch.brandId !== undefined) set.brandId = patch.brandId
   if (patch.status !== undefined) set.status = patch.status
   db.update(storySeries)
     .set(set)
