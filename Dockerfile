@@ -80,24 +80,27 @@ ENV NODE_ENV=production \
 RUN groupadd --system --gid 10001 synek \
   && useradd --system --uid 10001 --gid synek synek
 
-# Copy ONLY what the server needs at runtime, each as its own layer so none is huge:
+# Copy ONLY what the server needs at runtime, each as its own layer so none is huge.
+# `--chown` sets ownership AT COPY TIME so there is no trailing `chown -R /app`,
+# which would otherwise rewrite the whole ~470 MB tree into a second duplicate
+# layer (doubling the image + risking the per-layer push cap).
 #   node_modules — pruned to prod deps (incl. the better-sqlite3 .node + tsx)
 #   dist/        — vite build output (client assets + server bundle)
 #   drizzle/     — migrations applied on boot via drizzle-orm
 #   scripts/     — serve-build.ts entry
 #   src/         — TS imported by the entry at runtime (e.g. telemetry/heartbeat)
 #   package.json — ESM "type":"module" resolution for tsx
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/drizzle ./drizzle
-COPY --from=build /app/scripts ./scripts
-COPY --from=build /app/src ./src
-COPY --from=build /app/package.json ./package.json
+COPY --from=build --chown=synek:synek /app/node_modules ./node_modules
+COPY --from=build --chown=synek:synek /app/dist ./dist
+COPY --from=build --chown=synek:synek /app/drizzle ./drizzle
+COPY --from=build --chown=synek:synek /app/scripts ./scripts
+COPY --from=build --chown=synek:synek /app/src ./src
+COPY --from=build --chown=synek:synek /app/package.json ./package.json
 
 # /data is group-writable (0775, gid 10001) so the non-root user can write the
 # SQLite file + WAL — both via the baked owner locally and via k8s fsGroup:10001.
 RUN mkdir -p /data \
-  && chown -R synek:synek /app /data \
+  && chown synek:synek /data \
   && chmod 0775 /data
 VOLUME ["/data"]
 EXPOSE 3001

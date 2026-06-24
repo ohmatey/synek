@@ -22,3 +22,13 @@ playwright-report
 e2e
 *.log
 .DS_Store
+
+# Docs, agent state, and editor dirs — not needed by `vite build` or at runtime.
+# Excluding them shrinks the build context and stops a docs edit from busting the
+# `COPY . .` layer (which would needlessly re-run `npm run build`).
+docs
+.sector137
+.claude
+.vscode
+.idea
+coverage
