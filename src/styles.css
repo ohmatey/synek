@@ -5449,6 +5449,44 @@ body {
   height: 13px;
 }
 
+/* Draft-card headline action — "Publish to share". The amber story accent rides as
+   a carrier (AA-safe text token + a hairline border + a faint fill), never a colored
+   perimeter on the card itself (design-doc carrier rule). Signals that publishing is
+   the significant next step a returning creator should take. */
+.ch-card-publish {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-accent-story-text);
+  background: color-mix(in oklab, var(--color-accent-story) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-accent-story) 45%, transparent);
+  border-radius: 7px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition:
+    background 160ms ease-out,
+    border-color 160ms ease-out;
+}
+.ch-card-publish:hover {
+  background: color-mix(in oklab, var(--color-accent-story) 18%, transparent);
+  border-color: var(--color-accent-story);
+}
+.ch-card-publish:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: 7px;
+}
+.ch-card-publish:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.ch-card-publish svg {
+  width: 13px;
+  height: 13px;
+}
+
 /* Timeline card — reuses the home card surface, no cover. */
 .ch-tl-card {
   position: relative;

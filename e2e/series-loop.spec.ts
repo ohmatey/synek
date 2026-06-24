@@ -37,12 +37,32 @@ test('a SeriesCard offers "Write the next chapter", which opens the paste-ready 
   await expect(dialog.getByRole('button', { name: /Copy prompt/ })).toBeVisible()
 })
 
+test('a DRAFT SeriesCard leads with "Publish to share", which publishes + copies the link', async ({ page, context }) => {
+  // The publish flow copies the public /sr/$slug link to the clipboard (no native
+  // share sheet in headless Chromium). Grant clipboard access so the path completes.
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await loginAsDemo(page)
+
+  // The seed leaves one draft series ("Unpublished Draft Saga") — its card leads with
+  // the prominent publish action, not a passive "Draft" label.
+  const publish = page.getByRole('button', { name: /^Publish .* to share$/ }).first()
+  await expect(publish).toBeVisible()
+  await expect(publish).toContainText('Publish to share')
+
+  await publish.click()
+
+  // Publishing succeeds: a toast confirms the series is public and the link is copied.
+  await expect(page.getByText(/Series is public — link copied/)).toBeVisible()
+})
+
 test('a SeriesCard "View series" link opens the in-app series detail (slice B)', async ({ page }) => {
   await loginAsDemo(page)
 
   // The secondary "View series" link goes to the creator workspace (/series/$id);
-  // the card's primary action still points at the public season.
-  const view = page.getByRole('link', { name: /^View .* in your workspace$/ }).first()
+  // the card's primary action still points at the public season. Target a series
+  // that HAS chapters (so the Table of contents renders) — not the chapter-less
+  // draft fixture, whose card order isn't guaranteed.
+  const view = page.getByRole('link', { name: 'View “The Fall of the Republic” in your workspace' })
   await expect(view).toBeVisible()
   await view.click()
 

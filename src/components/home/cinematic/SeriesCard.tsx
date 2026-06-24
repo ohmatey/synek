@@ -83,7 +83,15 @@ export function SeriesCard({ series }: { series: HomeSeriesCard }) {
             Open season
           </a>
         ) : (
-          <span className="px-2 text-xs font-medium text-muted-foreground">Draft</span>
+          // A draft has no public reader yet — publishing IS the next step. Lead with
+          // it: a text+icon button on the amber story accent (carrier, not a passive
+          // "Draft" label). Reuses the ShareSeriesButton publish flow.
+          <ShareSeriesButton
+            seriesId={series.seriesId}
+            shared={false}
+            variant="prominent"
+            label={`Publish “${series.title}” to share`}
+          />
         )}
         <span className="flex items-center gap-1">
           <Link
@@ -104,7 +112,11 @@ export function SeriesCard({ series }: { series: HomeSeriesCard }) {
           >
             <PenLine aria-hidden="true" className="size-4" />
           </button>
-          <ShareSeriesButton seriesId={series.seriesId} shared={series.isPublic} className={ICON_BTN} />
+          {/* Public series keep the compact copy-link control; drafts publish via the
+              prominent button above, so the redundant icon is omitted there. */}
+          {series.isPublic && (
+            <ShareSeriesButton seriesId={series.seriesId} shared className={ICON_BTN} />
+          )}
         </span>
       </div>
       <PromptDialog open={promptOpen} onOpenChange={setPromptOpen} spec={nextChapterSpec} />

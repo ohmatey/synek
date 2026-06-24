@@ -14,12 +14,17 @@ export function ShareSeriesButton({
   className,
   shared = false,
   label,
+  variant = 'icon',
 }: {
   seriesId: string
   className?: string
   // Whether the series is already public — flips the icon/label to a copy affordance.
   shared?: boolean
   label?: string
+  // `icon` = the compact toolbar control. `prominent` = a text+icon button that reads
+  // "Publish to share" — the headline next step on a DRAFT card (design review,
+  // Principle 5: build for the creator-publisher). Amber story accent as a carrier.
+  variant?: 'icon' | 'prominent'
 }) {
   const [busy, setBusy] = useState(false)
   const effLabel = label ?? (shared ? 'Copy this series’ public link' : 'Share this series publicly')
@@ -50,6 +55,23 @@ export function ShareSeriesButton({
     } finally {
       setBusy(false)
     }
+  }
+
+  if (variant === 'prominent') {
+    return (
+      <button
+        type="button"
+        className={cn(className ?? 'ch-card-publish')}
+        onClick={onShare}
+        disabled={busy}
+        aria-label={effLabel}
+        data-shared={shared ? '' : undefined}
+        data-testid="share-series"
+      >
+        {shared ? <Link2 aria-hidden /> : <Share2 aria-hidden />}
+        {shared ? 'Public link' : 'Publish to share'}
+      </button>
+    )
   }
 
   return (

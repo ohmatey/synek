@@ -1373,6 +1373,15 @@ async function main() {
   // blanket publish is safe.
   db.update(stories).set({ isPublic: true }).run()
   db.update(storySeries).set({ isPublic: true }).run()
+  // e2e only: a DRAFT (unpublished) series so the home Series row exercises the
+  // "Publish to share" affordance on a draft card (created AFTER the blanket publish
+  // above so it stays isPublic=false — the schema default).
+  if (isE2E) {
+    createSeries(projectId, ownerId, {
+      title: 'Unpublished Draft Saga',
+      hook: 'A draft season not yet shared with readers.',
+    })
+  }
   console.log('Done.')
 }
 
