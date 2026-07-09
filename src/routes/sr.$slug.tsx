@@ -114,7 +114,7 @@ function PublicSeriesPage() {
             The link may be private, moved, or mistyped. Ask whoever sent it to re-share, or start
             your own serialized story.
           </p>
-          <Link to="/" className="psr-cta">
+          <Link to="/signup" className="psr-cta">
             <Sparkles size={16} aria-hidden />
             Make your own with Synek
           </Link>

@@ -20,6 +20,11 @@ import type { SignupAttribution } from '~/lib/posthog/attribution'
 
 type Mode = 'signin' | 'signup'
 
+// Error codes better-auth attaches when the *password* field specifically is at
+// fault (too short/long, or plain wrong on sign-in) — branch on the stable code,
+// not the message text, so this doesn't drift with copy/locale changes.
+const PASSWORD_FIELD_ERROR_CODES = new Set(['PASSWORD_TOO_SHORT', 'PASSWORD_TOO_LONG', 'INVALID_PASSWORD'])
+
 export function AuthForms({
   initialMode = 'signin',
   attribution,
@@ -37,12 +42,14 @@ export function AuthForms({
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (busy) return
     setBusy(true)
     setError(null)
+    setPasswordError(false)
     try {
       const res =
         mode === 'signup'
@@ -50,6 +57,7 @@ export function AuthForms({
           : await signIn.email({ email, password })
       if (res.error) {
         setError(res.error.message || 'Authentication failed')
+        setPasswordError(PASSWORD_FIELD_ERROR_CODES.has(res.error.code ?? ''))
         return
       }
       if (mode === 'signup') {
@@ -90,6 +98,7 @@ export function AuthForms({
           onValueChange={(v) => {
             setMode(v as Mode)
             setError(null)
+            setPasswordError(false)
           }}
         >
           <TabsList className="grid w-full grid-cols-2">
@@ -132,8 +141,13 @@ export function AuthForms({
               minLength={8}
               placeholder={mode === 'signup' ? 'At least 8 characters' : '••••••••'}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value)
+                setPasswordError(false)
+              }}
               autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              aria-invalid={passwordError}
+              className={passwordError ? 'border-destructive focus-visible:ring-destructive/40' : undefined}
             />
             {mode === 'signin' && (
               <Link

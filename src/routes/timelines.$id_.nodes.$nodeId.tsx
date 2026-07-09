@@ -125,7 +125,7 @@ function NodePage() {
           <p>
             The link may be private, moved, or mistyped. Open the timeline it lives on, or start your own.
           </p>
-          <Link to="/" className="psr-cta">
+          <Link to="/signup" className="psr-cta">
             <Sparkles size={16} aria-hidden />
             Make your own with Synek
           </Link>

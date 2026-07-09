@@ -4390,7 +4390,7 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, color-mix(in oklab, var(--color-bg-surface) 50%, transparent), var(--color-bg-surface) 92%);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--color-bg-surface) 78%, transparent), var(--color-bg-surface) 92%);
 }
 .psr-beat {
   position: relative;
