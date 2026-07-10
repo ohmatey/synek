@@ -80,7 +80,7 @@ function SeriesDetailPage() {
     return (
       <>
         <AppHeader />
-        <main className="sd-missing">
+        <main id="main" tabIndex={-1} className="sd-missing">
           <div className="psm-card">
             <BookOpenText className="psm-icon" aria-hidden />
             <h1>This series isn’t available</h1>
@@ -112,7 +112,7 @@ function SeriesDetailPage() {
   return (
     <>
       <AppHeader />
-      <main className="sd-page" style={themeVars} data-theme-scoped={series.theme ? '' : undefined}>
+      <main id="main" tabIndex={-1} className="sd-page" style={themeVars} data-theme-scoped={series.theme ? '' : undefined}>
         <nav className="sd-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Workspace</Link>
           <ChevronRight size={14} aria-hidden />

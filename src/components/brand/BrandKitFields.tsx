@@ -30,15 +30,15 @@ type SetField = <K extends keyof BrandKit>(key: K, value: BrandKit[K]) => void
 export function IdentityFields({ kit, set }: { kit: BrandKit; set: SetField }) {
   return (
     <div className="mt-0 flex flex-col gap-4">
-      <Field label="Tagline"><Input value={kit.tagline ?? ''} onChange={(e) => set('tagline', e.target.value)} placeholder="Roasted small, shipped fresh" /></Field>
-      <Field label="Description"><Textarea value={kit.description ?? ''} onChange={(e) => set('description', e.target.value)} placeholder="What this brand is, in a sentence or two." /></Field>
-      <Field label="Industries" hint="comma-separated"><Input value={joinList(kit.industries)} onChange={(e) => set('industries', splitList(e.target.value))} placeholder="Food & Beverage, Retail" /></Field>
-      <Field label="Target audience"><Textarea value={kit.targetAudience ?? ''} onChange={(e) => set('targetAudience', e.target.value)} placeholder="Who is this for?" /></Field>
-      <Field label="Brand attributes" hint="comma-separated"><Input value={joinList(kit.brandAttributes)} onChange={(e) => set('brandAttributes', splitList(e.target.value))} placeholder="warm, precise, honest" /></Field>
+      <Field label="Tagline"><Input name="tagline" autoComplete="off" value={kit.tagline ?? ''} onChange={(e) => set('tagline', e.target.value)} placeholder="e.g. Roasted small, shipped fresh…" /></Field>
+      <Field label="Description"><Textarea name="description" autoComplete="off" value={kit.description ?? ''} onChange={(e) => set('description', e.target.value)} placeholder="e.g. What this brand is, in a sentence or two…" /></Field>
+      <Field label="Industries" hint="comma-separated"><Input name="industries" autoComplete="off" value={joinList(kit.industries)} onChange={(e) => set('industries', splitList(e.target.value))} placeholder="e.g. Food & Beverage, Retail…" /></Field>
+      <Field label="Target audience"><Textarea name="targetAudience" autoComplete="off" value={kit.targetAudience ?? ''} onChange={(e) => set('targetAudience', e.target.value)} placeholder="e.g. Who is this for?…" /></Field>
+      <Field label="Brand attributes" hint="comma-separated"><Input name="brandAttributes" autoComplete="off" value={joinList(kit.brandAttributes)} onChange={(e) => set('brandAttributes', splitList(e.target.value))} placeholder="e.g. warm, precise, honest…" /></Field>
       <Separator />
-      <Field label="Mission"><Textarea value={kit.mission ?? ''} onChange={(e) => set('mission', e.target.value)} /></Field>
-      <Field label="Vision"><Textarea value={kit.vision ?? ''} onChange={(e) => set('vision', e.target.value)} /></Field>
-      <Field label="Key messages" hint="one per line"><Textarea value={(kit.keyMessages ?? []).join('\n')} onChange={(e) => set('keyMessages', splitList(e.target.value))} /></Field>
+      <Field label="Mission"><Textarea name="mission" autoComplete="off" value={kit.mission ?? ''} onChange={(e) => set('mission', e.target.value)} placeholder="e.g. Our mission is to…" /></Field>
+      <Field label="Vision"><Textarea name="vision" autoComplete="off" value={kit.vision ?? ''} onChange={(e) => set('vision', e.target.value)} placeholder="e.g. Our vision is to…" /></Field>
+      <Field label="Key messages" hint="one per line"><Textarea name="keyMessages" autoComplete="off" value={(kit.keyMessages ?? []).join('\n')} onChange={(e) => set('keyMessages', splitList(e.target.value))} placeholder="e.g. One key message per line…" /></Field>
       <KeyedArrayField
         heading="Core values"
         items={kit.coreValues ?? []}
@@ -47,8 +47,8 @@ export function IdentityFields({ kit, set }: { kit: BrandKit; set: SetField }) {
         addLabel="Add value"
         renderRow={(cv, setCv, remove, i) => (
           <div className="flex items-center gap-2">
-            <Input aria-label={`Core value ${i + 1} name`} value={cv.name} onChange={(e) => setCv({ ...cv, name: e.target.value })} placeholder="Craft" className="w-44" />
-            <Input aria-label={`Core value ${i + 1} description`} value={cv.description ?? ''} onChange={(e) => setCv({ ...cv, description: e.target.value || undefined })} placeholder="What it means in practice" className="flex-1" />
+            <Input name={`coreValueName-${i}`} autoComplete="off" aria-label={`Core value ${i + 1} name`} value={cv.name} onChange={(e) => setCv({ ...cv, name: e.target.value })} placeholder="e.g. Craft…" className="w-44" />
+            <Input name={`coreValueDesc-${i}`} autoComplete="off" aria-label={`Core value ${i + 1} description`} value={cv.description ?? ''} onChange={(e) => setCv({ ...cv, description: e.target.value || undefined })} placeholder="e.g. What it means in practice…" className="flex-1" />
             <RemoveBtn label={`Remove core value ${i + 1}`} onClick={remove} />
           </div>
         )}
@@ -61,7 +61,7 @@ export function VisualFields({ kit, set }: { kit: BrandKit; set: SetField }) {
   return (
     <div className="mt-0 flex flex-col gap-4">
       <Field label="Palette" hint="hex colors, comma-separated">
-        <Input value={joinList(kit.colors)} onChange={(e) => set('colors', splitList(e.target.value))} placeholder="#3B2A1A, #D9A066, #F4ECE2" />
+        <Input name="palette" autoComplete="off" value={joinList(kit.colors)} onChange={(e) => set('colors', splitList(e.target.value))} placeholder="e.g. #3B2A1A, #D9A066, #F4ECE2…" />
         {kit.colors.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {kit.colors.map((c, i) => (
@@ -70,10 +70,12 @@ export function VisualFields({ kit, set }: { kit: BrandKit; set: SetField }) {
           </div>
         )}
       </Field>
-      <Field label="Logo URL"><Input value={kit.logoUrl ?? ''} onChange={(e) => set('logoUrl', e.target.value || undefined)} placeholder="https://example.com/logo.svg" /></Field>
-      <Field label="Visual aesthetic"><Textarea value={kit.visualAesthetic ?? ''} onChange={(e) => set('visualAesthetic', e.target.value)} placeholder="Warm earth tones, generous whitespace…" /></Field>
+      <Field label="Logo URL"><Input name="logoUrl" autoComplete="off" value={kit.logoUrl ?? ''} onChange={(e) => set('logoUrl', e.target.value || undefined)} placeholder="e.g. https://example.com/logo.svg…" /></Field>
+      <Field label="Visual aesthetic"><Textarea name="visualAesthetic" autoComplete="off" value={kit.visualAesthetic ?? ''} onChange={(e) => set('visualAesthetic', e.target.value)} placeholder="e.g. Warm earth tones, generous whitespace…" /></Field>
       <Field label="Fonts" hint="name and family, one per line as “Name | family”">
         <Textarea
+          name="fonts"
+          autoComplete="off"
           value={(kit.fonts ?? []).map((f) => `${f.name} | ${f.family}`).join('\n')}
           onChange={(e) =>
             set(
@@ -85,7 +87,7 @@ export function VisualFields({ kit, set }: { kit: BrandKit; set: SetField }) {
                 .map(([name, family]) => ({ name, family })),
             )
           }
-          placeholder="Inter | Inter, system-ui, sans-serif"
+          placeholder="e.g. Inter | Inter, system-ui, sans-serif…"
         />
       </Field>
     </div>
@@ -104,8 +106,8 @@ export function VoiceFields({ kit, setVoice }: { kit: BrandKit; setVoice: (patch
         addLabel="Add trait"
         renderRow={(t, setT, remove, i) => (
           <div className="flex items-center gap-2">
-            <Input aria-label={`Trait ${i + 1} name`} value={t.trait} onChange={(e) => setT({ ...t, trait: e.target.value })} placeholder="Confident" />
-            <Input aria-label={`Trait ${i + 1} intensity (1–10)`} type="number" min={1} max={10} value={t.intensity} onChange={(e) => setT({ ...t, intensity: clampInt(e.target.value, 1, 10) })} className="w-20" />
+            <Input name={`traitName-${i}`} autoComplete="off" aria-label={`Trait ${i + 1} name`} value={t.trait} onChange={(e) => setT({ ...t, trait: e.target.value })} placeholder="e.g. Confident…" />
+            <Input name={`traitIntensity-${i}`} autoComplete="off" aria-label={`Trait ${i + 1} intensity (1–10)`} type="number" min={1} max={10} value={t.intensity} onChange={(e) => setT({ ...t, intensity: clampInt(e.target.value, 1, 10) })} className="w-20" />
             <RemoveBtn label={`Remove trait ${i + 1}`} onClick={remove} />
           </div>
         )}
@@ -129,7 +131,7 @@ export function VoiceFields({ kit, setVoice }: { kit: BrandKit; setVoice: (patch
               <option value="do">Do</option>
               <option value="dont">Don’t</option>
             </select>
-            <Input aria-label={`Rule ${i + 1}`} value={r.rule} onChange={(e) => setR({ ...r, rule: e.target.value })} placeholder="Lead with origin" />
+            <Input name={`writingRule-${i}`} autoComplete="off" aria-label={`Rule ${i + 1}`} value={r.rule} onChange={(e) => setR({ ...r, rule: e.target.value })} placeholder="e.g. Lead with origin…" />
             <RemoveBtn label={`Remove rule ${i + 1}`} onClick={remove} />
           </div>
         )}
@@ -145,13 +147,13 @@ export function VoiceFields({ kit, setVoice }: { kit: BrandKit; setVoice: (patch
         renderRow={(d, setD, remove, i) => (
           <div className="flex flex-col gap-1 rounded-md border border-border p-2">
             <div className="flex items-center gap-2">
-              <Input aria-label={`Tone dimension ${i + 1} name`} value={d.dimension} onChange={(e) => setD({ ...d, dimension: e.target.value })} placeholder="warmth" />
+              <Input name={`toneDimensionName-${i}`} autoComplete="off" aria-label={`Tone dimension ${i + 1} name`} value={d.dimension} onChange={(e) => setD({ ...d, dimension: e.target.value })} placeholder="e.g. warmth…" />
               <RemoveBtn label={`Remove tone dimension ${i + 1}`} onClick={remove} />
             </div>
             <div className="flex items-center gap-2">
-              <Input aria-label={`Tone dimension ${i + 1} low label`} value={d.labelLow} onChange={(e) => setD({ ...d, labelLow: e.target.value })} placeholder="Professional" className="flex-1" />
-              <Input aria-label={`Tone dimension ${i + 1} value (0–100)`} type="number" min={0} max={100} value={d.value} onChange={(e) => setD({ ...d, value: clampInt(e.target.value, 0, 100) })} className="w-20" />
-              <Input aria-label={`Tone dimension ${i + 1} high label`} value={d.labelHigh} onChange={(e) => setD({ ...d, labelHigh: e.target.value })} placeholder="Warm" className="flex-1" />
+              <Input name={`toneDimensionLow-${i}`} autoComplete="off" aria-label={`Tone dimension ${i + 1} low label`} value={d.labelLow} onChange={(e) => setD({ ...d, labelLow: e.target.value })} placeholder="e.g. Professional…" className="flex-1" />
+              <Input name={`toneDimensionValue-${i}`} autoComplete="off" aria-label={`Tone dimension ${i + 1} value (0–100)`} type="number" min={0} max={100} value={d.value} onChange={(e) => setD({ ...d, value: clampInt(e.target.value, 0, 100) })} className="w-20" />
+              <Input name={`toneDimensionHigh-${i}`} autoComplete="off" aria-label={`Tone dimension ${i + 1} high label`} value={d.labelHigh} onChange={(e) => setD({ ...d, labelHigh: e.target.value })} placeholder="e.g. Warm…" className="flex-1" />
             </div>
           </div>
         )}
@@ -160,8 +162,8 @@ export function VoiceFields({ kit, setVoice }: { kit: BrandKit; setVoice: (patch
       <Separator />
       <section className="flex flex-col gap-3">
         <h3 className="text-sm font-medium">Vocabulary</h3>
-        <Field label="Preferred" hint="comma-separated"><Input value={joinList(voice?.vocabulary?.preferred)} onChange={(e) => setVoice({ vocabulary: { preferred: splitList(e.target.value), avoided: voice?.vocabulary?.avoided ?? [], jargonLevel: voice?.vocabulary?.jargonLevel } })} placeholder="origin, craft" /></Field>
-        <Field label="Avoided" hint="comma-separated"><Input value={joinList(voice?.vocabulary?.avoided)} onChange={(e) => setVoice({ vocabulary: { preferred: voice?.vocabulary?.preferred ?? [], avoided: splitList(e.target.value), jargonLevel: voice?.vocabulary?.jargonLevel } })} placeholder="cheap, synergy" /></Field>
+        <Field label="Preferred" hint="comma-separated"><Input name="vocabPreferred" autoComplete="off" value={joinList(voice?.vocabulary?.preferred)} onChange={(e) => setVoice({ vocabulary: { preferred: splitList(e.target.value), avoided: voice?.vocabulary?.avoided ?? [], jargonLevel: voice?.vocabulary?.jargonLevel } })} placeholder="e.g. origin, craft…" /></Field>
+        <Field label="Avoided" hint="comma-separated"><Input name="vocabAvoided" autoComplete="off" value={joinList(voice?.vocabulary?.avoided)} onChange={(e) => setVoice({ vocabulary: { preferred: voice?.vocabulary?.preferred ?? [], avoided: splitList(e.target.value), jargonLevel: voice?.vocabulary?.jargonLevel } })} placeholder="e.g. cheap, synergy…" /></Field>
       </section>
     </div>
   )

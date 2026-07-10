@@ -69,8 +69,10 @@ function RequestReset() {
             <Input
               id="reset-email"
               type="email"
+              name="email"
               required
-              placeholder="you@example.com"
+              spellCheck={false}
+              placeholder="e.g. you@example.com…"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -135,9 +137,10 @@ function SetNewPassword({ token }: { token: string }) {
             <Input
               id="new-password"
               type="password"
+              name="password"
               required
               minLength={8}
-              placeholder="At least 8 characters"
+              placeholder="e.g. At least 8 characters…"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
@@ -148,9 +151,10 @@ function SetNewPassword({ token }: { token: string }) {
             <Input
               id="confirm-password"
               type="password"
+              name="confirm-password"
               required
               minLength={8}
-              placeholder="Re-enter your new password"
+              placeholder="e.g. Confirm new password…"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               autoComplete="new-password"
@@ -193,7 +197,7 @@ export function ResetPasswordScreen({ token }: { token?: string }) {
         </Link>
       </header>
 
-      <main className="relative z-10 grid flex-1 place-items-center px-6 pb-16">
+      <main id="main" tabIndex={-1} className="relative z-10 grid flex-1 place-items-center px-6 pb-16">
         <div className="w-full max-w-md">
           <ClientOnly fallback={<Skeleton className="h-[320px] w-full rounded-xl border border-border/60" />}>
             {token ? <SetNewPassword token={token} /> : <RequestReset />}

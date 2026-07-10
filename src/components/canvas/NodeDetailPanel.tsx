@@ -446,7 +446,7 @@ export function NodeDetailPanel({
                   key={i}
                   role="listitem"
                 >
-                  <img className="detail-image-photo" src={im.url} alt={im.alt ?? 'image'} />
+                  <img className="detail-image-photo" src={im.url} alt={im.alt ?? 'image'} width={168} height={im.aspect === 'portrait' ? 224 : 150} />
                   {im.alt && <figcaption className="detail-image-cap">{im.alt}</figcaption>}
                   {editMode && (
                     <>
@@ -500,9 +500,11 @@ export function NodeDetailPanel({
         {editMode ? (
           <input
             className="detail-title-input"
+            name="title"
+            autoComplete="off"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Title"
+            placeholder="e.g. Birth of the Internet…"
             aria-label="Title"
           />
         ) : (
@@ -563,8 +565,10 @@ export function NodeDetailPanel({
       {editMode ? (
         <textarea
           className="detail-desc-input"
+          name="description"
+          autoComplete="off"
           rows={6}
-          placeholder="Add a description…"
+          placeholder="e.g. Add a description of this event or entity…"
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           aria-label="Description"
@@ -594,8 +598,10 @@ export function NodeDetailPanel({
             <div className="detail-prop-edit">
               <input
                 className="detail-prop-input"
+                name="startInstant"
+                autoComplete="off"
                 value={start}
-                placeholder='e.g. “2008”, “Q3 2008”, “2014-03”, “49 BCE”'
+                placeholder='e.g. “2008”, “Q3 2008”, “2014-03”, “49 BCE”…'
                 onChange={(e) => setStart(e.target.value)}
                 aria-label={hasSpan ? 'Start date' : 'Date'}
               />
@@ -609,8 +615,10 @@ export function NodeDetailPanel({
               <div className="detail-prop-edit">
                 <input
                   className="detail-prop-input"
+                  name="endInstant"
+                  autoComplete="off"
                   value={end}
-                  placeholder="optional — blank = ongoing"
+                  placeholder="e.g. Q3 2008 or blank…"
                   onChange={(e) => setEnd(e.target.value)}
                   aria-label="End date"
                 />
@@ -672,7 +680,9 @@ export function NodeDetailPanel({
             <div className="detail-prop-edit">
               <Input
                 className="h-7 text-xs"
-                placeholder="Swimlane — e.g. a company / track (blank = by type)"
+                name="lane"
+                autoComplete="off"
+                placeholder="e.g. a company / track or blank…"
                 value={lane}
                 onChange={(e) => setLane(e.target.value)}
                 list="synek-lane-options"
@@ -692,7 +702,9 @@ export function NodeDetailPanel({
             <div className="detail-prop-edit">
               <Input
                 className="h-7 text-xs"
-                placeholder="Where this happened — e.g. Golgotha, Jerusalem"
+                name="location"
+                autoComplete="off"
+                placeholder="e.g. Golgotha, Jerusalem…"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 aria-label="Location"
@@ -844,7 +856,9 @@ export function NodeDetailPanel({
               <div className="flex items-center gap-2">
                 <Input
                   className="h-8 flex-1"
-                  placeholder="Source title"
+                  name={`citeTitle-${i}`}
+                  autoComplete="off"
+                  placeholder="e.g. Wikipedia…"
                   value={c.title}
                   onChange={(e) => updateCitation(i, 'title', e.target.value)}
                 />
@@ -860,14 +874,18 @@ export function NodeDetailPanel({
               </div>
               <Input
                 className="h-8"
-                placeholder="URL (optional)"
+                name={`citeUrl-${i}`}
+                autoComplete="off"
+                placeholder="e.g. https://example.com/source…"
                 value={c.url ?? ''}
                 onChange={(e) => updateCitation(i, 'url', e.target.value)}
               />
               <Textarea
                 className="min-h-14"
                 rows={2}
-                placeholder="Quote (optional)"
+                name={`citeQuote-${i}`}
+                autoComplete="off"
+                placeholder="e.g. The first message was sent…"
                 value={c.quote ?? ''}
                 onChange={(e) => updateCitation(i, 'quote', e.target.value)}
               />

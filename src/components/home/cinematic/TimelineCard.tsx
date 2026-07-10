@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import {
@@ -20,12 +20,9 @@ const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'sho
 // menu carries Rename / Delete. (Projects are invisible plumbing now — there is no
 // "move to project" action.) Inline rename uses the draft/blur/Enter pattern.
 export function TimelineCard({ timeline }: { timeline: TimelineSummary }) {
-  const navigate = useNavigate()
   const qc = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(timeline.title)
-
-  const open = () => void navigate({ to: '/timelines/$id', params: { id: timeline.id } })
 
   async function saveRename() {
     const t = draft.trim()
@@ -62,7 +59,7 @@ export function TimelineCard({ timeline }: { timeline: TimelineSummary }) {
           />
         </div>
       ) : (
-        <button type="button" className="ch-tl-open" onClick={open} aria-label={`Open “${timeline.title}”`}>
+        <Link to="/timelines/$id" params={{ id: timeline.id }} className="ch-tl-open" aria-label={`Open “${timeline.title}”`}>
           <span className="ch-tl-titlerow">
             <span className="ch-tl-title">{timeline.title}</span>
             {timeline.isPublic && (
@@ -75,7 +72,7 @@ export function TimelineCard({ timeline }: { timeline: TimelineSummary }) {
           <time dateTime={new Date(timeline.createdAt).toISOString()} className="ch-tl-date">
             {dateFmt.format(timeline.createdAt)}
           </time>
-        </button>
+        </Link>
       )}
 
       <div className="ch-tl-menu">

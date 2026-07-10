@@ -55,7 +55,7 @@ export function AuthScreen({ mode, attribution }: { mode: Mode; attribution?: Si
         </Link>
       </header>
 
-      <main className="relative z-10 grid flex-1 place-items-center px-6 pb-16">
+      <main id="main" className="relative z-10 grid flex-1 place-items-center px-6 pb-16">
         <div className="w-full max-w-md">
           <ClientOnly
             fallback={<Skeleton className="h-[420px] w-full rounded-xl border border-border/60" />}

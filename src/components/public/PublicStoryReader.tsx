@@ -271,6 +271,7 @@ export function PublicStoryReader({
   return (
     <main
       ref={rootRef}
+      id="main"
       className="psr"
       data-ended={ended || undefined}
       aria-label={`Story: ${story.title}`}

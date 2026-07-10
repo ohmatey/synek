@@ -33,6 +33,7 @@ test('place a shared entity on another timeline → it reports "also appears on"
   // Its full-screen page reports the OTHER timeline it appears on.
   await node.dispatchEvent('click')
   await page.getByTestId('open-node-page').click()
+  await expect(page).toHaveURL(/\/timelines\/stoicism\/nodes\//)
   const appears = page.getByTestId('appears-on')
   await expect(appears).toBeVisible()
   await expect(appears.getByRole('link', { name: 'Figures of science' })).toBeVisible()
@@ -46,6 +47,7 @@ test('editing shared content propagates; the entity undo reverts it', async ({ p
   await expect(node).toBeAttached()
   await node.dispatchEvent('click')
   await page.getByTestId('open-node-page').click()
+  await expect(page).toHaveURL(/\/timelines\/figures\/nodes\//)
   const panel = page.getByRole('dialog', { name: 'Node details' })
 
   await panel.getByTestId('edit-node').click()

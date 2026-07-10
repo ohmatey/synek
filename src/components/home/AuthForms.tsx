@@ -113,7 +113,8 @@ export function AuthForms({
               <Label htmlFor="auth-name">Name</Label>
               <Input
                 id="auth-name"
-                placeholder="Ada Lovelace"
+                name="name"
+                placeholder="e.g. Ada Lovelace…"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="name"
@@ -125,8 +126,10 @@ export function AuthForms({
             <Input
               id="auth-email"
               type="email"
+              name="email"
               required
-              placeholder="you@example.com"
+              spellCheck={false}
+              placeholder="e.g. you@example.com…"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -137,9 +140,10 @@ export function AuthForms({
             <Input
               id="auth-password"
               type="password"
+              name="password"
               required
               minLength={8}
-              placeholder={mode === 'signup' ? 'At least 8 characters' : '••••••••'}
+              placeholder={mode === 'signup' ? 'e.g. At least 8 characters…' : '••••••••'}
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value)

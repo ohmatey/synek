@@ -28,7 +28,7 @@ function TimelineView() {
   return (
     <BuildStreamProvider>
       <div className="app-shell">
-        <main className="canvas-pane">
+        <main id="main" tabIndex={-1} className="canvas-pane">
           {/* React Flow is client-only — guard against SSR. */}
           <ClientOnly fallback={<div className="canvas-loading">Loading canvas…</div>}>
             <TimelineCanvas timelineId={id} />

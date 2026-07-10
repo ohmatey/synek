@@ -55,9 +55,11 @@ export function AddEntityMenu({ timelineId }: { timelineId: string }) {
         <div className="add-entity-search">
           <Search className="size-4 text-muted-foreground" aria-hidden />
           <Input
+            name="entitySearch"
+            autoComplete="off"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search your entities…"
+            placeholder="e.g. Search your entities…"
             aria-label="Search your entities"
             autoFocus
           />

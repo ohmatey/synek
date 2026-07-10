@@ -135,7 +135,7 @@ function NodePage() {
   }
 
   return (
-    <div className="node-page-shell" style={themeVars} data-theme-scoped={ok.theme ? '' : undefined}>
+    <main id="main" tabIndex={-1} className="node-page-shell" style={themeVars} data-theme-scoped={ok.theme ? '' : undefined}>
       <div className="node-page-bar">
         <Link
           to="/timelines/$id"
@@ -232,6 +232,6 @@ function NodePage() {
           </ul>
         </section>
       )}
-    </div>
+    </main>
   )
 }

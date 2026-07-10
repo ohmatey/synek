@@ -21,7 +21,7 @@ export function SettingsLayout({
   return (
     <div className="flex min-h-screen flex-col text-foreground">
       <AppHeader />
-      <main className="flex-1">
+      <main id="main" className="flex-1">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-10">
           <div>
             <Link

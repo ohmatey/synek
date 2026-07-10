@@ -49,7 +49,7 @@ export function ProjectsWorkspace() {
     return (
       <div className="flex min-h-screen flex-col text-foreground">
         <AppHeader />
-        <main className="grid flex-1 place-items-center px-6">
+        <main id="main" className="grid flex-1 place-items-center px-6">
           <div className="flex max-w-md flex-col items-center gap-4 text-center">
             <h1 className="text-2xl font-semibold tracking-tight">Your stories</h1>
             <p className="text-muted-foreground">Sign in to see your stories, series and timelines.</p>
@@ -130,7 +130,7 @@ function Workspace() {
   return (
     <div className="flex min-h-screen flex-col text-foreground">
       <AppHeader />
-      <main className="flex-1">
+      <main id="main" className="flex-1">
         <div className="ch-home">
           {loading ? (
             <div className="ch-featured-skeleton" aria-hidden="true" />
@@ -281,7 +281,7 @@ function FeaturedHero({ story }: { story: HomeStoryCard }) {
     <section className="ch-hero" data-featured data-wash={cover ? undefined : true} aria-label={`Featured story: ${story.title}`}>
       {cover && (
         <>
-          <img className="ch-hero-img" src={cover.url} alt={cover.alt ?? ''} />
+          <img className="ch-hero-img" src={cover.url} alt={cover.alt ?? ''} width={1200} height={480} fetchPriority="high" />
           <div className="ch-hero-scrim" aria-hidden="true" />
         </>
       )}

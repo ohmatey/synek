@@ -68,7 +68,7 @@ function Poster({
         style={cover ? undefined : ({ '--cover-hue': hueFromString(id) } as React.CSSProperties)}
       >
         {cover ? (
-          <img src={cover.url} alt={cover.alt ?? ''} loading="lazy" />
+          <img src={cover.url} alt={cover.alt ?? ''} loading="lazy" width={300} height={400} />
         ) : (
           <span className="ch-card-cover-fallback" aria-hidden="true">
             <Icon />
