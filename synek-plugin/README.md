@@ -13,6 +13,8 @@ Synek is local-first: by default it runs on your machine, stores everything in o
 | **MCP server** (`.mcp.json`) | Auto-connects Claude Code to your local Synek server at `http://localhost:3001/api/mcp` over HTTP, authenticated via **OAuth** (one browser "Authorize" click — no token to paste). Exposes `list_timelines`, `create_timeline`, `get_timeline`, `query_timeline`, `get_node`, `get_layout_report`, `apply_patch`, `register_artifact`, `search_artifacts`, `undo`, `redo` (and more). |
 | `/synek:map <topic>` | The hero command. Creates a timeline, researches the topic, and builds it in one atomic Patch, then hands back the canvas link. |
 | `/synek:watch <timeline>` | Keep an *ongoing* timeline current — competitors, model releases, funding/acquisitions, novel research. Runs a keeper pass now (adds **only what's new**, one Patch), then offers to make it recurring in Claude Code or any client. |
+| `/synek:next-chapter <series>` | The morning-chapter loop: read a series' frontier, optionally grow the world with new cited nodes, write the next chapter — never repeating earlier ones. |
+| `/synek:follow <topic>` | Follow a topic end-to-end: fix a scope brief, set up a **private** living series, write Chapter I now, and hand back a self-contained recurring routine you can schedule in any MCP client. |
 | `/synek:setup` | Health check. Verifies the server is reachable and you're authorized; walks you through fixing whatever's broken. |
 | `building-timelines` skill | Passive knowledge Claude loads automatically when working with Synek — the atomic-Patch contract, exact op shapes, the closed edge-`kind` set, `ref` aliasing, the heuristics that make a timeline rich instead of a row of gray boxes, and when to offer a keeper routine. |
 
@@ -31,6 +33,8 @@ Synek is local-first: by default it runs on your machine, stores everything in o
 ```
 
 **Local (developing on the plugin itself):** from the Synek repo root, add `./synek-plugin` as a local plugin dir via Claude Code's `/plugin` menu.
+
+> **Versioning rule:** any change to `skills/` MUST bump `version` in `.claude-plugin/plugin.json`. Installed plugins are cached by version — a skill added without a bump silently never reaches installed copies (this happened to `next-chapter`).
 
 Then connect — **one click, no token:**
 

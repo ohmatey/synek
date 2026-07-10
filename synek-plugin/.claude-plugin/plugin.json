@@ -1,6 +1,6 @@
 {
   "name": "synek",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Drive your local Synek timeline canvas from Claude Code. Talk about a topic and watch the timeline build itself — bundles the MCP connection plus the know-how to build good timelines.",
   "author": {
     "name": "Aaron McPherson",

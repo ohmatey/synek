@@ -9,7 +9,7 @@ allowed-tools: ["mcp__plugin_synek_synek__list_projects", "mcp__plugin_synek_syn
 
 A **series** is a serialized story told one **chapter** at a time. Each chapter is a Synek story (a moment + ordered beats) linked into the series in order. This skill is the **morning-chapter loop**: you read where the series is, decide what happens next, *optionally grow the world to support it*, and write the next chapter — then hand back the season link.
 
-There is no agent inside Synek. **You** are the writer — the app is the canvas + reader, your MCP client is the brain. The cadence is yours (run it when you like, or schedule it like `/synek:watch` does). The app holds only the durable parts: the series order and a coverage watermark. Everything else — the research, the prose, the choice of what happens next — is this run.
+There is no agent inside Synek. **You** are the writer — the app is the canvas + reader, your MCP client is the brain. The cadence is yours (run it when you like; to set up a *recurring* keeper-chapter loop end-to-end — scope brief, private series, schedule — use `/synek:follow`). The app holds only the durable parts: the series order and a coverage watermark. Everything else — the research, the prose, the choice of what happens next — is this run.
 
 Read the `building-timelines` skill first for the `apply_patch` op shapes (used only when you grow the timeline) and the `write_story` beat/cast/widget shapes. This skill focuses on the part unique to serialization: **advancing the story without repeating earlier chapters.**
 
