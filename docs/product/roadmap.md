@@ -114,6 +114,7 @@ The five measurement buckets (priority order). Each is a PostHog funnel/cohort +
 - **Teams / workspaces / roles**, enterprise SSO / audit logs.
 - **Proactive cloud-cron industry-mapping agent / signal ingestion** as an in-app service (the client-side keeper is the `/synek:watch` plugin skill; the per-timeline local variant is the dormant **L — Living Timelines**, `#local-50`).
 - **Witness mode (S4)**, multi-POV (S3) deepening, generated node illustrations (`#local-68`) — pre-pivot story-layer extensions, revisited only if the new creator loop pulls them in.
+- **Per-chapter draft/approve publish gate** (`#local-175`) and **cross-user read sharing for private series** (`#local-176`) — both surfaced by the Tech Radar dogfood of `/synek:follow` (sector137 `projects/tech-radar/`): a scheduled follow can't be safely public without a chapter gate, and a private one can't be read by a teammate. Filed, not built.
 
 ---
 

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "project": "Synek",
-  "updatedAt": "2026-07-10T04:36:45.000Z",
+  "updatedAt": "2026-07-10T09:00:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -1579,6 +1579,40 @@
         "dirty": true,
         "etag": null,
         "syncedAt": null
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-175",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Per-chapter draft/approve gate for public series",
+        "description": "Found by the Tech Radar dogfood (sector137 projects/tech-radar): set_series_public is one switch for the whole season with no per-chapter gate — once a series is public, every future write_story(appendToSeries) chapter goes live the instant it lands. For a *scheduled* follow (/synek:follow) that means unreviewed automated content auto-publishing, so automated follows must stay private today. A chapter status (draft -> approved/published) on story_segments' parent story, honored by the /sr/$slug season page, would make scheduled+public follows safe. Deliberately deferred at P3 as 'a confusing 2nd publish axis' — this files the concrete use case that re-opens it. NOT in scope for Tech Radar itself (guardrail: no app code).",
+        "horizon": "later",
+        "type": "feature",
+        "status": "open",
+        "dependencies": []
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-176",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "Cross-user read sharing for private series (invite a reader)",
+        "description": "Found by the Tech Radar dogfood: a private series is owner-scoped (Phase 2 per-user isolation), so a teammate on their own account cannot read it — Aaron's Partner cannot open the Tech Radar chapters; a customer team hits the same wall on any private follow. Smallest honest shape: an invite-a-reader grant (read-only, per series or per project) checked at the owner-scoped read entry points. Adjacent to the killed timeline-M:N sharing decision (ADR 0004 territory) — needs a deliberate design pass, not a quick FK. NOT in scope for Tech Radar (workaround: Aaron-only reader for now).",
+        "horizon": "later",
+        "type": "feature",
+        "status": "open",
+        "dependencies": []
       }
     }
   ],
