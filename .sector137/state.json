@@ -1,7 +1,7 @@
 {
   "version": 2,
   "project": "Synek",
-  "updatedAt": "2026-06-24T00:00:00.000Z",
+  "updatedAt": "2026-07-10T04:36:45.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -1562,6 +1562,24 @@
           "28f2e1d"
         ]
       }
+    },
+    {
+      "data": {
+        "title": "Cluster-aware sparse-time compression + MCP grouping feedback loop",
+        "description": "Connected nodes far apart on the axis now clump. Canvas: makeTimeScale rewritten to single-linkage 1-D clustering (3x median rhythm link, 4y floor, 25y cap); inter-cluster stretches compress to log-scaled 72-144px axis breaks while intra-cluster spacing stays exactly linear; compression is ON by default (DEFAULT_COLLAPSE_GAPS) with precedence chosen device pref > saved viewSettings > default. Also fixes the latent set_timeline_view bug that persisted collapseGaps:false on pxPerDay-only calls.\n\nMCP feedback: apply_patch warns on batch-touched edges whose endpoints sit >50% of the active span apart (or >30% across a dead zone); get_layout_report gains a grouping section (connected components vs time span/lane spread + top-5 longest edges); shared helpers in src/lib/mcp/graph-shape.ts; building-timelines skill gains a Keep-narrative-threads-clumped section. Auto-lane inference considered and rejected (lanes are semantic; report, do not auto-assign).\n\n### Closed 2026-07-10\nShipped in 242add6 (pushed to forgejo/main). Verified: bun test 12/12 scale units (new bun test runner adopted), verify:layout-feedback (new data-layer script) + verify:mcp green, typecheck clean, 80/80 Playwright e2e (collapse default test inverted; scroller zoom test de-flaked past the 100% window clamp).",
+        "horizon": "now",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-172",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
     }
   ],
   "tasks": [],
@@ -2039,6 +2057,19 @@
       "data": {
         "title": "Inspection 28f2e1d — brand slice: APPROVE-WITH-NITS",
         "body": "Inspection of commit 28f2e1d (ADR-0007 brand slice) — 5 lenses fanned out (Kael/Rook/Wren/Lyra/Margot), consolidated + adversarially verified.\n\nVERDICT: APPROVE-WITH-NITS (unanimous; no P0). Already committed + e2e-green; nits are follow-ups, not blockers.\n\nSOUND (verified): owner-scoping is tight — Kael found no cross-owner hole; every brand write double-checks target AND brand, fail-closed. Migration 0030 is additive + non-destructive (inline projects.brand KEPT) + reversible; FK `ON DELETE SET NULL` IS enforced (db/index.ts:15 sets pragma foreign_keys=ON — Rook's P1 confirmed a NON-ISSUE). Cascade story.brandId ?? series.brandId ?? project.brandId resolves voice live; one-shot theme seed vs live voice boundary correct. Spec mostly delivered; no scope creep into deferred items; plumbing (projects table/FKs/MCP/p-slug) preserved.\n\nFOLLOW-UPS filed: local-168 (home-row + UI a11y/UX), local-169 (per-scheme theme + voice encoding), local-170 (brand analytics), local-171 (backend nits). All horizon:next, none blocking."
+      }
+    },
+    {
+      "data": {
+        "title": "Wrap 2026-07-10 — timeline layout clumping shipped (242add6)",
+        "body": "Session wrap. Reviewed the timeline layout system and shipped the two-layer fix for connected-nodes-far-apart (issue local-172): cluster-aware axis compression default-ON in the canvas + a grouping feedback loop in the MCP layer (apply_patch long-edge warnings, get_layout_report grouping section, skill guidance). 14 files, +646/-55, commit 242add6 on forgejo/main (push also carried earlier unpushed 537460e + 8914bc1).\n\nFull verification green: typecheck, bun test (new unit runner, 12 tests on the scale math), verify:mcp, verify:layout-feedback (new), 80/80 e2e. One e2e fixed during the run: canvas scroller zoom test was boundary-flaky under compression (window clamped at 100% while the whole world is visible) — now zooms 4 steps with a polled assertion.\n\nKnown trade-off: timelines whose every gap exceeds ~25y show a break-marker per gap (truthful but hatch-heavy); the toggle-off escape hatch is one click and explicit prefs are respected.\n\nOffline wrap — sector137 MCP needs OAuth this session; run sync_state when connected."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-173",
+        "dirty": true,
+        "syncedAt": null
       }
     }
   ],
