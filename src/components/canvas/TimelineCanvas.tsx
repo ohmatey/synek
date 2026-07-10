@@ -33,6 +33,7 @@ import {
   eventPillWidth,
   makeTimeScale,
   loadScalePref,
+  collapseFromPref,
   saveScalePref,
   loadViewport,
   saveViewport,
@@ -319,7 +320,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // independent of camera zoom. Seeded from the per-timeline saved preference.
   const initialPref = useRef(loadScalePref(timelineId)).current
   const [pxPerDay, setPxPerDay] = useState(initialPref?.pxPerDay ?? BASE_PX_PER_DAY)
-  const [collapseGaps, setCollapseGaps] = useState(initialPref?.collapseGaps ?? false)
+  const [collapseGaps, setCollapseGaps] = useState(collapseFromPref(initialPref))
   // True once the USER explicitly adjusted the scale on this device (vs the
   // ambient auto-save below) — only then does the local pref beat the timeline's
   // saved default view. Persisted in the pref so the choice survives reloads.
@@ -383,7 +384,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     }
     const pref = loadScalePref(timelineId)
     setPxPerDay(pref?.pxPerDay ?? BASE_PX_PER_DAY)
-    setCollapseGaps(pref?.collapseGaps ?? false)
+    setCollapseGaps(collapseFromPref(pref))
     setAutoRefresh(pref?.autoRefresh ?? true)
     setSpeakStories(pref?.speak ?? false)
     setAutoPlayStories(pref?.autoPlay ?? true)

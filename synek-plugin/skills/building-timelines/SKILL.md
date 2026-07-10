@@ -97,12 +97,21 @@ Many topics are really **several parallel tracks racing along the same time axis
 }
 ```
 
+## Keep narrative threads clumped
+
+An edge is a claim that two nodes belong to one story — so connected nodes should usually sit **near each other on the canvas**. A node's position is its date (x) and its lane (y); **edges never move anything**. Connect two nodes 80 years apart with nothing in between and the reader gets one line crossing the whole canvas and no story.
+
+- **Same thread → same lane.** A causal/succession chain (`caused`, `succeeded`) is one thread: give every node in it the same `lane` string, even when the actors differ. The lane keeps the thread readable as one row regardless of how the axis is compressed.
+- **Bridge long causal jumps.** If A `caused`/`influenced` B across a big stretch of the axis, ask what happened in between — there is almost always a real intermediate event worth its own node. Two shorter edges through a bridging node tell the story; one long edge just draws a line.
+- **A long edge is sometimes right.** Deep-history influence (Aristotle `influenced` a 20th-century thinker) legitimately spans centuries. Keep it — but signal intent: put a `label` on the edge ("rediscovered via …") and prefer `influenced` over `caused`. Expect an advisory warning from `apply_patch`; it's a nudge, not an error.
+- **Trust the feedback.** `apply_patch` warns when a batch creates an edge whose endpoints are far apart relative to the timeline's span, and `get_layout_report` has a `grouping` section showing each connected component's time span and lane spread plus the longest edges. A component spanning most of the axis across many lanes usually means missing lanes or a date typo — fix it with `update_node` (`lane`, or a corrected `start`).
+
 ## What makes a timeline *good*
 
 - **Faces and substance, not boxes.** Prefer real, named people/orgs/works with a one-line `summary` each. Every `entity` gets a `subtype`. A topic map of 10–20 well-summarized nodes beats 40 bare titles.
 - **Mix the types.** `event`s are the moments (points in time); `entity`s are the people/orgs/places/works (often spans); `period`s are the eras that frame stretches of the axis; `concept`s are ideas/doctrines. A good map mixes them — periods give the canvas a sense of age.
 - **Swimlane parallel tracks.** If the topic has rival/parallel actors, lane them (see above). This is the difference between a clean waterfall and a hairball.
-- **Edges are deliberate, sparse, and typed.** Connect things that genuinely relate, and choose the `kind` honestly from the closed set. A few meaningful (especially cross-lane) edges read clearly; a fully-connected hairball reads as noise. Do not add a `succeeded` edge between every consecutive node in a lane — the lane order already shows succession.
+- **Edges are deliberate, sparse, and typed.** Connect things that genuinely relate, and choose the `kind` honestly from the closed set. A few meaningful (especially cross-lane) edges read clearly; a fully-connected hairball reads as noise. Do not add a `succeeded` edge between every consecutive node in a lane — the lane order already shows succession. And connected nodes should sit near each other — see "Keep narrative threads clumped" above.
 - **Dates carry the truth.** Use the real (even fuzzy) historical date and the honest `precision`. BCE works (`"49 BCE"`). Don't fabricate day-precision when you only know the year.
 - **Cite freely.** The user values primary-source grounding — it's the product's whole point. Attach `citations` (`title`, optional `url`, optional `quote`) wherever you can, especially primary sources. Better a known book title with no URL than nothing.
 

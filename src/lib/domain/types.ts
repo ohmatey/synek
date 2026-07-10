@@ -154,6 +154,10 @@ export const BASE_PX_PER_DAY = 0.5
 export const MIN_PX_PER_DAY = 0.005 // compressed enough to fit millennia on screen
 export const MAX_PX_PER_DAY = 4
 
+// Sparse-time compression (gap collapsing) is on unless the timeline's saved
+// viewSettings or the user's explicit device pref says otherwise.
+export const DEFAULT_COLLAPSE_GAPS = true
+
 export function clampPxPerDay(v: number): number {
   return Math.min(MAX_PX_PER_DAY, Math.max(MIN_PX_PER_DAY, v))
 }

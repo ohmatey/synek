@@ -17,7 +17,13 @@ import {
   makeRequireOwnedProject,
 } from '~/lib/db/projects'
 import { listEntitiesForHome } from '~/lib/db/entities'
-import { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay } from '~/lib/domain/types'
+import {
+  BASE_PX_PER_DAY,
+  MIN_PX_PER_DAY,
+  MAX_PX_PER_DAY,
+  DEFAULT_COLLAPSE_GAPS,
+  clampPxPerDay,
+} from '~/lib/domain/types'
 import { PatchBuilder, commitPatch, undo, redo, historyState, maxAppliedSeq } from '~/lib/db/patches'
 import {
   writeStory,
@@ -350,7 +356,7 @@ export const toolRegistry: ToolDef[] = [
     title: 'Get timeline graph',
     description:
       'Return a timeline\'s full graph: { title, viewSettings, theme, nodes, edges }. Use node ids for update/delete/edge ops. ' +
-      '`viewSettings` is the saved default time-axis scale ({ pxPerDay, collapseGaps }, null if never set) — change it with set_timeline_view. ' +
+      '`viewSettings` is the saved default time-axis scale ({ pxPerDay, collapseGaps }; null = defaults, with sparse-time compression on) — change it with set_timeline_view. ' +
       '`theme` is the saved visual theme + AI style metadata (null if unset) — reuse its `imageStyle`/`mood` when ' +
       'generating art or copy for this timeline; change it with set_timeline_theme.',
     inputSchema: { timelineId: z.string() },
@@ -500,11 +506,13 @@ export const toolRegistry: ToolDef[] = [
     description:
       'A compact whole-graph shape review — the canvas\'s view of the build, sized for an agent to reason over ' +
       '(get_timeline is the full data dump; this is the X-ray). Returns lane health (counts, density, ' +
-      'near-duplicate lane names, fragments), axis span + dead zones, era coverage (nodes + stories per period), ' +
+      'near-duplicate lane names, fragments), axis span + dead zones, graph grouping (each connected component\'s ' +
+      'time span and lane spread, plus the longest edges), era coverage (nodes + stories per period), ' +
       'story coverage, globe coordinates (located / placeless / unset counts + undecided-node sample), the ' +
       'deduplicated source registry, the same advisories apply_patch computes, and a one-line-per-node index. ' +
       'Call it after a multi-patch build or reshape, then ACT on what it shows: merge drifted lanes, re-anchor ' +
-      'outliers, fill story-poor eras, balance thin sourcing, resolve undecided coordinates (pin or mark placeless).',
+      'outliers, clump scattered narrative threads into shared lanes, fill story-poor eras, balance thin sourcing, ' +
+      'resolve undecided coordinates (pin or mark placeless).',
     inputSchema: { timelineId: z.string() },
     handler: async ({ timelineId }, { requireOwned }) => {
       requireOwned(timelineId)
@@ -524,7 +532,7 @@ export const toolRegistry: ToolDef[] = [
     title: 'Apply a batch of edits',
     description:
       'Apply a batch of graph edits as ONE atomic, undoable Patch. ops is an ordered list of add_node/update_node/delete_node/add_edge/update_edge/delete_edge. Use `ref` on add_node to reference the new node from a later add_edge in the same batch. ' +
-      'The result includes `warnings` — broken image URLs, lanes too dense for the current scale, dates that stretch the axis. The patch is COMMITTED regardless; act on warnings with a follow-up apply_patch or set_timeline_view.',
+      'The result includes `warnings` — broken image URLs, lanes too dense for the current scale, dates that stretch the axis, and connected nodes placed far apart on the axis (possible date error or missing lane grouping). The patch is COMMITTED regardless; act on warnings with a follow-up apply_patch or set_timeline_view.',
     inputSchema: { timelineId: z.string(), summary: z.string(), ops: z.array(opSchema) },
     handler: async ({ timelineId, summary, ops }, { ownerId }) => {
       // Create-if-missing owned by this user; if it exists, it must be theirs.
@@ -537,7 +545,7 @@ export const toolRegistry: ToolDef[] = [
       // Advisory only, computed after the commit (image checks hit the network);
       // live viewers already got the SSE nudge from commitPatch.
       const graph = loadGraph(timelineId)
-      const warnings = await collectPatchWarnings(graph, ops, getTimelineMeta(timelineId)?.viewSettings ?? null)
+      const warnings = await collectPatchWarnings(graph, ops, getTimelineMeta(timelineId)?.viewSettings ?? null, results)
       return { patchId, results, warnings, graphSummary: graphSummary(graph), ...historyState(timelineId) }
     },
   },
@@ -550,21 +558,24 @@ export const toolRegistry: ToolDef[] = [
       'already adjusted the scale keeps its own). Call this once AFTER building so the first open isn\'t the ' +
       'wrong zoom. `pxPerDay` is horizontal pixels per day of the base layout, clamped to ' +
       `[${MIN_PX_PER_DAY}, ${MAX_PX_PER_DAY}] (default ${BASE_PX_PER_DAY}) — pick it so the dense era fills a few screens: ` +
-      'pxPerDay ≈ 3000 / (days spanned by the bulk of the nodes). `collapseGaps` squeezes long empty spans into a ' +
-      'compact axis break — enable it when outlier dates (an org founded decades before the events, an ancient ' +
-      'precursor) would otherwise stretch the axis into dead space. Omitted fields keep their current value. ' +
+      'pxPerDay ≈ 3000 / (days spanned by the bulk of the nodes). `collapseGaps` squeezes sparse stretches between ' +
+      'clusters of activity into compact axis breaks — ON by default; disable it only when the axis must stay ' +
+      'strictly linear. Omitted fields keep their current value. ' +
       'Read the current settings via get_timeline\'s `viewSettings`.',
     inputSchema: {
       timelineId: z.string(),
       pxPerDay: z.number().positive().optional().describe('Pixels per day, clamped to the allowed range.'),
-      collapseGaps: z.boolean().optional().describe('Collapse long empty spans into a fixed-width axis break.'),
+      collapseGaps: z
+        .boolean()
+        .optional()
+        .describe('Compress sparse stretches into fixed-width axis breaks (default on).'),
     },
     handler: async ({ timelineId, pxPerDay, collapseGaps }, { ownerId, requireOwned }) => {
       requireOwned(timelineId)
       const current = getTimelineMeta(timelineId)?.viewSettings ?? null
       const next = {
         pxPerDay: clampPxPerDay(pxPerDay ?? current?.pxPerDay ?? BASE_PX_PER_DAY),
-        collapseGaps: collapseGaps ?? current?.collapseGaps ?? false,
+        collapseGaps: collapseGaps ?? current?.collapseGaps ?? DEFAULT_COLLAPSE_GAPS,
       }
       setTimelineView(timelineId, ownerId, next)
       // Live viewers re-pull the graph (which carries viewSettings) on any event.

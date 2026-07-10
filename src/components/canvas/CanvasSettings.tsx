@@ -321,10 +321,10 @@ export function CanvasSettings({
                     data-testid="time-scale-collapse-gaps"
                     onClick={() => apply(pxPerDay, !collapseGaps)}
                     aria-pressed={collapseGaps}
-                    title="Collapse long empty stretches between dates"
+                    title="Compress sparse stretches between clusters of activity (axis break markers show where)"
                   >
                     {collapseGaps && <Check />}
-                    Collapse long gaps
+                    Compress sparse time
                   </Button>
                 </div>
 

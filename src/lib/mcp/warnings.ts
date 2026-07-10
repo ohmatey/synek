@@ -2,8 +2,10 @@ import type { Graph } from '~/lib/db/graph'
 import type { NodeRow } from '~/lib/db/schema'
 import { BASE_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay, type TimelineViewSettings } from '~/lib/domain/types'
 import { formatInstant } from '~/lib/domain/dates'
+import { findDeadZones } from '~/lib/domain/dead-zones'
 import { safeFetch, SsrfError } from '~/lib/net/ssrf'
-import type { Op } from './ops'
+import { activeSpan, intervalDistance } from './graph-shape'
+import type { Op, OpResult } from './ops'
 
 // Post-commit advisory checks for apply_patch. The building MCP client works
 // blind — it never sees the rendered canvas — so the server tells it what the
@@ -25,6 +27,14 @@ const CRAMPED_AVG_GAP_PX = 110
 const MAX_IMAGE_CHECKS = 12
 const MAX_CITATION_CHECKS = 8
 const MAX_WARNINGS = 12
+
+// Connected-but-distant thresholds: an edge whose endpoints' time intervals sit
+// more than half the active span apart always warns; above 30% it warns only
+// when a dead zone separates them (endpoints in different clusters of activity
+// — the signal that survives the canvas's sparse-time compression).
+const LONG_EDGE_SPAN_FRACTION = 0.5
+const LONG_EDGE_DEADZONE_FRACTION = 0.3
+const MAX_CONNECTED_DISTANCE_WARNINGS = 3
 
 // --- URL verification (images + citation links) ----------------------------
 //
@@ -259,7 +269,87 @@ function outlierWarnings(nodes: NodeRow[]): string[] {
     warnings.push(
       `"${n.title}" (${formatInstant(n.startInstant, 'year')}) sits ~${years}y outside the events' span ` +
         `(${formatInstant(lo, 'year')}–${formatInstant(hi, 'year')}) and stretches the axis with dead space — ` +
-        `enable collapseGaps via set_timeline_view, or anchor the node nearer its relevance`,
+        `keep collapseGaps on (the default) so the stretch compresses, or anchor the node nearer its relevance`,
+    )
+  }
+  return warnings
+}
+
+// --- connected-but-distant edges (THIS batch's edges/moved nodes only) ------
+//
+// An edge is a claim that two nodes share a story, so endpoints far apart on
+// the axis usually mean a date typo, a missing lane grouping, or a missing
+// bridging node. Batch-scoped on purpose: whole-graph sprawl belongs in
+// get_layout_report's `grouping` section — re-warning about the same old edge
+// on every patch is noise the agent learns to ignore. Distance is measured
+// between the nodes' time INTERVALS (an entity spanning 1900–2020 overlaps a
+// 2015 event → distance 0, no warning).
+function connectedDistanceWarnings(graph: Graph, ops: Op[], results?: OpResult[]): string[] {
+  if (!results || graph.nodes.length < 4) return []
+  const span = activeSpan(graph.nodes)
+  if (!span) return []
+
+  // What this batch touched: edges added/updated, plus nodes added or re-dated
+  // (a pure summary edit doesn't re-trigger its edges).
+  const edgeIds = new Set<string>()
+  const nodeIds = new Set<string>()
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i]!
+    const r = results[i]
+    if (!r || !('id' in r)) continue
+    if (op.op === 'add_edge' || op.op === 'update_edge') edgeIds.add(r.id)
+    else if (op.op === 'add_node') nodeIds.add(r.id)
+    else if (op.op === 'update_node' && (op.start != null || op.end != null)) nodeIds.add(r.id)
+  }
+  if (edgeIds.size === 0 && nodeIds.size === 0) return []
+
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]))
+  const zones = findDeadZones(
+    graph.nodes.flatMap((n) => [n.startInstant, ...(n.endInstant != null ? [n.endInstant] : [])]),
+  )
+
+  const hits: { text: string; dist: number }[] = []
+  const seen = new Set<string>()
+  for (const e of graph.edges) {
+    if (!(edgeIds.has(e.id) || nodeIds.has(e.sourceId) || nodeIds.has(e.targetId))) continue
+    if (seen.has(e.id)) continue
+    seen.add(e.id)
+    const a = byId.get(e.sourceId)
+    const b = byId.get(e.targetId)
+    if (!a || !b) continue
+    const dist = intervalDistance(a, b)
+    if (dist <= 0) continue
+    // The empty stretch between the two intervals — a dead zone inside it means
+    // the endpoints sit in different clusters of activity.
+    const gapLo = Math.min(a.endInstant ?? a.startInstant, b.endInstant ?? b.startInstant)
+    const gapHi = Math.max(a.startInstant, b.startInstant)
+    const crossesDeadZone = zones.some((z) => z.fromInstant >= gapLo && z.toInstant <= gapHi)
+    const frac = dist / span.span
+    if (frac <= LONG_EDGE_DEADZONE_FRACTION) continue
+    if (frac <= LONG_EDGE_SPAN_FRACTION && !crossesDeadZone) continue
+
+    const years = Math.round(dist / MS_PER_DAY / DAYS_PER_YEAR)
+    const pct = Math.round(frac * 100)
+    const sameLane = a.metadata?.lane != null && a.metadata.lane === b.metadata?.lane
+    const where = crossesDeadZone ? ', with a dead zone between them' : ''
+    const fix = sameLane
+      ? `they share lane "${a.metadata!.lane}" but jump most of the axis — verify the dates, or add an intermediate node so the thread reads as a sequence`
+      : 'if they belong to one narrative thread, give both the same lane, add an intermediate bridging node, or double-check the dates'
+    hits.push({
+      dist,
+      text:
+        `"${a.title}" and "${b.title}" are connected (${e.kind}) but ~${years}y apart — about ${pct}% of the ` +
+        `timeline's span${where}. ${fix}. A deliberate deep-history reach is fine — keep it, prefer ` +
+        `\`influenced\`, and give the edge a label so readers know it's intentional.`,
+    })
+  }
+
+  hits.sort((x, y) => y.dist - x.dist)
+  const warnings = hits.slice(0, MAX_CONNECTED_DISTANCE_WARNINGS).map((h) => h.text)
+  if (hits.length > MAX_CONNECTED_DISTANCE_WARNINGS) {
+    warnings.push(
+      `…and ${hits.length - MAX_CONNECTED_DISTANCE_WARNINGS} more long-reach edges in this batch — ` +
+        `call get_layout_report and check the \`grouping\` section`,
     )
   }
   return warnings
@@ -316,12 +406,16 @@ export async function collectPatchWarnings(
   graph: Graph,
   ops: Op[],
   view: TimelineViewSettings | null,
+  results?: OpResult[],
 ): Promise<string[]> {
   const pxPerDay = view?.pxPerDay ?? BASE_PX_PER_DAY
+  // Batch-scoped checks first so targeted feedback survives the truncation
+  // below ahead of the whole-graph repeats.
   const warnings = [
     ...(await imageWarnings(ops)),
     ...(await citationWarnings(ops)),
     ...coordinateWarnings(ops),
+    ...connectedDistanceWarnings(graph, ops, results),
     ...laneDensityWarnings(graph.nodes, pxPerDay),
     ...outlierWarnings(graph.nodes),
   ]

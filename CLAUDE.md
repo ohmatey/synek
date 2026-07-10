@@ -108,7 +108,7 @@ Synek is the **companion app to Realscript** (a brand / short-form-content platf
 
 ## Canvas conventions
 
-React Flow is **client-only** — always render it behind `<ClientOnly>` (SSR touches `window`). Node x-position derives from date (`instantToX`); y is the type lane (`LANE_Y`). Nodes are non-draggable (position is owned by the data). `nodeTypes` is module-level (memoized). Edges are colored by `kind` with an arrow marker.
+React Flow is **client-only** — always render it behind `<ClientOnly>` (SSR touches `window`). Node x-position derives from date via the shared `TimeScale` (`makeTimeScale` in `useTimelineScale.ts`): **cluster-aware sparse-time compression is ON by default** (`DEFAULT_COLLAPSE_GAPS`) — anchors cluster by 3× the median gap (capped at 25y), sparse inter-cluster stretches shrink to 72–144px axis breaks, intra-cluster spacing stays linear; an explicit user toggle (`ScalePref.chosen`) or saved `viewSettings` overrides. y is the packed lane (`layoutLaneY`; `LANE_Y` is the fallback). Nodes are non-draggable (position is owned by the data). `nodeTypes` is module-level (memoized). Edges are colored by `kind` with an arrow marker; `apply_patch` warns on connected-but-distant endpoints and `get_layout_report` has a `grouping` section (`src/lib/mcp/graph-shape.ts`).
 
 ## Commands
 
@@ -118,6 +118,7 @@ bun run dev          # dev server on http://localhost:3001 ($PORT overrides; gen
 bun run dev:test     # seeded test instance: PORT=3001 + DATABASE_URL=e2e.db
 bun run build        # production build
 bun run typecheck    # tsc --noEmit
+bun run test         # bun test over src/**/*.test.ts (pure-function units, e.g. the time scale)
 bun run db:generate  # generate a migration from schema.ts
 bun run db:migrate   # apply migrations (also applied on server start, idempotent)
 bun run db:push      # push schema to the DB without a migration (dev)

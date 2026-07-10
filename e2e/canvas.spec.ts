@@ -84,28 +84,30 @@ async function nodeSpread(page: import('@playwright/test').Page): Promise<number
   })
 }
 
-test('collapse gaps compresses empty spans and persists per timeline', async ({ page }) => {
+test('sparse-time compression is on by default; opting out expands and persists', async ({ page }) => {
   await page.goto('/timelines/roman-republic')
   await expect(page.getByText('Julius Caesar')).toBeVisible()
   await page.waitForTimeout(700) // initial fitView settles
 
-  const before = await nodeSpread(page)
-  // The gap-collapse toggle now lives in the display-settings popover — open it first.
+  // Compression is the default — the toggle opens pressed.
   await page.getByTestId('canvas-settings').click()
   const toggle = page.getByTestId('time-scale-collapse-gaps')
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+
+  // Toggling OFF returns to the strictly linear axis: the node spread grows.
+  const before = await nodeSpread(page)
   await toggle.click()
   await page.waitForTimeout(700)
   const after = await nodeSpread(page)
+  expect(after).toBeGreaterThan(before * 1.1)
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
 
-  expect(after).toBeLessThan(before * 0.9)
-  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
-
-  // Persisted per timeline (localStorage): survives a reload.
+  // The explicit opt-out persists per timeline (localStorage): survives a reload.
   await page.reload()
   await expect(page.getByText('Julius Caesar')).toBeVisible()
   // The popover closes on reload — reopen it to read the persisted toggle state.
   await page.getByTestId('canvas-settings').click()
-  await expect(page.getByTestId('time-scale-collapse-gaps')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('time-scale-collapse-gaps')).toHaveAttribute('aria-pressed', 'false')
 })
 
 // The timeline view carries the same bottom transport + left zoom controls as
@@ -133,13 +135,15 @@ test('timeline view shows the bottom scroller and left zoom controls', async ({ 
   await expect(zoom.getByRole('button', { name: 'Fit timeline' })).toBeVisible()
 
   // Zooming in narrows the view-window (less of the timeline is on screen) — the
-  // scroller and the camera zoom are wired to the same viewport.
+  // scroller and the camera zoom are wired to the same viewport. The window is
+  // clamped at 100% while the WHOLE world is visible (the post-fitView state), so
+  // zoom in enough steps (1.2x each) to get decisively past that clamp — two
+  // clicks lands right at the boundary on a gap-compressed axis.
   const before = (await page.locator('.tl-window').boundingBox())!.width
-  await zoom.getByRole('button', { name: 'Zoom in' }).click()
-  await zoom.getByRole('button', { name: 'Zoom in' }).click()
-  await page.waitForTimeout(500)
-  const after = (await page.locator('.tl-window').boundingBox())!.width
-  expect(after).toBeLessThan(before)
+  for (let i = 0; i < 4; i++) await zoom.getByRole('button', { name: 'Zoom in' }).click()
+  await expect
+    .poll(async () => (await page.locator('.tl-window').boundingBox())!.width, { timeout: 5_000 })
+    .toBeLessThan(before)
 })
 
 // Owner chrome regression: the account menu floats at the FAR RIGHT of the top

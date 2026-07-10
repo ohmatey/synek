@@ -1,5 +1,11 @@
 import type { NodeType, NodeSize, NodeSubtype } from '~/lib/domain/types'
-import { BASE_PX_PER_DAY, MIN_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay } from '~/lib/domain/types'
+import {
+  BASE_PX_PER_DAY,
+  MIN_PX_PER_DAY,
+  MAX_PX_PER_DAY,
+  DEFAULT_COLLAPSE_GAPS,
+  clampPxPerDay,
+} from '~/lib/domain/types'
 
 const MS_PER_DAY = 86_400_000
 
@@ -109,30 +115,39 @@ export function xToInstant(x: number, minInstant: number, pxPerDay = BASE_PX_PER
   return minInstant + (x / pxPerDay) * MS_PER_DAY
 }
 
-// --- Time scale (instant ↔ x), linear or gap-collapsing -------------------
+// --- Time scale (instant ↔ x), linear or sparse-time compressing ----------
 //
-// A monotonic mapping the whole canvas (nodes, edges, ruler) shares. Linear by
-// default; in collapse mode, long empty spans between consecutive node dates are
-// capped to a fixed width so a lone outlier (e.g. a BCE node + a modern cluster)
-// doesn't blow the axis out to nothing-but-whitespace. `collapsedRanges` are the
-// x-spans that were squeezed, so the ruler can draw a break marker over them.
+// A monotonic mapping the whole canvas (nodes, edges, ruler) shares. In
+// compress mode (the default), anchors are clustered along the axis and the
+// sparse stretches BETWEEN clusters shrink to a bounded width, so bursts of
+// activity stay visually close even when decades apart — a stray anchor inside
+// a sparse stretch just becomes its own tiny cluster, so the gaps on both
+// sides of it still compress. Intra-cluster spacing stays exactly linear at
+// pxPerDay (an all-dense timeline maps identically to linear mode).
+// `collapsedRanges` are the x-spans that were squeezed, so the ruler can draw
+// a break marker over them.
 export type TimeScale = {
   toX: (instant: number) => number
   toInstant: (x: number) => number
   collapsedRanges: { x0: number; x1: number }[]
 }
 
-// Only spans that are large RELATIVE TO THIS TIMELINE collapse; anything near
-// the data's own rhythm stays linear so a dense cluster keeps its spacing. A
-// gap collapses when it dwarfs the median inter-anchor gap (an org founded in
-// 1923 before a 1997–2027 cluster) — a uniformly sparse timeline (a node every
-// ~20 years) has a large median and never collapses. The floor keeps small-gap
-// noise from collapsing ordinary pauses in dense timelines.
-const GAP_MEDIAN_FACTOR = 8
+// Consecutive anchors chain into one cluster when their gap is near the
+// timeline's own rhythm (3x the median gap), capped so a generation of silence
+// always splits clusters even on uniformly sparse timelines. The floor keeps
+// ordinary pauses in dense timelines from splitting a cluster at high zoom.
+const LINK_MEDIAN_FACTOR = 3
+const LINK_CAP_DAYS = 25 * DAYS_PER_YEAR
 const GAP_FLOOR_YEARS = 4
 const GAP_FLOOR_DAYS = GAP_FLOOR_YEARS * DAYS_PER_YEAR
-// Rendered width a collapsed span shrinks to (px, before camera zoom).
+// Only inter-cluster gaps wider than this (linear px) compress — narrower ones
+// aren't costing real screen estate. Must stay > COLLAPSED_MAX_PX so
+// compression can never widen a gap.
+const COLLAPSE_MIN_PX = 200
+// Compressed width bounds (px, before camera zoom): 72 for a barely-split gap,
+// log-scaled up to 144 so a millennium of silence reads wider than a decade.
 const COLLAPSED_PX = 72
+const COLLAPSED_MAX_PX = 144
 
 // Median of the positive gaps (days) between consecutive sorted instants.
 function medianGapDays(sorted: number[]): number {
@@ -151,7 +166,9 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
   const sorted = Array.from(new Set(instants)).sort((a, b) => a - b)
   const min = sorted.length ? sorted[0]! : 0
 
-  if (!collapseGaps || sorted.length < 2) {
+  // < 3 anchors = no clusters to separate (and a lone period's start+end pair
+  // must not render as one compressed bar).
+  if (!collapseGaps || sorted.length < 3) {
     return {
       toX: (i) => instantToX(i, min, pxPerDay),
       toInstant: (x) => xToInstant(x, min, pxPerDay),
@@ -159,8 +176,11 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
     }
   }
 
-  // A gap collapses when it dwarfs this timeline's own rhythm.
-  const gapMinDays = Math.max(GAP_FLOOR_DAYS, GAP_MEDIAN_FACTOR * medianGapDays(sorted))
+  // Anchors within linkDays of each other chain into one cluster.
+  const linkDays = Math.max(
+    GAP_FLOOR_DAYS,
+    Math.min(LINK_MEDIAN_FACTOR * medianGapDays(sorted), LINK_CAP_DAYS),
+  )
 
   // Piecewise-linear breakpoints: each anchor instant gets a cumulative x.
   const anchorInstant = sorted
@@ -169,8 +189,13 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
   for (let k = 1; k < sorted.length; k++) {
     const days = (sorted[k]! - sorted[k - 1]!) / MS_PER_DAY
     const linearPx = days * pxPerDay
-    const collapse = days > gapMinDays && linearPx > COLLAPSED_PX
-    const width = collapse ? COLLAPSED_PX : linearPx
+    const collapse = days > linkDays && linearPx > COLLAPSE_MIN_PX
+    const width = collapse
+      ? Math.min(
+          COLLAPSED_MAX_PX,
+          Math.max(COLLAPSED_PX, COLLAPSED_PX * (1 + Math.log10(days / linkDays))),
+        )
+      : linearPx
     const x0 = anchorX[k - 1]!
     anchorX[k] = x0 + width
     if (collapse) collapsedRanges.push({ x0, x1: x0 + width })
@@ -244,6 +269,13 @@ export function loadScalePref(timelineId: string): ScalePref | null {
   } catch {
     return null
   }
+}
+
+// The pref is auto-saved ambiently on every open (chosen: false), so a stored
+// `collapseGaps: false` from before the default flipped must not freeze the old
+// default — only an explicit user choice overrides DEFAULT_COLLAPSE_GAPS.
+export function collapseFromPref(pref: ScalePref | null): boolean {
+  return pref?.chosen ? pref.collapseGaps : DEFAULT_COLLAPSE_GAPS
 }
 
 export function saveScalePref(timelineId: string, pref: ScalePref): void {

@@ -1,11 +1,17 @@
 import type { Graph } from '~/lib/db/graph'
 import type { Citation, NodeRow } from '~/lib/db/schema'
-import { BASE_PX_PER_DAY, type TimelineTheme, type TimelineViewSettings } from '~/lib/domain/types'
+import {
+  BASE_PX_PER_DAY,
+  DEFAULT_COLLAPSE_GAPS,
+  type TimelineTheme,
+  type TimelineViewSettings,
+} from '~/lib/domain/types'
 import { formatInstant } from '~/lib/domain/dates'
 import { findDeadZones } from '~/lib/domain/dead-zones'
 import { listStoriesForTimeline, listSegmentCitationsForTimeline } from '~/lib/db/stories'
 import { collectPatchWarnings } from './warnings'
 import { themeContrastWarnings } from './theme-warnings'
+import { activeSpan, intervalDistance, connectedComponents } from './graph-shape'
 
 // The whole-graph "shape" review behind the get_layout_report MCP tool. The
 // building client works blind — get_timeline returns the FULL graph (every
@@ -18,6 +24,9 @@ const MS_PER_DAY = 86_400_000
 const DAYS_PER_YEAR = 365.25
 const MAX_DEAD_ZONES = 4
 const MAX_SOURCES = 15
+const MAX_COMPONENTS = 6
+const MAX_COMPONENT_LANES = 6
+const MAX_LONGEST_EDGES = 5
 
 const fmt = (instant: number) => formatInstant(instant, 'year')
 
@@ -109,6 +118,72 @@ export async function buildLayoutReport(
   })
   const fragments = lanes.filter((l) => l.count <= 2).map((l) => l.name)
 
+  // --- grouping: graph connectivity vs layout ---------------------------------
+  // Position = date + lane; edges never move anything. So a connected component
+  // sprawled across most of the axis or many lanes usually means a scattered
+  // narrative thread (missing lanes, a date typo, or a missing bridging node).
+  const spanInfo = activeSpan(nodes)
+  const pct = (ms: number) => (spanInfo ? Math.round((ms / spanInfo.span) * 100) : 0)
+  const componentList = connectedComponents(nodes, edges)
+  const isolatedNodeCount = nodes.length - componentList.reduce((sum, c) => sum + c.length, 0)
+  const components = componentList
+    .map((members) => {
+      const lo = Math.min(...members.map((n) => n.startInstant))
+      const hi = Math.max(...members.map((n) => n.endInstant ?? n.startInstant))
+      const laneSet = [...new Set(members.map((n) => n.metadata?.lane).filter((l): l is string => !!l))]
+      const unlanedCount = members.filter((n) => !n.metadata?.lane).length
+      const spanPct = pct(hi - lo)
+      const sorted = [...members].sort((a, b) => a.startInstant - b.startInstant)
+      const note =
+        spanPct >= 60
+          ? `spans ${spanPct}% of the axis${laneSet.length > 1 ? ` across ${laneSet.length} lanes` : ''} — likely several threads sharing edges, a date typo, or missing lane grouping`
+          : laneSet.length >= 4
+            ? `straddles ${laneSet.length} lanes — consider whether these are really one thread`
+            : members.length >= 4 && unlanedCount === members.length
+              ? `${members.length} connected nodes, none laned — consider a shared lane`
+              : null
+      return {
+        size: members.length,
+        from: fmt(lo),
+        to: fmt(hi),
+        spanYears: Math.round((hi - lo) / MS_PER_DAY / DAYS_PER_YEAR),
+        spanPct,
+        lanes: laneSet.slice(0, MAX_COMPONENT_LANES),
+        ...(laneSet.length > MAX_COMPONENT_LANES ? { moreLanes: laneSet.length - MAX_COMPONENT_LANES } : {}),
+        unlanedCount,
+        sample: [...new Set([sorted[0]!, sorted[sorted.length - 1]!])].map((n) => n.title),
+        ...(note ? { note } : {}),
+      }
+    })
+    .sort((a, b) => Number(!!b.note) - Number(!!a.note) || b.spanPct - a.spanPct || b.size - a.size)
+  const nodeById = new Map(nodes.map((n) => [n.id, n]))
+  const allInstants = nodes.flatMap((n) => [n.startInstant, ...(n.endInstant != null ? [n.endInstant] : [])])
+  const zones = findDeadZones(allInstants)
+  const longestEdges = edges
+    .map((e) => {
+      const a = nodeById.get(e.sourceId)
+      const b = nodeById.get(e.targetId)
+      if (!a || !b) return null
+      const dist = intervalDistance(a, b)
+      if (dist <= 0) return null
+      const gapLo = Math.min(a.endInstant ?? a.startInstant, b.endInstant ?? b.startInstant)
+      const gapHi = Math.max(a.startInstant, b.startInstant)
+      return {
+        source: a.title,
+        target: b.title,
+        kind: e.kind,
+        years: Math.round(dist / MS_PER_DAY / DAYS_PER_YEAR),
+        pctOfSpan: pct(dist),
+        sameLane: a.metadata?.lane != null && a.metadata.lane === b.metadata?.lane,
+        crossesDeadZone: zones.some((z) => z.fromInstant >= gapLo && z.toInstant <= gapHi),
+        dist,
+      }
+    })
+    .filter((e) => e != null)
+    .sort((a, b) => b.dist - a.dist)
+    .slice(0, MAX_LONGEST_EDGES)
+    .map(({ dist: _dist, ...rest }) => rest)
+
   // --- eras (periods) + story coverage ---------------------------------------
   // The story layer is read DEFENSIVELY: if its tables are unavailable in this DB
   // (e.g. a migration not yet applied), the report still returns its graph shape
@@ -197,13 +272,22 @@ export async function buildLayoutReport(
       to: instants.length ? fmt(instants[instants.length - 1]!) : null,
       spanYears: Math.round(span / MS_PER_DAY / DAYS_PER_YEAR),
       deadZones: deadZones.slice(0, MAX_DEAD_ZONES),
-      view: { pxPerDay, collapseGaps: view?.collapseGaps ?? false },
+      view: { pxPerDay, collapseGaps: view?.collapseGaps ?? DEFAULT_COLLAPSE_GAPS },
     },
     lanes: {
       lanes,
       unlanedCount: unlaned,
       nameSuspects: laneNameSuspects([...byLane.keys()]),
       fragments,
+    },
+    grouping: {
+      componentCount: components.length,
+      isolatedNodeCount,
+      components: components.slice(0, MAX_COMPONENTS),
+      ...(components.length > MAX_COMPONENTS
+        ? { note: `top ${MAX_COMPONENTS} of ${components.length} components shown` }
+        : {}),
+      longestEdges,
     },
     eras,
     coordinates: {
