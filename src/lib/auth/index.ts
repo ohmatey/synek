@@ -12,7 +12,16 @@ import { isLocalMode } from './local-mode'
 //     an OAuth access token (the lovable, no-paste path).
 //  2. The `bearer` plugin + named api keys (`synek_…`) remain for the stdio server
 //     and as a static fallback. `bun run issue:key` still mints one.
-const YEAR_SECONDS = 60 * 60 * 24 * 365
+const DAY_SECONDS = 60 * 60 * 24
+// Web login: a ROLLING 30-day session. It expires 30 days after the last use, and
+// each visit within that window refreshes it (updateAge < expiresIn = sliding), so
+// an active user stays signed in indefinitely while an idle one is logged out after
+// 30 days. The login form's "Stay logged in" checkbox is the per-login override:
+// unchecked passes `rememberMe: false`, which makes the cookie a browser-session
+// cookie (cleared on browser close) instead of persisting for this window.
+// (MCP `synek_…` keys are a SEPARATE system — see api-keys.ts — and are unaffected.)
+const SESSION_EXPIRES_IN = 30 * DAY_SECONDS
+const SESSION_UPDATE_AGE = DAY_SECONDS
 
 // The dev-only fallback secret. Fine for `bun run dev` / a local single-user
 // download; FATAL on an exposed deploy (anyone who knows it can forge sessions),
@@ -52,6 +61,27 @@ function isExposedDeploy(): boolean {
     // treat it as exposed so the guard reports it rather than silently degrading.
     return true
   }
+}
+
+// Better Auth rejects any request whose Origin isn't trusted (enforced once the
+// request carries a cookie — i.e. every real browser call after the first visit).
+// BASE_URL is always trusted. In LOCAL DEV ONLY, also trust ANY loopback port:
+// the dev server's port is fluid (3001 via .env, 3456 via launch.json, 5173 the
+// Vite default) while BASE_URL is pinned, so a fixed port would still 403 whenever
+// they disagree. `http://localhost:*` matches any port on that loopback host and
+// is boundary-safe (a colon must follow "localhost", so localhost.evil.com and
+// userinfo tricks like localhost:x@evil.com don't match — Better Auth resolves to
+// the real origin first). Never broadened on an exposed deploy: isExposedDeploy()
+// keeps prod strict at BASE_URL only.
+function resolveTrustedOrigins(): string[] {
+  const origins = new Set<string>([BASE_URL])
+  if (!isExposedDeploy()) {
+    for (const host of ['localhost', '127.0.0.1', '[::1]']) {
+      origins.add(`http://${host}:*`)
+      origins.add(`https://${host}:*`)
+    }
+  }
+  return [...origins]
 }
 
 // Fail-loud guard: refuse to boot an exposed deploy on the insecure dev secret.
@@ -108,6 +138,7 @@ assertLocalModeNotExposed()
 
 export const auth = betterAuth({
   baseURL: BASE_URL,
+  trustedOrigins: resolveTrustedOrigins(),
   secret: resolveAuthSecret(),
   database: drizzleAdapter(db, { provider: 'sqlite', schema }),
   emailAndPassword: {
@@ -132,7 +163,7 @@ export const auth = betterAuth({
     },
   },
   // Long expiry so the minted token behaves like a stable API key.
-  session: { expiresIn: YEAR_SECONDS, updateAge: YEAR_SECONDS },
+  session: { expiresIn: SESSION_EXPIRES_IN, updateAge: SESSION_UPDATE_AGE },
   plugins: [
     bearer(),
     // OAuth front door for MCP clients. `loginPage` is where an unauthenticated

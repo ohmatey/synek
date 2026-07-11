@@ -40,6 +40,10 @@ export function AuthForms({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  // "Stay logged in": checked (default) persists the session cookie for the full
+  // 30-day rolling window; unchecked makes it a browser-session cookie (Better
+  // Auth's `rememberMe: false`), so closing the browser signs you out.
+  const [rememberMe, setRememberMe] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState(false)
@@ -54,7 +58,7 @@ export function AuthForms({
       const res =
         mode === 'signup'
           ? await signUp.email({ email, password, name: name.trim() || email.split('@')[0] })
-          : await signIn.email({ email, password })
+          : await signIn.email({ email, password, rememberMe })
       if (res.error) {
         setError(res.error.message || 'Authentication failed')
         setPasswordError(PASSWORD_FIELD_ERROR_CODES.has(res.error.code ?? ''))
@@ -153,15 +157,30 @@ export function AuthForms({
               aria-invalid={passwordError}
               className={passwordError ? 'border-destructive focus-visible:ring-destructive/40' : undefined}
             />
-            {mode === 'signin' && (
+          </div>
+          {mode === 'signin' && (
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="auth-remember"
+                className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+              >
+                <input
+                  id="auth-remember"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="size-3.5 accent-primary"
+                />
+                Stay logged in
+              </label>
               <Link
                 to="/reset-password"
-                className="self-end text-xs text-muted-foreground transition-colors hover:text-foreground"
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 Forgot password?
               </Link>
-            )}
-          </div>
+            </div>
+          )}
           <Button type="submit" disabled={busy} className="mt-1 w-full">
             {busy && <Loader2 className="animate-spin" />}
             {mode === 'signup' ? 'Create account' : 'Log in'}
