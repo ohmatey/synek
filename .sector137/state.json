@@ -1591,10 +1591,10 @@
       },
       "data": {
         "title": "Per-chapter draft/approve gate for public series",
-        "description": "Found by the Tech Radar dogfood (sector137 projects/tech-radar): set_series_public is one switch for the whole season with no per-chapter gate — once a series is public, every future write_story(appendToSeries) chapter goes live the instant it lands. For a *scheduled* follow (/synek:follow) that means unreviewed automated content auto-publishing, so automated follows must stay private today. A chapter status (draft -> approved/published) on story_segments' parent story, honored by the /sr/$slug season page, would make scheduled+public follows safe. Deliberately deferred at P3 as 'a confusing 2nd publish axis' — this files the concrete use case that re-opens it. NOT in scope for Tech Radar itself (guardrail: no app code).",
-        "horizon": "later",
+        "description": "Found by the Tech Radar dogfood (sector137 projects/tech-radar): set_series_public is one switch for the whole season with no per-chapter gate — once a series is public, every future write_story(appendToSeries) chapter goes live the instant it lands. For a *scheduled* follow (/synek:follow) that means unreviewed automated content auto-publishing, so automated follows must stay private today. A chapter status (draft -> approved/published) on story_segments' parent story, honored by the /sr/$slug season page, would make scheduled+public follows safe. Deliberately deferred at P3 as 'a confusing 2nd publish axis' — this files the concrete use case that re-opens it. NOT in scope for Tech Radar itself (guardrail: no app code).\n\n### Closed 2026-07-11\nBackend + tests shipped (PRD docs/product/prd/per-chapter-publish-gates.md; ADR 0006 amendment). Added story_series.reviewMode (migration 0031) + the getPublicSeries publish gate (only status='published' chapters ship; a draft's nodes never leak into the season union); writeStory status resolution (reviewMode forces draft server-side, beating an explicit status:'published'); MCP set_series_review_mode + write_story `status` + patch_story update_meta `status` (approve path) + updated set_series_public/create_series/get_series; setSeriesReviewMode server fn. Verified: verify:public-series (26 asserts) + a public-page e2e (seeded draft chapter 'The Augustan settlement' withheld from /sr/the-fall-of-the-republic; the season ends at the last published chapter) + typecheck, all green. /synek:follow rewritten for the safe public+review path. The in-app per-chapter approval UI (D3) is spun out to local-177.",
+        "horizon": "now",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": []
       }
     },
@@ -1613,6 +1613,23 @@
         "type": "feature",
         "status": "open",
         "dependencies": []
+      }
+    },
+    {
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-177",
+        "dirty": true,
+        "syncedAt": null
+      },
+      "data": {
+        "title": "In-app per-chapter approval UI for series (local-175 D3)",
+        "description": "Follow-up to local-175 (per-chapter publish gate — backend + MCP + tests shipped 2026-07-11). Give the OWNER an in-app approval surface so publishing a reviewed draft doesn't require a connected MCP client. Scope (PRD docs/product/prd/per-chapter-publish-gates.md D3): (1) a setChapterStatus server fn, owner-scoped via story->moment->timeline.ownerId, wrapping patchStory update_meta status — the only genuinely-new backend piece; (2) expose series.reviewMode on getSeriesDetail / SeriesDetailDTO; (3) in src/routes/series.$id.tsx: a per-chapter Publish / Revert-to-draft control + a 'Review mode' switch wired to the existing setSeriesReviewMode RPC; the shared SeriesSpine already renders the Draft pill (extend it with an optional owner action slot rather than forking it); (4) an authed e2e (series-loop.spec pattern) proving a draft flips to published in-app. Deferred from local-175 because it touches the shared public SeriesSpine + needs an authed e2e, and the automated-follow use case already approves via patch_story.",
+        "horizon": "next",
+        "type": "feature",
+        "status": "open",
+        "dependencies": ["local-175"]
       }
     }
   ],

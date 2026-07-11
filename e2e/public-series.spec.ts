@@ -17,6 +17,7 @@ test.use({ reducedMotion: 'reduce' })
 
 const SLUG = 'the-fall-of-the-republic'
 const CH1_BEATS = 5
+const CH2_BEATS = 3
 
 test('the season page renders OpenGraph, the jacket, the spine, and chapter one', async ({ page }) => {
   await page.goto(`/sr/${SLUG}`)
@@ -47,6 +48,12 @@ test('the season page renders OpenGraph, the jacket, the spine, and chapter one'
   const spine = page.getByRole('navigation', { name: 'Table of contents' })
   await expect(spine.getByRole('button', { name: /Chapter 1: The road to the Ides/ })).toBeVisible()
   await expect(spine.getByRole('button', { name: /Chapter 2: After the Ides/ })).toBeVisible()
+
+  // local-175 (per-chapter publish gate): the season carries a seeded DRAFT chapter 3
+  // ("The Augustan settlement"). Making the SERIES public opens the shelf but never
+  // reveals a chapter the author held back — the draft is absent from the public spine.
+  await expect(spine.getByRole('button', { name: /The Augustan settlement/ })).toHaveCount(0)
+  await expect(spine.getByRole('button', { name: /Chapter 3/ })).toHaveCount(0)
 
   // The reader mounts on chapter one's opener (its <h2>), but with NO competing start
   // button — the jacket "Begin reading" is the only CTA.
@@ -115,6 +122,23 @@ test('on mobile the spine is an overlay sheet behind a "Chapters" toggle', async
   await expect(page.getByRole('heading', { name: 'After the Ides' })).toBeVisible()
   await page.getByRole('button', { name: 'Continue reading' }).click()
   await expect(page.getByText(/The conspirators expected to be hailed as liberators/)).toBeVisible()
+})
+
+test('the drafted next chapter is withheld: the season ends at the last published chapter', async ({ page }) => {
+  await page.goto(`/sr/${SLUG}`)
+
+  // Play the last PUBLISHED chapter (chapter 2) to its end.
+  const spine = page.getByRole('navigation', { name: 'Table of contents' })
+  await spine.getByRole('button', { name: /Chapter 2: After the Ides/ }).click()
+  await page.getByRole('button', { name: 'Continue reading' }).click()
+  for (let i = 0; i < CH2_BEATS; i++) await page.getByRole('button', { name: 'Next beat' }).click()
+
+  // The seeded chapter 3 is a DRAFT, so it is not part of the public season: chapter 2
+  // is treated as the LAST chapter — the reader lands on the terminal "The end" panel
+  // with the make-your-own CTA, and there is NO "Next chapter" to advance into.
+  await expect(page.getByText('The end', { exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Make your own with Synek' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Next chapter' })).toHaveCount(0)
 })
 
 test('an unknown series slug renders a clean not-found, not a crash', async ({ page }) => {

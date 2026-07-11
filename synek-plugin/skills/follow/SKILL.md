@@ -28,9 +28,9 @@ Ask what decision the user wants the follow to change (what they build? what the
 
 - **Project:** `list_projects` — reuse one that fits, else `create_project` named for the topic.
 - **Timeline:** `create_timeline` in it — this is the follow's world graph.
-- **Series:** `create_series` — title = the follow's name, a one-line `hook` stating the scope brief's promise.
+- **Series:** `create_series` — title = the follow's name, a one-line `hook` stating the scope brief's promise. For a follow the user wants **public**, pass `reviewMode: true` (or call `set_series_review_mode(true)` after) — see below.
 
-**The series stays private by default — and for an automated follow, treat that as permanent.** Synek's season publish (`set_series_public`) is one switch for the whole series with **no per-chapter gate**: once public, every future chapter goes live the instant `write_story` runs — for a scheduled follow that means unreviewed automated content publishing itself. If the user wants to share highlights publicly, the sound pattern is an occasional hand-curated **standalone** public story (a one-off `write_story`, not appended to this series), never flipping the live feed.
+**Choose the follow's visibility — and if it's public, REVIEW MODE is mandatory.** A follow can stay **private** (the default — owner-only, nothing to publish) or run **public** at `/sr/$slug`. The safety rule for an *automated* follow: **a public series must be in review mode.** With `reviewMode` on, every appended chapter is born a `draft` server-side — regardless of what the writer passes — so a scheduled run keeps writing into a public season and **nothing goes live until the owner approves it** (`patch_story` `update_meta status: "published"`, or the in-app series view). Without review mode, `set_series_public` publishes every future chapter the instant `write_story` runs — so **never make an automated follow public without review mode on.** (A hand-curated **standalone** public story — a one-off `write_story`, not appended to the series — is still a fine way to share a single highlight.)
 
 Report the ids (project / timeline / series) — the routine recipe needs them.
 
@@ -65,7 +65,9 @@ Every run:
    factual beat cited, closing with the "so what" for the decision above.
    If genuinely nothing new: say so and STOP — write no chapter. Never
    invent a date or citation, never repeat an earlier chapter.
-6. NEVER call set_series_public.
+6. NEVER publish from a scheduled run — no set_series_public, no
+   patch_story status:"published". A public follow MUST be in review mode, so
+   your appended chapter lands as a draft; leave every one for the owner to approve.
 7. Report: added / skipped / unverified, and the chapter link.
 ```
 
@@ -82,4 +84,4 @@ Hand the user the filled-in recipe plus the concrete scheduling step for their s
 
 ## Quality bar
 
-A follow is set up well when: the scope brief is **narrow enough to reject things** and names the decision it serves; the series is **private** and the recipe forbids publishing; Chapter I shipped **cited and deduped** as one Patch + one chapter; the recipe is **fully self-contained** (ids, brief, quality bar included); and the scheduling advice matched where Synek actually runs. The failure modes: a brief that admits everything, a recipe that assumes context it won't have, or a schedule pointed at a server it can't reach.
+A follow is set up well when: the scope brief is **narrow enough to reject things** and names the decision it serves; the series' visibility is deliberate (**private**, or **public with review mode on**) and the recipe forbids the scheduled run from publishing; Chapter I shipped **cited and deduped** as one Patch + one chapter; the recipe is **fully self-contained** (ids, brief, quality bar included); and the scheduling advice matched where Synek actually runs. The failure modes: a brief that admits everything, a recipe that assumes context it won't have, or a schedule pointed at a server it can't reach.

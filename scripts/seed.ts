@@ -1115,6 +1115,32 @@ const SEEDS: Seeder[] = [
         ],
         { series: fallSeries, chapter: 2 },
       )
+
+      // Chapter 3 — a DRAFT next chapter (local-175, per-chapter publish gate). It is
+      // written but NOT yet approved, so `status: 'draft'` keeps it off the public
+      // /sr/$slug season even though the series is public — while it DOES show (dimmed,
+      // "Draft") in the owner's in-app series view. Seeds the gate's e2e canary
+      // (public-series.spec) and demos the review-before-publish flow.
+      story(
+        empire,
+        {
+          title: 'The Augustan settlement',
+          hook: 'A draft chapter — written, not yet published to the public season.',
+          depthTier: 'light',
+          estimatedMinutes: 2,
+          status: 'draft',
+          coverImage: storyImg('Statue-Augustus.jpg', 'Augustus of Prima Porta', { aspect: 'portrait' }),
+        },
+        [
+          {
+            bodyText:
+              'Augustus called it the restoration of the Republic. In truth he had built a monarchy careful enough never to say its own name — a settlement that would hold the Roman world for two hundred years.',
+            kind: 'narration',
+            focusNodeId: empire,
+          },
+        ],
+        { series: fallSeries, chapter: 3 },
+      )
     },
   },
   {

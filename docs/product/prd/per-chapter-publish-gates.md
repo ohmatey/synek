@@ -1,7 +1,9 @@
 # PRD — Per-chapter publish gates for serialized series (local-175)
 
-- **Status:** Proposed (2026-07-11)
+- **Status:** Accepted — backend + tests shipped 2026-07-11; in-app approval UI (D3) filed as a follow-up (local-177)
 - **Issue:** local-175 — "Per-chapter draft/approve gate for public series"
+- **Shipped (2026-07-11):** `story_series.reviewMode` (migration 0031) + the `getPublicSeries` gate; `writeStory` status resolution; MCP `set_series_review_mode`, `write_story` `status`, `patch_story` `update_meta status`, updated `set_series_public`/`create_series`/`get_series`; `setSeriesReviewMode` RPC; ADR 0006 amendment; data-layer `verify:public-series` + a public-page e2e (draft withheld); `/synek:follow` rewritten for the public+review path.
+- **Deferred to local-177:** the in-app per-chapter Publish/Revert control + Review-mode toggle in `series.$id.tsx` (D3) — approval today is via the MCP client (`patch_story`).
 - **Depends on:** ADR 0006 (serialized stories) — this reverses its deferral of a per-chapter publish axis (D10 note / rejected §)
 - **Sibling (NOT this PRD):** local-176 (cross-user read sharing for private series) — a private-series reach problem, out of scope here
 - **Trigger:** the Tech Radar dogfood + the `/synek:follow` skill ([synek-plugin/skills/follow/SKILL.md](../../synek-plugin/skills/follow/SKILL.md))
