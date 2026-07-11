@@ -51,6 +51,12 @@ Determine which one applies (is `SYNEK_MCP_URL` set in their environment? are th
 
    d. **Static-key fallback (optional).** OAuth is the default, but a `synek_…` API key still works: create one in the app's **"Connect an MCP client"** panel (or `bun run issue:key`) and add an `Authorization: Bearer <key>` header to the `synek` server in your `.mcp.json`. Mainly useful for the Claude Desktop (stdio) path.
 
+   e. **No `synek` MCP server at all?** If the Synek tools are entirely absent (not failing — *missing*), the skills were installed without the plugin (e.g. via `npx skills`), so the MCP connection didn't come along. Add it once, then authenticate as in 2b:
+   ```bash
+   claude mcp add --transport http synek http://localhost:3001/api/mcp
+   ```
+   (Substitute a hosted `https://…/api/mcp` origin if that's where Synek lives.) Note: without the plugin, the server's tools are named `mcp__synek__*` rather than the plugin-scoped names — they work the same.
+
 3. **Re-verify.** After any fix, re-run `/synek:setup` — `list_timelines` should now succeed.
 
 ## Notes

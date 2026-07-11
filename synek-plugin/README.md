@@ -12,11 +12,13 @@ Synek is local-first: by default it runs on your machine, stores everything in o
 |---|---|
 | **MCP server** (`.mcp.json`) | Auto-connects Claude Code to your local Synek server at `http://localhost:3001/api/mcp` over HTTP, authenticated via **OAuth** (one browser "Authorize" click — no token to paste). Exposes `list_timelines`, `create_timeline`, `get_timeline`, `query_timeline`, `get_node`, `get_layout_report`, `apply_patch`, `register_artifact`, `search_artifacts`, `undo`, `redo` (and more). |
 | `/synek:map <topic>` | The hero command. Creates a timeline, researches the topic, and builds it in one atomic Patch, then hands back the canvas link. |
+| `/synek:story <topic/moment>` | Tell an **immersive story** on a timeline moment — node-backed cast, cited beats, camera choreography across the globe and timeline, live widgets — and (on request) publish it to the public `/s/<slug>` page. |
 | `/synek:watch <timeline>` | Keep an *ongoing* timeline current — competitors, model releases, funding/acquisitions, novel research. Runs a keeper pass now (adds **only what's new**, one Patch), then offers to make it recurring in Claude Code or any client. |
 | `/synek:next-chapter <series>` | The morning-chapter loop: read a series' frontier, optionally grow the world with new cited nodes, write the next chapter — never repeating earlier ones. |
 | `/synek:follow <topic>` | Follow a topic end-to-end: fix a scope brief, set up a **private** living series, write Chapter I now, and hand back a self-contained recurring routine you can schedule in any MCP client. |
-| `/synek:setup` | Health check. Verifies the server is reachable and you're authorized; walks you through fixing whatever's broken. |
-| `building-timelines` skill | Passive knowledge Claude loads automatically when working with Synek — the atomic-Patch contract, exact op shapes, the closed edge-`kind` set, `ref` aliasing, the heuristics that make a timeline rich instead of a row of gray boxes, and when to offer a keeper routine. |
+| `/synek:brand-story <brand>` | Write a Synek story in a **Realscript brand's** voice and palette — needs the Realscript `real` plugin connected alongside this one. |
+| `/synek:setup` | Health check. Verifies the server is reachable and you're authorized; walks you through fixing whatever's broken (including a skills-only install with no MCP server yet). |
+| `building-timelines` skill | Passive knowledge Claude loads automatically when working with Synek — the atomic-Patch contract, exact op shapes, the closed edge-`kind` set, `ref` aliasing, swimlanes, node images (**faces**) and coordinates/geoScope (**places**, the globe lens), and when to offer a keeper routine. |
 
 ## Prerequisites
 
@@ -33,6 +35,14 @@ Synek is local-first: by default it runs on your machine, stores everything in o
 ```
 
 **Local (developing on the plugin itself):** from the Synek repo root, add `./synek-plugin` as a local plugin dir via Claude Code's `/plugin` menu.
+
+**Skills only, via `npx skills` (any agent):** the skills also install standalone from the public repo:
+
+```bash
+npx skills add ohmatey/synek
+```
+
+Two caveats for a skills-only install: (1) **the MCP connection doesn't come along** — `.mcp.json` is a plugin feature, so connect once with `claude mcp add --transport http synek http://localhost:3001/api/mcp` (or your hosted origin; `/synek:setup` walks you through it), and (2) the skill names are unnamespaced (`map`, `setup`, `watch`, …) in a shared skills directory, so watch for collisions with other packs — the plugin install avoids both issues and is the recommended path for Claude Code.
 
 > **Versioning rule:** any change to `skills/` MUST bump `version` in `.claude-plugin/plugin.json`. Installed plugins are cached by version — a skill added without a bump silently never reaches installed copies (this happened to `next-chapter`).
 
@@ -75,7 +85,7 @@ The recurring options depend on where your Synek lives — a cloud routine can r
 - **Recurring, cloud routine** — viable when the plugin points at a **hosted** Synek (`SYNEK_MCP_URL` = a public `https://…/api/mcp`). Then a Claude Code cloud schedule reaches the origin and authorizes over OAuth like any client. Don't point a cloud routine at a purely-local server — it can't reach `localhost`.
 
 The routine is just a saved prompt (a scope brief + the keeper steps), so the same recipe works in Claude Code or any MCP client.
-- **No portraits via MCP.** `apply_patch` sets `subtype` (so a person card is *ready* for a portrait) and `citations`, but image uploads happen in the canvas's detail panel.
+- **Faces and places via MCP.** `apply_patch` takes node `images` (real, web-sourced URLs — a Wikimedia portrait, an org logo; Synek renders, never generates) and `location` + `lat`/`lng` coordinates that plot nodes on the globe lens (`geoScope` marks the honestly-placeless). File *uploads* still happen in the canvas's detail panel.
 
 ## License
 

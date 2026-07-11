@@ -5,16 +5,16 @@
     "email": "contactaaronmcpherson@gmail.com"
   },
   "metadata": {
-    "description": "Drive your local Synek timeline canvas from Claude Code.",
-    "version": "0.1.0"
+    "description": "Drive your Synek timeline canvas from Claude Code.",
+    "version": "0.3.0"
   },
   "plugins": [
     {
       "name": "synek",
       "source": "./synek-plugin",
-      "description": "Talk to Claude on the left, watch your Synek timeline build itself on the right. Bundles the local MCP connection plus the know-how to build good timelines, with /synek:map, /synek:watch (keep ongoing timelines current), and /synek:setup.",
-      "version": "0.1.0",
-      "keywords": ["timeline", "knowledge-canvas", "mcp", "history", "watcher", "routine"]
+      "description": "Talk to Claude on the left, watch your Synek timeline build itself on the right. Bundles the MCP connection plus the know-how, with /synek:map (build a timeline), /synek:story (tell an immersive cited story), /synek:watch (keep ongoing timelines current), /synek:follow (a scheduled keeper-chapter loop), /synek:next-chapter (serialized stories), /synek:brand-story (on-brand via Realscript), and /synek:setup.",
+      "version": "0.3.0",
+      "keywords": ["timeline", "knowledge-canvas", "mcp", "history", "stories", "watcher", "routine"]
     }
   ]
 }

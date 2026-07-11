@@ -13,9 +13,9 @@ First read the `building-timelines` skill — it has the exact op shapes, the cl
 
 ## Steps
 
-1. **Confirm the connection is live.** Call `list_timelines`. If it errors (auth/connection), stop and run the `setup` flow instead — the local Synek server is probably not running or `SYNEK_API_KEY` is unset. Don't try to build against a dead server.
+1. **Confirm the connection is live.** Call `list_timelines`. If it errors (auth/connection), stop and run the `setup` flow instead — the Synek server is probably not running or you're not authorized (OAuth via `/mcp`). Don't try to build against a dead server.
 
-2. **Create the timeline.** Call `create_timeline` with a clear title derived from the topic (e.g. `"Stoicism"`, `"The Space Race"`). Keep the returned `id` — you'll need it for `apply_patch` and the final link.
+2. **Create the timeline.** Call `create_timeline` with a clear title derived from the topic (e.g. `"Stoicism"`, `"The Space Race"`). Keep the returned `id` (for `apply_patch`) and `url` (the viewer link you hand back).
 
 3. **Research the topic.** Pull the key people, events, eras, and works — and their real (fuzzy is fine) dates and relationships. Use `WebSearch` when your own knowledge is thin or dates are uncertain; prefer primary or authoritative sources so you can cite them. Aim for a *coherent map*, not an encyclopedia: roughly **12–25 nodes** for a topic map.
 
@@ -23,18 +23,17 @@ First read the `building-timelines` skill — it has the exact op shapes, the cl
    - A few `period` nodes to frame the eras.
    - The key `entity` nodes — each with a `subtype` (`person`/`org`/`place`/`work`) and a one-line `summary`.
    - The pivotal `event` nodes (points in time; no `end`).
+   - **Faces and places:** an `images` URL where a real one exists (Wikimedia portrait, official logo — never invented), and `location` + `lat`/`lng` where you know where it happened (or an explicit `geoScope` when it can't be pinned) so the globe lens works.
    - Deliberate, typed `edge`s using `ref` aliasing to wire nodes created in this same batch. Pick `kind` honestly from the closed set (`caused`/`succeeded`/`influenced`/`acquired`/`competed_with`).
    - `citations` wherever you can — the user prizes source grounding.
    - A `summary` like `"Map the history of $ARGUMENTS"`.
    One call = one undoable Patch = one "it built itself" moment. If the topic is genuinely large, you may follow up with one or two more `apply_patch` calls to expand it, but lead with one substantial batch.
 
-5. **Hand back the canvas.** Tell the user it's built and give the link so they can open/watch it:
-   ```
-   http://localhost:3001/timelines/<id>
-   ```
-   (Use the user's configured host/port if non-default.) Then offer a next step — expand a specific era, add more people, or correct anything that looks off (you can `undo` or `apply_patch` edits).
+5. **Hand back the canvas.** Tell the user it's built and give the `url` that `create_timeline` returned (it's already on the right origin, local or hosted; the canvas updates live — no refresh). Then offer a next step — expand a specific era, add more people, or correct anything that looks off (you can `undo` or `apply_patch` edits).
 
-6. **If the topic is ongoing, offer to keep it alive.** When the timeline is a *live* subject — a competitive landscape, model/product releases, funding/acquisitions, an active research field — it will keep moving after you build it. Offer a **keeper routine**: *"This one will keep moving — want me to set up a routine so it stays current?"* and hand off to **`/synek:watch <title>`** (the `watch` skill). Skip this for finished history (Stoicism, the Roman Republic).
+6. **Offer the follow-ons that fit.**
+   - **A story:** the map is the world; a story is the tour. Offer **`/synek:story`** to narrate its strongest moment as an immersive, cited story the user can share.
+   - **Keep it alive:** when the topic is *ongoing* — a competitive landscape, model/product releases, an active research field — offer a keeper routine via **`/synek:watch <title>`**. Skip this for finished history (Stoicism, the Roman Republic).
 
 ## Quality bar
 

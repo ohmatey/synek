@@ -2,7 +2,7 @@
 name: next-chapter
 description: "Write the next chapter of a Synek series — the morning-chapter loop. Use when the user runs /synek:next-chapter, asks to write/continue/advance the next chapter of a story or series, to grow a serialized story a chapter at a time, or to start a new serialized series. Reads the series in order, optionally grows the timeline with new researched+cited nodes, then writes the next chapter as one beat-rich story — never repeating what earlier chapters already covered."
 argument-hint: <series>  (title or id — e.g. "The Rise of Caesar". Omit to pick from a list, or describe a new series to start.)
-allowed-tools: ["mcp__plugin_synek_synek__list_projects", "mcp__plugin_synek_synek__list_timelines", "mcp__plugin_synek_synek__create_series", "mcp__plugin_synek_synek__get_series", "mcp__plugin_synek_synek__get_layout_report", "mcp__plugin_synek_synek__query_timeline", "mcp__plugin_synek_synek__get_node", "mcp__plugin_synek_synek__apply_patch", "mcp__plugin_synek_synek__write_story", "mcp__plugin_synek_synek__patch_story", "mcp__plugin_synek_synek__set_series_public", "mcp__plugin_synek_synek__register_artifact", "mcp__plugin_synek_synek__search_artifacts", "WebSearch", "WebFetch"]
+allowed-tools: ["mcp__plugin_synek_synek__list_projects", "mcp__plugin_synek_synek__list_timelines", "mcp__plugin_synek_synek__create_series", "mcp__plugin_synek_synek__get_series", "mcp__plugin_synek_synek__get_layout_report", "mcp__plugin_synek_synek__query_timeline", "mcp__plugin_synek_synek__get_node", "mcp__plugin_synek_synek__apply_patch", "mcp__plugin_synek_synek__write_story", "mcp__plugin_synek_synek__patch_story", "mcp__plugin_synek_synek__set_series_public", "mcp__plugin_synek_synek__set_series_review_mode", "mcp__plugin_synek_synek__register_artifact", "mcp__plugin_synek_synek__search_artifacts", "WebSearch", "WebFetch"]
 ---
 
 # /synek:next-chapter — write the next chapter of **$ARGUMENTS**
@@ -60,7 +60,10 @@ To **fix** a chapter you just wrote (a typo, a missing beat, a reorder) without 
 
 ## 5. Publish (optional)
 
-If the user wants the season shareable, `set_series_public` → the page is live at `/sr/<slug>`, chapters playing in order. Per-chapter visibility is separate; publishing the series is the one switch for the season page.
+If the user wants the season shareable, `set_series_public` → the page is live at `/sr/<slug>`, chapters playing in order — but **only chapters with status `published` show**. Two things to know:
+
+- **Review mode.** If the series has `reviewMode` on (`create_series` / `set_series_review_mode`), every chapter you write is **born a `draft`** — owner-only, off the public season — until it's approved with `patch_story` `update_meta { status: "published" }`. When the user asks you (interactively) to publish the chapter you just wrote, that patch is the approval. A *scheduled* writer never publishes — it leaves drafts for the owner (see `/synek:follow`).
+- A chapter's own `isPublic` (the standalone `/s/<slug>` page) is a **separate axis** from the season page.
 
 ## 6. Report honestly
 

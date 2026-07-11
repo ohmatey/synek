@@ -1,6 +1,6 @@
 ---
 name: watch
-description: "Keep a Synek timeline current as the world changes — set up and run a keeper routine. Use when the user runs /synek:watch, asks to keep a timeline up to date / fresh / current, to track competitors, model releases, funding/acquisitions, or novel research on an ongoing topic, or to auto-update / schedule / make a recurring routine for a timeline (a Watcher / Living Timeline). Runs an immediate keeper pass that adds only what's new in one Patch, then offers to make it recurring — in Claude Code or any MCP client."
+description: "Keep a Synek timeline current as the world changes — a keeper routine. Use when the user runs /synek:watch, asks to keep a timeline up to date / fresh / current, to track competitors, model releases, funding/acquisitions, or an ongoing field, or to auto-update / schedule a recurring routine for a timeline (a Living Timeline). Runs a keeper pass now — adds only what's new, one Patch — then offers to make it recurring in any MCP client."
 argument-hint: <timeline>  (title or id — e.g. "Frontier AI Models". Omit to pick from a list.)
 allowed-tools: ["mcp__plugin_synek_synek__list_timelines", "mcp__plugin_synek_synek__get_timeline", "mcp__plugin_synek_synek__query_timeline", "mcp__plugin_synek_synek__get_node", "mcp__plugin_synek_synek__get_layout_report", "mcp__plugin_synek_synek__apply_patch", "mcp__plugin_synek_synek__register_artifact", "mcp__plugin_synek_synek__search_artifacts", "WebSearch", "WebFetch"]
 ---

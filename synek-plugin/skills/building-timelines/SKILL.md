@@ -28,6 +28,10 @@ Synek is a single-user, local timeline **canvas** the user has open in a browser
 - `precision`: `"year"` | `"quarter"` | `"month"` | `"day"`. Optional — inferred from `start` if omitted; set it explicitly when the source date is fuzzier than it looks.
 - `subtype`: for `entity` nodes only — `"person"` | `"org"` | `"place"` | `"work"`. **Always set this on entities** — it drives the card treatment (person → portrait frame, org → logo lockup, etc.). A person entity without `subtype: "person"` renders as a generic box.
 - `lane`: an optional **swimlane** key (a short group name, e.g. a company/actor like `"OpenAI"`). Nodes sharing a `lane` are laid out as **one horizontal row**, ordered left→right by date. This is the single most important field for any timeline with **parallel tracks** — see "Lay out parallel tracks in swimlanes" below. Omit it for one-off nodes.
+- `images`: array of `{ url, alt?, aspect? }` — **real, web-sourced image URLs** (a Wikimedia portrait for a person, an official logo for an org, public-domain art for an era/event). Synek stores the URL and renders it on the card; it does **not** generate images — never invent a URL. Set `aspect: "portrait"` for tall subjects (a headshot, a standing figure), `"landscape"` for wide ones (scenes, logos; the default). See "Faces and places" below.
+- `location`: a plain display string of where it happened (`"Golgotha, Jerusalem"`, `"Down House, Kent"`) — place texture in the detail panel; no geocoding.
+- `lat` / `lng`: decimal-degree coordinates (supply both or neither; city-level precision is plenty). Plots the node on the **globe lens**. Pair with `location`.
+- `geoScope`: `"global"` | `"diffuse"` | `"unknown"` — the explicit *"cannot be pinned"* marker, set **instead of** `lat`/`lng` when a node genuinely has no single place (a worldwide era; several real sites with no honest anchor; a place lost to history). **Never guess coordinates as a substitute** — placeless is an answer, not a gap. Mutually exclusive with coordinates.
 - `citations`: array of `{ title, url?, quote? }`. Cite freely — see below.
 - `ref`: an optional local alias for *this* node so a later `add_edge` in the same batch can point at it (see ref aliasing).
 
@@ -36,7 +40,7 @@ Synek is a single-user, local timeline **canvas** the user has open in a browser
 - `kind`: **closed set, pick one** — `"caused"` | `"succeeded"` | `"influenced"` | `"acquired"` | `"competed_with"`. There are no others; do not pass `"related"`, `"created"`, etc.
 - `label`: optional free-text label drawn on the edge.
 
-**`update_node`** — `id` (required) + any of `title`, `summary`, `start`, `end`, `precision`, `subtype`, `lane`, `citations`. Metadata merges (existing images/color survive). Pass `lane: ""` to clear a swimlane. **`delete_node`** — `id` (its edges go too — but the underlying entity survives if it's placed on another timeline). **`update_edge`** — `id` + `kind`/`label`. **`delete_edge`** — `id`.
+**`update_node`** — `id` (required) + any of `title`, `summary`, `start`, `end`, `precision`, `subtype`, `lane`, `location`, `lat`, `lng`, `geoScope`, `images`, `citations`. Metadata merges — **except `images`, which replaces the node's whole image array when passed** (omit it to leave existing images untouched). Pass `lane: ""` to clear a swimlane, `lat`/`lng: null` to clear coordinates, `geoScope: null` to clear the placeless marker; setting coordinates clears `geoScope` and vice versa. **`delete_node`** — `id` (its edges go too — but the underlying entity survives if it's placed on another timeline). **`update_edge`** — `id` + `kind`/`label`. **`delete_edge`** — `id`.
 
 **`place_entity`** — `entityId` (required) + optional `lane`, `ref`. Place an **existing** entity (one already on another timeline) onto **this** timeline as a new placement, rather than re-creating it. The same canonical entity can live on many timelines; **editing its content anywhere — `update_node` on any of its placements — propagates to all of them** (a node's content lives on the shared entity; only `lane` is per-timeline). Get an entity's `entityId` from `get_node`. Use this when a person/org/work recurs across timelines so they stay one linked entity instead of drifting copies.
 
@@ -106,9 +110,18 @@ An edge is a claim that two nodes belong to one story — so connected nodes sho
 - **A long edge is sometimes right.** Deep-history influence (Aristotle `influenced` a 20th-century thinker) legitimately spans centuries. Keep it — but signal intent: put a `label` on the edge ("rediscovered via …") and prefer `influenced` over `caused`. Expect an advisory warning from `apply_patch`; it's a nudge, not an error.
 - **Trust the feedback.** `apply_patch` warns when a batch creates an edge whose endpoints are far apart relative to the timeline's span, and `get_layout_report` has a `grouping` section showing each connected component's time span and lane spread plus the longest edges. A component spanning most of the axis across many lanes usually means missing lanes or a date typo — fix it with `update_node` (`lane`, or a corrected `start`).
 
+## Faces and places — make the canvas visual and mappable
+
+Two fields turn a valid graph into a canvas worth looking at:
+
+- **Faces (`images`).** When you know a real, web-accessible image for a node — a Wikimedia portrait, an official logo, public-domain artwork — pass it in `images` with an honest `alt` and the right `aspect`. A person card with a portrait beats a gray box every time. Only real URLs you actually sourced (search/fetch to confirm they resolve if unsure); `apply_patch` warns on broken ones. Synek renders images, it never generates them.
+- **Places (`location` + `lat`/`lng`).** Set `location` wherever it adds texture, and coordinates whenever you know where it happened — that plots the node on the **globe lens**, which the user can play through to watch the story move across the map. City-level precision is plenty. When a node genuinely can't be pinned, say so with `geoScope` (`global`/`diffuse`/`unknown`) rather than skipping the decision — the globe narrates these as captions and coverage counts them as resolved. Never fabricate a pin.
+
+`get_layout_report` has a `coordinates` section (located / placeless / unset counts plus a sample of undecided nodes) — use it to backfill places on an existing timeline.
+
 ## What makes a timeline *good*
 
-- **Faces and substance, not boxes.** Prefer real, named people/orgs/works with a one-line `summary` each. Every `entity` gets a `subtype`. A topic map of 10–20 well-summarized nodes beats 40 bare titles.
+- **Faces and substance, not boxes.** Prefer real, named people/orgs/works with a one-line `summary` each, a portrait/logo in `images` where a real one exists, and a place (`lat`/`lng` or an explicit `geoScope`). Every `entity` gets a `subtype`. A topic map of 10–20 well-summarized nodes beats 40 bare titles.
 - **Mix the types.** `event`s are the moments (points in time); `entity`s are the people/orgs/places/works (often spans); `period`s are the eras that frame stretches of the axis; `concept`s are ideas/doctrines. A good map mixes them — periods give the canvas a sense of age.
 - **Swimlane parallel tracks.** If the topic has rival/parallel actors, lane them (see above). This is the difference between a clean waterfall and a hairball.
 - **Edges are deliberate, sparse, and typed.** Connect things that genuinely relate, and choose the `kind` honestly from the closed set. A few meaningful (especially cross-lane) edges read clearly; a fully-connected hairball reads as noise. Do not add a `succeeded` edge between every consecutive node in a lane — the lane order already shows succession. And connected nodes should sit near each other — see "Keep narrative threads clumped" above.
@@ -129,17 +142,11 @@ Give grounded beats `citations` (same shape as a node's), an `image` where a rea
 
 ## What you cannot do here (so don't promise it)
 
-- **No image/portrait attachment via MCP on NODES.** `add_node` accepts `citations`, `subtype`, `lane` only — there is no image/url field. Portraits and uploads are added by the user in the canvas's detail panel. (Story `coverImage`/beat `image` DO take a real image URL — see `write_story`.) Set `subtype: "person"` so the card is *ready* for a portrait; don't claim you attached a node portrait.
+- **No image generation.** Node `images` and story `coverImage`/beat `image` take **real, web-sourced URLs only** — Synek stores and renders them, it never creates them. If no real image exists, leave the field off; don't invent a URL. (File *uploads* happen in the canvas's detail panel, not over MCP.)
 
 ## Always hand back the canvas
 
-After creating or substantially building a timeline, **give the user the viewer link** so they can watch/open it:
-
-```
-http://localhost:3001/timelines/<timelineId>
-```
-
-(Use the host/port from the user's setup if non-default — see the `setup` skill. `create_timeline` returns only `{ id, title }` today, so you construct the URL from the id.)
+After creating or substantially building a timeline, **give the user the viewer link** so they can watch/open it. `create_timeline` returns a `url` — share that (it's already on the right origin, local or hosted); the canvas updates **live** as you patch, so never tell the user to refresh. For an existing timeline, the link is `<origin>/timelines/<timelineId>`.
 
 ## Reading before writing
 

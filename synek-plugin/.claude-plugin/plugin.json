@@ -1,11 +1,11 @@
 {
   "name": "synek",
-  "version": "0.2.0",
-  "description": "Drive your local Synek timeline canvas from Claude Code. Talk about a topic and watch the timeline build itself — bundles the MCP connection plus the know-how to build good timelines.",
+  "version": "0.3.0",
+  "description": "Drive your Synek timeline canvas from Claude Code. Talk about a topic and watch the timeline build itself — bundles the MCP connection plus the know-how to build good timelines and tell immersive, cited stories on them.",
   "author": {
     "name": "Aaron McPherson",
     "email": "contactaaronmcpherson@gmail.com"
   },
   "license": "MIT",
-  "keywords": ["timeline", "knowledge-canvas", "mcp", "history", "synek", "chronograph"]
+  "keywords": ["timeline", "knowledge-canvas", "mcp", "history", "stories", "synek", "chronograph"]
 }
