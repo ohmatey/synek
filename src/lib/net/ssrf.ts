@@ -16,12 +16,17 @@
 //   1. scheme allowlist (https only by default; http opt-in for the link
 //      verifier where legacy sources are legitimately http),
 //   2. no embedded credentials (`user:pass@`),
-//   3. host is not an IP literal in a non-routable range,
+//   3. host is not an IP literal in a non-routable range (incl. NAT64- and
+//      6to4-embedded private v4 that would otherwise smuggle past the v6 set),
 //   4. an optional explicit host allowlist (used by the Realscript base URL),
 //   5. DNS resolution where every resolved address is publicly routable
 //      (closes the "attacker domain → A-record 169.254.169.254" case),
 //   6. redirects followed manually with every hop re-validated (closes the
-//      "public URL 302→internal" case).
+//      "public URL 302→internal" case), and credential headers
+//      (Authorization/Cookie/Proxy-Authorization) stripped on any cross-origin
+//      hop so a redirect can't exfiltrate a bearer token to a third-party host,
+//   7. a total-operation timeout and a response-body size cap (so a compromised
+//      or hostile endpoint can't hang the request or exhaust memory).
 //
 // Known residual (documented, not yet closed — see ADR 0002 "Open / deferred"):
 // a TOCTOU DNS-rebinding window remains because step 5 resolves the name and
@@ -32,7 +37,7 @@
 import { BlockList, isIP } from 'node:net'
 import { lookup } from 'node:dns/promises'
 
-export type SsrfReason = 'invalid' | 'protocol' | 'credentials' | 'blocked' | 'unresolved' | 'redirects'
+export type SsrfReason = 'invalid' | 'protocol' | 'credentials' | 'blocked' | 'unresolved' | 'redirects' | 'too_large'
 
 export class SsrfError extends Error {
   readonly reason: SsrfReason
@@ -86,12 +91,23 @@ function nat64EmbeddedV4(v6: string): string | null {
   return null
 }
 
+// A 6to4 address (2002:WWXX:YYZZ::/48) embeds an IPv4 W.X.Y.Z in its first two
+// groups; like NAT64 it can smuggle a private v4 (2002:7f00:1:: == 127.0.0.1)
+// past the v6 set. Pull it out and re-check against the v4 ranges.
+function sixToFourEmbeddedV4(v6: string): string | null {
+  const m = v6.toLowerCase().match(/^2002:([0-9a-f]{1,4}):([0-9a-f]{1,4}):/)
+  if (!m) return null
+  const hi = parseInt(m[1]!, 16)
+  const lo = parseInt(m[2]!, 16)
+  return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`
+}
+
 /** True if `ip` (a literal v4 or v6 address) is loopback/private/link-local/reserved. */
 export function isBlockedIp(ip: string): boolean {
   const fam = isIP(ip)
   if (fam === 4) return v4Blocked.check(ip, 'ipv4')
   if (fam === 6) {
-    const embedded = nat64EmbeddedV4(ip)
+    const embedded = nat64EmbeddedV4(ip) ?? sixToFourEmbeddedV4(ip)
     if (embedded && isIP(embedded) === 4) return v4Blocked.check(embedded, 'ipv4')
     return v6Blocked.check(ip, 'ipv6')
   }
@@ -168,21 +184,81 @@ export async function assertFetchableUrl(rawUrl: string, opts: UrlGuardOptions =
 export type SafeFetchOptions = UrlGuardOptions & {
   /** Max redirect hops to follow, each re-validated. Default 4. */
   maxRedirects?: number
+  /** Total-operation timeout (ms), combined with any caller `init.signal`. Default 15000. */
+  timeoutMs?: number
+  /** Cap on the response body read through the returned stream (bytes). Default 10 MiB; 0 disables. */
+  maxBytes?: number
+}
+
+const DEFAULT_TIMEOUT_MS = 15_000
+const DEFAULT_MAX_BYTES = 10 * 1024 * 1024
+
+// Request headers that must NOT survive a cross-origin redirect: a bearer token
+// or cookie meant for the original host would otherwise be replayed to the
+// redirect target (mirrors the browser fetch spec's cross-origin stripping).
+const CROSS_ORIGIN_STRIP = ['authorization', 'cookie', 'proxy-authorization']
+
+// Statuses that must not carry a body — never wrap these (the Response
+// constructor rejects a body for them).
+const NULL_BODY_STATUS = new Set([101, 204, 205, 304])
+
+/**
+ * Return a Headers with credential headers removed when the redirect crosses
+ * origins; unchanged for a same-origin hop. Pure — exported for testing.
+ */
+export function redirectSafeHeaders(headers: HeadersInit | undefined, fromOrigin: string, toOrigin: string): Headers {
+  const out = new Headers(headers)
+  if (fromOrigin !== toOrigin) for (const h of CROSS_ORIGIN_STRIP) out.delete(h)
+  return out
+}
+
+/**
+ * Wrap a Response so reading its body throws SsrfError('too_large') past
+ * `maxBytes`. The cap is enforced on the streamed bytes (content-length can be
+ * absent or lie), so a HEAD/empty/cancelled body never triggers it. Pure —
+ * exported for testing.
+ */
+export function capResponseBody(res: Response, maxBytes: number): Response {
+  if (!res.body || maxBytes <= 0 || NULL_BODY_STATUS.has(res.status)) return res
+  let seen = 0
+  const capped = res.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        seen += chunk.byteLength
+        if (seen > maxBytes) {
+          controller.error(new SsrfError('too_large', `response body exceeded ${maxBytes} bytes`))
+          return
+        }
+        controller.enqueue(chunk)
+      },
+    }),
+  )
+  return new Response(capped, { status: res.status, statusText: res.statusText, headers: res.headers })
+}
+
+function effectiveSignal(callerSignal: AbortSignal | null | undefined, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs)
+  return callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout
 }
 
 /**
  * SSRF-guarded fetch. Validates the URL (scheme + DNS + range), follows
- * redirects manually re-validating each hop, and returns the final Response.
- * Throws SsrfError if any URL in the chain is unsafe. Pass `init` (method,
- * signal, headers) as for `fetch`; `redirect` is forced to 'manual' internally.
+ * redirects manually re-validating each hop and stripping credential headers on
+ * any cross-origin hop, bounds the whole operation with a timeout, and caps the
+ * response body size. Throws SsrfError if any URL in the chain is unsafe. Pass
+ * `init` (method, signal, headers) as for `fetch`; `redirect` is forced to
+ * 'manual' and `signal` is combined with the internal timeout.
  */
 export async function safeFetch(rawUrl: string, init: RequestInit = {}, opts: SafeFetchOptions = {}): Promise<Response> {
   const maxRedirects = opts.maxRedirects ?? 4
+  const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES
+  const signal = effectiveSignal(init.signal, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+  let headers = new Headers(init.headers)
   let url = await assertFetchableUrl(rawUrl, opts)
   for (let hop = 0; ; hop++) {
-    const res = await fetch(url, { ...init, redirect: 'manual' })
+    const res = await fetch(url, { ...init, headers, redirect: 'manual', signal })
     const isRedirect = res.status >= 300 && res.status < 400 && res.headers.has('location')
-    if (!isRedirect) return res
+    if (!isRedirect) return capResponseBody(res, maxBytes)
     if (hop >= maxRedirects) {
       void res.body?.cancel()
       throw new SsrfError('redirects', `exceeded ${maxRedirects} redirects`)
@@ -195,6 +271,7 @@ export async function safeFetch(rawUrl: string, init: RequestInit = {}, opts: Sa
       throw new SsrfError('invalid', 'redirect Location was not a valid URL')
     }
     void res.body?.cancel()
+    headers = redirectSafeHeaders(headers, url.origin, next.origin)
     url = await assertFetchableUrl(next.href, opts)
   }
 }
