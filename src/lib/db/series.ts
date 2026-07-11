@@ -82,7 +82,7 @@ export function listSeriesForOwner(ownerId: string, projectId?: string): SeriesR
 export function createSeries(
   projectId: string,
   ownerId: string,
-  opts: { title: string; hook?: string | null; coverImage?: StoryImage | null; theme?: TimelineTheme | null; anchorMomentId?: string | null },
+  opts: { title: string; hook?: string | null; coverImage?: StoryImage | null; theme?: TimelineTheme | null; anchorMomentId?: string | null; reviewMode?: boolean },
 ): SeriesRow {
   return db
     .insert(storySeries)
@@ -95,6 +95,7 @@ export function createSeries(
       coverImage: opts.coverImage ?? null,
       theme: opts.theme ?? null,
       anchorMomentId: opts.anchorMomentId ?? null,
+      reviewMode: opts.reviewMode ?? false,
       status: 'active',
     })
     .returning()
@@ -152,7 +153,7 @@ export function getSeriesProjectId(id: string): string | null {
 export function updateSeries(
   id: string,
   ownerId: string,
-  patch: { title?: string; hook?: string | null; coverImage?: StoryImage | null; theme?: TimelineTheme | null; brandId?: string | null; status?: SeriesRow['status'] },
+  patch: { title?: string; hook?: string | null; coverImage?: StoryImage | null; theme?: TimelineTheme | null; brandId?: string | null; status?: SeriesRow['status']; reviewMode?: boolean },
 ): void {
   const set: Record<string, unknown> = { updatedAt: new Date() }
   if (patch.title !== undefined) set.title = patch.title
@@ -161,6 +162,7 @@ export function updateSeries(
   if (patch.theme !== undefined) set.theme = patch.theme
   if (patch.brandId !== undefined) set.brandId = patch.brandId
   if (patch.status !== undefined) set.status = patch.status
+  if (patch.reviewMode !== undefined) set.reviewMode = patch.reviewMode
   db.update(storySeries)
     .set(set)
     .where(and(eq(storySeries.id, id), eq(storySeries.ownerId, ownerId)))
@@ -175,6 +177,17 @@ export function setSeriesShared(id: string, ownerId: string, isPublic: boolean):
   if (!row || row.ownerId !== ownerId) return null
   db.update(storySeries).set({ isPublic, updatedAt: new Date() }).where(eq(storySeries.id, id)).run()
   return { slug: row.slug }
+}
+
+// Owner-scoped review-mode toggle (local-175). ON → chapters written into this series
+// are born `draft` (enforced in writeStory), so an automated writer can append into a
+// PUBLIC series without publishing unreviewed content. Returns false (a no-op) when the
+// series is missing or isn't the caller's, mirroring setSeriesShared's fail-closed shape.
+export function setSeriesReviewMode(id: string, ownerId: string, reviewMode: boolean): boolean {
+  const row = db.select({ ownerId: storySeries.ownerId }).from(storySeries).where(eq(storySeries.id, id)).get()
+  if (!row || row.ownerId !== ownerId) return false
+  db.update(storySeries).set({ reviewMode, updatedAt: new Date() }).where(eq(storySeries.id, id)).run()
+  return true
 }
 
 // Cascades to nothing destructive: stories.seriesId SETs NULL (D3), so a series
@@ -212,6 +225,20 @@ export function getSeriesChapters(seriesId: string): ChapterRow[] {
     .where(eq(stories.seriesId, seriesId))
     .orderBy(asc(sql`coalesce(${stories.chapterNumber}, 1e9)`), asc(stories.createdAt))
     .all()
+}
+
+// The chapters that may ship on the PUBLIC season page (/sr/$slug), in order: the
+// per-chapter publish gate (local-175, PRD per-chapter-publish-gates §4/§6.3). The
+// axes are NON-overlapping — series.isPublic (checked in the server fn) is "is the
+// shelf live"; a chapter's `status === 'published'` is "is this chapter on the shelf".
+// So making a season public opens the shelf but never force-reveals a chapter the
+// author held back as a `draft` (or `archived`/withdrawn). A chapter's OWN `isPublic`
+// is a THIRD, orthogonal axis — it governs only the standalone /s/$slug page and is
+// deliberately NOT consulted here (gating on it would blank the season, since chapters
+// are born published-but-isPublic=false). Owner-facing reads keep the unfiltered
+// getSeriesChapters; only the public season composes this.
+export function publicSeriesChapters(seriesId: string): ChapterRow[] {
+  return getSeriesChapters(seriesId).filter((c) => c.status === 'published')
 }
 
 // The next chapter number for a series (max existing + 1, or 1 when empty) — used

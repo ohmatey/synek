@@ -23,7 +23,7 @@ const TITLE_BY_NAME = new Map(TOOLS.map((t) => [t.name, t.title]))
 
 // Curated groups for the human page. Names not listed here fall into "More".
 const GROUPS: { label: string; names: string[] }[] = [
-  { label: 'Projects & series', names: ['create_project', 'list_projects', 'get_project', 'create_series', 'get_series', 'set_series_public'] },
+  { label: 'Projects & series', names: ['create_project', 'list_projects', 'get_project', 'create_series', 'get_series', 'set_series_public', 'set_series_review_mode'] },
   { label: 'Timelines', names: ['list_timelines', 'create_timeline', 'get_timeline', 'query_timeline', 'get_node', 'list_entities', 'get_layout_report'] },
   { label: 'Editing', names: ['apply_patch', 'undo', 'redo'] },
   { label: 'Stories', names: ['write_story', 'patch_story', 'undo_story', 'redo_story'] },

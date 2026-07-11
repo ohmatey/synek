@@ -73,6 +73,13 @@ Returns: series meta, chapters ordered by `chapterNumber` (title/hook/status/`is
 
 A series gets its own shareable page — a "Netflix season": cover, ordered chapter list, play-in-order, explore. `story_series.isPublic` gates it (independent of any chapter's `isPublic`, mirroring the story/timeline split). `getPublicSeries` returns the series + its public chapters in order; the page reuses the `PublicStoryReader` per chapter with next-chapter continuation. *Justification:* the founder wants the series shareable and explorable in order — and per-chapter sharing already exists, so this is a series-level index over a proven reader, not a new reader. SSR OpenGraph mirrors `/s/$slug`.
 
+> **Amendment (2026-07-11, local-175 — per-chapter publish gate).** D10 originally shipped *every* chapter the instant the season went public, honoring only `story_series.isPublic`. That leaked `draft`/`archived` chapters (a draft is the schema default `stories.status`). The gate now has two halves:
+>
+> - **Read.** `getPublicSeries` composes `publicSeriesChapters` (`src/lib/db/series.ts`), which ships **only `status === 'published'` chapters**. The three axes stay non-overlapping: `story_series.isPublic` = "is the shelf live", `stories.status === 'published'` = "is this chapter on the shelf", and a chapter's own `stories.isPublic` = the standalone `/s/$slug` page (still **not** consulted for the season, exactly as D10 states). Backward-compatible: `writeStory` has always inserted `published`, so nothing currently public disappears.
+> - **Write.** New `story_series.reviewMode` column (migration `0031`). When ON, `writeStory` births every chapter appended to the series as `draft` server-side — beating an explicit `status`, so an *automated* writer can append into a PUBLIC season with nothing going live until the owner approves it via `patch_story(update_meta status:"published")`. MCP: `create_series(reviewMode)`, `set_series_review_mode`, `write_story(status)`, `get_series` reports `reviewMode`. reviewMode governs *newly written* chapters only; existing ones are untouched.
+>
+> Verified by `bun run verify:public-series` (read gate + write side). Still deferred (PRD slices 3-4, see [PRD](../../product/prd/per-chapter-publish-gates.md)): the `set_chapter_status` alias, the in-app Publish/Review-mode UI, and the contiguous public display index (D4). `/synek:follow` may now `set_series_public` on a series it keeps in `reviewMode`; on a non-review series its "don't publish an automated feed" rule still holds.
+
 ---
 
 ## Schema (migration `0028`, additive)

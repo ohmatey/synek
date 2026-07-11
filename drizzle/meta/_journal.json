@@ -218,6 +218,13 @@
       "when": 1782223521221,
       "tag": "0030_worthless_lord_hawal",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1783782205388,
+      "tag": "0031_strange_alex_power",
+      "breakpoints": true
     }
   ]
 }

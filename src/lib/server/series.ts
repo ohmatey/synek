@@ -5,8 +5,10 @@ import {
   getSeries as dbGetSeries,
   getSeriesRowBySlug,
   getSeriesChapters,
+  publicSeriesChapters,
   listSeriesForOwner,
   setSeriesShared as dbSetSeriesShared,
+  setSeriesReviewMode as dbSetSeriesReviewMode,
   makeRequireOwnedSeries,
   seriesWatermark,
 } from '~/lib/db/series'
@@ -144,6 +146,20 @@ export const publishSeriesShare = createServerFn({ method: 'POST' })
     return res ? { ok: true as const, slug: res.slug } : { error: 'forbidden' }
   })
 
+// Owner-gated review-mode toggle (local-175). ON → chapters written into this series
+// are born `draft` (enforced server-side in writeStory), so an automated writer can
+// append into a PUBLIC series without publishing anything until the owner approves it.
+// Backs the series-detail "Review mode" switch; a non-owner/missing series is forbidden.
+export const setSeriesReviewMode = createServerFn({ method: 'POST' })
+  .inputValidator((d: { seriesId: string; reviewMode: boolean }) =>
+    z.object({ seriesId: z.string(), reviewMode: z.boolean() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true } | { error: 'forbidden' }> => {
+    const user = await requireUser()
+    const ok = dbSetSeriesReviewMode(data.seriesId, user.id, data.reviewMode)
+    return ok ? { ok: true as const } : { error: 'forbidden' }
+  })
+
 // The PUBLIC season page (no auth). Gated on the SERIES being public; ships only its
 // PUBLIC chapters in chapterNumber order, each a full StoryDTO, plus the union of the
 // nodes those chapters reference (no full-graph leak). theme resolves
@@ -154,10 +170,11 @@ export const getPublicSeries = createServerFn({ method: 'GET' })
   .handler(async ({ data: slug }): Promise<PublicSeriesDTO | null> => {
     const series = getSeriesRowBySlug(slug)
     if (!series || !series.isPublic) return null
-    // The SERIES public flag is the publish action for the whole season (ADR 0006
-    // D10) — every chapter ships in order, regardless of its own per-story isPublic
-    // (that flag governs the standalone /s/$slug page, not the season).
-    const chapterRows = getSeriesChapters(series.id)
+    // The SERIES public flag opens the shelf; publicSeriesChapters then ships only
+    // `published` chapters (local-175). A `draft`/`archived` chapter (unfinished or
+    // withdrawn) never leaks just because the season is public. A chapter's own
+    // `isPublic` (the standalone /s/$slug axis) is orthogonal and NOT consulted here.
+    const chapterRows = publicSeriesChapters(series.id)
     const chapters: PublicSeriesChapter[] = []
     for (const row of chapterRows) {
       const story = getStoryById(row.storyId)

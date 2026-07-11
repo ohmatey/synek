@@ -1,0 +1,1 @@
+ALTER TABLE `story_series` ADD `review_mode` integer DEFAULT false NOT NULL;

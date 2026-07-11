@@ -29,6 +29,7 @@
     "verify:entities": "DATABASE_URL=verify-entities.db tsx scripts/verify-entities.ts",
     "verify:story": "DATABASE_URL=verify-story.db tsx scripts/verify-story.ts",
     "verify:public-story": "DATABASE_URL=verify-public-story.db tsx scripts/verify-public-story.ts",
+    "verify:public-series": "DATABASE_URL=verify-public-series.db tsx scripts/verify-public-series.ts",
     "verify:story-undo": "DATABASE_URL=verify-story-undo.db tsx scripts/verify-story-undo.ts",
     "verify:multi-story": "DATABASE_URL=verify-multi-story.db tsx scripts/verify-multi-story.ts",
     "verify:series": "DATABASE_URL=verify-series.db tsx scripts/verify-series.ts",

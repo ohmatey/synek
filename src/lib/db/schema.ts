@@ -536,6 +536,11 @@ export const storySeries = sqliteTable(
     // anchor on their own moments, D4). Costs nothing now; a future canvas affordance.
     anchorMomentId: text('anchor_moment_id'),
     isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
+    // Per-chapter publish gate (local-175). When ON, chapters written into this series
+    // are born `draft` server-side (writeStory, regardless of what the caller passes),
+    // so an AUTOMATED writer can append into a PUBLIC series without anything going live
+    // until the owner publishes it. Off = today's behavior (chapters born `published`).
+    reviewMode: integer('review_mode', { mode: 'boolean' }).notNull().default(false),
     status: text('status', { enum: ['active', 'concluded', 'draft'] })
       .notNull()
       .default('active'),

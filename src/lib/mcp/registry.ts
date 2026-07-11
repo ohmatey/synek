@@ -45,6 +45,7 @@ import {
   getSeries,
   seriesWatermark,
   setSeriesShared,
+  setSeriesReviewMode,
   makeRequireOwnedSeries,
   updateSeries,
   nextChapterNumber,
@@ -703,10 +704,16 @@ export const toolRegistry: ToolDef[] = [
         .optional()
         .describe('Series id to append this story to as the NEXT chapter (auto-numbered). The usual way to write the next chapter.'),
       chapterNumber: z.number().int().positive().optional().describe('Explicit 1-based chapter position within the series.'),
+      status: z
+        .enum(['draft', 'published'])
+        .optional()
+        .describe(
+          'Birth status for a NEW chapter (default `published`). Pass `draft` to write a chapter that stays owner-only until you publish it (via patch_story update_meta status). A series with reviewMode ON forces `draft` regardless of this — so an automated feed can append safely into a public series.',
+        ),
       segments: z.array(storyBeatInput).min(1),
     },
     handler: async (
-      { momentId, storyId, title, hook, povType, depthTier, estimatedMinutes, coverImage, cast, theme, seriesId, appendToSeries, chapterNumber, segments },
+      { momentId, storyId, title, hook, povType, depthTier, estimatedMinutes, coverImage, cast, theme, seriesId, appendToSeries, chapterNumber, status, segments },
       { ownerId },
     ) => {
       // write_story keys off a node id; resolve its timeline and run the same
@@ -808,6 +815,7 @@ export const toolRegistry: ToolDef[] = [
           coverImage,
           cast,
           theme,
+          ...(status !== undefined ? { status } : {}),
           ...(seriesTarget !== undefined ? { seriesId: seriesTarget } : {}),
           ...(chapterNum !== undefined ? { chapterNumber: chapterNum } : {}),
         },
@@ -859,6 +867,12 @@ export const toolRegistry: ToolDef[] = [
                   coverImage: storyImageInput.nullable().optional(),
                   theme: timelineThemeSchema.nullable().optional(),
                   isPublic: z.boolean().optional(),
+                  status: z
+                    .enum(['draft', 'published', 'archived'])
+                    .optional()
+                    .describe(
+                      'Publish state of this chapter. `published` puts it on the public season shelf (/sr/$slug); `draft` pulls it back to owner-only; `archived` withdraws it. This is how you APPROVE a chapter written under reviewMode.',
+                    ),
                 })
                 .describe('Story-level fields to change (only the ones you pass).'),
             }),
@@ -935,17 +949,23 @@ export const toolRegistry: ToolDef[] = [
       theme: timelineThemeSchema.optional().describe('The series\' own visual theme (same shape as set_timeline_theme).'),
       brandId: z.string().optional().describe('A brand to dress the whole series in (list_brands). Sets the reference (drives chapter voice) and SEEDS the series theme from the kit unless an explicit `theme` is given.'),
       anchorMomentId: z.string().optional().describe('Optional "home" node for the series on the canvas.'),
+      reviewMode: z
+        .boolean()
+        .optional()
+        .describe(
+          'Start the series in REVIEW MODE (default false): every chapter written into it is born a `draft` (owner-only) until you publish it, even in a PUBLIC season. Turn this ON for an AUTOMATED / scheduled writer so appended chapters never go live unreviewed. Toggle later with set_series_review_mode.',
+        ),
     },
-    handler: async ({ projectId, title, hook, coverImage, theme, brandId, anchorMomentId }, { ownerId, requireOwnedProject }) => {
+    handler: async ({ projectId, title, hook, coverImage, theme, brandId, anchorMomentId, reviewMode }, { ownerId, requireOwnedProject }) => {
       ;(requireOwnedProject ?? makeRequireOwnedProject(ownerId))(projectId)
       if (brandId) makeRequireOwnedBrand(ownerId)(brandId)
       const seedTheme = theme ?? (brandId ? deriveThemeFromBrand(getBrand(brandId, ownerId)?.kit ?? null) ?? undefined : undefined)
       const warnings: string[] = []
       if (coverImage?.url) warnings.push(...(await imageUrlWarnings([coverImage.url], 'series cover URL')))
       if (seedTheme) warnings.push(...themeContrastWarnings(seedTheme))
-      const s = createSeries(projectId, ownerId, { title, hook, coverImage, theme: seedTheme, anchorMomentId })
+      const s = createSeries(projectId, ownerId, { title, hook, coverImage, theme: seedTheme, anchorMomentId, reviewMode })
       if (brandId) updateSeries(s.id, ownerId, { brandId })
-      return { seriesId: s.id, slug: s.slug, title: s.title, url: seriesUrl(s), ...(warnings.length ? { warnings } : {}) }
+      return { seriesId: s.id, slug: s.slug, title: s.title, url: seriesUrl(s), reviewMode: s.reviewMode, ...(warnings.length ? { warnings } : {}) }
     },
   },
 
@@ -1022,6 +1042,7 @@ export const toolRegistry: ToolDef[] = [
           hook: series.hook,
           status: series.status,
           isPublic: series.isPublic,
+          reviewMode: series.reviewMode,
           theme: series.theme ?? null,
           url: seriesUrl(series),
         },
@@ -1044,12 +1065,25 @@ export const toolRegistry: ToolDef[] = [
     name: 'set_series_public',
     title: 'Publish or unpublish a series',
     description:
-      'Flip a series\' public visibility (ADR 0006 D10). When public, its season page is live at /sr/$slug — chapters play in order. INDEPENDENT of any chapter\'s own isPublic. Returns the public `url` on success.',
+      'Flip a series\' public visibility (ADR 0006 D10). When public, its season page is live at /sr/$slug and its chapters play in order — but ONLY chapters with status `published` show (a `draft`/`archived` chapter stays owner-only; local-175). Turning a season public never publishes a draft chapter. A chapter\'s own isPublic (the standalone /s/$slug page) is a separate axis. For an AUTOMATED writer, pair this with reviewMode (create_series / set_series_review_mode) so appended chapters land as drafts you approve. Returns the public `url` on success.',
     inputSchema: { seriesId: z.string(), isPublic: z.boolean() },
     handler: async ({ seriesId, isPublic }, { ownerId }) => {
       const res = setSeriesShared(seriesId, ownerId, isPublic)
       if (!res) throw new Error(`series "${seriesId}" not found`)
       return { ok: true, isPublic, url: `${BASE_URL}/sr/${res.slug}` }
+    },
+  },
+
+  {
+    name: 'set_series_review_mode',
+    title: 'Turn series review mode on or off',
+    description:
+      'Toggle REVIEW MODE for a series (local-175). When ON, every chapter written into this series (write_story appendToSeries / seriesId) is born a `draft` — owner-only, hidden from the public /sr/$slug season — REGARDLESS of what the writer passes, until you publish it with patch_story (update_meta status: "published"). This makes a PUBLIC season safe for an AUTOMATED / scheduled writer: it can keep appending chapters and nothing goes live unreviewed. OFF (default) = chapters are born `published` (today\'s behavior). Existing chapters are unaffected — this only governs newly written ones.',
+    inputSchema: { seriesId: z.string(), reviewMode: z.boolean() },
+    handler: async ({ seriesId, reviewMode }, { ownerId }) => {
+      const ok = setSeriesReviewMode(seriesId, ownerId, reviewMode)
+      if (!ok) throw new Error(`series "${seriesId}" not found`)
+      return { ok: true, reviewMode }
     },
   },
 

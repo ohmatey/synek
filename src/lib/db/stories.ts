@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, inArray, max, sql } from 'drizzle-orm'
 import { db } from './index'
-import { stories, storySegments, storyArtifacts, storyPatches, segmentCitations, artifacts, nodes, entities, timelines } from './schema'
+import { stories, storySegments, storyArtifacts, storyPatches, segmentCitations, artifacts, nodes, entities, timelines, storySeries } from './schema'
 import type { Citation, ChapterEditSnapshot } from './schema'
 import type {
   DepthTier,
@@ -56,6 +56,11 @@ export type NewStory = {
   // Applied only on CREATE; an update never rewrites an existing story's slug so
   // a shared /s/$slug link stays stable. Must be globally unique.
   slug?: string
+  // Create-time status override (default 'published' — today's behavior). A series
+  // with `reviewMode` ON forces new chapters to 'draft' server-side, REGARDLESS of
+  // this value (safety beats the caller, local-175). On UPDATE, status is left
+  // untouched unless explicitly set here (a plain re-write never demotes a chapter).
+  status?: StoryStatus
   // Serialized stories (ADR 0006): make this story a CHAPTER of a series. The
   // registry resolves the final chapterNumber (appendToSeries → next number) and
   // passes both here; writeStory just persists them. On UPDATE they're applied only
@@ -161,9 +166,21 @@ export function writeStory(
       // (no series fields) preserves the existing seriesId/chapterNumber.
       if (meta.seriesId !== undefined) set.seriesId = meta.seriesId
       if (meta.chapterNumber !== undefined) set.chapterNumber = meta.chapterNumber
+      // Status is left untouched on a plain re-write; only an explicit status changes
+      // it (so a chapter edit never silently un-publishes or re-publishes it).
+      if (meta.status !== undefined) set.status = meta.status
       tx.update(stories).set(set).where(eq(stories.id, storyId)).run()
       tx.delete(storySegments).where(eq(storySegments.storyId, storyId)).run()
     } else {
+      // Resolve the new chapter's birth status: a series with reviewMode ON forces
+      // 'draft' server-side (local-175) so an automated append into a PUBLIC series
+      // never goes live unreviewed — this beats an explicit meta.status. Otherwise
+      // honor meta.status, defaulting to 'published' (today's behavior for standalone
+      // stories and non-review series).
+      const reviewMode = meta.seriesId
+        ? (tx.select({ r: storySeries.reviewMode }).from(storySeries).where(eq(storySeries.id, meta.seriesId)).get()?.r ?? false)
+        : false
+      const createStatus: StoryStatus = reviewMode ? 'draft' : (meta.status ?? 'published')
       // Create a new story on the moment (leaves any existing stories untouched).
       const inserted = tx
         .insert(stories)
@@ -180,7 +197,7 @@ export function writeStory(
           theme: meta.theme ?? null,
           seriesId: meta.seriesId ?? null,
           chapterNumber: meta.chapterNumber ?? null,
-          status: 'published',
+          status: createStatus,
         })
         .returning({ id: stories.id })
         .get()
