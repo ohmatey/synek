@@ -20,7 +20,7 @@ import { themeTimelineSpec } from '~/lib/verbs'
 import { VTAB } from '~/components/ui/vtab'
 import { ThemeEditorDialog } from './ThemeEditorDialog'
 import { DEFAULT_SLOT_HEX } from '~/lib/theme/resolveTimelineTheme'
-import type { TimelineTheme } from '~/lib/domain/types'
+import type { NodeOrientation, TimelineTheme } from '~/lib/domain/types'
 import {
   MIN_PX_PER_DAY,
   MAX_PX_PER_DAY,
@@ -112,6 +112,12 @@ export function CanvasSettings({
   hiddenKinds,
   onToggleKind,
   onResetKinds,
+  nodeOrientation,
+  onNodeOrientation,
+  showSuggestions,
+  onShowSuggestions,
+  dismissedCount,
+  onResetGhosts,
   theme,
   onPreviewTheme,
 }: {
@@ -134,6 +140,12 @@ export function CanvasSettings({
   hiddenKinds: Set<string>
   onToggleKind: (token: string) => void
   onResetKinds: () => void
+  nodeOrientation: NodeOrientation
+  onNodeOrientation: (next: NodeOrientation) => void
+  showSuggestions: boolean
+  onShowSuggestions: (next: boolean) => void
+  dismissedCount: number
+  onResetGhosts: () => void
   theme: TimelineTheme | null
   onPreviewTheme: (theme: TimelineTheme | null) => void
 }) {
@@ -183,8 +195,17 @@ export function CanvasSettings({
     if (saving) return
     setSaving(true)
     try {
-      await setTimelineView({ data: { id: timelineId, view: { pxPerDay, collapseGaps } } })
-      saveScalePref(timelineId, { pxPerDay, collapseGaps, autoRefresh, speak, autoPlay, chosen: true })
+      await setTimelineView({ data: { id: timelineId, view: { pxPerDay, collapseGaps, nodeOrientation } } })
+      saveScalePref(timelineId, {
+        pxPerDay,
+        collapseGaps,
+        autoRefresh,
+        speak,
+        autoPlay,
+        nodeOrientation,
+        showSuggestions,
+        chosen: true,
+      })
       toast.success('Saved as this timeline’s default scale')
     } catch {
       toast.error('Couldn’t save the default')
@@ -327,6 +348,71 @@ export function CanvasSettings({
                     Compress sparse time
                   </Button>
                 </div>
+
+                {/* Node shape — event/concept cards only; span bars and person/work
+                    cards already stack. Vertical trades axis width for height, which
+                    is what makes long titles and labelled edges readable. */}
+                <div className="flex flex-col gap-2">
+                  <SectionHeader>Node shape</SectionHeader>
+                  <div className="flex items-center gap-1.5">
+                    {(['horizontal', 'vertical'] as const).map((o) => (
+                      <Button
+                        key={o}
+                        variant={nodeOrientation === o ? 'default' : 'outline'}
+                        size="sm"
+                        className="h-8 flex-1 justify-center text-xs"
+                        data-testid={`node-orientation-${o}`}
+                        onClick={() => onNodeOrientation(o)}
+                        aria-pressed={nodeOrientation === o}
+                        title={
+                          o === 'horizontal'
+                            ? 'One-line pill: title, date and badges on a single row'
+                            : 'Stacked card: a wrapped title above the date — narrower on the axis'
+                        }
+                      >
+                        {nodeOrientation === o && <Check />}
+                        {o === 'horizontal' ? 'Compact row' : 'Stacked card'}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Suggestions — the dashed invitation ghosts. Owner-only, since a
+                    read-only viewer never sees them in the first place. */}
+                {isOwner && (
+                  <div className="flex flex-col gap-2">
+                    <SectionHeader
+                      aside={
+                        dismissedCount > 0 && (
+                          <button
+                            type="button"
+                            className="cursor-pointer rounded-sm text-xs font-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                            data-testid="reset-dismissed-ghosts"
+                            onClick={onResetGhosts}
+                          >
+                            Restore {dismissedCount} dismissed
+                          </button>
+                        )
+                      }
+                    >
+                      Suggestions
+                    </SectionHeader>
+                    <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
+                      <span className="flex-1">
+                        Show suggestions
+                        <span className="block text-xs text-muted-foreground">
+                          Dashed cards offering to fill gaps, thin tracks and bare eras.
+                        </span>
+                      </span>
+                      <Switch
+                        checked={showSuggestions}
+                        onCheckedChange={onShowSuggestions}
+                        data-testid="toggle-suggestions"
+                        aria-label="Show suggestions"
+                      />
+                    </label>
+                  </div>
+                )}
 
                 {presentKinds.length > 0 && (
                   <div className="flex flex-col gap-1.5">

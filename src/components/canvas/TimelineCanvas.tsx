@@ -23,6 +23,7 @@ import { EntityNode } from './nodes/EntityNode'
 import { PeriodNode } from './nodes/PeriodNode'
 import { ConceptNode } from './nodes/ConceptNode'
 import { InvitationNode } from './nodes/InvitationNode'
+import { LabeledEdge } from './edges/LabeledEdge'
 import {
   laneY,
   layoutLaneY,
@@ -32,8 +33,18 @@ import {
   entityCardWidth,
   eventPillWidth,
   makeTimeScale,
+  placeEdgeLabel,
+  estimateLabelWidth,
+  LABEL_HEIGHT,
+  NOMINAL_WIDTH as NOMINAL_NODE_WIDTH,
+  type LabelRect,
   loadScalePref,
   collapseFromPref,
+  orientationFromPref,
+  suggestionsFromPref,
+  loadDismissedGhosts,
+  dismissGhost,
+  resetDismissedGhosts,
   saveScalePref,
   loadViewport,
   saveViewport,
@@ -74,7 +85,7 @@ import {
   type PanelWidths,
 } from './usePanelSize'
 import type { CanvasNodeData, NodeDraft } from './types'
-import type { EdgeKind, NodeSubtype, NodeType } from '~/lib/domain/types'
+import type { EdgeKind, NodeOrientation, NodeSubtype, NodeType } from '~/lib/domain/types'
 
 // The token a node is filtered by: entities filter by their subtype (person/
 // org/place/work, or 'entity' when untyped); everything else by its type.
@@ -84,6 +95,7 @@ function kindToken(n: { type: NodeType; subtype?: NodeSubtype | null }): string 
 
 // Memoized module-level — required by React Flow.
 const nodeTypes = { event: EventNode, entity: EntityNode, period: PeriodNode, concept: ConceptNode, invitation: InvitationNode }
+const edgeTypes = { labeled: LabeledEdge }
 
 // Invitation ghosts (NEXT.5 Tier 2): the dashed card's fixed width, the vertical
 // band gap/era ghosts sit in (a dead zone is horizontally empty across all lanes,
@@ -333,6 +345,22 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     scaleChosen.current = true
     setCollapseGaps(v)
   }, [])
+  // Card shape for event/concept nodes. Like collapseGaps it has a timeline-level
+  // saved default, so an explicit choice on this device must mark `chosen`.
+  const [nodeOrientation, setNodeOrientation] = useState<NodeOrientation>(orientationFromPref(initialPref))
+  const chooseNodeOrientation = useCallback((v: NodeOrientation) => {
+    scaleChosen.current = true
+    setNodeOrientation(v)
+  }, [])
+  // Owner-only invitation ghosts: a global switch plus a per-ghost dismissal set.
+  // Both device-local — a suggestion is an offer, never graph state.
+  const [showSuggestions, setShowSuggestions] = useState(suggestionsFromPref(initialPref))
+  const [dismissedGhosts, setDismissedGhosts] = useState<Set<string>>(() => loadDismissedGhosts(timelineId))
+  const onDismissGhost = useCallback(
+    (key: string) => setDismissedGhosts(dismissGhost(timelineId, key)),
+    [timelineId],
+  )
+  const onResetGhosts = useCallback(() => setDismissedGhosts(resetDismissedGhosts(timelineId)), [timelineId])
   // Live updates from the MCP client — on by default, toggled in settings.
   const [autoRefresh, setAutoRefresh] = useState(initialPref?.autoRefresh ?? true)
   // Read-aloud story narration (Web Speech API) — opt-in, off by default.
@@ -388,6 +416,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     setAutoRefresh(pref?.autoRefresh ?? true)
     setSpeakStories(pref?.speak ?? false)
     setAutoPlayStories(pref?.autoPlay ?? true)
+    setNodeOrientation(orientationFromPref(pref))
+    setShowSuggestions(suggestionsFromPref(pref))
+    setDismissedGhosts(loadDismissedGhosts(timelineId)) // dismissals are per timeline
     scaleChosen.current = pref?.chosen ?? false
     measuredRef.current = new Map() // sizes belong to the previous timeline's nodes
     setPreviewTheme(null) // a theme preview belongs to the previous timeline
@@ -405,9 +436,11 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       autoRefresh,
       speak: speakStories,
       autoPlay: autoPlayStories,
+      nodeOrientation,
+      showSuggestions,
       chosen: scaleChosen.current,
     })
-  }, [timelineId, pxPerDay, collapseGaps, autoRefresh, speakStories, autoPlayStories])
+  }, [timelineId, pxPerDay, collapseGaps, autoRefresh, speakStories, autoPlayStories, nodeOrientation, showSuggestions])
 
   // Measured DOM size per node id — the layout's second pass. Estimates place
   // nodes on first paint; once React Flow measures the real cards, lanes re-pack
@@ -686,12 +719,13 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   useEffect(() => {
     const vs = graph?.viewSettings
     if (!vs) return
-    const key = `${timelineId}|${vs.pxPerDay}|${vs.collapseGaps}`
+    const key = `${timelineId}|${vs.pxPerDay}|${vs.collapseGaps}|${vs.nodeOrientation ?? ''}`
     if (serverDefaultKey.current === key) return
     serverDefaultKey.current = key
     if (loadScalePref(timelineId)?.chosen) return
     setPxPerDay(vs.pxPerDay)
     setCollapseGaps(vs.collapseGaps)
+    if (vs.nodeOrientation) setNodeOrientation(vs.nodeOrientation)
   }, [graph?.viewSettings, timelineId])
 
   // Stable so the panel's draft-emit effect doesn't loop on every render.
@@ -752,7 +786,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             (n.type === 'entity'
               ? entityCardWidth(n.size)
               : n.type === 'event'
-                ? eventPillWidth(n.title, n.size)
+                ? eventPillWidth(n.title, n.size, nodeOrientation)
                 : undefined)),
     }))
     const pendingPositioned = pending.map((p) => ({
@@ -761,7 +795,11 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       x: scale.toX(p.startInstant),
       width:
         widthOf(p.startInstant, p.endInstant) ??
-        (p.type === 'entity' ? entityCardWidth() : p.type === 'event' ? eventPillWidth(p.title) : undefined),
+        (p.type === 'entity'
+          ? entityCardWidth()
+          : p.type === 'event'
+            ? eventPillWidth(p.title, 'medium', nodeOrientation)
+            : undefined),
     }))
 
     // Spread same-lane nodes that would overlap horizontally onto stacked rows
@@ -798,8 +836,16 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           lane: r.n.lane,
           height:
             meas?.h ??
-            estimateNodeHeight(r.n.type, r.n.size, shown.length > 0, r.n.subtype, !!r.n.summary, hasPortrait) +
-              titleWrap,
+            estimateNodeHeight(
+              r.n.type,
+              r.n.size,
+              shown.length > 0,
+              r.n.subtype,
+              !!r.n.summary,
+              hasPortrait,
+              nodeOrientation,
+              r.n.title,
+            ) + titleWrap,
         }
       }),
       ...pendingPositioned.map((pp) => ({
@@ -807,7 +853,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         type: pp.p.type,
         x: pp.x,
         width: m.get(pp.id)?.w ?? pp.width,
-        height: m.get(pp.id)?.h ?? estimateNodeHeight(pp.p.type, 'medium', false),
+        height:
+          m.get(pp.id)?.h ??
+          estimateNodeHeight(pp.p.type, 'medium', false, null, false, false, nodeOrientation, pp.p.title),
       })),
     ])
 
@@ -829,6 +877,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         storyDepth: n.storyDepth,
         // Period background reads the era of its date range (period nodes only).
         tint: n.type === 'period' ? eraTint(n.startInstant, n.endInstant) : undefined,
+        orientation: nodeOrientation,
       }
       rfNodes.push({
         id: n.id,
@@ -864,8 +913,11 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     // these are authoring affordances ("Fill this gap" / "Add to this track" /
     // "Populate this era") that hand the user a build prompt; a public read-only
     // viewer can't build, so they never see the ghosts and the public/seed canvas
-    // stays an exact reflection of its real nodes.
-    if (isOwner) {
+    // stays an exact reflection of its real nodes. The owner can switch them off
+    // wholesale (showSuggestions) or wave off individual ones (dismissedGhosts) —
+    // a deliberately thin track shouldn't nag forever. The "Add to a track" action
+    // stays reachable from ⌘K either way.
+    if (isOwner && showSuggestions) {
       // 1. GAP — a dead zone (big empty stretch of the axis). LINEAR mode only;
       //    collapse mode already squeezes big gaps (so a ghost would sit in a squeezed
       //    span — the collapsed-range marker is its own future affordance). Skip any
@@ -882,9 +934,11 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 (n) => n.startInstant <= z.fromInstant && (n.endInstant ?? n.startInstant) >= z.toInstant,
               ),
           )
+          .filter((z) => !dismissedGhosts.has(`gap:${z.fromInstant}:${z.toInstant}`))
           .slice(0, MAX_GAP_GHOSTS)
         for (const z of zones) {
           const midX = scale.toX((z.fromInstant + z.toInstant) / 2)
+          const key = `gap:${z.fromInstant}:${z.toInstant}`
           rfNodes.push({
             id: `inv-gap:${z.fromInstant}:${z.toInstant}`,
             type: 'invitation',
@@ -896,6 +950,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
               cta: 'Fill this gap',
               cardWidth: GAP_CARD_W,
               onFill: () => setGapSpec(fillGapSpec(z, { timelineId, timelineTitle: title, surface: 'canvas_gap' })),
+              onDismiss: () => onDismissGhost(key),
             },
             draggable: false,
             selectable: false,
@@ -915,7 +970,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
         g.maxRight = Math.max(g.maxRight, right)
         laneStats.set(r.n.lane, g)
       }
-      const sparseLanes = [...laneStats.entries()].filter(([, g]) => g.count <= SPARSE_LANE_MAX).slice(0, MAX_LANE_GHOSTS)
+      const sparseLanes = [...laneStats.entries()]
+        .filter(([lane, g]) => g.count <= SPARSE_LANE_MAX && !dismissedGhosts.has(`lane:${lane}`))
+        .slice(0, MAX_LANE_GHOSTS)
       for (const [lane, g] of sparseLanes) {
         rfNodes.push({
           id: `inv-lane:${lane}`,
@@ -928,6 +985,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             cta: 'Add to this track',
             cardWidth: GAP_CARD_W,
             onFill: () => setGapSpec(extendLaneSpec(lane, { timelineId, timelineTitle: title, surface: 'canvas_lane' })),
+            onDismiss: () => onDismissGhost(`lane:${lane}`),
           },
           draggable: false,
           selectable: false,
@@ -945,6 +1003,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           )
           return within.length <= BARE_ERA_MAX
         })
+        .filter((p) => !dismissedGhosts.has(`era:${p.id}`))
         .slice(0, MAX_ERA_GHOSTS)
       for (const p of bareEras) {
         const end = p.endInstant ?? p.startInstant
@@ -966,6 +1025,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                   { timelineId, timelineTitle: title, surface: 'canvas_era' },
                 ),
               ),
+            onDismiss: () => onDismissGhost(`era:${p.id}`),
           },
           draggable: false,
           selectable: false,
@@ -978,6 +1038,28 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     // time-span bars.
     const periodIds = new Set(gnodes.filter((n) => n.type === 'period').map((n) => n.id))
 
+    // Node geometry for edge-label placement. The layout already knows every
+    // rect (that's what the lane packer works on), so labels are solved here
+    // once per layout rather than by each edge subscribing to the RF store.
+    const geom = new Map<string, { x: number; y: number; w: number; h: number }>()
+    for (const { n, x, width } of realPositioned) {
+      const meas = m.get(n.id)
+      const y = laneYById.get(n.id) ?? laneY(n.type)
+      const w = meas?.w ?? width ?? NOMINAL_NODE_WIDTH
+      const h = meas?.h ?? estimateNodeHeight(n.type, n.size, false, n.subtype, false, false, nodeOrientation, n.title)
+      geom.set(n.id, { x, y, w, h })
+    }
+    const labelRects: LabelRect[] = [...geom.values()].map((g) => ({
+      left: g.x,
+      top: g.y,
+      right: g.x + g.w,
+      bottom: g.y + g.h,
+    }))
+    // Each label placed becomes an obstacle for the next, so two connectors
+    // crossing the same corridor don't stack on top of each other. Edge order is
+    // stable, so the result is deterministic.
+    const placedLabels: LabelRect[] = []
+
     const rfEdges: Edge[] = gedges.map((e) => {
       const s = EDGE_STYLE[e.kind]
       const bothFocused = !!focusSet && focusSet.has(e.sourceId) && focusSet.has(e.targetId)
@@ -987,22 +1069,46 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       const touchesSelection = selectedId != null && (e.sourceId === selectedId || e.targetId === selectedId)
       const touchesHidden = !!hiddenNodeIds && (hiddenNodeIds.has(e.sourceId) || hiddenNodeIds.has(e.targetId))
       const hidden = touchesHidden || (isPeriodEdge && !touchesSelection && !bothFocused)
+      // Humanize the relation kind: snake_case → spaced words ("competed_with"
+      // → "competed with"). Explicit labels are already human, shown as-is.
+      const label = e.label ?? e.kind.replace(/_/g, ' ')
+
+      // Solve the label's slot against the node rects. The handles are the source's
+      // right edge and the target's left edge, so the curve's waist sits between
+      // them — search around that point, not the nodes' centres.
+      const sg = geom.get(e.sourceId)
+      const tg = geom.get(e.targetId)
+      let pos: { x: number; y: number } | null = null
+      if (sg && tg && !hidden) {
+        pos = placeEdgeLabel((sg.x + sg.w + tg.x) / 2, (sg.y + sg.h / 2 + tg.y + tg.h / 2) / 2, label, [
+          ...labelRects,
+          ...placedLabels,
+        ])
+        const lw = estimateLabelWidth(label)
+        placedLabels.push({
+          left: pos.x - lw / 2,
+          top: pos.y - LABEL_HEIGHT / 2,
+          right: pos.x + lw / 2,
+          bottom: pos.y + LABEL_HEIGHT / 2,
+        })
+      }
+
       return {
         id: e.id,
         source: e.sourceId,
         target: e.targetId,
-        // Humanize the relation kind: snake_case → spaced words ("competed_with"
-        // → "competed with"). Explicit labels are already human, shown as-is.
-        label: e.label ?? e.kind.replace(/_/g, ' '),
+        // LabeledEdge draws the label off the curve; React Flow's built-in label
+        // would pin it to the bezier midpoint, straight through the next lane.
+        type: 'labeled',
+        data: {
+          label,
+          color: s.color,
+          opacity: dim ? 0.12 : 1,
+          labelX: pos?.x,
+          labelY: pos?.y,
+        },
         hidden,
         style: { stroke: s.color, strokeWidth: s.width, strokeDasharray: s.dash, opacity: dim ? 0.12 : undefined },
-        labelStyle: { fill: s.color, fontSize: 11, fontWeight: 500, opacity: dim ? 0.12 : undefined },
-        // A canvas-bg pill plate behind the label so it doesn't collide with the
-        // nodes it routes between. Reads the pane wash (themed canvasBg or the
-        // brand bg-base) so the plate always matches the surface it sits on.
-        labelBgStyle: { fill: 'var(--xy-background-color, var(--color-bg-base))', fillOpacity: dim ? 0.12 : 0.88 },
-        labelBgPadding: [6, 3] as [number, number],
-        labelBgBorderRadius: 999,
         markerEnd: { type: MarkerType.ArrowClosed, color: s.color },
       }
     })
@@ -1011,7 +1117,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     // measuredVersion stands in for measuredRef.current's contents (a ref, so
     // not a valid dep itself) — it bumps exactly when a node's DOM size changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gnodes, gedges, pending, draft, selectedId, effectiveFocusIds, pxPerDay, collapseGaps, hiddenKinds, measuredVersion, timelineId, title, isOwner])
+  }, [gnodes, gedges, pending, draft, selectedId, effectiveFocusIds, pxPerDay, collapseGaps, hiddenKinds, measuredVersion, timelineId, title, isOwner, nodeOrientation, showSuggestions, dismissedGhosts, onDismissGhost])
 
   // Impression for the Tier-2 canvas invitations (gap/lane/era ghosts), so the
   // fill-gap/extend-lane/populate-era copy events have a denominator — copy-RATE,
@@ -1169,6 +1275,12 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 hiddenKinds={hiddenKinds}
                 onToggleKind={toggleKind}
                 onResetKinds={resetKinds}
+                nodeOrientation={nodeOrientation}
+                onNodeOrientation={chooseNodeOrientation}
+                showSuggestions={showSuggestions}
+                onShowSuggestions={setShowSuggestions}
+                dismissedCount={dismissedGhosts.size}
+                onResetGhosts={onResetGhosts}
                 theme={timelineTheme}
                 onPreviewTheme={setPreviewTheme}
               />
@@ -1202,6 +1314,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           nodes={displayNodes}
           edges={rfEdges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           nodesDraggable={false}
           // Dimension changes feed the measured-size layout pass; we never apply
           // the changes back (positions are owned by the layout memo).

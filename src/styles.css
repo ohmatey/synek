@@ -594,6 +594,71 @@ body {
   font-weight: 500;
 }
 
+/* Orientation. The head/meta wrappers dissolve by default, so the horizontal
+   pill stays one flat nowrap flex row. The vertical variant re-forms them into
+   two stacked lines: a wrapped title over the date + badges. Trades axis width
+   for height — long titles stop crowding the axis and connector labels get room. */
+.sf-event-head,
+.sf-event-meta {
+  display: contents;
+}
+
+.sf-event-vertical {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  white-space: normal;
+  width: 170px;
+}
+
+.sf-event-vertical .sf-event-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+}
+
+.sf-event-vertical .sf-event-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The title wraps to two lines here, same treatment the entity/period cards use. */
+.sf-event-vertical .sf-label {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* Concept chips already stack a summary under their row; vertical splits the row
+   itself the same way the event pill does. */
+.sf-concept-vertical .sf-entity-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  white-space: normal;
+}
+
+.sf-concept-vertical .sf-event-head {
+  width: 100%;
+}
+
+.sf-concept-vertical .sf-event-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sf-concept-vertical .sf-event-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .sf-dot {
   width: 7px;
   height: 7px;
@@ -738,6 +803,26 @@ body {
   opacity: 0;
 }
 
+/* Edge labels are rendered by LabeledEdge into React Flow's label layer, offset
+   off the curve. `pointer-events: none` keeps clicks and pans going to the
+   canvas beneath; the plate matches the pane so the line reads under the text. */
+.sf-edge-label {
+  position: absolute;
+  pointer-events: none;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: var(--xy-background-color, var(--color-bg-base));
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  /* A label wider than the cards it joins can't be placed clear of them; cap it
+     (matching LABEL_MAX_W) and ellipsize — the full text is on the element's title. */
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .sf-date {
   margin-left: 8px;
   font-size: 10px;
@@ -767,15 +852,33 @@ body {
   left: 0;
   right: 0;
   z-index: 8; /* above the detail panel (6) so it tucks beneath the floating pills */
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  /* Three reserved tracks: identity | lens | actions. The lens toggle sits in its
+     own centered track — it was position:absolute, which reserved no width and let
+     the right cluster paint over it once the canvas narrows (e.g. Synek docked
+     beside an MCP client). container-type makes the bar a query container so labels
+     collapse to icons by CANVAS width, not viewport width — the two diverge when
+     the app is a side pane on a wide screen. */
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
   gap: 12px;
   padding: 12px;
   pointer-events: none; /* let the canvas pan through the gaps … */
+  container: canvasbar / inline-size;
 }
 .top-bar > * {
   pointer-events: auto; /* … but keep the floating control pills interactive */
+}
+
+/* Collapse chip labels to icons when the CANVAS (not the viewport) is narrow —
+   the icons keep their title/aria-label so nothing becomes unreachable. */
+@container canvasbar (max-width: 1000px) {
+  .top-bar {
+    gap: 8px;
+  }
+  .cq-hide-narrow {
+    display: none;
+  }
 }
 
 /* App bar group (left): logo + editable timeline name + switcher */
@@ -803,7 +906,7 @@ body {
 
 /* Controls group (right of the top bar) — undo/redo, export, chat toggle */
 .canvas-toolbar {
-  flex: 0 0 auto;
+  grid-column: 3; /* rightmost track of .top-bar's identity | lens | actions grid */
   display: flex;
   align-items: center;
   gap: 6px;
@@ -821,10 +924,8 @@ body {
 
 /* ── Globe lens: top-center view switcher ───────────────────────────────── */
 .view-switcher {
-  position: absolute;
-  left: 50%;
-  top: 12px;
-  transform: translateX(-50%);
+  grid-column: 2; /* the reserved center track — centered within it, never overlapping */
+  justify-self: center;
   display: flex;
   align-items: center;
   gap: 2px;

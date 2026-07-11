@@ -10,6 +10,7 @@ import {
   MapPin,
   MessagesSquare,
   Palette,
+  Rows3,
   Search,
   Sparkles,
   User,
@@ -39,7 +40,7 @@ import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
 import { capture } from '~/lib/posthog/client'
 import { cn } from '~/lib/utils'
 import { formatInstant } from '~/lib/domain/dates'
-import { talkToSpec, improveTimelineSpec, themeTimelineSpec, verbsForNode } from '~/lib/verbs'
+import { talkToSpec, improveTimelineSpec, themeTimelineSpec, extendLaneSpec, verbsForNode } from '~/lib/verbs'
 import type { GraphNode, NodeType } from '~/lib/domain/types'
 import { floatChip } from './chrome'
 
@@ -77,6 +78,10 @@ function nodeIcon(n: GraphNode) {
 // ACTIONS (open a PromptDialog the user copies into their Claude to work on the
 // timeline). Actions are an extensible list; today: "Improve this timeline" and
 // per-entity "Talk to …".
+// Cap the per-lane "Add to track" actions so a many-laned graph can't drown the
+// palette's Actions group.
+const MAX_LANE_ACTIONS = 8
+
 export function CommandPalette({
   nodes,
   onSelect,
@@ -196,6 +201,17 @@ export function CommandPalette({
     ],
     [groups, selectedVerbs, talkToEntities, globeZoom],
   )
+
+  // Named swimlanes present on the graph, thinnest first — the thin ones are the
+  // likely targets, and the list is capped so the palette stays scannable.
+  const laneNames = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const n of nodes) if (n.lane) counts.set(n.lane, (counts.get(n.lane) ?? 0) + 1)
+    return [...counts.entries()]
+      .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+      .slice(0, MAX_LANE_ACTIONS)
+      .map(([lane]) => lane)
+  }, [nodes])
 
   function navigate(id: string) {
     setOpen(false)
@@ -334,6 +350,19 @@ export function CommandPalette({
                 <Palette className="text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate">Theme this timeline…</span>
               </CommandItem>
+              {/* Same prompt the canvas's "thin track" ghost opens — surfaced here so
+                  the action survives hiding or dismissing that ghost. Thinnest first. */}
+              {laneNames.map((lane) => (
+                <CommandItem
+                  key={lane}
+                  value={`action:lane:${lane}`}
+                  keywords={['lane', 'track', 'add', 'extend', 'swimlane', lane]}
+                  onSelect={() => runAction(extendLaneSpec(lane, ctx))}
+                >
+                  <Rows3 className="text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">Add to track: {lane}…</span>
+                </CommandItem>
+              ))}
               {onSwitchToGlobe && (
                 <CommandItem
                   value="action:globe"

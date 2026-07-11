@@ -1,9 +1,10 @@
-import type { NodeType, NodeSize, NodeSubtype } from '~/lib/domain/types'
+import type { NodeType, NodeSize, NodeSubtype, NodeOrientation } from '~/lib/domain/types'
 import {
   BASE_PX_PER_DAY,
   MIN_PX_PER_DAY,
   MAX_PX_PER_DAY,
   DEFAULT_COLLAPSE_GAPS,
+  DEFAULT_NODE_ORIENTATION,
   clampPxPerDay,
 } from '~/lib/domain/types'
 
@@ -38,16 +39,20 @@ export const LANE_Y: Record<NodeType, number> = {
 // lane's full (variable) height.
 const LANE_ORDER: NodeType[] = ['period', 'entity', 'concept', 'event']
 const LANE_TOP = 24
-const LANE_GAP = 40 // vertical gap between lanes
-const ROW_GAP = 12 // vertical gap between stacked rows within a lane
-const H_GAP = 16 // horizontal clearance between boxes in a row
+// A cross-lane edge draws its label in the corridor between lanes, so LANE_GAP is
+// what keeps a connector's text off the node below it.
+const LANE_GAP = 72 // vertical gap between lanes
+const ROW_GAP = 22 // vertical gap between stacked rows within a lane
+const H_GAP = 28 // horizontal clearance between boxes in a row
 
 // Point events have no width; assume a label-sized box when testing overlap.
-const NOMINAL_WIDTH = 130
+// Exported so the canvas's edge-label placement uses the same fallback box.
+export const NOMINAL_WIDTH = 130
 
 // Rough rendered node heights (px) used for vertical packing. Mirrors the CSS:
 // a body height per type, scaled by size, plus an image strip when shown.
-const TYPE_BODY: Record<NodeType, number> = { period: 72, entity: 34, concept: 40, event: 26 }
+// (event: a 20px line plus the pill's 6px vertical padding — measured at 32.)
+const TYPE_BODY: Record<NodeType, number> = { period: 72, entity: 34, concept: 40, event: 32 }
 const SIZE_SCALE: Record<NodeSize, number> = { small: 0.85, medium: 1, large: 1.3 }
 const IMG_STRIP: Record<NodeSize, number> = { small: 30, medium: 44, large: 66 }
 // Portrait images render taller (3:4) than landscape (square) thumbnails, so the
@@ -101,8 +106,33 @@ const PILL_CHROME_PX = 40
 const PILL_CHAR_PX = 7
 const PILL_DATE_PX = 70
 
-export function eventPillWidth(title: string, size: NodeSize = 'medium'): number {
+// Vertical pills are a fixed-width card (`.sf-event-vertical { width: 170px }`)
+// whose title wraps above the date, so the packer's box is that width, not the
+// title's length.
+const EVENT_CARD_WIDTH = 170
+
+export function eventPillWidth(
+  title: string,
+  size: NodeSize = 'medium',
+  orientation: NodeOrientation = DEFAULT_NODE_ORIENTATION,
+): number {
+  if (orientation === 'vertical') return Math.round(EVENT_CARD_WIDTH * SIZE_SCALE[size])
   return Math.round((PILL_CHROME_PX + title.length * PILL_CHAR_PX + PILL_DATE_PX) * SIZE_SCALE[size])
+}
+
+// A wrapped title costs height instead of width: up to two clamped lines
+// (`-webkit-line-clamp: 2`) plus the date line beneath, plus the pill's padding.
+const EVENT_LINE_PX = 16
+const EVENT_DATE_LINE_PX = 16
+const EVENT_VERTICAL_CHROME = 16
+const EVENT_MAX_LINES = 2
+
+export function eventCardHeight(title: string, size: NodeSize = 'medium'): number {
+  const usable = EVENT_CARD_WIDTH - PILL_CHROME_PX
+  const wrapped = Math.max(1, Math.ceil((title.length * PILL_CHAR_PX) / usable))
+  const lines = Math.min(EVENT_MAX_LINES, wrapped)
+  const body = EVENT_VERTICAL_CHROME + lines * EVENT_LINE_PX + EVENT_DATE_LINE_PX
+  return Math.round(body * SIZE_SCALE[size])
 }
 
 // x = date. The base scale; the canvas itself pans/zooms on top of this.
@@ -240,12 +270,18 @@ export function makeTimeScale(instants: number[], pxPerDay: number, collapseGaps
 // default off — narration is opt-in. `autoPlay` drives the reader's timed
 // auto-advance (the Reels/Stories slideshow); default ON — turning it off makes
 // the reader fully manual (step with taps/arrows), like reduced-motion.
+// `nodeOrientation` is the event/concept card shape; like collapseGaps it also
+// has a timeline-level saved default, so it obeys the same `chosen` rule.
+// `showSuggestions` hides the owner-only invitation ghosts (thin lane / gap /
+// bare era); device-local — a suggestion is an offer, not graph state.
 export type ScalePref = {
   pxPerDay: number
   collapseGaps: boolean
   autoRefresh: boolean
   speak: boolean
   autoPlay: boolean
+  nodeOrientation?: NodeOrientation
+  showSuggestions?: boolean
   chosen?: boolean
 }
 
@@ -264,6 +300,8 @@ export function loadScalePref(timelineId: string): ScalePref | null {
       autoRefresh: parsed.autoRefresh !== false,
       speak: !!parsed.speak,
       autoPlay: parsed.autoPlay !== false,
+      nodeOrientation: parsed.nodeOrientation === 'vertical' ? 'vertical' : 'horizontal',
+      showSuggestions: parsed.showSuggestions !== false,
       chosen: !!parsed.chosen,
     }
   } catch {
@@ -276,6 +314,57 @@ export function loadScalePref(timelineId: string): ScalePref | null {
 // default — only an explicit user choice overrides DEFAULT_COLLAPSE_GAPS.
 export function collapseFromPref(pref: ScalePref | null): boolean {
   return pref?.chosen ? pref.collapseGaps : DEFAULT_COLLAPSE_GAPS
+}
+
+// Same ambient-vs-chosen rule as collapseFromPref: only an explicit choice on
+// this device outranks DEFAULT_NODE_ORIENTATION (and the timeline's saved view).
+export function orientationFromPref(pref: ScalePref | null): NodeOrientation {
+  return pref?.chosen && pref.nodeOrientation ? pref.nodeOrientation : DEFAULT_NODE_ORIENTATION
+}
+
+// Suggestions are a plain device preference — no `chosen` gate, since there is
+// no timeline-level default competing with it.
+export function suggestionsFromPref(pref: ScalePref | null): boolean {
+  return pref?.showSuggestions !== false
+}
+
+// --- Dismissed invitation ghosts (localStorage) ---------------------------
+// A ghost the user waved off stays gone on this device. Keys are stable per
+// ghost: `lane:{lane}` · `era:{periodNodeId}` · `gap:{fromInstant}:{toInstant}`.
+// Deliberately NOT server state: dismissing a suggestion is a UI preference and
+// must never enter the Patch stack.
+const ghostsKey = (timelineId: string) => `synek:ghosts-dismissed:${timelineId}`
+
+export function loadDismissedGhosts(timelineId: string): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+  try {
+    const raw = window.localStorage.getItem(ghostsKey(timelineId))
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null
+    return new Set(Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function writeDismissedGhosts(timelineId: string, keys: Set<string>): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(ghostsKey(timelineId), JSON.stringify([...keys]))
+  } catch {
+    // ignore quota / disabled storage
+  }
+}
+
+export function dismissGhost(timelineId: string, key: string): Set<string> {
+  const next = loadDismissedGhosts(timelineId)
+  next.add(key)
+  writeDismissedGhosts(timelineId, next)
+  return next
+}
+
+export function resetDismissedGhosts(timelineId: string): Set<string> {
+  writeDismissedGhosts(timelineId, new Set())
+  return new Set()
 }
 
 export function saveScalePref(timelineId: string, pref: ScalePref): void {
@@ -327,6 +416,8 @@ export function estimateNodeHeight(
   subtype: NodeSubtype | null = null,
   hasSummary = false,
   hasPortraitImage = false,
+  orientation: NodeOrientation = DEFAULT_NODE_ORIENTATION,
+  title = '',
 ): number {
   const summary = hasSummary ? Math.round(SUMMARY_BODY * SIZE_SCALE[size]) : 0
   if (subtype === 'person') {
@@ -338,7 +429,103 @@ export function estimateNodeHeight(
     return Math.round(frame * SIZE_SCALE[size]) + summary
   }
   const strip = hasImages ? (hasPortraitImage ? IMG_STRIP_PORTRAIT[size] : IMG_STRIP[size]) : 0
-  return Math.round(TYPE_BODY[type] * SIZE_SCALE[size]) + strip + summary
+  // The row-shaped nodes are the only ones orientation reshapes: a wrapped title
+  // trades axis width for height.
+  const body =
+    orientation === 'vertical' && (type === 'event' || type === 'concept')
+      ? eventCardHeight(title, size)
+      : Math.round(TYPE_BODY[type] * SIZE_SCALE[size])
+  return body + strip + summary
+}
+
+// --- Edge label placement ------------------------------------------------
+// A connector's label wants to sit at the middle of its curve — but on a
+// timeline that midpoint is usually a node: two moments days apart on the axis
+// but in different lanes make a curve that loops back across every row between
+// them. No fixed offset can dodge that, so we search a ladder of candidate slots
+// around the midpoint and take the first that clears every node. Pure so the
+// canvas can compute it once per layout (and so it can be tested).
+export type LabelRect = { left: number; top: number; right: number; bottom: number }
+
+// Tried in order, as (dx, dy) from the midpoint: hug the line first, then step out
+// far enough to reach the corridors between lanes (LANE_GAP), then sideways along
+// the axis where a lane usually has open space.
+const LABEL_CANDIDATES: readonly (readonly [number, number])[] = [
+  [0, -20],
+  [0, 20],
+  [0, -44],
+  [0, 44],
+  [0, -68],
+  [0, 68],
+  [0, -92],
+  [0, 92],
+  [-120, -20],
+  [120, -20],
+  [-120, 20],
+  [120, 20],
+  [-190, 0],
+  [190, 0],
+]
+
+// The label pill, in layout px: ~6.2px per glyph at the 11px font plus padding.
+// A slight over-estimate is the safe direction for a collision test. Capped to
+// match the CSS `max-width`: a connector label longer than the cards it joins is
+// unreadable anyway, so it ellipsizes and carries the full text as a tooltip.
+const LABEL_CHAR_PX = 6.2
+const LABEL_PAD_X = 14
+const LABEL_H = 20
+export const LABEL_MAX_W = 200
+
+// Breathing room between a label and any card. Also absorbs the gap between a
+// node's estimated height and its real measured one before the second pass
+// lands — without it a label can end up grazing a card by a pixel or two.
+const LABEL_CLEARANCE = 6
+
+const rectsHit = (a: LabelRect, b: LabelRect) =>
+  !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)
+
+// The rendered width of a label pill, capped like the CSS. Exported so the canvas
+// can reserve the slot a placed label occupies when solving the next one.
+export function estimateLabelWidth(label: string): number {
+  return Math.min(LABEL_MAX_W, label.length * LABEL_CHAR_PX + LABEL_PAD_X)
+}
+
+export const LABEL_HEIGHT = LABEL_H
+
+const overlapArea = (a: LabelRect, b: LabelRect) =>
+  Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
+  Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top))
+
+export function placeEdgeLabel(
+  midX: number,
+  midY: number,
+  label: string,
+  rects: readonly LabelRect[],
+): { x: number; y: number } {
+  const w = estimateLabelWidth(label)
+  const grown = rects.map((r) => ({
+    left: r.left - LABEL_CLEARANCE,
+    top: r.top - LABEL_CLEARANCE,
+    right: r.right + LABEL_CLEARANCE,
+    bottom: r.bottom + LABEL_CLEARANCE,
+  }))
+  const boxAt = (dx: number, dy: number): LabelRect => ({
+    left: midX + dx - w / 2,
+    right: midX + dx + w / 2,
+    top: midY + dy - LABEL_H / 2,
+    bottom: midY + dy + LABEL_H / 2,
+  })
+
+  let best: { dx: number; dy: number; area: number } | null = null
+  for (const [dx, dy] of LABEL_CANDIDATES) {
+    const box = boxAt(dx, dy)
+    if (!grown.some((r) => rectsHit(box, r))) return { x: midX + dx, y: midY + dy }
+    // Remember the least-bad slot: on a dense graph *something* has to give, and
+    // grazing one card beats sitting squarely on top of it.
+    const area = grown.reduce((sum, r) => sum + overlapArea(box, r), 0)
+    if (!best || area < best.area) best = { dx, dy, area }
+  }
+  return best ? { x: midX + best.dx, y: midY + best.dy } : { x: midX, y: midY - 20 }
 }
 
 type LayoutItem = { id: string; type: NodeType; x: number; width?: number; height?: number; lane?: string | null }

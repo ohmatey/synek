@@ -13,7 +13,7 @@ import { makeRequireOwnedProject } from '~/lib/db/projects'
 import { requireUser } from '~/lib/auth/session'
 import { timelineThemeSchema } from '~/lib/domain/theme'
 import type { TimelineRow } from '~/lib/db/schema'
-import type { TimelineSummary, TimelineTheme } from '~/lib/domain/types'
+import type { TimelineSummary, TimelineTheme, TimelineViewSettings } from '~/lib/domain/types'
 
 const toSummary = (t: TimelineRow): TimelineSummary => ({
   id: t.id,
@@ -81,11 +81,15 @@ export const setTimelineVisibility = createServerFn({ method: 'POST' })
 // Owner-only: save the current time-axis scale as this timeline's default,
 // applied on open for devices without a local override.
 export const setTimelineView = createServerFn({ method: 'POST' })
-  .inputValidator((d: { id: string; view: { pxPerDay: number; collapseGaps: boolean } }) =>
+  .inputValidator((d: { id: string; view: TimelineViewSettings }) =>
     z
       .object({
         id: z.string(),
-        view: z.object({ pxPerDay: z.number().positive(), collapseGaps: z.boolean() }),
+        view: z.object({
+          pxPerDay: z.number().positive(),
+          collapseGaps: z.boolean(),
+          nodeOrientation: z.enum(['horizontal', 'vertical']).optional(),
+        }),
       })
       .parse(d),
   )

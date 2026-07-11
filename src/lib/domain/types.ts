@@ -145,7 +145,18 @@ export type TimelineGraph = { title: string; nodes: GraphNode[]; edges: GraphEdg
 // missing timeline is `notFound`; a private one you can't see is `forbidden`.
 // Per-timeline display defaults (the time-axis scale), saved by the owner and
 // applied on open when the device has no local override.
-export type TimelineViewSettings = { pxPerDay: number; collapseGaps: boolean }
+export type TimelineViewSettings = {
+  pxPerDay: number
+  collapseGaps: boolean
+  nodeOrientation?: NodeOrientation
+}
+
+// Card shape for the row-style nodes (event pills, concept chips). 'horizontal'
+// is the original one-line pill; 'vertical' wraps the title above the date so a
+// long title costs height instead of axis width. Span/card nodes (period,
+// entity, person, work) already stack and ignore this.
+export type NodeOrientation = 'horizontal' | 'vertical'
+export const DEFAULT_NODE_ORIENTATION: NodeOrientation = 'horizontal'
 
 // Bounds + default for the horizontal time density (px of base layout per day).
 // Domain-level so both the canvas controls and the MCP set_timeline_view tool

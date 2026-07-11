@@ -1,6 +1,17 @@
 import { describe, test, expect } from 'bun:test'
-import { makeTimeScale, instantToX, collapseFromPref, type ScalePref } from './useTimelineScale'
-import { DEFAULT_COLLAPSE_GAPS } from '~/lib/domain/types'
+import {
+  makeTimeScale,
+  instantToX,
+  collapseFromPref,
+  orientationFromPref,
+  suggestionsFromPref,
+  eventPillWidth,
+  estimateNodeHeight,
+  placeEdgeLabel,
+  type LabelRect,
+  type ScalePref,
+} from './useTimelineScale'
+import { DEFAULT_COLLAPSE_GAPS, DEFAULT_NODE_ORIENTATION } from '~/lib/domain/types'
 
 // Pure-function coverage of the cluster-aware sparse-time compression
 // (makeTimeScale) — the axis math every canvas surface shares.
@@ -139,5 +150,115 @@ describe('collapseFromPref — default-ON gating', () => {
   test('an explicit user choice wins in both directions', () => {
     expect(collapseFromPref(pref({ collapseGaps: false, chosen: true }))).toBe(false)
     expect(collapseFromPref(pref({ collapseGaps: true, chosen: true }))).toBe(true)
+  })
+})
+
+describe('orientationFromPref — same ambient-vs-chosen rule as collapseFromPref', () => {
+  const pref = (over: Partial<ScalePref>): ScalePref => ({
+    pxPerDay: PX_PER_DAY,
+    collapseGaps: false,
+    autoRefresh: true,
+    speak: false,
+    autoPlay: true,
+    ...over,
+  })
+
+  test('no pref → the default', () => {
+    expect(orientationFromPref(null)).toBe(DEFAULT_NODE_ORIENTATION)
+  })
+
+  test('ambient (not chosen) pref never freezes the old default', () => {
+    expect(orientationFromPref(pref({ nodeOrientation: 'vertical', chosen: false }))).toBe(DEFAULT_NODE_ORIENTATION)
+  })
+
+  test('an explicit user choice wins in both directions', () => {
+    expect(orientationFromPref(pref({ nodeOrientation: 'vertical', chosen: true }))).toBe('vertical')
+    expect(orientationFromPref(pref({ nodeOrientation: 'horizontal', chosen: true }))).toBe('horizontal')
+  })
+
+  test('suggestions default on, and need no `chosen` gate (no server default competes)', () => {
+    expect(suggestionsFromPref(null)).toBe(true)
+    expect(suggestionsFromPref(pref({ showSuggestions: false, chosen: false }))).toBe(false)
+  })
+})
+
+describe('vertical node shape — trades axis width for height', () => {
+  const LONG = 'US export-control order suspends Fable 5 / Mythos 5'
+
+  test('a long title is capped in width when vertical, unbounded when horizontal', () => {
+    const h = eventPillWidth(LONG, 'medium', 'horizontal')
+    const v = eventPillWidth(LONG, 'medium', 'vertical')
+    expect(v).toBeLessThan(h)
+    expect(v).toBe(170)
+  })
+
+  test('vertical cards are a fixed width, matching the CSS the packer must trust', () => {
+    expect(eventPillWidth('GPT-5.6', 'medium', 'vertical')).toBe(170)
+    expect(eventPillWidth(LONG, 'small', 'vertical')).toBe(Math.round(170 * 0.85))
+  })
+
+  test('the title clamps at two lines, so height cannot run away', () => {
+    const huge = 'y'.repeat(400)
+    expect(estimateNodeHeight('event', 'medium', false, null, false, false, 'vertical', huge)).toBe(
+      estimateNodeHeight('event', 'medium', false, null, false, false, 'vertical', 'y'.repeat(60)),
+    )
+  })
+
+  test('the width a vertical card gives up comes back as height', () => {
+    const h = estimateNodeHeight('event', 'medium', false, null, false, false, 'horizontal', LONG)
+    const v = estimateNodeHeight('event', 'medium', false, null, false, false, 'vertical', LONG)
+    expect(v).toBeGreaterThan(h)
+  })
+
+  test('orientation never reshapes person cards — they already stack', () => {
+    const h = estimateNodeHeight('entity', 'medium', false, 'person', false, false, 'horizontal', LONG)
+    const v = estimateNodeHeight('entity', 'medium', false, 'person', false, false, 'vertical', LONG)
+    expect(v).toBe(h)
+  })
+})
+
+describe('placeEdgeLabel — never park a connector label on a node', () => {
+  const box = (left: number, top: number, w = 200, h = 30): LabelRect => ({
+    left,
+    top,
+    right: left + w,
+    bottom: top + h,
+  })
+  const overlaps = (p: { x: number; y: number }, label: string, r: LabelRect) => {
+    const w = label.length * 6.2 + 14
+    return !(p.x + w / 2 <= r.left || r.right <= p.x - w / 2 || p.y + 10 <= r.top || r.bottom <= p.y - 10)
+  }
+
+  test('an empty corridor keeps the label just above the line', () => {
+    expect(placeEdgeLabel(500, 300, 'caused', [])).toEqual({ x: 500, y: 280 })
+  })
+
+  test('a label wider than its cards is capped, so a slot can still be found', () => {
+    const veryLong = 'x'.repeat(400)
+    // Two stacked rows with a corridor above; an uncapped 2.5k-px box would never fit.
+    const rows = [box(0, 300, 600, 30), box(0, 340, 600, 30)]
+    const p = placeEdgeLabel(300, 320, veryLong, rows)
+    expect(p.y).toBeLessThan(300)
+  })
+
+  test('a node at the midpoint pushes the label off it', () => {
+    const label = 'jailbreak concern triggered the export order'
+    const node = box(400, 270, 260, 40)
+    const p = placeEdgeLabel(500, 290, label, [node])
+    expect(overlaps(p, label, node)).toBe(false)
+  })
+
+  test('the Tech Radar case: a stack of rows between the two lanes', () => {
+    const label = 'mid-tier price war: Terra $2.50/$15 vs Sonnet 5 $3/$15'
+    // Three stacked rows around the midpoint, as Anthropic's lane had.
+    const rows = [box(300, 260, 400, 30), box(300, 300, 400, 30), box(300, 340, 400, 30)]
+    const p = placeEdgeLabel(500, 305, label, rows)
+    for (const r of rows) expect(overlaps(p, label, r)).toBe(false)
+  })
+
+  test('boxed in on every candidate → falls back rather than throwing', () => {
+    const wall = Array.from({ length: 12 }, (_, i) => box(0, 200 + i * 20, 1200, 20))
+    const p = placeEdgeLabel(500, 300, 'caused', wall)
+    expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true)
   })
 })

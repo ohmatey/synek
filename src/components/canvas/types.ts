@@ -1,4 +1,4 @@
-import type { DepthTier, NodeImage, NodeSize, NodeSubtype, Precision } from '~/lib/domain/types'
+import type { DepthTier, NodeImage, NodeOrientation, NodeSize, NodeSubtype, Precision } from '~/lib/domain/types'
 
 // In-progress edits from the detail panel, overlaid on the node for a live
 // preview — never persisted until Save (so closing/canceling reverts).
@@ -35,4 +35,7 @@ export type CanvasNodeData = {
   // Faint, date-range-derived background tint for period nodes ("mood of the
   // age"). Precomputed in TimelineCanvas via eraTint; applied as a CSS var.
   tint?: string
+  // Card shape for the row-style nodes (event/concept): the one-line pill, or a
+  // wrapped title over the date. A view setting, not node data.
+  orientation?: NodeOrientation
 }

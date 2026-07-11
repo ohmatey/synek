@@ -22,6 +22,7 @@ import {
   MIN_PX_PER_DAY,
   MAX_PX_PER_DAY,
   DEFAULT_COLLAPSE_GAPS,
+  DEFAULT_NODE_ORIENTATION,
   clampPxPerDay,
 } from '~/lib/domain/types'
 import { PatchBuilder, commitPatch, undo, redo, historyState, maxAppliedSeq } from '~/lib/db/patches'
@@ -560,7 +561,9 @@ export const toolRegistry: ToolDef[] = [
       `[${MIN_PX_PER_DAY}, ${MAX_PX_PER_DAY}] (default ${BASE_PX_PER_DAY}) — pick it so the dense era fills a few screens: ` +
       'pxPerDay ≈ 3000 / (days spanned by the bulk of the nodes). `collapseGaps` squeezes sparse stretches between ' +
       'clusters of activity into compact axis breaks — ON by default; disable it only when the axis must stay ' +
-      'strictly linear. Omitted fields keep their current value. ' +
+      'strictly linear. `nodeOrientation` picks the card shape for event/concept nodes: `horizontal` is the ' +
+      'one-line pill (default); `vertical` wraps the title above the date, which reads far better when titles ' +
+      'are long or the graph has labelled edges that need room. Omitted fields keep their current value. ' +
       'Read the current settings via get_timeline\'s `viewSettings`.',
     inputSchema: {
       timelineId: z.string(),
@@ -569,13 +572,18 @@ export const toolRegistry: ToolDef[] = [
         .boolean()
         .optional()
         .describe('Compress sparse stretches into fixed-width axis breaks (default on).'),
+      nodeOrientation: z
+        .enum(['horizontal', 'vertical'])
+        .optional()
+        .describe('Card shape for event/concept nodes: one-line pill (default) or title-over-date.'),
     },
-    handler: async ({ timelineId, pxPerDay, collapseGaps }, { ownerId, requireOwned }) => {
+    handler: async ({ timelineId, pxPerDay, collapseGaps, nodeOrientation }, { ownerId, requireOwned }) => {
       requireOwned(timelineId)
       const current = getTimelineMeta(timelineId)?.viewSettings ?? null
       const next = {
         pxPerDay: clampPxPerDay(pxPerDay ?? current?.pxPerDay ?? BASE_PX_PER_DAY),
         collapseGaps: collapseGaps ?? current?.collapseGaps ?? DEFAULT_COLLAPSE_GAPS,
+        nodeOrientation: nodeOrientation ?? current?.nodeOrientation ?? DEFAULT_NODE_ORIENTATION,
       }
       setTimelineView(timelineId, ownerId, next)
       // Live viewers re-pull the graph (which carries viewSettings) on any event.
