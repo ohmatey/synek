@@ -258,24 +258,24 @@ export function CanvasSettings({
             orientation="vertical"
             value={tab}
             onValueChange={(v) => setTab(v as TLTab)}
-            className="flex min-h-0 w-full flex-row gap-0"
+            className="flex min-h-0 w-full flex-col gap-0 sm:flex-row"
           >
-            <div className="flex w-44 shrink-0 flex-col border-r border-border bg-muted/30">
-              <div className="flex h-14 shrink-0 items-center border-b border-border px-4">
+            <div className="flex w-full shrink-0 flex-col border-b border-border bg-muted/30 sm:w-44 sm:border-b-0 sm:border-r">
+              <div className="flex h-14 shrink-0 items-center border-b border-border pl-4 pr-12 sm:px-4">
                 <DialogTitle className="text-sm font-semibold">Timeline settings</DialogTitle>
                 <DialogDescription className="sr-only">
                   Adjust the time-axis zoom, which node kinds show, story playback, and this timeline’s theme.
                 </DialogDescription>
               </div>
-              <TabsList className="flex h-auto w-full flex-col items-stretch gap-1 rounded-none bg-transparent p-3">
-                <TabsTrigger value="display" className={VTAB}>
+              <TabsList className="flex h-auto w-full flex-row items-stretch gap-1 rounded-none bg-transparent p-2 sm:flex-col sm:p-3">
+                <TabsTrigger value="display" className={cn(VTAB, 'w-auto flex-1 justify-center sm:w-full sm:flex-none sm:justify-start')}>
                   Display
                 </TabsTrigger>
-                <TabsTrigger value="playback" className={VTAB}>
+                <TabsTrigger value="playback" className={cn(VTAB, 'w-auto flex-1 justify-center sm:w-full sm:flex-none sm:justify-start')}>
                   Playback
                 </TabsTrigger>
                 {isOwner && (
-                  <TabsTrigger value="theme" className={VTAB}>
+                  <TabsTrigger value="theme" className={cn(VTAB, 'w-auto flex-1 justify-center sm:w-full sm:flex-none sm:justify-start')}>
                     Theme
                   </TabsTrigger>
                 )}
@@ -283,7 +283,7 @@ export function CanvasSettings({
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col">
-              <header className="flex h-14 shrink-0 items-center border-b border-border px-5 pr-12">
+              <header className="hidden h-14 shrink-0 items-center border-b border-border px-5 pr-12 sm:flex">
                 <h2 className="text-sm font-semibold">{TAB_LABEL[tab]}</h2>
               </header>
               <div className="min-h-0 flex-1 overflow-y-auto p-5">

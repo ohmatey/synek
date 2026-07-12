@@ -13,6 +13,7 @@ Locked technical decisions for Synek. An ADR captures **one decision**, the cont
 | [0005](./0005-cull-public-discovery.md) | Cull public discovery — root `/` is the workspace | Accepted |
 | [0006](./0006-serialized-stories.md) | Serialized stories: series, chapters, the next-chapter loop | Proposed |
 | [0007](./0007-brand-entity-and-projects-ui-cull.md) | Brands as a first-class entity; remove projects from the UI | Accepted |
+| [0008](./0008-in-app-node-creation.md) | In-app node creation (manual authoring seam; keeps the AI inversion) | Accepted |
 
 ## Conventions
 
