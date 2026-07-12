@@ -692,11 +692,20 @@ export default function GlobeLens({
       } else {
         rowEndX[row] = x1
       }
+      // Clamp the segment to the ribbon's [0,100] track. A period can start before
+      // the located min or end after the located max — eras are often placeless/global
+      // (e.g. a "Cold War" band, geoScope: 'global'), while the scale + maxX are built
+      // from LOCATED nodes only — so an unclamped left/width would spill the absolutely
+      // positioned segment past the scrubber edges. Mirrors the axis-tick + thumb clamps.
+      const left = clamp((x0 / maxX) * 100, 0, 100)
+      const right = clamp((x1 / maxX) * 100, 0, 100)
+      // Keep a hair of width for very short eras, but never let left+width exceed 100.
+      const width = Math.min(Math.max(right - left, 0.8), 100 - left)
       segs.push({
         id: p.id,
         title: p.title,
-        left: (x0 / maxX) * 100,
-        width: Math.max(((x1 - x0) / maxX) * 100, 0.8),
+        left,
+        width,
         row,
         start: p.startInstant,
         end: p.endInstant as number,

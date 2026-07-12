@@ -201,3 +201,28 @@ test('the globe scrubber shows an era ribbon for period spans', async ({ page })
 
   expect(await page.locator('.globe-era-seg').count()).toBeGreaterThan(0)
 })
+
+// GS4 — the era ribbon must stay INSIDE the scrubber track. space-race carries a
+// global/placeless "Cold War" era (1947–1991) that starts BEFORE the earliest LOCATED
+// node (Sputnik, 1957); the scale + maxX are built from located nodes only, so an
+// unclamped segment would spill the absolutely-positioned band past the scrubber's
+// left/right edge. Every segment must render within [0,100]% of the track.
+test('era ribbon segments stay clamped within the scrubber track (no overflow)', async ({ page }) => {
+  await page.goto('/timelines/space-race')
+  await expect(page.locator('.react-flow__node').first()).toBeVisible()
+  await switchToGlobe(page)
+
+  const segs = page.locator('.globe-era-seg')
+  await expect(segs.first()).toBeVisible()
+  const boxes = await segs.evaluateAll((els) =>
+    els.map((el) => ({
+      left: parseFloat((el as HTMLElement).style.left),
+      width: parseFloat((el as HTMLElement).style.width),
+    })),
+  )
+  expect(boxes.length).toBeGreaterThan(0)
+  for (const b of boxes) {
+    expect(b.left).toBeGreaterThanOrEqual(0)
+    expect(b.left + b.width).toBeLessThanOrEqual(100.01)
+  }
+})

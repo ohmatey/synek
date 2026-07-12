@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { X, ChevronLeft, ChevronRight, Play, RotateCcw, Volume2, VolumeX, Timer, TimerOff } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Play, RotateCcw, Volume2, VolumeX, Timer, TimerOff, Minimize2, Maximize2 } from 'lucide-react'
 import { cn } from '~/lib/utils'
 import type { GraphNode, StoryDTO } from '~/lib/domain/types'
 import { POV_LABEL } from '~/lib/domain/story-labels'
@@ -117,6 +117,12 @@ export function StoryReader({
   const count = beats.length
   const [index, setIndex] = useState(0)
   const [reduced, setReduced] = useState(false)
+  // Minimized = collapse the panel to a compact "now playing" bar (progress + moment
+  // + controls), so the reader stops dominating the screen (esp. on mobile) while the
+  // canvas keeps playing the beats behind it. Playback continues: the progress fill
+  // (the auto-advance timer) stays mounted, so beats keep advancing and the lens keeps
+  // panning — only the beat text/art is hidden. Local state; Close still fully exits.
+  const [minimized, setMinimized] = useState(false)
   // The reader opens on a cover (title + hook + meta); the stepped player + the
   // timed auto-advance only begin once the reader is "started" (Play pressed). On
   // the cover the canvas keeps the moment in focus (beat index -1 reported up).
@@ -296,6 +302,7 @@ export function StoryReader({
       ref={asideRef}
       className="story-reader"
       data-solo={solo || undefined}
+      data-minimized={minimized || undefined}
       role="dialog"
       aria-label={`Story: ${story.title}`}
       tabIndex={-1}
@@ -387,6 +394,21 @@ export function StoryReader({
               </TooltipContent>
             </Tooltip>
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="sv-ctrl"
+                onClick={() => setMinimized((m) => !m)}
+                aria-pressed={minimized}
+                aria-label={minimized ? 'Expand story' : 'Minimize story'}
+                data-testid="minimize-toggle"
+              >
+                {minimized ? <Maximize2 aria-hidden /> : <Minimize2 aria-hidden />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{minimized ? 'Expand story' : 'Minimize story'}</TooltipContent>
+          </Tooltip>
           <button type="button" className="sv-ctrl" onClick={onClose} aria-label="Close story">
             <X aria-hidden />
           </button>

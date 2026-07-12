@@ -139,11 +139,17 @@ export function TimelineScrubber({
       } else {
         rowEndX[row] = x1
       }
+      // Clamp to the ribbon's [0,100] track so an era reaching past the extent can't
+      // spill the absolutely-positioned segment past the scrubber edges (mirrors
+      // GlobeLens.eraBand + the window/axis clamps).
+      const left = clamp((x0 / maxX) * 100, 0, 100)
+      const right = clamp((x1 / maxX) * 100, 0, 100)
+      const width = Math.min(Math.max(right - left, 0.8), 100 - left)
       segs.push({
         id: p.id,
         title: p.title,
-        left: (x0 / maxX) * 100,
-        width: Math.max(((x1 - x0) / maxX) * 100, 0.8),
+        left,
+        width,
         row,
       })
     }

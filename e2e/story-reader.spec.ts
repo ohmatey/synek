@@ -200,3 +200,27 @@ test.describe('with motion enabled', () => {
     await expect(reader.locator('.sv-seg').nth(1).locator('.sv-seg-fill')).toHaveClass(/is-active/)
   })
 })
+
+// The docked reader can overwhelm the screen (esp. mobile), so it can be MINIMIZED to
+// a compact bar and expanded again. Minimizing keeps the reader mounted — the progress
+// strip stays so playback continues behind the bar — and only hides the beat body.
+test('the story reader can be minimized to a bar and expanded again', async ({ page }) => {
+  const panel = await openDarwinPanel(page)
+  await panel.getByRole('button', { name: 'Play story' }).click()
+  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+  await expect(reader).toBeVisible()
+  // Expanded: the beat stage is showing.
+  await expect(reader.locator('.sv-stage')).toBeVisible()
+
+  // Minimize → collapse to the bar: the beat stage is hidden, but the reader and its
+  // progress strip stay mounted (playback keeps running).
+  await reader.getByRole('button', { name: 'Minimize story' }).click()
+  await expect(reader).toHaveAttribute('data-minimized', 'true')
+  await expect(reader.locator('.sv-stage')).toBeHidden()
+  await expect(reader.locator('.sv-progress')).toBeAttached()
+
+  // Expand → the full panel returns.
+  await reader.getByRole('button', { name: 'Expand story' }).click()
+  await expect(reader).not.toHaveAttribute('data-minimized', 'true')
+  await expect(reader.locator('.sv-stage')).toBeVisible()
+})
