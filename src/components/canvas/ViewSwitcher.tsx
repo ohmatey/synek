@@ -37,7 +37,7 @@ export function ViewSwitcher({
       onClick={onSwitchToGlobe}
     >
       <Globe size={14} />
-      Globe
+      <span className="cq-hide-narrow">Globe</span>
     </button>
   )
 
@@ -52,7 +52,7 @@ export function ViewSwitcher({
         onClick={() => onChange('timeline')}
       >
         <CalendarClock size={14} />
-        Timeline
+        <span className="cq-hide-narrow">Timeline</span>
       </button>
       {coverage.sufficient ? (
         globeBtn

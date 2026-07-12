@@ -10,6 +10,7 @@ import {
   MapPin,
   MessagesSquare,
   Palette,
+  Plus,
   Rows3,
   Search,
   Sparkles,
@@ -91,11 +92,18 @@ export function CommandPalette({
   onSwitchToGlobe,
   globeSetupSpec,
   globeZoom,
+  canAdd,
+  onAdd,
 }: {
   nodes: GraphNode[]
   onSelect: (id: string) => void
   timelineId: string
   timelineTitle: string
+  // Owner-only "Add" actions surfaced in ⌘K (the canonical command surface).
+  // They open the shared Add dialogs owned by TimelineCanvas — real mutations,
+  // not prompt hand-offs like the verbs below.
+  canAdd?: boolean
+  onAdd?: (mode: 'create' | 'place' | 'story') => void
   // The node currently open in the detail panel, if any — its verbs lead the list.
   selectedNode?: GraphNode | null
   // Globe lens: a direct "switch to globe" view action when the timeline has located
@@ -311,6 +319,47 @@ export function CommandPalette({
         />
         <CommandList>
           <CommandEmpty>No matching nodes or actions.</CommandEmpty>
+
+          {canAdd && onAdd && (
+            <CommandGroup heading="Add">
+              <CommandItem
+                value="add:create"
+                keywords={['add', 'new', 'create', 'node', 'event', 'entity', 'period', 'concept']}
+                onSelect={() => {
+                  openingPromptRef.current = true // opens a dialog elsewhere; don't yank focus back
+                  setOpen(false)
+                  onAdd('create')
+                }}
+              >
+                <Sparkles className="text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">Add new to timeline…</span>
+              </CommandItem>
+              <CommandItem
+                value="add:place"
+                keywords={['add', 'place', 'existing', 'entity', 'reuse']}
+                onSelect={() => {
+                  openingPromptRef.current = true
+                  setOpen(false)
+                  onAdd('place')
+                }}
+              >
+                <Plus className="text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">Place existing entity…</span>
+              </CommandItem>
+              <CommandItem
+                value="add:story"
+                keywords={['story', 'write', 'narrate', 'new', 'chapter']}
+                onSelect={() => {
+                  openingPromptRef.current = true
+                  setOpen(false)
+                  onAdd('story')
+                }}
+              >
+                <BookOpen className="text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">New story…</span>
+              </CommandItem>
+            </CommandGroup>
+          )}
 
           {!hiddenCats.has('actions') && (
             <CommandGroup heading="Verbs">

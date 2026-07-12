@@ -66,7 +66,7 @@ export function AppBar({
         <span className="grid size-5 place-items-center rounded-md bg-gradient-to-br from-primary to-influence ring-1 ring-inset ring-white/10">
           <img src="/favicon.svg" alt="" width={12} height={12} className="opacity-95" />
         </span>
-        Synek
+        <span className="cq-hide-narrow">Synek</span>
       </Link>
 
       {/* Timeline name (+ switcher) chip */}

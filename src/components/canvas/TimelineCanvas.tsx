@@ -58,7 +58,8 @@ import { capture } from '~/lib/posthog/client'
 import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
 import { fillGapSpec, extendLaneSpec, populateEraSpec, globeBackfillSpec } from '~/lib/verbs'
 import { ViewSwitcher, type CanvasView } from './ViewSwitcher'
-import { AddEntityMenu } from './AddEntityMenu'
+import { AddMenu, AddDialogs, type AddMode } from './AddMenu'
+import { MoreMenu } from './MoreMenu'
 import { globeCoverage } from './globe-coverage'
 import type { GlobeControls } from './GlobeLens'
 import { getGraph } from '~/lib/server/graph'
@@ -289,6 +290,11 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // Theme being live-previewed by the ThemeEditorDialog (wins over the saved
   // one while editing); null = show the server-saved theme.
   const [previewTheme, setPreviewTheme] = useState<TimelineTheme | null>(null)
+  // Unified "Add" surface: which flow is open (driven by the Add button AND ⌘K),
+  // plus the ⋯ More menu's two controlled dialogs (settings + share).
+  const [addMode, setAddMode] = useState<AddMode>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   // User-resizable widths for the right-docked panels (detail + story reader).
   // Applied as CSS vars on .canvas-root; persisted to localStorage on release.
   const [panelW, setPanelW] = useState<PanelWidths>(() => loadPanelWidths())
@@ -1235,6 +1241,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                       }
                     : null
                 }
+                canAdd={isOwner}
+                onAdd={setAddMode}
               />
             )}
             {/* Undo/redo buttons removed from the toolbar; ⌘Z / ⌘⇧Z still drive the
@@ -1252,8 +1260,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 onOpenStory={openStory}
               />
             )}
-            {/* Place an existing (shared) entity onto this timeline — ADR 0004. */}
-            {isOwner && <AddEntityMenu timelineId={timelineId} />}
+            {/* Unified "Add" entry point — create new · place existing · new story.
+                Owner-only; the flows' dialogs are the shared <AddDialogs/> below. */}
+            {isOwner && <AddMenu onPick={setAddMode} />}
             {(gnodes.length > 0 || pending.length > 0) && (
               <CanvasSettings
                 timelineId={timelineId}
@@ -1283,16 +1292,42 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
                 onResetGhosts={onResetGhosts}
                 theme={timelineTheme}
                 onPreviewTheme={setPreviewTheme}
+                open={settingsOpen}
+                onOpenChange={setSettingsOpen}
+                hideTrigger
               />
             )}
-            {/* Sharing (public link + export); the account menu is appended by
-                CanvasLayout, so it stays rightmost. */}
+            {/* Secondary chrome — display settings + share/export — folds behind the
+                ⋯ More menu so the bar stays a tight, always-reachable set (and never
+                clips on mobile). Both dialogs render here, controlled + trigger-less;
+                More just opens them. The account menu is appended by CanvasLayout, so
+                it stays rightmost. */}
+            <MoreMenu
+              canSettings={gnodes.length > 0 || pending.length > 0}
+              canShare={isOwner || gnodes.length > 0}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenShare={() => setShareOpen(true)}
+            />
             <ShareDialog
               timelineId={timelineId}
               graph={{ title, nodes: gnodes, edges: gedges }}
               isOwner={isOwner}
               isPublic={isPublic}
+              open={shareOpen}
+              onOpenChange={setShareOpen}
+              hideTrigger
             />
+            {/* The shared Add dialogs (create · place · story), driven by the Add
+                button and ⌘K alike. Owner-only. */}
+            {isOwner && (
+              <AddDialogs
+                mode={addMode}
+                onMode={setAddMode}
+                timelineId={timelineId}
+                nodes={gnodes.map((n) => ({ id: n.id, title: n.title, type: n.type }))}
+                onCreated={flyTo}
+              />
+            )}
           </>
         }
       >

@@ -879,6 +879,11 @@ body {
   .cq-hide-narrow {
     display: none;
   }
+  /* Let the identity cluster shrink so it can't push the toolbar off-screen or
+     crush the centered lens on a phone (the name still truncates with ellipsis). */
+  [data-testid='timeline-name'] {
+    max-width: 12ch;
+  }
 }
 
 /* App bar group (left): logo + editable timeline name + switcher */
@@ -909,6 +914,11 @@ body {
   grid-column: 3; /* rightmost track of .top-bar's identity | lens | actions grid */
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  /* Safety net: if the cluster ever can't fit (a very narrow phone), it wraps to a
+     second row rather than clipping controls off-screen. Consolidation into Add + ⋯
+     keeps it to one row in practice. */
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -1489,6 +1499,9 @@ body {
 .globe-era-band {
   position: relative;
   width: 100%;
+  /* Defense-in-depth: the segments are clamped to [0,100] in JS, but keep any
+     sub-pixel / label-padding spill from an edge-touching era off the scrubber. */
+  overflow: hidden;
 }
 .globe-era-seg {
   position: absolute;
@@ -2679,6 +2692,32 @@ body {
    at the right edge. With a panel open it returns to its left-of-panel slot above. */
 .story-reader[data-solo] {
   right: 16px;
+}
+
+/* Minimized: collapse the reader to a compact "now playing" bar in place (it keeps
+   its top-of-dock anchor and shrinks upward), so it stops filling the screen — the
+   whole point on mobile, where it otherwise spans the full dock height. The progress
+   strip stays mounted (it IS the auto-advance timer), so beats keep advancing and the
+   lens keeps panning behind the bar; only the beat body / cover / end / nav are hidden.
+   Expand (Maximize) restores the full panel. */
+.story-reader[data-minimized] {
+  bottom: auto;
+  height: 64px;
+}
+.story-reader[data-minimized] .sv-head {
+  top: 50%;
+  transform: translateY(-50%);
+}
+.story-reader[data-minimized] .sv-progress {
+  top: 10px;
+}
+.story-reader[data-minimized] .sv-stage,
+.story-reader[data-minimized] .sv-zone-prev,
+.story-reader[data-minimized] .sv-zone-next,
+.story-reader[data-minimized] .sv-foot,
+.story-reader[data-minimized] .sv-cover,
+.story-reader[data-minimized] .sv-end {
+  display: none;
 }
 
 /* Container-relative overrides — the .sv-* base assumes a full viewport. */
@@ -6694,88 +6733,4 @@ body {
   color: var(--color-fg-primary);
   border-color: var(--color-accent-primary);
   background: color-mix(in oklab, var(--color-accent-primary) 8%, transparent);
-}
-
-/* "Add entity" picker (ADR 0004) — search + place an existing shared entity. */
-.add-entity-menu {
-  width: 22rem;
-}
-.add-entity-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--color-border-faint);
-}
-.add-entity-search input {
-  height: 2rem;
-  border: none;
-  box-shadow: none;
-  padding: 0;
-}
-.add-entity-search input:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-.add-entity-list {
-  margin: 0;
-  padding: 4px;
-  list-style: none;
-  max-height: 18rem;
-  overflow-y: auto;
-}
-.add-entity-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-  text-align: left;
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: background 120ms ease;
-}
-.add-entity-row:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--color-fg-primary) 6%, transparent);
-}
-.add-entity-row:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-.add-entity-row-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.add-entity-row-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-fg-primary);
-}
-.add-entity-row-type {
-  font-size: 11px;
-  text-transform: capitalize;
-  color: var(--color-fg-muted);
-}
-.add-entity-row-summary {
-  font-size: 12px;
-  color: var(--color-fg-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.add-entity-empty {
-  padding: 16px 12px;
-  font-size: 13px;
-  color: var(--color-fg-muted);
-  text-align: center;
-}
-.add-entity-hint {
-  margin: 0;
-  padding: 8px 12px;
-  font-size: 11px;
-  color: var(--color-fg-muted);
-  border-top: 1px solid var(--color-border-faint);
 }

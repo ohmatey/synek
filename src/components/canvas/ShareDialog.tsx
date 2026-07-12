@@ -89,11 +89,19 @@ export function ShareDialog({
   graph,
   isOwner,
   isPublic,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+  hideTrigger,
 }: {
   timelineId: string
   graph: TimelineGraph
   isOwner: boolean
   isPublic: boolean
+  // Optional controlled open (so the ⋯ More menu can drive it); `hideTrigger` drops
+  // the inline chip when another surface owns the trigger. Uncontrolled by default.
+  open?: boolean
+  onOpenChange?: (o: boolean) => void
+  hideTrigger?: boolean
 }) {
   const qc = useQueryClient()
   const [pub, setPub] = useState(isPublic)
@@ -183,13 +191,15 @@ export function ShareDialog({
   }
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className={cn('h-8', floatChip)}>
-          <Share2 />
-          Share
-        </Button>
-      </DialogTrigger>
+    <Dialog open={openProp} onOpenChange={onOpenChangeProp}>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button size="sm" variant="outline" className={cn('h-8', floatChip)}>
+            <Share2 />
+            <span className="cq-hide-narrow">Share</span>
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Share timeline</DialogTitle>

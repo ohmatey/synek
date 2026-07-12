@@ -120,6 +120,9 @@ export function CanvasSettings({
   onResetGhosts,
   theme,
   onPreviewTheme,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+  hideTrigger,
 }: {
   timelineId: string
   timelineTitle: string
@@ -148,6 +151,12 @@ export function CanvasSettings({
   onResetGhosts: () => void
   theme: TimelineTheme | null
   onPreviewTheme: (theme: TimelineTheme | null) => void
+  // Optional controlled open (so the ⋯ More menu can drive it); when omitted the
+  // component keeps its own state and inline trigger. `hideTrigger` drops the chip
+  // when another surface owns the trigger.
+  open?: boolean
+  onOpenChange?: (o: boolean) => void
+  hideTrigger?: boolean
 }) {
   const rf = useReactFlow()
   const width = useStore((s) => s.width)
@@ -157,7 +166,12 @@ export function CanvasSettings({
   // Controlled so opening the theme editor / agent prompt can close it first (the
   // dialogs render as SIBLINGS — the settings dialog must close so two modals
   // don't stack).
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = openProp ?? internalOpen
+  const setOpen = (o: boolean) => {
+    onOpenChangeProp?.(o)
+    if (openProp === undefined) setInternalOpen(o)
+  }
   const [tab, setTab] = useState<TLTab>('display')
   const [themeEditorOpen, setThemeEditorOpen] = useState(false)
   const [themePromptOpen, setThemePromptOpen] = useState(false)
@@ -220,23 +234,25 @@ export function CanvasSettings({
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon"
-            className={cn('relative size-8', floatChip)}
-            title="View settings"
-            aria-label="View settings"
-            data-testid="canvas-settings"
-          >
-            <SlidersHorizontal />
-            {hiddenCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
-                {hiddenCount}
-              </span>
-            )}
-          </Button>
-        </DialogTrigger>
+        {!hideTrigger && (
+          <DialogTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className={cn('relative size-8', floatChip)}
+              title="View settings"
+              aria-label="View settings"
+              data-testid="canvas-settings"
+            >
+              <SlidersHorizontal />
+              {hiddenCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
+                  {hiddenCount}
+                </span>
+              )}
+            </Button>
+          </DialogTrigger>
+        )}
         <DialogContent className="flex h-[min(85vh,40rem)] gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <Tabs
             orientation="vertical"

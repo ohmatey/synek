@@ -4,6 +4,7 @@ import { loadGraph, getTimelineMeta } from '~/lib/db/graph'
 import { requireUser } from '~/lib/auth/session'
 import { PatchBuilder, commitPatch, type NodePatch } from '~/lib/db/patches'
 import { commitEntityPatch, type EntityContentPatch } from '~/lib/db/entity-patches'
+import { parseDate } from '~/lib/domain/dates'
 import type { NodeMetadata } from '~/lib/db/schema'
 
 // Manual node edits go through the SAME Patch path as the AI: build one
@@ -150,4 +151,47 @@ export const deleteNode = createServerFn({ method: 'POST' })
     builder.deleteNode(nodeId) // connected edges captured for the inverse op
     const patchId = commitPatch(timelineId, builder, `Delete: ${cur.title}`)
     return { ok: true as const, patchId }
+  })
+
+// Manual node CREATE (the in-app "Add → Create new" form). Same atomic-Patch path
+// as the AI's apply_patch add_node and as placeEntityOnTimeline: co-creates a
+// canonical entity + its placement in one undoable Patch (⌘Z removes both). Human
+// date strings ("1969-07-20", "Q3 2008", "49 BCE") are parsed to instant+precision.
+// Owner-only; `lane`/`subtype` ride the node metadata (per-placement + entity kind).
+const createInput = z.object({
+  timelineId: z.string(),
+  type: z.enum(['event', 'entity', 'period', 'concept']),
+  title: z.string().min(1),
+  date: z.string().min(1),
+  endDate: z.string().optional(),
+  summary: z.string().optional(),
+  lane: z.string().optional(),
+  subtype: z.enum(['person', 'org', 'place', 'work']).optional(),
+})
+
+export const createNode = createServerFn({ method: 'POST' })
+  .inputValidator((d: z.infer<typeof createInput>) => createInput.parse(d))
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    const meta = getTimelineMeta(data.timelineId)
+    if (!meta || meta.ownerId !== user.id) return { ok: false as const, error: 'forbidden: not your timeline' }
+
+    const { instant, precision } = parseDate(data.date)
+    const endInstant = data.endDate?.trim() ? parseDate(data.endDate).instant : null
+    const metadata: NodeMetadata = {}
+    if (data.lane?.trim()) metadata.lane = data.lane.trim()
+    if (data.subtype) metadata.subtype = data.subtype
+
+    const builder = new PatchBuilder(data.timelineId, loadGraph(data.timelineId), user.id)
+    const node = builder.addNode({
+      type: data.type,
+      title: data.title.trim(),
+      summary: data.summary?.trim() || null,
+      startInstant: instant,
+      endInstant,
+      precision,
+      metadata: Object.keys(metadata).length ? metadata : null,
+    })
+    const patchId = commitPatch(data.timelineId, builder, `Add: ${node.title}`)
+    return { ok: true as const, nodeId: node.id, patchId }
   })

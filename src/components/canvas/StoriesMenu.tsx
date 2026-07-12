@@ -52,7 +52,7 @@ export function StoriesMenu({
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className={cn(floatChip, 'h-8')} title="Stories on this timeline">
             <BookOpen />
-            Stories
+            <span className="cq-hide-narrow">Stories</span>
             {count > 0 && <span className="stories-count">{count}</span>}
             <ChevronDown className="text-muted-foreground" />
           </Button>
