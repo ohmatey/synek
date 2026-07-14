@@ -136,6 +136,29 @@ function assertLocalModeNotExposed(): void {
 
 assertLocalModeNotExposed()
 
+// Optional Google sign-in. Key-gated exactly like the rest of the app: set BOTH
+// GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET and a "Continue with Google" button
+// appears on the auth screen; leave either blank and the social path is entirely
+// off — email/password only, so the local-first default is untouched. Google's
+// OAuth redirect returns to `${BASE_URL}/api/auth/callback/google`, which the
+// `/api/auth/$` catch-all already serves; register that exact URI as an authorized
+// redirect in the Google Cloud OAuth client. No migration: the `account` table
+// already carries the accessToken/refreshToken/idToken/scope columns social needs.
+function resolveGoogleCredentials(): { clientId: string; clientSecret: string } | null {
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim()
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim()
+  if (!clientId || !clientSecret) return null
+  return { clientId, clientSecret }
+}
+
+const googleCredentials = resolveGoogleCredentials()
+
+// Client-visible feature flag (NEVER exposes the secret) — the auth screen reads
+// this via the getAuthConfig server fn to decide whether to render the Google button.
+export function googleAuthEnabled(): boolean {
+  return googleCredentials !== null
+}
+
 export const auth = betterAuth({
   baseURL: BASE_URL,
   trustedOrigins: resolveTrustedOrigins(),
@@ -164,6 +187,24 @@ export const auth = betterAuth({
   },
   // Long expiry so the minted token behaves like a stable API key.
   session: { expiresIn: SESSION_EXPIRES_IN, updateAge: SESSION_UPDATE_AGE },
+  // Google is added only when its credentials are present (see resolveGoogleCredentials).
+  // Account linking is left at Better Auth's SECURE defaults (requireLocalEmailVerified:
+  // true): a Google sign-in creates a new user, or links to an existing account whose
+  // email is already verified — and REFUSES to link to an unverified email/password
+  // account. That refusal is deliberate: signup here doesn't require verification, so
+  // auto-linking to unverified locals would be a pre-account-hijack vector. `prompt:
+  // 'select_account'` lets returning users pick which Google account to use.
+  ...(googleCredentials
+    ? {
+        socialProviders: {
+          google: {
+            clientId: googleCredentials.clientId,
+            clientSecret: googleCredentials.clientSecret,
+            prompt: 'select_account',
+          },
+        },
+      }
+    : {}),
   plugins: [
     bearer(),
     // OAuth front door for MCP clients. `loginPage` is where an unauthenticated
