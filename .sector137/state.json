@@ -1,7 +1,7 @@
 {
   "version": 2,
   "project": "Synek",
-  "updatedAt": "2026-07-10T09:00:00.000Z",
+  "updatedAt": "2026-07-19T00:00:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -1385,10 +1385,10 @@
       },
       "data": {
         "title": "Next-chapter loop polish — in-app creator surfaces (slices A-E)",
-        "description": "Round out the in-app serialized-story loop (public reader already solid + e2e-covered).\n\n- A. \"Write next chapter\" action — buildNextChapterPrompt (mirrors buildContinueStoryPrompt) via shared PromptDialog/PromptActions (copy-only; Run needs series->timeline, follow-up), on SeriesCard. DONE 2026-06-22: story-prompt.ts + SeriesCard.tsx + e2e/series-loop.spec.ts; typecheck + e2e green.\n- B. In-app series detail (/series/$id): chapters in order, status, frontier, Slice-A CTA. DONE 2026-06-22 (getSeriesDetail + routes/series.$id.tsx + jacket/spine reuse + View-series link; commit ed11da0).\n- C. Reader continuity in-app: \"next chapter ->\" when a successor exists. TODO.\n- D. Empty/first-chapter states + draft-season preview. TODO.\n- E. ProjectHero surfaces latest series; consistent chapter badges. TODO.",
+        "description": "Round out the in-app serialized-story loop (public reader already solid + e2e-covered). ALL SLICES DONE.\n\n- A. \"Write next chapter\" action on SeriesCard. DONE 2026-06-22.\n- B. In-app series detail (/series/$id). DONE 2026-06-22 (commit ed11da0).\n- C. Reader continuity in-app. DONE 2026-07-19: (1) in-app StoryReader end-panel \"Next chapter →\" opens the successor in place, backed by getChapterContext(storyId) (db/series.ts) + getChapterContextFn (owner-scoped) queried in TimelineCanvas; (2) clickable series-detail SeriesSpine deep-links into the canvas reader via ?story= (SeriesDetailChapter gains timelineId).\n- D. Empty/first-chapter states + draft-season preview. DONE 2026-07-19: enriched SeriesEmptyState + dynamic \"Write Chapter I\" label; owner \"Preview season\" → /sr/$slug?preview=true drives a new owner-scoped previewSeries (ignores the publish gate, ships drafts) sharing composeSeriesDTO with getPublicSeries; a draft-preview ribbon marks the owner-only view.\n- E. ProjectHero superseded by ADR-0007 cull → reframed + DONE 2026-07-19: consistent \"Chapter N\" badge in the in-app reader cover (mirrors psr-chapter-eyebrow); FeaturedHero shows a chapter eyebrow + \"View series\" affordance when the featured story is a series chapter (HomeStoryCard gains series {id,slug,title} via a storySeries left-join in listStoriesForHome).\n\nVerify: typecheck clean; bun test 26 pass; e2e series-loop + public-series 12 pass. The one red test (series-loop slice B a11y color-contrast) is PRE-EXISTING on main (confirmed via stash) — filed as local-181, NOT caused by this work. Gotcha logged: TanStack parses search params as JSON values, so ?preview needs a boolean (=true), not a string (=1) — z.boolean() like the timelines route's autoplay.",
         "horizon": "now",
         "type": "feature",
-        "status": "in_progress",
+        "status": "completed",
         "dependencies": [
           "P3 serialized stories (commit 262ac0a)"
         ]
@@ -1629,7 +1629,45 @@
         "horizon": "next",
         "type": "feature",
         "status": "open",
-        "dependencies": ["local-175"]
+        "dependencies": [
+          "local-175"
+        ]
+      }
+    },
+    {
+      "data": {
+        "title": "Add optional Google OAuth sign-in",
+        "description": "Optional Google social sign-in alongside email/password, key-gated on GOOGLE_CLIENT_ID/SECRET (no-ops when unset — local-first default intact). Better Auth socialProviders + a \"Continue with Google\" button on AuthForms; auth-config helper reads env. Refs: src/lib/auth/index.ts, src/lib/server/auth-config.ts, src/components/home/AuthForms.tsx, .env.example.\n\n### Closed 2026-07-19\nMerged to forgejo/main as 6acb10e (PR #1, from feat/google-auth, commit 0c39f4e). Local main + origin (GitHub mirror) fast-forwarded. Was untracked in the queue — filed+closed in reconciliation (note local-179). Deploy still gated on the sector137/synek Forgejo webhook per memory strata-google-auth-deploy.",
+        "horizon": "now",
+        "type": "feature",
+        "status": "completed",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-178",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Fix light-mode a11y contrast on themed series accents (--color-accent-story-text)",
+        "description": "PRE-EXISTING (surfaced by local-161 e2e, confirmed on clean main via stash). The series-loop 'slice B' e2e (expectNoA11yViolations on /series/$id) fails color-contrast: the seeded 'Fall of the Republic' theme resolves --color-accent-story-text to #b6966a, which is ~2.68:1 on the light-mode canvas #fafbfc (WCAG AA needs 4.5:1); ~142 nodes flagged (.sb-new 'New' badge, etc.). Either the seed theme's accent is too light for light mode, or resolveThemeVars/deriveColors doesn't darken the story-accent-TEXT token enough per-scheme (related to local-169's per-scheme adaptation). Fix so themed accents keep AA in BOTH schemes, then the a11y gate goes green. Repro: bun run seed:e2e && E2E_PORT=3003 bun run test:e2e -- e2e/series-loop.spec.ts -g 'slice B'.",
+        "horizon": "now",
+        "type": "fix",
+        "status": "open",
+        "dependencies": []
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-181",
+        "dirty": true,
+        "etag": null,
+        "syncedAt": null
       }
     }
   ],
@@ -2119,6 +2157,32 @@
         "origin": "local",
         "serverId": null,
         "localId": "local-173",
+        "dirty": true,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "Reconcile 2026-07-19 — OAuth merged; local-161 C–E scope confirmed",
+        "body": "Queue was stale (updatedAt 2026-07-10) vs git. Reconciled:\n• feat/google-auth merged to forgejo/main as 6acb10e (PR #1). Local main + origin fast-forwarded from 33cbadf. Filed the untracked OAuth work as local-178 (completed).\n• forgejo/main is the deploy source of truth (GitOps via loha); origin (GitHub) is the public mirror — both now at 6acb10e.\n• Resumed local-161 (in_progress). Founder-confirmed the fuller scope on the two ambiguous slices: C = end-panel Next + clickable spine deep-link; E = consistent chapter badges + a FeaturedHero series affordance (ProjectHero is gone post-ADR-0007, so the issue's original E framing was stale). D unchanged (enrich empty state + owner draft-season preview).\n• Deploy of OAuth still blocked on the missing sector137/synek Forgejo webhook (see memory strata-google-auth-deploy)."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-179",
+        "dirty": true,
+        "syncedAt": null
+      }
+    },
+    {
+      "data": {
+        "title": "local-161 slices C–E shipped (in-app next-chapter loop)",
+        "body": "Completed the in-app serialized-story loop. 12 files: db/series.ts (getChapterContext), server/series.ts (getChapterContextFn + previewSeries + composeSeriesDTO refactor), db/stories.ts (series left-join on listStoriesForHome), domain/types.ts (SeriesDetailChapter.timelineId, HomeStoryCard.series), canvas/StoryReader.tsx (chapter badge + Next-chapter end panel), canvas/TimelineCanvas.tsx (chapter-context query), routes/series.$id.tsx (clickable spine + Preview season + SeriesEmptyState + dynamic label), routes/sr.$slug.tsx (?preview owner draft preview + banner), home/ProjectsWorkspace.tsx (FeaturedHero series affordance), styles.css, e2e/series-loop.spec.ts (+3 tests).\n\nFounder-confirmed the fuller scope on both ambiguous slices (clickable spine for C; badges + hero affordance for E).\n\nGotcha: TanStack Router parses search params as JSON values (?preview=1 → number 1, ?preview=true → boolean true), so validateSearch must use z.boolean() and the link must emit ?preview=true — an enum('1','true') never matched. Mirrors the timelines route's autoplay param.\n\nPre-existing finding (NOT this work): series-loop slice-B e2e fails on a11y color-contrast — the seeded 'Fall of the Republic' theme renders --color-accent-story-text (#b6966a) at ~2.68:1 on the near-white light-mode canvas (needs 4.5:1). Confirmed identical failure on clean main via git stash. Filed local-181. NOT committed by me; left uncommitted pending review."
+      },
+      "meta": {
+        "origin": "local",
+        "serverId": null,
+        "localId": "local-180",
         "dirty": true,
         "syncedAt": null
       }
