@@ -4325,6 +4325,13 @@ body {
   color: var(--color-accent-era-text, color-mix(in oklab, var(--color-fg-primary) 55%, transparent));
   white-space: nowrap;
 }
+/* Owner per-chapter action slot (local-177) — a control beside the row, never nested
+   inside its button. The row's existing .is-draft dimming (opacity on the <li>) carries
+   over to the action, keeping draft rows visually unified. */
+.sb-row.has-action { display: flex; align-items: center; gap: 8px; }
+.sb-row.has-action .sb-row-btn,
+.sb-row.has-action .sb-row-static { flex: 1 1 auto; min-width: 0; }
+.sb-row-action { display: flex; align-items: center; flex-shrink: 0; padding-right: 8px; }
 
 /* Chapter-opener eyebrow inside the reader cover (series context) */
 .psr-chapter-eyebrow {
@@ -4364,6 +4371,7 @@ body {
 }
 .sd-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .sd-write { gap: 8px; }
+.sd-review-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .sd-open-season { font-size: 13px; color: var(--color-accent-story-text); text-decoration: none; }
 .sd-open-season:hover { text-decoration: underline; }
 .sd-preview-season {

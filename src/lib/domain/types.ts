@@ -437,6 +437,9 @@ export type SeriesDetailDTO = {
     theme: TimelineTheme | null
     brandId: string | null
     isPublic: boolean
+    // Owner review gate (local-175): when ON, chapters written into this series are
+    // born `draft` until the owner publishes them. Drives the detail "Review mode" switch.
+    reviewMode: boolean
   }
   project: { slug: string; title: string } | null
   chapters: SeriesDetailChapter[]

@@ -3,7 +3,7 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { BookOpenText, ChevronRight, Eye, PenLine } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '@synek/ui'
-import { getSeriesDetail } from '~/lib/server/series'
+import { getSeriesDetail, setSeriesReviewMode, setChapterStatus } from '~/lib/server/series'
 import { applyBrandToSeries } from '~/lib/server/brands'
 import { BrandPicker } from '~/components/brand/BrandPicker'
 import { AppHeader } from '~/components/home/AppHeader'
@@ -12,6 +12,7 @@ import { SeriesSpine, type SpineChapter } from '~/components/public/SeriesSpine'
 import { ShareSeriesButton } from '~/components/public/ShareSeriesButton'
 import { PromptDialog, type PromptSpec } from '~/components/PromptDialog'
 import { Button } from '~/components/ui/button'
+import { Switch } from '~/components/ui/switch'
 import { buildNextChapterPrompt } from '~/lib/story-prompt'
 import { resolveThemeVars } from '~/lib/theme/resolveTimelineTheme'
 import { formatInstant } from '~/lib/domain/dates'
@@ -40,6 +41,8 @@ function SeriesDetailPage() {
   const { resolvedTheme } = useTheme()
   const [promptOpen, setPromptOpen] = useState(false)
   const [brandId, setBrandId] = useState<string | null>(data?.series.brandId ?? null)
+  const [reviewMode, setReviewMode] = useState(data?.series.reviewMode ?? false)
+  const [busyChapter, setBusyChapter] = useState<string | null>(null)
 
   const applyBrand = async (id: string | null) => {
     if (!data) return
@@ -50,6 +53,34 @@ function SeriesDetailPage() {
       return
     }
     toast.success(id ? 'Brand applied — series theme seeded' : 'Brand cleared')
+    void router.invalidate()
+  }
+
+  // Review mode (local-175): ON births future chapters as drafts. Optimistic; reverts
+  // the switch on failure. Doesn't touch existing chapters.
+  const toggleReviewMode = async (next: boolean) => {
+    if (!data) return
+    setReviewMode(next)
+    const res = await setSeriesReviewMode({ data: { seriesId: data.series.id, reviewMode: next } })
+    if ('error' in res) {
+      setReviewMode(!next)
+      toast.error('Couldn’t change review mode')
+      return
+    }
+    toast.success(next ? 'Review mode on — new chapters arrive as drafts' : 'Review mode off')
+  }
+
+  // Per-chapter publish gate (local-177): flip one chapter draft ↔ published in-app.
+  const changeChapterStatus = async (storyId: string, status: 'draft' | 'published') => {
+    if (busyChapter) return
+    setBusyChapter(storyId)
+    const res = await setChapterStatus({ data: { storyId, status } })
+    setBusyChapter(null)
+    if ('error' in res) {
+      toast.error('Couldn’t update the chapter')
+      return
+    }
+    toast.success(status === 'published' ? 'Chapter published' : 'Chapter reverted to draft')
     void router.invalidate()
   }
 
@@ -160,6 +191,14 @@ function SeriesDetailPage() {
               <span className="text-sm text-muted-foreground">Brand</span>
               <BrandPicker value={brandId} onChange={(id) => void applyBrand(id)} />
             </span>
+            <label className="sd-review-toggle">
+              <Switch
+                checked={reviewMode}
+                onCheckedChange={(v) => void toggleReviewMode(v)}
+                aria-label="Review mode — new chapters arrive as drafts for approval"
+              />
+              <span className="text-sm text-muted-foreground">Review mode</span>
+            </label>
             {/* Preview the full season (incl. unpublished chapters) the way a reader
                 will see it, before publishing (slice D). Owner-scoped ?preview loader. */}
             {chapters.length > 0 && (
@@ -182,6 +221,23 @@ function SeriesDetailPage() {
             onSelect={openChapter}
             updatedAt={data.updatedAt}
             numerals="arabic"
+            renderChapterAction={(_ch, i) => {
+              const chapter = chapters[i]
+              if (!chapter) return null
+              const isPublished = chapter.status === 'published'
+              const busy = busyChapter === chapter.storyId
+              return (
+                <Button
+                  type="button"
+                  variant={isPublished ? 'ghost' : 'secondary'}
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void changeChapterStatus(chapter.storyId, isPublished ? 'draft' : 'published')}
+                >
+                  {isPublished ? 'Revert to draft' : 'Publish'}
+                </Button>
+              )
+            }}
           />
         ) : (
           <SeriesEmptyState />

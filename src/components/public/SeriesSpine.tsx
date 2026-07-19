@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { cn } from '~/lib/utils'
 import { formatInstant } from '~/lib/domain/dates'
 import { toRomanNumeral } from '~/lib/roman-numeral'
@@ -26,6 +26,7 @@ export function SeriesSpine({
   onSelect,
   updatedAt,
   numerals = 'roman',
+  renderChapterAction,
 }: {
   chapters: SpineChapter[]
   activeIndex?: number
@@ -33,6 +34,11 @@ export function SeriesSpine({
   onSelect?: (index: number) => void
   updatedAt: number
   numerals?: 'roman' | 'arabic'
+  // OWNER surface only (local-177): a per-chapter control (e.g. Publish / Revert to
+  // draft) rendered as a sibling of the row — never nested inside the row <button>,
+  // to keep interactive elements from nesting. Undefined on the public page → the
+  // spine renders byte-for-byte as before.
+  renderChapterAction?: (chapter: SpineChapter, index: number) => ReactNode
 }) {
   // Client-only relative time on the latest chapter (avoids SSR hydration drift).
   const [rel, setRel] = useState<string | null>(null)
@@ -80,8 +86,18 @@ export function SeriesSpine({
             </>
           )
 
+          const action = renderChapterAction?.(ch, i)
+
           return (
-            <li key={i} className={cn('sb-row', ch.status === 'draft' && 'is-draft', isActive && 'is-active')}>
+            <li
+              key={i}
+              className={cn(
+                'sb-row',
+                ch.status === 'draft' && 'is-draft',
+                isActive && 'is-active',
+                action && 'has-action',
+              )}
+            >
               {onSelect ? (
                 <button
                   type="button"
@@ -97,6 +113,7 @@ export function SeriesSpine({
                   {inner}
                 </div>
               )}
+              {action && <div className="sb-row-action">{action}</div>}
             </li>
           )
         })}

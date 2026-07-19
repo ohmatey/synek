@@ -17,7 +17,7 @@ import {
 } from '~/lib/db/series'
 import type { SeriesRow } from '~/lib/db/schema'
 import { getProjectMeta, makeRequireOwnedProject } from '~/lib/db/projects'
-import { getStoryById, getMomentTimelineId } from '~/lib/db/stories'
+import { getStoryById, getMomentTimelineId, patchStory } from '~/lib/db/stories'
 import { nodesByIds, nodeRowToGraphNode } from '~/lib/db/graph'
 import { requireUser } from '~/lib/auth/session'
 import type {
@@ -132,6 +132,7 @@ export const getSeriesDetail = createServerFn({ method: 'GET' })
         theme: series.theme ?? null,
         brandId: series.brandId ?? null,
         isPublic: series.isPublic,
+        reviewMode: series.reviewMode,
       },
       project: project ? { slug: project.slug, title: project.title } : null,
       chapters,
@@ -163,6 +164,20 @@ export const setSeriesReviewMode = createServerFn({ method: 'POST' })
     const user = await requireUser()
     const ok = dbSetSeriesReviewMode(data.seriesId, user.id, data.reviewMode)
     return ok ? { ok: true as const } : { error: 'forbidden' }
+  })
+
+// Owner-gated per-chapter publish gate (local-177). Flips one chapter between `draft`
+// and `published` in-app, so approving a reviewed draft no longer needs a connected MCP
+// client. Rides the existing owner guard in patchStory (story → moment → timeline.ownerId,
+// returns null for a non-owner) — no new boundary. `archived` stays out of the UI.
+export const setChapterStatus = createServerFn({ method: 'POST' })
+  .inputValidator((d: { storyId: string; status: 'draft' | 'published' }) =>
+    z.object({ storyId: z.string(), status: z.enum(['draft', 'published']) }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true } | { error: 'forbidden' }> => {
+    const user = await requireUser()
+    const res = patchStory(data.storyId, [{ op: 'update_meta', meta: { status: data.status } }], user.id)
+    return res ? { ok: true as const } : { error: 'forbidden' }
   })
 
 // Compose the reader-ready season DTO from a series row + the chapter rows it should

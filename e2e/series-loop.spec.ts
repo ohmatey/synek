@@ -129,6 +129,44 @@ test('a series-detail "Preview season" link opens the owner draft preview (slice
   await expect(page.getByRole('navigation', { name: 'Table of contents' })).toBeVisible()
 })
 
+// local-177 — the owner can approve a chapter IN-APP (no connected MCP client): the
+// series-detail spine carries a per-chapter Publish / Revert-to-draft control, and a
+// series-level "Review mode" switch. Self-reverting so the seeded draft canary (Chapter
+// 3 of "The Fall of the Republic", asserted by public-series.spec) is restored.
+test('the series detail publishes + reverts a chapter draft in-app, and toggles review mode', async ({ page }) => {
+  await loginAsDemo(page)
+  await page.goto('/')
+  await page.getByRole('link', { name: 'View “The Fall of the Republic” in your workspace' }).click()
+  await expect(page).toHaveURL(/\/series\//)
+
+  // The seeded draft chapter — scope every assertion to its row so a shared DB / seed
+  // order can't cross-wire selectors.
+  const draftRow = page.locator('.sb-row', { hasText: 'The Augustan settlement' })
+  await expect(draftRow.getByText('Draft', { exact: true })).toBeVisible()
+  const publish = draftRow.getByRole('button', { name: 'Publish', exact: true })
+  await expect(publish).toBeVisible()
+
+  // Publish it in-app → toast confirms and the Draft pill clears; the control flips.
+  await publish.click()
+  await expect(page.getByText('Chapter published')).toBeVisible()
+  await expect(draftRow.getByText('Draft', { exact: true })).toHaveCount(0)
+  const revert = draftRow.getByRole('button', { name: 'Revert to draft' })
+  await expect(revert).toBeVisible()
+
+  // Review-mode switch is present and toggles (leaves baseline OFF after the round-trip).
+  const reviewSwitch = page.getByRole('switch', { name: /Review mode/ })
+  await expect(reviewSwitch).toBeVisible()
+  await reviewSwitch.click()
+  await expect(page.getByText(/Review mode on/)).toBeVisible()
+  await reviewSwitch.click()
+  await expect(page.getByText('Review mode off')).toBeVisible()
+
+  // Restore the seeded draft canary for the rest of the suite.
+  await revert.click()
+  await expect(page.getByText('Chapter reverted to draft')).toBeVisible()
+  await expect(draftRow.getByText('Draft', { exact: true })).toBeVisible()
+})
+
 // Slice E — when the featured hero story is a series chapter, its eyebrow becomes the
 // chapter badge and a "View series" affordance appears, linking to the series detail.
 // Defensive: only asserts when the home's newest item is in fact a chapter (seed order
