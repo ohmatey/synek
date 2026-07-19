@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { z } from 'zod'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { BookOpenText, List, Sparkles, X } from 'lucide-react'
+import { BookOpenText, Eye, List, Sparkles, X } from 'lucide-react'
 import { useTheme } from '@synek/ui'
-import { getPublicSeries } from '~/lib/server/series'
+import { getPublicSeries, previewSeries } from '~/lib/server/series'
 import { PublicStoryReader } from '~/components/public/PublicStoryReader'
 import { SeriesJacket } from '~/components/public/SeriesJacket'
 import { SeriesSpine, type SpineChapter } from '~/components/public/SeriesSpine'
@@ -16,8 +17,21 @@ import type { PublicStoryDTO } from '~/lib/domain/types'
 // and renders one clean "not available" page. Chapters play IN ORDER by driving the
 // existing PublicStoryReader once per chapter, with "next chapter →" continuation;
 // the chapter index is held here, outside the reader.
+// `?preview=1` is the OWNER draft-season preview (local-161 slice D): the loader
+// swaps to previewSeries — owner-scoped, ignores the publish gate, ships all chapters
+// (incl. drafts) — so the creator sees how the season will read before publishing.
+// Anonymous/foreign viewers get null from previewSeries → the "not available" page.
+// TanStack parses search params as JSON values, so `?preview=true` arrives as a real
+// boolean (mirrors the timelines route's `autoplay`). Bad/absent → undefined.
+const searchSchema = z.object({
+  preview: z.boolean().optional().catch(undefined),
+})
+
 export const Route = createFileRoute('/sr/$slug')({
-  loader: async ({ params }) => getPublicSeries({ data: params.slug }),
+  validateSearch: searchSchema,
+  loaderDeps: ({ search: { preview } }) => ({ preview: preview ?? false }),
+  loader: async ({ params, deps }) =>
+    deps.preview ? previewSeries({ data: params.slug }) : getPublicSeries({ data: params.slug }),
   head: ({ loaderData }) => {
     if (!loaderData) {
       return { meta: [{ title: 'Series not found · Synek' }] }
@@ -46,6 +60,7 @@ export const Route = createFileRoute('/sr/$slug')({
 
 function PublicSeriesPage() {
   const data = Route.useLoaderData()
+  const { preview } = Route.useSearch()
   const { resolvedTheme } = useTheme()
   const themeVars = useMemo(
     () => (data ? resolveThemeVars(data.series.theme, resolvedTheme) : {}),
@@ -150,6 +165,15 @@ function PublicSeriesPage() {
 
   return (
     <div className="public-story public-series" style={themeVars} data-theme-scoped={series.theme ? '' : undefined}>
+      {preview && (
+        <div className="ps-preview-banner" role="status">
+          <Eye size={15} aria-hidden />
+          <span>
+            <strong>Draft preview</strong> — this is how the season will read once published, including unpublished
+            chapters. Only you can see this.
+          </span>
+        </div>
+      )}
       {/* Left rail (desktop sidebar / mobile top band): season identity + the single
           "Begin reading" CTA, with the spine pinned beneath it on desktop. */}
       <div className="ps-rail">

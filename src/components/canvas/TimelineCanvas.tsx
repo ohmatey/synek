@@ -64,6 +64,7 @@ import { globeCoverage } from './globe-coverage'
 import type { GlobeControls } from './GlobeLens'
 import { getGraph } from '~/lib/server/graph'
 import { getStoriesForMomentFn, getStoryByIdFn } from '~/lib/server/stories'
+import { getChapterContextFn } from '~/lib/server/series'
 import { useTimelineStream } from './useTimelineStream'
 import { AppBar } from './AppBar'
 import { CanvasLayout } from './CanvasLayout'
@@ -499,6 +500,15 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     enabled: !!selectedStoryId,
   })
   const readingStory = readingStoryData ?? null // undefined while loading → treat as none
+
+  // When the open story is a series chapter, its place in the series: the "Chapter N"
+  // badge (current) + the successor for the end-panel "Next chapter →" (local-161
+  // slice C/E). Owner-scoped; null for standalone stories. Keyed by story id.
+  const { data: chapterCtx } = useQuery({
+    queryKey: ['chapter-context', selectedStoryId],
+    queryFn: () => getChapterContextFn({ data: selectedStoryId as string }),
+    enabled: !!selectedStoryId,
+  })
 
   // Reset the canvas-side playback transport when the open story changes. Selecting
   // a node no longer touches the reader (stories are decoupled from selection); the
@@ -1507,6 +1517,13 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             width={panelW.story}
             onResize={resizeStory}
             onCommitResize={commitPanelW}
+            // Series continuity (local-161 slice C/E): the "Chapter N · {series}" badge
+            // and the end-panel "Next chapter →" that opens the successor in place.
+            chapterMeta={chapterCtx ? { number: chapterCtx.chapterNumber, seriesTitle: chapterCtx.seriesTitle } : null}
+            nextChapter={chapterCtx?.next ? { title: chapterCtx.next.title } : null}
+            onNextChapter={
+              chapterCtx?.next ? () => openStory(chapterCtx.next!.storyId, { autoStart: true }) : undefined
+            }
           />
         ) : null}
         {/* Fill-this-gap prompt, opened by a dashed gap-invitation ghost (Tier 2). */}

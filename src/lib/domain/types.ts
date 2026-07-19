@@ -422,6 +422,10 @@ export type SeriesDetailChapter = {
   status: StoryStatus
   isPublic: boolean
   slug: string
+  // The timeline this chapter's moment lives on — lets the series-detail spine
+  // deep-link into the canvas reader (/timelines/$timelineId?story=$storyId). null
+  // when the moment can't be resolved to a timeline (an orphaned chapter).
+  timelineId: string | null
 }
 export type SeriesDetailDTO = {
   series: {
@@ -501,6 +505,10 @@ export type HomeStoryCard = StoryListItem & {
   // resolved to their node title, name-only members kept as-is, in cast order. The
   // home doesn't ship the cast nodes, so these are pre-resolved server-side.
   castNames: string[]
+  // When this story is a chapter of a series, the series it belongs to — lets the
+  // featured hero badge "Chapter N · {series}" and link straight to the season
+  // (local-161 slice E). null for standalone stories. Pairs with `chapterNumber`.
+  series: { id: string; slug: string; title: string } | null
 }
 
 // One entry in the cinematic home's "Entities" row — a canonical, owner-scoped

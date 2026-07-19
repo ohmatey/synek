@@ -6,12 +6,16 @@ import {
   getSeriesRowBySlug,
   getSeriesChapters,
   publicSeriesChapters,
+  getChapterContext,
   listSeriesForOwner,
   setSeriesShared as dbSetSeriesShared,
   setSeriesReviewMode as dbSetSeriesReviewMode,
   makeRequireOwnedSeries,
   seriesWatermark,
+  type ChapterContext,
+  type ChapterRow,
 } from '~/lib/db/series'
+import type { SeriesRow } from '~/lib/db/schema'
 import { getProjectMeta, makeRequireOwnedProject } from '~/lib/db/projects'
 import { getStoryById, getMomentTimelineId } from '~/lib/db/stories'
 import { nodesByIds, nodeRowToGraphNode } from '~/lib/db/graph'
@@ -114,6 +118,7 @@ export const getSeriesDetail = createServerFn({ method: 'GET' })
         status: row.status,
         isPublic: row.isPublic,
         slug: row.slug,
+        timelineId: tl ?? null,
       }
     })
     const project = getProjectMeta(series.projectId)
@@ -160,6 +165,59 @@ export const setSeriesReviewMode = createServerFn({ method: 'POST' })
     return ok ? { ok: true as const } : { error: 'forbidden' }
   })
 
+// Compose the reader-ready season DTO from a series row + the chapter rows it should
+// ship (the caller decides which — `publicSeriesChapters` for the live page, all
+// `getSeriesChapters` for the owner draft preview). Each chapter becomes a full
+// StoryDTO; the nodes union is fetched per timeline (no full-graph leak). Shared by
+// getPublicSeries (no-auth, published-only) and previewSeries (owner, all chapters).
+function composeSeriesDTO(series: SeriesRow, chapterRows: ChapterRow[]): PublicSeriesDTO {
+  const chapters: PublicSeriesChapter[] = []
+  for (const row of chapterRows) {
+    const story = getStoryById(row.storyId)
+    if (!story) continue
+    // Resolve the chapter's anchor-moment instant for the spine dateline.
+    const tl = getMomentTimelineId(story.momentId)
+    const momentInstant = tl ? (nodesByIds(tl, [story.momentId])[0]?.startInstant ?? null) : null
+    chapters.push({ chapterNumber: row.chapterNumber, momentInstant, story })
+  }
+  // Union the nodes every chapter references, fetched per their timeline (one
+  // timeline per project in practice; grouped defensively for safety).
+  const idsByTimeline = new Map<string, Set<string>>()
+  const collect = (story: StoryDTO) => {
+    const timelineId = getMomentTimelineId(story.momentId)
+    if (!timelineId) return
+    const set = idsByTimeline.get(timelineId) ?? new Set<string>()
+    for (const m of story.cast) if (m.nodeId) set.add(m.nodeId)
+    for (const b of story.beats) {
+      if (b.focusNodeId) set.add(b.focusNodeId)
+      for (const id of b.relatedNodeIds) set.add(id)
+      if (b.widget) {
+        for (const id of b.widget.nodeIds) set.add(id)
+        if (b.widget.focusNodeId) set.add(b.widget.focusNodeId)
+      }
+    }
+    idsByTimeline.set(timelineId, set)
+  }
+  for (const c of chapters) collect(c.story)
+  const nodes = [...idsByTimeline.entries()].flatMap(([timelineId, ids]) =>
+    nodesByIds(timelineId, [...ids]).map(nodeRowToGraphNode),
+  )
+  const projectTheme = getProjectMeta(series.projectId)?.theme ?? null
+  return {
+    series: {
+      id: series.id,
+      slug: series.slug,
+      title: series.title,
+      hook: series.hook,
+      coverImage: series.coverImage ?? null,
+      theme: series.theme ?? projectTheme,
+    },
+    chapters,
+    nodes,
+    updatedAt: series.updatedAt?.getTime() ?? 0,
+  }
+}
+
 // The PUBLIC season page (no auth). Gated on the SERIES being public; ships only its
 // PUBLIC chapters in chapterNumber order, each a full StoryDTO, plus the union of the
 // nodes those chapters reference (no full-graph leak). theme resolves
@@ -174,50 +232,53 @@ export const getPublicSeries = createServerFn({ method: 'GET' })
     // `published` chapters (local-175). A `draft`/`archived` chapter (unfinished or
     // withdrawn) never leaks just because the season is public. A chapter's own
     // `isPublic` (the standalone /s/$slug axis) is orthogonal and NOT consulted here.
-    const chapterRows = publicSeriesChapters(series.id)
-    const chapters: PublicSeriesChapter[] = []
-    for (const row of chapterRows) {
-      const story = getStoryById(row.storyId)
-      if (!story) continue
-      // Resolve the chapter's anchor-moment instant for the spine dateline.
-      const tl = getMomentTimelineId(story.momentId)
-      const momentInstant = tl ? (nodesByIds(tl, [story.momentId])[0]?.startInstant ?? null) : null
-      chapters.push({ chapterNumber: row.chapterNumber, momentInstant, story })
+    return composeSeriesDTO(series, publicSeriesChapters(series.id))
+  })
+
+// OWNER-scoped draft-season PREVIEW (local-161 slice D). Same reader-ready DTO as the
+// public page but WITHOUT the isPublic gate and shipping ALL chapters (incl. drafts),
+// so the creator can see how the season will read before publishing it. Owner-checked
+// via makeRequireOwnedSeries; returns null for anonymous/foreign viewers or a missing
+// series (indistinguishably). Reuses composeSeriesDTO, so the preview is byte-for-byte
+// the public reading experience minus the publish gate.
+export const previewSeries = createServerFn({ method: 'GET' })
+  .inputValidator((slug: string) => z.string().parse(slug))
+  .handler(async ({ data: slug }): Promise<PublicSeriesDTO | null> => {
+    let user
+    try {
+      user = await requireUser()
+    } catch {
+      return null
     }
-    // Union the nodes every chapter references, fetched per their timeline (one
-    // timeline per project in practice; grouped defensively for safety).
-    const idsByTimeline = new Map<string, Set<string>>()
-    const collect = (story: StoryDTO) => {
-      const timelineId = getMomentTimelineId(story.momentId)
-      if (!timelineId) return
-      const set = idsByTimeline.get(timelineId) ?? new Set<string>()
-      for (const m of story.cast) if (m.nodeId) set.add(m.nodeId)
-      for (const b of story.beats) {
-        if (b.focusNodeId) set.add(b.focusNodeId)
-        for (const id of b.relatedNodeIds) set.add(id)
-        if (b.widget) {
-          for (const id of b.widget.nodeIds) set.add(id)
-          if (b.widget.focusNodeId) set.add(b.widget.focusNodeId)
-        }
-      }
-      idsByTimeline.set(timelineId, set)
+    const series = getSeriesRowBySlug(slug)
+    if (!series) return null
+    try {
+      makeRequireOwnedSeries(user.id)(series.id)
+    } catch {
+      return null
     }
-    for (const c of chapters) collect(c.story)
-    const nodes = [...idsByTimeline.entries()].flatMap(([timelineId, ids]) =>
-      nodesByIds(timelineId, [...ids]).map(nodeRowToGraphNode),
-    )
-    const projectTheme = getProjectMeta(series.projectId)?.theme ?? null
-    return {
-      series: {
-        id: series.id,
-        slug: series.slug,
-        title: series.title,
-        hook: series.hook,
-        coverImage: series.coverImage ?? null,
-        theme: series.theme ?? projectTheme,
-      },
-      chapters,
-      nodes,
-      updatedAt: series.updatedAt?.getTime() ?? 0,
+    return composeSeriesDTO(series, getSeriesChapters(series.id))
+  })
+
+// The open story's place in its series (local-161 slice C/E) — owner-scoped. Feeds the
+// in-app reader's "Chapter N" badge (current) and its "Next chapter →" continuity
+// (next). Owner-checked via the resolved series; returns null when the story is in no
+// series, isn't owned, or the viewer is anonymous.
+export const getChapterContextFn = createServerFn({ method: 'GET' })
+  .inputValidator((storyId: string) => z.string().parse(storyId))
+  .handler(async ({ data: storyId }): Promise<ChapterContext | null> => {
+    let user
+    try {
+      user = await requireUser()
+    } catch {
+      return null
     }
+    const ctx = getChapterContext(storyId)
+    if (!ctx) return null
+    try {
+      makeRequireOwnedSeries(user.id)(ctx.seriesId)
+    } catch {
+      return null
+    }
+    return ctx
   })

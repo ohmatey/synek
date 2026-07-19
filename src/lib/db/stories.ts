@@ -786,11 +786,17 @@ export function listStoriesForHome(ownerId: string, projectId?: string): HomeSto
       timelineId: timelines.id,
       timelineTitle: timelines.title,
       updatedAt: stories.updatedAt,
+      // Series identity for the featured-hero chapter badge/link (local-161 slice E).
+      // LEFT-joined: null columns for a standalone (non-series) story.
+      seriesId: storySeries.id,
+      seriesSlug: storySeries.slug,
+      seriesTitle: storySeries.title,
     })
     .from(stories)
     .innerJoin(nodes, eq(stories.momentId, nodes.id))
     .leftJoin(entities, eq(nodes.entityId, entities.id))
     .innerJoin(timelines, eq(nodes.timelineId, timelines.id))
+    .leftJoin(storySeries, eq(stories.seriesId, storySeries.id))
     .where(
       projectId
         ? and(eq(timelines.ownerId, ownerId), eq(timelines.projectId, projectId))
@@ -812,12 +818,13 @@ export function listStoriesForHome(ownerId: string, projectId?: string): HomeSto
       .where(inArray(nodes.id, [...castNodeIds]))
       .all())
       titleById.set(n.id, n.title)
-  return withBeatCounts(rows).map(({ cast, updatedAt, ...rest }) => ({
+  return withBeatCounts(rows).map(({ cast, updatedAt, seriesId, seriesSlug, seriesTitle, ...rest }) => ({
     ...rest,
     updatedAt: updatedAt?.getTime() ?? 0,
     castNames: (cast ?? [])
       .map((m) => (m.nodeId ? titleById.get(m.nodeId) : m.name) ?? m.name ?? '')
       .filter((s): s is string => Boolean(s)),
+    series: seriesId && seriesSlug && seriesTitle ? { id: seriesId, slug: seriesSlug, title: seriesTitle } : null,
   }))
 }
 

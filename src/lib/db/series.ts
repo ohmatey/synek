@@ -227,6 +227,35 @@ export function getSeriesChapters(seriesId: string): ChapterRow[] {
     .all()
 }
 
+// One story's place in its series: its own chapter number + the immediate successor
+// (the next chapter in getSeriesChapters order — INCLUDING drafts, since the owner
+// reads their own drafts in-app). Returns null when the story belongs to no series or
+// isn't found among its series' chapters. Backs the in-app reader's "Chapter N" badge
+// and its "Next chapter →" continuity (local-161 slice C/E). The caller owner-checks
+// the returned seriesId before trusting it.
+export type ChapterContext = {
+  seriesId: string
+  seriesTitle: string
+  chapterNumber: number | null
+  next: { storyId: string; title: string; chapterNumber: number | null } | null
+}
+export function getChapterContext(storyId: string): ChapterContext | null {
+  const row = db.select({ seriesId: stories.seriesId }).from(stories).where(eq(stories.id, storyId)).get()
+  if (!row?.seriesId) return null
+  const series = getSeries(row.seriesId)
+  if (!series) return null
+  const chapters = getSeriesChapters(row.seriesId)
+  const idx = chapters.findIndex((c) => c.storyId === storyId)
+  if (idx < 0) return null
+  const next = chapters[idx + 1] ?? null
+  return {
+    seriesId: series.id,
+    seriesTitle: series.title,
+    chapterNumber: chapters[idx]!.chapterNumber,
+    next: next ? { storyId: next.storyId, title: next.title, chapterNumber: next.chapterNumber } : null,
+  }
+}
+
 // The chapters that may ship on the PUBLIC season page (/sr/$slug), in order: the
 // per-chapter publish gate (local-175, PRD per-chapter-publish-gates §4/§6.3). The
 // axes are NON-overlapping — series.isPublic (checked in the server fn) is "is the

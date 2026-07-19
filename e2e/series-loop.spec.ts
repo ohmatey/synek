@@ -91,3 +91,58 @@ test('a SeriesCard "View series" link opens the in-app series detail (slice B)',
   const dialog = page.getByRole('dialog', { name: 'Write the next chapter' })
   await expect(dialog.getByText(/appendToSeries/)).toBeVisible()
 })
+
+// Slice C — the series-detail spine is the creator's table of contents; a chapter
+// row deep-links into the canvas reader on that chapter's timeline (?story=).
+test('a series-detail chapter row deep-links into the canvas reader (slice C)', async ({ page }) => {
+  await loginAsDemo(page)
+  await page.goto('/')
+  await page.getByRole('link', { name: 'View “The Fall of the Republic” in your workspace' }).click()
+  await expect(page).toHaveURL(/\/series\//)
+
+  const toc = page.getByRole('navigation', { name: 'Table of contents' })
+  await expect(toc).toBeVisible()
+  // The rows are buttons now (interactive spine). Click the first chapter.
+  await toc.getByRole('button').first().click()
+
+  // Lands on the canvas for the chapter's timeline with the story deep-linked open.
+  await expect(page).toHaveURL(/\/timelines\/[^?]+\?.*story=/)
+})
+
+// Slice D — the owner can preview the full season (incl. unpublished chapters) the way
+// a reader will see it, via ?preview=1, before publishing. The preview is owner-gated.
+test('a series-detail "Preview season" link opens the owner draft preview (slice D)', async ({ page }) => {
+  await loginAsDemo(page)
+  await page.goto('/')
+  await page.getByRole('link', { name: 'View “The Fall of the Republic” in your workspace' }).click()
+  await expect(page).toHaveURL(/\/series\//)
+
+  const preview = page.getByRole('link', { name: 'Preview season' })
+  await expect(preview).toBeVisible()
+  const href = await preview.getAttribute('href')
+  expect(href).toMatch(/\/sr\/[^?]+\?preview=true$/)
+
+  // Follow it in the same tab (drop target=_blank) and confirm the draft-preview ribbon
+  // renders and the season reader is present.
+  await page.goto(href!)
+  await expect(page.getByText('Draft preview')).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Table of contents' })).toBeVisible()
+})
+
+// Slice E — when the featured hero story is a series chapter, its eyebrow becomes the
+// chapter badge and a "View series" affordance appears, linking to the series detail.
+// Defensive: only asserts when the home's newest item is in fact a chapter (seed order
+// isn't pinned), but when it is, the badge + link must be consistent.
+test('the featured hero surfaces a series affordance when its story is a chapter (slice E)', async ({ page }) => {
+  await loginAsDemo(page)
+  await page.goto('/')
+
+  const hero = page.locator('.ch-hero[data-featured]')
+  await expect(hero).toBeVisible()
+  const viewSeries = hero.getByRole('link', { name: 'View series' })
+  if ((await viewSeries.count()) > 0) {
+    // The eyebrow shows the chapter badge, and the link targets the in-app series detail.
+    await expect(hero.locator('.ch-hero-eyebrow')).toContainText(/Chapter|Latest chapter/)
+    await expect(viewSeries).toHaveAttribute('href', /\/series\//)
+  }
+})

@@ -66,6 +66,9 @@ export function StoryReader({
   onResize,
   onCommitResize,
   autoStart,
+  chapterMeta,
+  nextChapter,
+  onNextChapter,
 }: {
   story: StoryDTO
   momentTitle: string
@@ -111,6 +114,14 @@ export function StoryReader({
   // Skip the cover and begin stepping on mount (home Play → ?autoplay). The intro
   // dialog on the home already served as the cover, so a second one is redundant.
   autoStart?: boolean
+  // When this story is a series chapter, its place in the series — renders the
+  // "Chapter N · {series}" eyebrow on the cover (slice E badge, consistent with the
+  // public reader). null for standalone stories.
+  chapterMeta?: { number: number | null; seriesTitle: string } | null
+  // The successor chapter, when one exists — the end panel offers "Next chapter →" to
+  // continue reading in place (slice C, the in-app mirror of the public season reader).
+  nextChapter?: { title: string } | null
+  onNextChapter?: () => void
 }) {
   const asideRef = useRef<HTMLElement>(null)
   const beats = story.beats
@@ -553,32 +564,51 @@ export function StoryReader({
           </footer>
         </>
       ) : ended ? (
-        /* End panel: wrap up the story and invite the reader to continue it by
-           copying a ready-made prompt to paste into their connected Claude. */
+        /* End panel. When a successor chapter exists (a series), lead with "Next
+           chapter →" — the in-app mirror of the public season's auto-continue. Else
+           invite the reader to grow the story by copying a ready-made prompt for their
+           connected Claude. */
         <div className="sv-end">
           <div className="sv-intro">
-            <span className="sv-eyebrow">The end</span>
+            <span className="sv-eyebrow">
+              {nextChapter
+                ? chapterMeta?.number != null
+                  ? `End of Chapter ${chapterMeta.number}`
+                  : 'End of chapter'
+                : 'The end'}
+            </span>
             <h2 className="sv-title">{story.title}</h2>
-            <p className="sv-end-note">
-              That’s the story so far. Want to know what happens next? Copy the prompt below into your connected Claude
-              and it will pick up the thread and add more beats — right here.
-            </p>
+            {nextChapter ? (
+              <p className="sv-end-note">Next: {nextChapter.title}</p>
+            ) : (
+              <p className="sv-end-note">
+                That’s the story so far. Want to know what happens next? Copy the prompt below into your connected Claude
+                and it will pick up the thread and add more beats — right here.
+              </p>
+            )}
           </div>
           <div className="sv-end-actions">
-            <CopyButton
-              text={buildContinueStoryPrompt({
-                storyId: story.id,
-                momentId,
-                timelineId,
-                title: story.title,
-                beats: story.beats,
-              })}
-              label="Copy prompt to continue"
-              copiedLabel="Copied — paste into Claude"
-              variant="default"
-              className="w-full"
-              onCopy={() => capture('story_prompt_copied', { timeline_id: timelineId, mode: 'continue' })}
-            />
+            {nextChapter && onNextChapter ? (
+              <button type="button" className="sv-next-chapter" onClick={onNextChapter}>
+                <ChevronRight aria-hidden />
+                Next chapter
+              </button>
+            ) : (
+              <CopyButton
+                text={buildContinueStoryPrompt({
+                  storyId: story.id,
+                  momentId,
+                  timelineId,
+                  title: story.title,
+                  beats: story.beats,
+                })}
+                label="Copy prompt to continue"
+                copiedLabel="Copied — paste into Claude"
+                variant="default"
+                className="w-full"
+                onCopy={() => capture('story_prompt_copied', { timeline_id: timelineId, mode: 'continue' })}
+              />
+            )}
             <button type="button" className="sv-replay" onClick={replay}>
               <RotateCcw aria-hidden />
               Read again
@@ -598,6 +628,12 @@ export function StoryReader({
             </figure>
           )}
           <div className="sv-intro">
+            {chapterMeta && (
+              <span className="sv-chapter-eyebrow">
+                {chapterMeta.number != null ? `Chapter ${chapterMeta.number} · ` : ''}
+                {chapterMeta.seriesTitle}
+              </span>
+            )}
             <h2 className="sv-title">{story.title}</h2>
             {story.hook && <p className="sv-hook">{story.hook}</p>}
           </div>

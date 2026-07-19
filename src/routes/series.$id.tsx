@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import { BookOpenText, ChevronRight, PenLine } from 'lucide-react'
+import { BookOpenText, ChevronRight, Eye, PenLine } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '@synek/ui'
 import { getSeriesDetail } from '~/lib/server/series'
@@ -57,6 +57,20 @@ function SeriesDetailPage() {
     () => (data ? resolveThemeVars(data.series.theme, resolvedTheme) : {}),
     [data, resolvedTheme],
   )
+
+  // Deep-link a chapter into the canvas reader (slice C): the series-detail spine is
+  // the creator's table of contents, so a tap opens that chapter on its timeline via
+  // the ?story bridge (lands on the cover). A chapter with no resolvable timeline
+  // (orphaned moment) can't be opened — say so rather than silently no-op.
+  const openChapter = (i: number) => {
+    const ch = data?.chapters[i]
+    if (!ch) return
+    if (!ch.timelineId) {
+      toast.error('This chapter isn’t on a timeline yet')
+      return
+    }
+    void router.navigate({ to: '/timelines/$id', params: { id: ch.timelineId }, search: { story: ch.storyId } })
+  }
 
   const nextChapterSpec = useMemo<PromptSpec | null>(() => {
     if (!data) return null
@@ -140,12 +154,20 @@ function SeriesDetailPage() {
           <div className="sd-actions">
             <Button type="button" onClick={() => setPromptOpen(true)} className="sd-write">
               <PenLine aria-hidden />
-              Write the next chapter
+              {chapters.length === 0 ? 'Write Chapter I' : 'Write the next chapter'}
             </Button>
             <span className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Brand</span>
               <BrandPicker value={brandId} onChange={(id) => void applyBrand(id)} />
             </span>
+            {/* Preview the full season (incl. unpublished chapters) the way a reader
+                will see it, before publishing (slice D). Owner-scoped ?preview loader. */}
+            {chapters.length > 0 && (
+              <a className="sd-preview-season" href={`/sr/${series.slug}?preview=true`} target="_blank" rel="noreferrer">
+                <Eye size={15} aria-hidden />
+                Preview season
+              </a>
+            )}
             {series.isPublic && (
               <a className="sd-open-season" href={`/sr/${series.slug}`} target="_blank" rel="noreferrer">
                 Open public season ↗
@@ -155,13 +177,34 @@ function SeriesDetailPage() {
         </section>
 
         {chapters.length > 0 ? (
-          <SeriesSpine chapters={spineChapters} updatedAt={data.updatedAt} numerals="arabic" />
+          <SeriesSpine
+            chapters={spineChapters}
+            onSelect={openChapter}
+            updatedAt={data.updatedAt}
+            numerals="arabic"
+          />
         ) : (
-          <p className="sd-empty">Your book is empty. Write Chapter I to set the world in motion.</p>
+          <SeriesEmptyState />
         )}
       </main>
 
       <PromptDialog open={promptOpen} onOpenChange={setPromptOpen} spec={nextChapterSpec} />
     </>
+  )
+}
+
+// First-chapter guidance (slice D) — shown when a series has no chapters yet. Purely
+// illustrative: the single write CTA lives in the frontier section above (relabelled
+// "Write Chapter I" when empty), so this doesn't duplicate the button.
+function SeriesEmptyState() {
+  return (
+    <div className="sd-empty-state">
+      <BookOpenText className="sd-empty-icon" aria-hidden />
+      <h2>Your book is empty</h2>
+      <p>
+        Write Chapter I to set the world in motion. Hand the prompt above to your connected Claude — it drafts the first
+        chapter onto your timeline, and each “next chapter” grows the story from here.
+      </p>
+    </div>
   )
 }

@@ -286,12 +286,27 @@ function FeaturedHero({ story }: { story: HomeStoryCard }) {
         </>
       )}
       <div className="ch-hero-body">
+        {/* When the featured story is a series chapter, the eyebrow becomes the
+            chapter badge (slice E) — "Chapter N · {series}" — surfacing the latest
+            series at the top of the home. */}
         <p className="ch-hero-eyebrow">
-          <span>Featured story</span>
-          <span className="ch-sep" aria-hidden="true">
-            ·
-          </span>
-          <span>{story.timelineTitle}</span>
+          {story.series ? (
+            <>
+              <span>{story.chapterNumber != null ? `Chapter ${story.chapterNumber}` : 'Latest chapter'}</span>
+              <span className="ch-sep" aria-hidden="true">
+                ·
+              </span>
+              <span>{story.series.title}</span>
+            </>
+          ) : (
+            <>
+              <span>Featured story</span>
+              <span className="ch-sep" aria-hidden="true">
+                ·
+              </span>
+              <span>{story.timelineTitle}</span>
+            </>
+          )}
         </p>
         <h1 className="ch-hero-title">{story.title}</h1>
         {story.hook && <p className="ch-hero-hook">{story.hook}</p>}
@@ -314,6 +329,12 @@ function FeaturedHero({ story }: { story: HomeStoryCard }) {
             <BookOpenText aria-hidden="true" />
             Read
           </button>
+          {story.series && (
+            <Link to="/series/$id" params={{ id: story.series.id }} className="ch-secondary">
+              <Layers aria-hidden="true" />
+              View series
+            </Link>
+          )}
         </div>
       </div>
     </section>
