@@ -20,7 +20,7 @@ import { getProjectMeta, makeRequireOwnedProject } from '~/lib/db/projects'
 import { getStoryById, getMomentTimelineId, patchStory } from '~/lib/db/stories'
 import { nodesByIds, nodeRowToGraphNode } from '~/lib/db/graph'
 import { requireUser } from '~/lib/auth/session'
-import { notifyNewChapter } from '~/lib/server/subscriptions'
+import { notifyNewChapter } from '~/lib/server/notify-chapter'
 import type {
   HomeSeriesCard,
   PublicSeriesChapter,

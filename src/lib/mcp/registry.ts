@@ -54,7 +54,7 @@ import { listBrands, getBrand, makeRequireOwnedBrand } from '~/lib/db/brands'
 import { deriveThemeFromBrand } from '~/lib/theme/deriveThemeFromBrand'
 import { registerArtifact, searchArtifacts, existingArtifactIds } from '~/lib/db/artifacts'
 import { emitTimelineEvent } from '~/lib/server/bus'
-import { notifyNewChapter } from '~/lib/server/subscriptions'
+import { notifyNewChapter } from '~/lib/server/notify-chapter'
 import {
   POV_TYPES,
   DEPTH_TIERS,

@@ -2,7 +2,6 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { BookOpenText } from 'lucide-react'
-import { unfollowByToken } from '~/lib/db/subscriptions'
 
 // PUBLIC, no-login unsubscribe (local-160). Each new-chapter email carries a per-
 // subscription token; hitting this link removes that follow. GET-driven (email links
@@ -12,6 +11,11 @@ import { unfollowByToken } from '~/lib/db/subscriptions'
 const unsubscribeByToken = createServerFn({ method: 'POST' })
   .inputValidator((token: string) => z.string().parse(token))
   .handler(async ({ data: token }): Promise<{ ok: true }> => {
+    // Lazy import: this is a page route, so a top-level `~/lib/db` import would drag
+    // the Node-only DB layer (better-sqlite3, node:url) into the client bundle. The
+    // handler body is server-only (stripped from the client), so importing here keeps
+    // the DB out of the browser graph.
+    const { unfollowByToken } = await import('~/lib/db/subscriptions')
     unfollowByToken(token)
     return { ok: true as const }
   })
