@@ -4312,15 +4312,14 @@ body {
 .sb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .sb-row { border-top: 1px solid var(--color-border-default); }
 .sb-row:last-child { border-bottom: 1px solid var(--color-border-default); }
-/* Draft rows read as not-yet-live WITHOUT dimming their text. A blanket row
-   opacity composited each already-muted label toward the near-white page bg,
-   dragging the hook / "New" / "Draft" pill under WCAG AA (and raising the
-   opacity can't fix it — the pill's mid-tone fg+bg converge on white together).
-   So de-emphasize only the decorative, aria-hidden numeral + dateline; the
-   visible title/hook/pill keep full contrast and the "Draft" pill carries the
-   status. */
-.sb-row.is-draft .sb-num,
-.sb-row.is-draft .sb-dateline { opacity: 0.5; }
+/* Draft rows read as not-yet-live via a faint wash, NOT a row opacity. A blanket
+   opacity composited every already-muted label (hook, "New", "Draft" pill, and the
+   visible-but-aria-hidden dateline — axe checks contrast on visible text regardless
+   of aria-hidden) toward the near-white page bg, dragging them under WCAG AA. And
+   raising the opacity can't fix it — the pill's mid-tone fg+bg converge on white
+   together. So de-emphasize with a background tint that leaves text at its full,
+   AA-passing color; the "Draft" pill carries the status. */
+.sb-row.is-draft { background: color-mix(in oklab, var(--color-fg-primary) 3%, transparent); }
 .sb-row-btn,
 .sb-row-static {
   display: grid;
