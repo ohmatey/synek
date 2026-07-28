@@ -4087,6 +4087,48 @@ body {
 }
 .ps-chapters-toggle:hover { background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent); }
 
+/* Follow + RSS cluster on the public season page (local-160). */
+.ps-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ps-follow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-fg-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.ps-follow-btn:hover { background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent); }
+.ps-follow-btn[data-following] {
+  border-color: color-mix(in oklab, var(--color-accent, #6d5efc) 60%, transparent);
+  background: color-mix(in oklab, var(--color-accent, #6d5efc) 14%, transparent);
+}
+.ps-follow-btn:disabled { opacity: 0.6; cursor: default; }
+.ps-follow-rss {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-fg-secondary, var(--color-fg-primary));
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.ps-follow-rss:hover { background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent); }
+
 .ps-spine {
   position: fixed;
   left: 0;
@@ -4270,7 +4312,15 @@ body {
 .sb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .sb-row { border-top: 1px solid var(--color-border-default); }
 .sb-row:last-child { border-bottom: 1px solid var(--color-border-default); }
-.sb-row.is-draft { opacity: 0.62; }
+/* Draft rows read as not-yet-live WITHOUT dimming their text. A blanket row
+   opacity composited each already-muted label toward the near-white page bg,
+   dragging the hook / "New" / "Draft" pill under WCAG AA (and raising the
+   opacity can't fix it — the pill's mid-tone fg+bg converge on white together).
+   So de-emphasize only the decorative, aria-hidden numeral + dateline; the
+   visible title/hook/pill keep full contrast and the "Draft" pill carries the
+   status. */
+.sb-row.is-draft .sb-num,
+.sb-row.is-draft .sb-dateline { opacity: 0.5; }
 .sb-row-btn,
 .sb-row-static {
   display: grid;

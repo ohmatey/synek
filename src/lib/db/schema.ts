@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, primaryKey } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index, uniqueIndex, primaryKey } from 'drizzle-orm/sqlite-core'
 
 // Better Auth core tables (user/session/account/verification) — kept in this
 // schema so they share the project's drizzle-kit migration pipeline.
@@ -551,6 +551,35 @@ export const storySeries = sqliteTable(
 )
 
 export type SeriesRow = typeof storySeries.$inferSelect
+
+// --- series_subscriptions: the audience-retention loop (local-160) ---------
+// A signed-in reader FOLLOWS a public series and is emailed on each new PUBLISHED
+// chapter. Owner-scoped only in the sense that the followed series is owner-owned;
+// the SUBSCRIBER is any signed-in user (never the owner — you don't follow your own
+// season, enforced in the query, not the schema). UNIQUE(seriesId, userId) makes
+// follow idempotent. Both FKs cascade so deleting a series or a user reaps their
+// rows. `unsubscribeToken` powers the no-login /unsubscribe?token link in each email.
+export const seriesSubscriptions = sqliteTable(
+  'series_subscriptions',
+  {
+    id: text('id').primaryKey().$defaultFn(newId),
+    seriesId: text('series_id')
+      .notNull()
+      .references(() => storySeries.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    // Opaque, per-subscription secret for the account-less unsubscribe link.
+    unsubscribeToken: text('unsubscribe_token').notNull().unique().$defaultFn(newId),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
+  },
+  (t) => [
+    uniqueIndex('series_subscriptions_series_user_uq').on(t.seriesId, t.userId),
+    index('series_subscriptions_series_idx').on(t.seriesId),
+  ],
+)
+
+export type SeriesSubscriptionRow = typeof seriesSubscriptions.$inferSelect
 
 export const storySegments = sqliteTable('story_segments', {
   id: text('id').primaryKey().$defaultFn(newId),

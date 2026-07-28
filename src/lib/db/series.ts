@@ -270,6 +270,28 @@ export function publicSeriesChapters(seriesId: string): ChapterRow[] {
   return getSeriesChapters(seriesId).filter((c) => c.status === 'published')
 }
 
+// The published chapters of a series as RSS feed items, NEWEST first (local-160).
+// Only `published` chapters ship (same gate as the public season page); each carries
+// its createdAt for the item pubDate. Pure data access — the route own-checks the
+// series is public before calling.
+export function seriesFeedItems(
+  seriesId: string,
+): { title: string; hook: string | null; slug: string; chapterNumber: number | null; createdAt: number }[] {
+  return db
+    .select({
+      title: stories.title,
+      hook: stories.hook,
+      slug: stories.slug,
+      chapterNumber: stories.chapterNumber,
+      createdAt: stories.createdAt,
+    })
+    .from(stories)
+    .where(and(eq(stories.seriesId, seriesId), eq(stories.status, 'published')))
+    .orderBy(desc(sql`coalesce(${stories.chapterNumber}, 0)`), desc(stories.createdAt))
+    .all()
+    .map((r) => ({ ...r, createdAt: r.createdAt?.getTime() ?? 0 }))
+}
+
 // The next chapter number for a series (max existing + 1, or 1 when empty) — used
 // by write_story's appendToSeries shorthand so the client never has to track order.
 export function nextChapterNumber(seriesId: string): number {

@@ -113,6 +113,8 @@ export type ClientEvent =
   // Serialized stories (ADR 0006). `series_shared` fires when an owner publishes a
   // series' public /sr/$slug season link.
   | 'series_shared'
+  // A public-page reader FOLLOWS a series for new-chapter emails (local-160).
+  | 'series_followed'
   | 'public_story_opened'
   // M.3 engagement depth (docs/product/prd/understand-app.md §M.3). Fires once per
   // live per-beat widget that actually renders on the public reader — the value

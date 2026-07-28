@@ -34,6 +34,7 @@
     "verify:multi-story": "DATABASE_URL=verify-multi-story.db tsx scripts/verify-multi-story.ts",
     "verify:series": "DATABASE_URL=verify-series.db tsx scripts/verify-series.ts",
     "verify:series-tools": "DATABASE_URL=verify-series-tools.db tsx scripts/verify-series-tools.ts",
+    "verify:subscriptions": "DATABASE_URL=verify-subscriptions.db tsx scripts/verify-subscriptions.ts",
     "verify:artifacts": "DATABASE_URL=verify-artifacts.db tsx scripts/verify-artifacts.ts",
     "verify:artifact-undo": "DATABASE_URL=verify-artifact-undo.db tsx scripts/verify-artifact-undo.ts",
     "verify:search": "DATABASE_URL=verify-search.db tsx scripts/verify-search.ts",

@@ -28,9 +28,10 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
   }
 }
 
-// A tiny shared shell so the two transactional emails look consistent without a
+// A tiny shared shell so the transactional emails look consistent without a
 // templating dep. Inline styles only (email clients ignore <style>/external CSS).
-function shell(heading: string, body: string, cta: { url: string; label: string }): string {
+// `footer` is an optional extra note under the fallback link (e.g. an unsubscribe row).
+function shell(heading: string, body: string, cta: { url: string; label: string }, footer?: string): string {
   return `<!doctype html><html><body style="margin:0;background:#0b0b0f;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#e7e7ea">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
     <table role="presentation" width="100%" style="max-width:480px;background:#15151c;border:1px solid #26262f;border-radius:14px;padding:32px">
@@ -39,6 +40,7 @@ function shell(heading: string, body: string, cta: { url: string; label: string 
       <tr><td style="font-size:14px;line-height:1.6;color:#b6b6c0;padding-bottom:24px">${body}</td></tr>
       <tr><td><a href="${cta.url}" style="display:inline-block;background:#6d5efc;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 20px;border-radius:9px">${cta.label}</a></td></tr>
       <tr><td style="font-size:12px;color:#6b6b78;padding-top:24px;word-break:break-all">If the button doesn't work, paste this link:<br>${cta.url}</td></tr>
+      ${footer ? `<tr><td style="font-size:12px;color:#6b6b78;padding-top:16px;border-top:1px solid #26262f;margin-top:16px">${footer}</td></tr>` : ''}
     </table>
   </td></tr></table>
 </body></html>`
@@ -62,6 +64,30 @@ export function resetPasswordEmailTemplate(url: string): { subject: string; html
       'Reset your password',
       "We received a request to reset your Synek password. This link expires in an hour. If you didn't ask for this, you can ignore this email.",
       { url, label: 'Set a new password' },
+    ),
+  }
+}
+
+// Sent to each follower when a new chapter of a series they follow goes live
+// (local-160). Carries the season link as the CTA and a no-login unsubscribe link
+// in the footer. Escaping is deliberately minimal — titles come from the series
+// owner, and Synek's own dogfood is the only sender; sanitize at the source if that
+// changes.
+export function newChapterEmailTemplate(opts: {
+  seriesTitle: string
+  chapterTitle: string
+  chapterNumber: number | null
+  seasonUrl: string
+  unsubscribeUrl: string
+}): { subject: string; html: string } {
+  const label = opts.chapterNumber != null ? `Chapter ${opts.chapterNumber}` : 'A new chapter'
+  return {
+    subject: `New chapter in “${opts.seriesTitle}”: ${opts.chapterTitle}`,
+    html: shell(
+      `${label} is live`,
+      `A new chapter of <strong>${opts.seriesTitle}</strong> just published: “${opts.chapterTitle}”. Pick up where the season left off.`,
+      { url: opts.seasonUrl, label: 'Read the chapter' },
+      `You're following <strong>${opts.seriesTitle}</strong>. <a href="${opts.unsubscribeUrl}" style="color:#8b8b98">Unsubscribe</a>.`,
     ),
   }
 }

@@ -225,6 +225,13 @@
       "when": 1783782205388,
       "tag": "0031_strange_alex_power",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1784466152179,
+      "tag": "0032_unknown_payback",
+      "breakpoints": true
     }
   ]
 }

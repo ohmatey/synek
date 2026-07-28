@@ -54,6 +54,7 @@ import { listBrands, getBrand, makeRequireOwnedBrand } from '~/lib/db/brands'
 import { deriveThemeFromBrand } from '~/lib/theme/deriveThemeFromBrand'
 import { registerArtifact, searchArtifacts, existingArtifactIds } from '~/lib/db/artifacts'
 import { emitTimelineEvent } from '~/lib/server/bus'
+import { notifyNewChapter } from '~/lib/server/subscriptions'
 import {
   POV_TYPES,
   DEPTH_TIERS,
@@ -825,8 +826,13 @@ export const toolRegistry: ToolDef[] = [
       // Nudge live viewers to refetch so the depth badge appears in near-real-time
       // (same SSE channel as patches; seq = current max so it never rewinds Last-Event-ID).
       emitTimelineEvent({ timelineId, kind: 'story', seq: maxAppliedSeq(timelineId) })
+      // A NEW chapter born `published` in a series → email its followers (local-160).
+      // Fire-and-forget: never blocks or fails the write; the helper re-checks the
+      // season is public. A chapter born `draft` (reviewMode) notifies later, on publish.
+      const { created, status: bornStatus, ...storyResult } = result
+      if (created && bornStatus === 'published' && seriesTarget) void notifyNewChapter(storyResult.storyId)
       return {
-        ...result,
+        ...storyResult,
         ...(seriesTarget ? { seriesId: seriesTarget, chapterNumber: chapterNum ?? null } : {}),
         warnings,
       }
@@ -932,7 +938,10 @@ export const toolRegistry: ToolDef[] = [
       const result = patchStory(storyId, prepared, ownerId)
       if (!result) throw new Error(`story "${storyId}" not found`)
       emitTimelineEvent({ timelineId, kind: 'story', seq: maxAppliedSeq(timelineId) })
-      return { ...result, warnings }
+      // A draft chapter approved to `published` this batch → email followers (local-160).
+      const { publishedChapter, ...storyResult } = result
+      if (publishedChapter) void notifyNewChapter(storyResult.storyId)
+      return { ...storyResult, warnings }
     },
   },
 

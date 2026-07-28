@@ -7,6 +7,7 @@ import { getPublicSeries, previewSeries } from '~/lib/server/series'
 import { PublicStoryReader } from '~/components/public/PublicStoryReader'
 import { SeriesJacket } from '~/components/public/SeriesJacket'
 import { SeriesSpine, type SpineChapter } from '~/components/public/SeriesSpine'
+import { FollowSeriesButton } from '~/components/public/FollowSeriesButton'
 import { resolveThemeVars } from '~/lib/theme/resolveTimelineTheme'
 import type { PublicStoryDTO } from '~/lib/domain/types'
 
@@ -52,6 +53,16 @@ export const Route = createFileRoute('/sr/$slug')({
         { name: 'twitter:title', content: series.title },
         { name: 'twitter:description', content: desc },
         ...(img ? [{ name: 'twitter:image', content: img }] : []),
+      ],
+      // Advertise the account-less RSS feed so readers (and feed readers) can discover
+      // it from the season page (local-160).
+      links: [
+        {
+          rel: 'alternate',
+          type: 'application/rss+xml',
+          title: `${series.title} — new chapters`,
+          href: `/api/sr/${series.slug}/feed.xml`,
+        },
       ],
     }
   },
@@ -186,17 +197,22 @@ function PublicSeriesPage() {
           onBegin={startCurrent}
           beginLabel={safeIndex > 0 ? 'Continue reading' : 'Begin reading'}
           actions={
-            <button
-              ref={sheetToggleRef}
-              type="button"
-              className="ps-chapters-toggle"
-              aria-expanded={sheetOpen}
-              aria-controls="series-chapter-sheet"
-              onClick={() => setSheetOpen((v) => !v)}
-            >
-              <List size={16} aria-hidden />
-              Chapters ({chapters.length})
-            </button>
+            <>
+              <button
+                ref={sheetToggleRef}
+                type="button"
+                className="ps-chapters-toggle"
+                aria-expanded={sheetOpen}
+                aria-controls="series-chapter-sheet"
+                onClick={() => setSheetOpen((v) => !v)}
+              >
+                <List size={16} aria-hidden />
+                Chapters ({chapters.length})
+              </button>
+              {/* Follow (signed-in email) + RSS (account-less) — the retention loop
+                  (local-160). Not shown in owner draft preview (?preview). */}
+              {!preview && <FollowSeriesButton seriesId={series.id} slug={series.slug} />}
+            </>
           }
         />
 

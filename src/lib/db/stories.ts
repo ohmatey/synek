@@ -142,8 +142,13 @@ export function writeStory(
   meta: NewStory,
   segments: NewStorySegment[],
   opts?: { storyId?: string },
-): { storyId: string; segmentCount: number } {
+): { storyId: string; segmentCount: number; created: boolean; status: StoryStatus } {
   let storyId = ''
+  // Whether this call CREATED a new chapter (vs updated one in place) and its final
+  // status — the on-publish notification (local-160) fires only for a NEW chapter
+  // born `published`; a re-write of an existing chapter is handled by patch_story.
+  let created = false
+  let status: StoryStatus = 'published'
   db.transaction((tx) => {
     const existing = opts?.storyId
       ? tx.select({ id: stories.id }).from(stories).where(and(eq(stories.id, opts.storyId), eq(stories.momentId, momentId))).get()
@@ -171,6 +176,7 @@ export function writeStory(
       if (meta.status !== undefined) set.status = meta.status
       tx.update(stories).set(set).where(eq(stories.id, storyId)).run()
       tx.delete(storySegments).where(eq(storySegments.storyId, storyId)).run()
+      created = false
     } else {
       // Resolve the new chapter's birth status: a series with reviewMode ON forces
       // 'draft' server-side (local-175) so an automated append into a PUBLIC series
@@ -181,6 +187,8 @@ export function writeStory(
         ? (tx.select({ r: storySeries.reviewMode }).from(storySeries).where(eq(storySeries.id, meta.seriesId)).get()?.r ?? false)
         : false
       const createStatus: StoryStatus = reviewMode ? 'draft' : (meta.status ?? 'published')
+      created = true
+      status = createStatus
       // Create a new story on the moment (leaves any existing stories untouched).
       const inserted = tx
         .insert(stories)
@@ -242,7 +250,7 @@ export function writeStory(
         .run()
     }
   })
-  return { storyId, segmentCount: segments.length }
+  return { storyId, segmentCount: segments.length, created, status }
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -363,7 +371,7 @@ export function patchStory(
   ops: StoryOp[],
   ownerId: string,
   summary?: string,
-): { storyId: string; segmentCount: number; applied: number } | null {
+): { storyId: string; segmentCount: number; applied: number; publishedChapter: boolean } | null {
   const owner = db
     .select({ ownerId: timelines.ownerId })
     .from(stories)
@@ -372,6 +380,11 @@ export function patchStory(
     .where(eq(stories.id, storyId))
     .get()
   if (!owner || owner.ownerId !== ownerId) return null
+
+  // Prior status + series membership, read before the batch — used to detect a
+  // draft→published TRANSITION so the on-publish notification (local-160) fires once,
+  // only when a chapter of a series actually goes live (not on every re-publish).
+  const prior = db.select({ status: stories.status, seriesId: stories.seriesId }).from(stories).where(eq(stories.id, storyId)).get()
 
   // Capture the story before the batch — the undo target (ADR 0006 D7).
   const before = captureStorySnapshot(storyId)
@@ -489,7 +502,13 @@ export function patchStory(
   }
 
   const n = db.select({ n: sql<number>`count(*)` }).from(storySegments).where(eq(storySegments.storyId, storyId)).get()?.n ?? 0
-  return { storyId, segmentCount: Number(n), applied }
+  // A chapter published for the first time this batch (draft/archived → published,
+  // in a series) — the caller fires notifyNewChapter on this (local-160).
+  const publishedChapter =
+    !!prior?.seriesId &&
+    prior.status !== 'published' &&
+    ops.some((o) => o.op === 'update_meta' && o.meta.status === 'published')
+  return { storyId, segmentCount: Number(n), applied, publishedChapter }
 }
 
 // --- patch_story undo/redo (ADR 0006 D7) — the per-story stack -------------

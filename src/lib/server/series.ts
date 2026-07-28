@@ -20,6 +20,7 @@ import { getProjectMeta, makeRequireOwnedProject } from '~/lib/db/projects'
 import { getStoryById, getMomentTimelineId, patchStory } from '~/lib/db/stories'
 import { nodesByIds, nodeRowToGraphNode } from '~/lib/db/graph'
 import { requireUser } from '~/lib/auth/session'
+import { notifyNewChapter } from '~/lib/server/subscriptions'
 import type {
   HomeSeriesCard,
   PublicSeriesChapter,
@@ -177,7 +178,11 @@ export const setChapterStatus = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<{ ok: true } | { error: 'forbidden' }> => {
     const user = await requireUser()
     const res = patchStory(data.storyId, [{ op: 'update_meta', meta: { status: data.status } }], user.id)
-    return res ? { ok: true as const } : { error: 'forbidden' }
+    if (!res) return { error: 'forbidden' }
+    // Approving a reviewed draft in-app → email the season's followers (local-160),
+    // fire-and-forget. publishedChapter is true only on a genuine draft→published flip.
+    if (res.publishedChapter) void notifyNewChapter(data.storyId)
+    return { ok: true as const }
   })
 
 // Compose the reader-ready season DTO from a series row + the chapter rows it should
