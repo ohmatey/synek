@@ -18,7 +18,9 @@ test('place a shared entity on another timeline → it reports "also appears on"
   await loginAsDemo(page)
   await page.goto('/timelines/stoicism')
 
-  await page.getByTestId('add-entity').click()
+  // "Place existing entity" folded into the unified Add menu (b65551d).
+  await page.getByTestId('add-menu').click()
+  await page.getByRole('menuitem', { name: /Place existing entity/ }).click()
   const search = page.getByLabel('Search your entities')
   await expect(search).toBeVisible()
   await search.fill('Charles Darwin')

@@ -25,7 +25,9 @@ async function loginAsOwner(page: Page) {
 // Timeline settings is now a tabbed dialog (Display / Playback / Theme). The theme
 // controls live on the owner-only Theme tab — open the dialog and switch to it.
 async function openThemeTab(page: Page) {
-  await page.getByTestId('canvas-settings').click()
+  // Display settings folded behind the ⋯ More overflow (b65551d).
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('menuitem', { name: 'Display settings' }).click()
   await page.getByRole('tab', { name: 'Theme' }).click()
 }
 
@@ -86,7 +88,8 @@ test('owner themes a timeline: per-scheme colors, texture, anon sees it, clear r
   await anonPage.goto(`http://localhost:${Number(process.env.E2E_PORT) || 3001}/timelines/figures`)
   await expect(anonPage.getByText('Albert Einstein')).toBeVisible()
   await expect(anonPage.locator('.canvas-root')).toHaveAttribute('data-canvas-texture', 'grid')
-  await anonPage.getByTestId('canvas-settings').click()
+  await anonPage.getByRole('button', { name: 'More' }).click()
+  await anonPage.getByRole('menuitem', { name: 'Display settings' }).click()
   await expect(anonPage.getByText('Show on timeline')).toBeVisible()
   await expect(anonPage.getByTestId('theme-edit')).toHaveCount(0)
   await anon.close()

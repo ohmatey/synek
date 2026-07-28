@@ -63,7 +63,8 @@ test('time-scale compress pulls nodes closer horizontally', async ({ page }) => 
 
   const before = await gap()
   // The time-scale controls now live in the display-settings popover — open it first.
-  await page.getByTestId('canvas-settings').click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('menuitem', { name: 'Display settings' }).click()
   const compress = page.getByTestId('time-scale-compress')
   await compress.click()
   await compress.click()
@@ -90,7 +91,8 @@ test('sparse-time compression is on by default; opting out expands and persists'
   await page.waitForTimeout(700) // initial fitView settles
 
   // Compression is the default — the toggle opens pressed.
-  await page.getByTestId('canvas-settings').click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('menuitem', { name: 'Display settings' }).click()
   const toggle = page.getByTestId('time-scale-collapse-gaps')
   await expect(toggle).toHaveAttribute('aria-pressed', 'true')
 
@@ -106,7 +108,8 @@ test('sparse-time compression is on by default; opting out expands and persists'
   await page.reload()
   await expect(page.getByText('Julius Caesar')).toBeVisible()
   // The popover closes on reload — reopen it to read the persisted toggle state.
-  await page.getByTestId('canvas-settings').click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('menuitem', { name: 'Display settings' }).click()
   await expect(page.getByTestId('time-scale-collapse-gaps')).toHaveAttribute('aria-pressed', 'false')
 })
 
@@ -147,10 +150,11 @@ test('timeline view shows the bottom scroller and left zoom controls', async ({ 
 })
 
 // Owner chrome regression: the account menu floats at the FAR RIGHT of the top
-// bar, the share control sits just left of it, and the old "Fit view" button is
-// gone. The MCP status dot and the undo/redo buttons were removed from the toolbar.
+// bar, the ⋯ More overflow (holding Share & export + Display settings) sits just
+// left of it, and the old "Fit view" button is gone. The MCP status dot and the
+// undo/redo buttons were removed from the toolbar.
 // Requires a session (these controls are owner-gated), so log in as the demo owner first.
-test('owner canvas chrome: account far right, share to its left, no mcp dot, no undo/redo, no fit button', async ({ page }) => {
+test('owner canvas chrome: account far right, ⋯ More to its left, no mcp dot, no undo/redo, no fit button', async ({ page }) => {
   await page.goto('/login')
   await page.getByLabel('Email').fill('demo@synek.app')
   await page.getByLabel('Password').fill('demo-password-123')
@@ -160,8 +164,10 @@ test('owner canvas chrome: account far right, share to its left, no mcp dot, no 
 
   await page.goto('/timelines/figures')
 
-  // Wait for the owner toolbar to be present (Share is owner-gated).
-  await expect(page.getByRole('button', { name: 'Share' })).toBeVisible()
+  // Wait for the toolbar: the ⋯ More overflow is present once the graph loads.
+  await expect(page.getByRole('button', { name: 'More' })).toBeVisible()
+  // Share folded into ⋯ More (b65551d) — no top-level Share button on the bar.
+  await expect(page.getByRole('button', { name: 'Share', exact: true })).toHaveCount(0)
 
   // The MCP status dot was removed from the toolbar.
   await expect(page.getByTestId('mcp-status')).toHaveCount(0)
@@ -173,14 +179,17 @@ test('owner canvas chrome: account far right, share to its left, no mcp dot, no 
   // controls — bottom-left — keep their fit-view button; scope to the top bar).
   await expect(page.locator('.top-bar').getByRole('button', { name: 'Fit view' })).toHaveCount(0)
 
-  // Share (owner) + account menu live on the right, with account rightmost.
-  const share = page.getByRole('button', { name: 'Share' })
+  // The ⋯ More overflow + account menu live on the right, account rightmost.
+  const more = page.getByRole('button', { name: 'More' })
   const account = page.getByRole('button', { name: 'Account menu' })
-  await expect(share).toBeVisible()
+  await expect(more).toBeVisible()
   await expect(account).toBeVisible()
-  const shareBox = await share.boundingBox()
+  const moreBox = await more.boundingBox()
   const accountBox = await account.boundingBox()
-  expect(accountBox!.x).toBeGreaterThan(shareBox!.x)
+  expect(accountBox!.x).toBeGreaterThan(moreBox!.x)
+  // Share & export now lives inside the ⋯ More menu.
+  await more.click()
+  await expect(page.getByRole('menuitem', { name: /Share/ })).toBeVisible()
 })
 
 // The kind filters ("Show on timeline") are merged into the view-settings menu,
@@ -190,7 +199,8 @@ test('view settings menu merges kind filters and shows a live zoom level', async
   await page.goto('/timelines/figures')
   await expect(page.getByText('Albert Einstein')).toBeVisible()
 
-  await page.getByTestId('canvas-settings').click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('menuitem', { name: 'Display settings' }).click()
 
   // Kind filters were merged in under "Show on timeline" — now real checkboxes.
   await expect(page.getByText('Show on timeline')).toBeVisible()
