@@ -1,7 +1,7 @@
 {
   "version": 2,
   "project": "Synek",
-  "updatedAt": "2026-07-19T00:00:00.000Z",
+  "updatedAt": "2026-07-28T00:00:00.000Z",
   "syncedAt": null,
   "issues": [
     {
@@ -1366,10 +1366,10 @@
       },
       "data": {
         "title": "Subscribe to series updates (follow + email + RSS)",
-        "description": "Audience-retention loop for serialized stories (feeds bet B6). Signed-in users FOLLOW a series and are emailed on each new chapter; a public per-series RSS feed gives an account-less channel. Email fires on chapter publish (no cron); RSS is pull-based.\n\n### Scope (v1)\n- migration 0030: series_subscriptions (seriesId, userId, unsubscribeToken, UNIQUE(seriesId,userId), ON DELETE cascade hand-edited)\n- db/subscriptions.ts + server/subscriptions.ts (follow/unfollow/unfollowByToken/listFollowers excl. owner/isFollowing)\n- notify seam in write_story appendToSeries: fire-and-forget sendEmail per follower (best-effort, no queue/retry; no-ops without RESEND_API_KEY)\n- public RSS feed route /api/sr/$slug/feed.xml gated on series.isPublic + <link rel=alternate> from sr.$slug.tsx\n- Follow button on /sr/$slug (signed-in toggle; signed-out -> RSS+sign-in nudge) + in-app series view\n- public /unsubscribe?token route (no login)\n- newChapterEmailTemplate in auth/email.ts\n- verify:subscriptions + typecheck\n\n### Out of v1\ndigest batching, anonymous email capture, per-channel prefs, web-push.\n\nDecisions (founder, 2026-06-22): signed-in-only subscribers; both email + RSS; on-publish trigger.",
+        "description": "Audience-retention loop for serialized stories (feeds bet B6). Signed-in users FOLLOW a series and are emailed on each new chapter; a public per-series RSS feed gives an account-less channel. Email fires on chapter publish (no cron); RSS is pull-based.\n\n### Scope (v1)\n- migration 0030: series_subscriptions (seriesId, userId, unsubscribeToken, UNIQUE(seriesId,userId), ON DELETE cascade hand-edited)\n- db/subscriptions.ts + server/subscriptions.ts (follow/unfollow/unfollowByToken/listFollowers excl. owner/isFollowing)\n- notify seam in write_story appendToSeries: fire-and-forget sendEmail per follower (best-effort, no queue/retry; no-ops without RESEND_API_KEY)\n- public RSS feed route /api/sr/$slug/feed.xml gated on series.isPublic + <link rel=alternate> from sr.$slug.tsx\n- Follow button on /sr/$slug (signed-in toggle; signed-out -> RSS+sign-in nudge) + in-app series view\n- public /unsubscribe?token route (no login)\n- newChapterEmailTemplate in auth/email.ts\n- verify:subscriptions + typecheck\n\n### Out of v1\ndigest batching, anonymous email capture, per-channel prefs, web-push.\n\nDecisions (founder, 2026-06-22): signed-in-only subscribers; both email + RSS; on-publish trigger.\n\n### Closed 2026-07-28\nShipped on branch feat/series-subscriptions (commit cce22a7). migration 0032 series_subscriptions; db/server subscriptions layers; follow+email+RSS; public /unsubscribe. Publish-notify seam corrected for reviewMode — fires on the draft->published TRANSITION (writeStory.created/status + patchStory.publishedChapter), not on write_story, so a reviewMode draft never emails. Follow button on public /sr/$slug only (owner /series/$id omits it). verify:subscriptions + typecheck green. Live browser verify still owed (preview-hydration limit).",
         "horizon": "now",
         "type": "feature",
-        "status": "open",
+        "status": "completed",
         "dependencies": [
           "P3 serialized stories (story_series, write_story appendToSeries) — commit 262ac0a"
         ]
