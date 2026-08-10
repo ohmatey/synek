@@ -128,3 +128,6 @@ Curious about the internals — the architecture, the MCP server, the data model
 ## License
 
 [MIT](./LICENSE) © 2026 Aaron McPherson
+
+<!-- loha-m3-verify: 2026-07-29T04:14:36Z -->
+<!-- loha-m3-verify-2: 2026-07-29T04:21:33Z -->

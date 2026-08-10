@@ -28,6 +28,8 @@ Call **`get_series`** for the series id. It returns the chapters **in order** (t
 
 Then call **`get_layout_report`** for the series' timeline (the graph-side watermark): the compact node index, lane health, era/story coverage, and the source registry. Between the two you know **what's already been narrated** (series) and **what the world already contains** (graph). The next chapter must add to one or both, not repeat them.
 
+If the timeline carries a **keeper log** node (`lane: "Keeper log"` — a scheduled follow lives here), read it too and let it inform the chapter: it names when the loop last ran and what's on the **WATCHING** list, which is often exactly the thread the next chapter should pick up. And **exclude that lane** when you read the graph's latest date — it's bookkeeping, not a beat (see `building-timelines`).
+
 ## 2. Decide what the next chapter is
 
 A good next chapter does one clear thing the series hasn't: the next era, the next campaign, the consequence of the last chapter, a parallel thread that's now due. Anchor it on a **moment** (a node):
@@ -46,6 +48,8 @@ State the chapter's spine in one sentence before writing it (the through-line, t
 3. `apply_patch` **one** batch of the new nodes + edges, each **cited**, dated `summary` (e.g. `"Chapter VII setup — +4 events"`). `register_artifact` for substantive sources (`search_artifacts` first to avoid dupes).
 
 This step rides the normal Patch invariant: one batch = one undoable Patch. If the user wants the chapter to fit strictly within the current timeline, **skip this entire step.**
+
+If a keeper log exists **and** you grew the world, put its `update_node` in this same batch — one run line, plus any WATCHING item you promoted or aged out. If you *didn't* grow the world, **don't open a patch just to log a hand-run chapter**; the chapter itself is the trace. The log exists for scheduled runs that might otherwise leave none.
 
 ## 4. Write the chapter
 
@@ -70,6 +74,7 @@ If the user wants the season shareable, `set_series_public` → the page is live
 Tightly:
 - **Chapter N — "<title>":** the spine in one line, the moment it anchors on, beat count.
 - **Grew the world:** the nodes/edges added (with dates), or *"narrated over the existing timeline — no new nodes"* if you didn't.
+- **Keeper log:** the run line you wrote and the watching count — **only** when this series has one.
 - **Unverified:** anything you couldn't confirm a date/source for — report it as *unverified*, **never invent** a date or citation. A fabricated chapter is worse than a thinner one.
 - The season link: `<origin>/sr/<slug>` (origin is `http://localhost:3001` locally, or the hosted base URL — `SYNEK_MCP_URL` minus `/api/mcp` — when the plugin points at a deployed Synek).
 
@@ -77,4 +82,4 @@ Tightly:
 
 ## Quality bar
 
-A next-chapter run is good when: it **advanced** the series (a clearly new chapter past the frontier, never a repeat of an earlier one), every factual beat is **cited**, the chapter **anchors on a real moment** and carries the **series voice**, and — if the world grew — the new nodes are **dated, cited, deduped, and in the right lanes** as one Patch. Writing a chapter that retells what Chapter N-1 already covered, or inventing events to pad it, is a failure even if every tool call succeeded. If there's genuinely nothing new to tell yet, **say so** rather than manufacture a chapter.
+A next-chapter run is good when: it **advanced** the series (a clearly new chapter past the frontier, never a repeat of an earlier one), every factual beat is **cited**, the chapter **anchors on a real moment** and carries the **series voice**, — if the world grew — the new nodes are **dated, cited, deduped, and in the right lanes** as one Patch, and — if a keeper log is present — it left the log **consistent with what actually happened**. Writing a chapter that retells what Chapter N-1 already covered, or inventing events to pad it, is a failure even if every tool call succeeded. If there's genuinely nothing new to tell yet, **say so** rather than manufacture a chapter.

@@ -127,6 +127,7 @@ Two fields turn a valid graph into a canvas worth looking at:
 - **Edges are deliberate, sparse, and typed.** Connect things that genuinely relate, and choose the `kind` honestly from the closed set. A few meaningful (especially cross-lane) edges read clearly; a fully-connected hairball reads as noise. Do not add a `succeeded` edge between every consecutive node in a lane — the lane order already shows succession. And connected nodes should sit near each other — see "Keep narrative threads clumped" above.
 - **Dates carry the truth.** Use the real (even fuzzy) historical date and the honest `precision`. BCE works (`"49 BCE"`). Don't fabricate day-precision when you only know the year.
 - **Cite freely.** The user values primary-source grounding — it's the product's whole point. Attach `citations` (`title`, optional `url`, optional `quote`) wherever you can, especially primary sources. Better a known book title with no URL than nothing.
+- **On a *live* topic, that last leniency flips.** For a keeper routine or a follow — anything where the world keeps moving — every citation needs a **resolvable `url`**, or the source registered via `register_artifact` with its `transcript` so the evidence survives independently. A URL-less citation to a web source cannot be re-verified next month, and a keeper's entire value is that the reader can check it. Title-only is for the printed page, not a changelog.
 
 ## Stories — narrate a moment with `write_story`
 
@@ -158,4 +159,40 @@ Some timelines are *finished* (the history of Stoicism). Others are **alive** �
 
 There's no agent inside Synek, so "living" isn't an app feature — it's a **keeper routine** the user runs from their MCP client: periodically look for what's happened since last time and add *only the new developments* as one Patch. When you've just built or are editing a clearly **ongoing** topic (competitors, model/product releases, funding/acquisitions, an active field), proactively offer it: *"This one will keep moving — want me to set up a keeper routine so it stays current?"* and point to **`/synek:watch <timeline>`** (the `watch` skill), which runs a keeper pass now and can make it recurring.
 
-The one thing that makes a keeper correct: **read before you write, then add only what's new.** Call `get_layout_report` (compact node index + latest dates + source registry) or `get_timeline` first, search only for developments *after* the latest node, and drop anything already present — match the real-world event, not the exact title wording. Each run is one dated `apply_patch` (`summary: "Keeper run <date> — +N …"`), every addition cited; "nothing new since <date>" is a valid run. Never invent a date or citation to look productive. Full procedure lives in the `watch` skill.
+The one thing that makes a keeper correct: **read before you write, then add only what's new.** Call `get_layout_report` (compact node index + latest dates + source registry) or `get_timeline` first, search only for developments *after* the latest node *(ignoring any `Keeper log` lane — see below)*, and drop anything already present — match the real-world event, not the exact title wording. Each run is one dated `apply_patch` (`summary: "Keeper run <date> — +N …"`), every addition cited; "nothing new since <date>" is a valid run — and it still writes its one log op, so a null run leaves a trace instead of looking like a scheduler that never fired. Never invent a date or citation to look productive. Full procedure lives in the `watch` skill.
+
+### The keeper log node — a routine's per-run memory
+
+A *scheduled* keeper needs to know things the graph doesn't say: when it last ran, that a run happened at all when it found nothing, and which borderline items it already weighed and deferred. There is no server-side run log, so a routine keeps one **bookkeeping node** on the timeline and rewrites its `summary` every run:
+
+- `type: "concept"`, `title: "Keeper log — <ROUTINE NAME>"`, `lane: "Keeper log"`.
+- `start` = the date the routine was created. **It never moves.** Bumping it to "today" would make it the latest node on the timeline and poison every watermark — the loop would search for developments after today, find nothing, forever.
+- No `citations`, no `images`, no `lat`/`lng`, no `geoScope`.
+- Created **only when a routine is created** (`/synek:follow` step 2, `/synek:watch` Part 2) — an on-demand pass updates a log that already exists but never litters a timeline with one. One log node per routine; two routines sharing a timeline get two, distinguished by title, each id baked into its own recipe.
+
+**It is bookkeeping, not a beat.** Four exemptions, which every keeper and writer must honour:
+
+1. **Watermarks** — exclude the `Keeper log` lane when reading "the latest node date" from `get_layout_report` or `query_timeline`.
+2. **Citations** — it cites nothing. It is not a claim about the world, so the cite-every-node rule does not apply, and inventing a citation for it is a fabrication.
+3. **Places** — leave it unpinned *and* without a `geoScope`. A coordinate-backfill pass should skip it rather than narrate "Keeper log" as a globe caption.
+4. **Stories** — never a chapter's `momentId`, `focusNodeId`, or `relatedNodeIds`; that would drag it into the series frontier.
+
+Its one-node lane will show up in `get_layout_report`'s lane health as a **fragment**. That is expected — do **not** "fix" it by merging the lane into a topic track; the watermark exclusion is keyed on the lane name.
+
+The summary is a small fixed-shape record. Keep it bounded: 8 run lines, 7 watch items, oldest dropped.
+
+```
+KEEPER LOG — <ROUTINE NAME>. Bookkeeping node, not a topic beat.
+LAST RUN: 2026-08-10 · CADENCE: weekly · COVERED THROUGH: 2026-08-08
+RUNS (newest first, keep 8):
+- 2026-08-10 +2 nodes, chapter VI (gap 17d — 2 scheduled runs missed)
+- 2026-07-24 none (log only)
+- 2026-07-17 +1 node, chapter V
+WATCHING (keep 7, newest first):
+- Mistral Series C rumour — first seen 2026-07-20, rechecked 3x,
+  promote if a company post or filing confirms the round
+- EU AI Act phase-2 timing — first seen 2026-08-10, rechecked 0x,
+  promote if a dated implementing act lands
+```
+
+Read it with `get_node <id>` (one call, returns the summary in full) or `query_timeline { lane: "Keeper log", full: true }`. Write it as an `update_node` op **inside the same `apply_patch` as the run's content** — one run stays one undoable Patch, so `⌘Z` reverts the content and the log's claim about it together, and they can never disagree.
