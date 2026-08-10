@@ -1,6 +1,12 @@
 import type { Graph } from '~/lib/db/graph'
 import type { NodeRow } from '~/lib/db/schema'
-import { BASE_PX_PER_DAY, MAX_PX_PER_DAY, clampPxPerDay, type TimelineViewSettings } from '~/lib/domain/types'
+import {
+  BASE_PX_PER_DAY,
+  DEFAULT_COLLAPSE_GAPS,
+  MAX_PX_PER_DAY,
+  clampPxPerDay,
+  type TimelineViewSettings,
+} from '~/lib/domain/types'
 import { formatInstant } from '~/lib/domain/dates'
 import { findDeadZones } from '~/lib/domain/dead-zones'
 import { safeFetch, SsrfError } from '~/lib/net/ssrf'
@@ -244,10 +250,23 @@ function laneDensityWarnings(nodes: NodeRow[], pxPerDay: number): string[] {
 
 // --- axis outliers (whole graph) -------------------------------------------
 
-// Events + periods define the timeline's "active span". An entity anchored far
-// outside it (an org founded decades earlier, a person born a century before)
-// stretches the axis into dead space — exactly what gap collapsing is for.
-function outlierWarnings(nodes: NodeRow[]): string[] {
+// Events + periods define the timeline's "active span". A node whose whole time
+// interval sits far outside it (a defunct org, a person who died a century
+// before) stretches the axis into dead space — exactly what gap collapsing is
+// for.
+//
+// Which is why this is GATED on the effective collapseGaps: with compression on
+// (`DEFAULT_COLLAPSE_GAPS`, or the timeline's saved viewSettings) the canvas
+// already shrinks that stretch to a 72–144px axis break, so there is no dead
+// space left to report and the advisory would be recommending a remedy that is
+// already in place. It fired on every patch of timelines that had done nothing
+// wrong — permanent noise in the one channel a blind MCP writer reads, drowning
+// the warnings that matter. The underlying facts stay visible either way:
+// get_layout_report reports `axis.deadZones` and `axis.view.collapseGaps` as
+// structured fields.
+function outlierWarnings(nodes: NodeRow[], collapseGaps: boolean): string[] {
+  if (collapseGaps) return []
+
   const active: number[] = []
   for (const n of nodes) {
     if (n.type !== 'event' && n.type !== 'period') continue
@@ -263,13 +282,38 @@ function outlierWarnings(nodes: NodeRow[]): string[] {
   const warnings: string[] = []
   for (const n of nodes) {
     if (n.type === 'event' || n.type === 'period') continue
-    const overshoot = Math.max(lo - n.startInstant, n.startInstant - hi)
+    // Measured between the node's time INTERVAL and the active span, the same
+    // rule `intervalDistance` uses for long edges — an entity dated 2015–2026
+    // against a 2026 span fills that stretch with its own card, so there is no
+    // dead space to report, and one whose span CONTAINS the active period
+    // overshoots by 0. Only the empty run between the node's nearest edge and
+    // the span counts.
+    const nodeEnd = n.endInstant ?? n.startInstant
+    const overshoot = Math.max(0, lo - nodeEnd, n.startInstant - hi)
     if (overshoot <= span / 2) continue
     const years = Math.round(overshoot / MS_PER_DAY / DAYS_PER_YEAR)
+    // Show the whole interval, so the distance quoted below is measured from a
+    // date the reader can see (for a span it comes from the near edge, not the
+    // start).
+    const when =
+      n.endInstant != null
+        ? `${formatInstant(n.startInstant, 'year')}–${formatInstant(n.endInstant, 'year')}`
+        : formatInstant(n.startInstant, 'year')
+    // Re-dating is only ever advice for a `concept`, whose position on the axis
+    // is an editorial placement. An `entity`'s start IS its real founding/birth
+    // date, so "anchor it nearer its relevance" asks the writer to falsify the
+    // data to flatter the layout — never suggest it.
+    const fix =
+      n.type === 'entity'
+        ? 'turn collapseGaps back on with set_timeline_view so the stretch compresses. Do NOT re-date the node — ' +
+          "an entity's start is its real founding/birth date and moving it would falsify the data; if its early " +
+          "history is not part of this timeline's story, drop the anchor instead"
+        : 'turn collapseGaps back on with set_timeline_view so the stretch compresses, or anchor the node nearer ' +
+          'its relevance'
     warnings.push(
-      `"${n.title}" (${formatInstant(n.startInstant, 'year')}) sits ~${years}y outside the events' span ` +
-        `(${formatInstant(lo, 'year')}–${formatInstant(hi, 'year')}) and stretches the axis with dead space — ` +
-        `keep collapseGaps on (the default) so the stretch compresses, or anchor the node nearer its relevance`,
+      `"${n.title}" (${when}) sits ~${years}y outside the events' span ` +
+        `(${formatInstant(lo, 'year')}–${formatInstant(hi, 'year')}) and stretches the axis with dead space ` +
+        `because collapseGaps is off for this timeline — ${fix}`,
     )
   }
   return warnings
@@ -409,6 +453,11 @@ export async function collectPatchWarnings(
   results?: OpResult[],
 ): Promise<string[]> {
   const pxPerDay = view?.pxPerDay ?? BASE_PX_PER_DAY
+  // The effective server-side value — the same one get_layout_report reports as
+  // `axis.view.collapseGaps`. A device-local override (ScalePref.chosen) isn't
+  // visible here, and shouldn't be: advisories describe the timeline's saved
+  // view, which is what every other reader opens it with.
+  const collapseGaps = view?.collapseGaps ?? DEFAULT_COLLAPSE_GAPS
   // Batch-scoped checks first so targeted feedback survives the truncation
   // below ahead of the whole-graph repeats.
   const warnings = [
@@ -417,7 +466,7 @@ export async function collectPatchWarnings(
     ...coordinateWarnings(ops),
     ...connectedDistanceWarnings(graph, ops, results),
     ...laneDensityWarnings(graph.nodes, pxPerDay),
-    ...outlierWarnings(graph.nodes),
+    ...outlierWarnings(graph.nodes, collapseGaps),
   ]
   if (warnings.length > MAX_WARNINGS) {
     return [...warnings.slice(0, MAX_WARNINGS), `…and ${warnings.length - MAX_WARNINGS} more warnings`]
