@@ -2,7 +2,7 @@
 name: next-chapter
 description: "Write the next chapter of a Synek series: the morning-chapter loop. Use when the user runs /synek:next-chapter, asks to write/continue/advance the next chapter of a story or series, to grow a serialized story a chapter at a time, or to start a new serialized series. Reads the series in order, optionally grows the timeline with new researched+cited nodes, then writes the next chapter as one beat-rich story, never repeating what earlier chapters already covered."
 argument-hint: <series>  (title or id, e.g. "The Rise of Caesar". Omit to pick from a list, or describe a new series to start.)
-allowed-tools: ["mcp__plugin_synek_synek__list_projects", "mcp__plugin_synek_synek__list_timelines", "mcp__plugin_synek_synek__create_series", "mcp__plugin_synek_synek__get_series", "mcp__plugin_synek_synek__get_layout_report", "mcp__plugin_synek_synek__query_timeline", "mcp__plugin_synek_synek__get_node", "mcp__plugin_synek_synek__apply_patch", "mcp__plugin_synek_synek__update_timeline_memory", "mcp__plugin_synek_synek__write_story", "mcp__plugin_synek_synek__patch_story", "mcp__plugin_synek_synek__set_series_public", "mcp__plugin_synek_synek__set_series_review_mode", "mcp__plugin_synek_synek__register_artifact", "mcp__plugin_synek_synek__search_artifacts", "WebSearch", "WebFetch"]
+allowed-tools: ["mcp__plugin_synek_synek__list_projects", "mcp__plugin_synek_synek__list_timelines", "mcp__plugin_synek_synek__create_series", "mcp__plugin_synek_synek__get_series", "mcp__plugin_synek_synek__get_layout_report", "mcp__plugin_synek_synek__query_timeline", "mcp__plugin_synek_synek__get_node", "mcp__plugin_synek_synek__apply_patch", "mcp__plugin_synek_synek__get_story", "mcp__plugin_synek_synek__update_timeline_memory", "mcp__plugin_synek_synek__write_story", "mcp__plugin_synek_synek__patch_story", "mcp__plugin_synek_synek__set_series_public", "mcp__plugin_synek_synek__set_series_review_mode", "mcp__plugin_synek_synek__register_artifact", "mcp__plugin_synek_synek__search_artifacts", "WebSearch", "WebFetch"]
 ---
 
 # /synek:next-chapter: write the next chapter of **$ARGUMENTS**
@@ -60,7 +60,7 @@ Memory is **not** part of the undo/redo Patch stack, so it is logged separately:
 - **Art/widgets** where they earn their place: a `coverImage`, a per-beat `image`, or a live `widget` (mini timeline/globe/entity).
 - Carry the **series voice**: match the tone and depth of the earlier chapters you read in step 1.
 
-To **fix** a chapter you just wrote (a typo, a missing beat, a reorder) without rewriting the whole thing, use **`patch_story`** with surgical ops, not another `write_story`.
+To **fix** a chapter you just wrote (a typo, a missing beat, a reorder) without rewriting the whole thing, use **`patch_story`** with surgical ops, not another `write_story`. The ops that target a beat (`update_segment`, `delete_segment`, `reorder_segments`) need **beat ids**: read the chapter back with **`get_story`** (`storyId` returns meta plus every beat with its `id`, in order) and patch by those ids. `get_series` lists chapters, not beats.
 
 ## 5. Publish (optional)
 

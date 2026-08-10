@@ -26,7 +26,7 @@ const GROUPS: { label: string; names: string[] }[] = [
   { label: 'Projects & series', names: ['create_project', 'list_projects', 'get_project', 'create_series', 'get_series', 'set_series_public', 'set_series_review_mode'] },
   { label: 'Timelines', names: ['list_timelines', 'create_timeline', 'get_timeline', 'query_timeline', 'get_node', 'list_entities', 'get_layout_report'] },
   { label: 'Editing', names: ['apply_patch', 'undo', 'redo'] },
-  { label: 'Stories', names: ['write_story', 'patch_story', 'undo_story', 'redo_story'] },
+  { label: 'Stories', names: ['get_story', 'write_story', 'patch_story', 'undo_story', 'redo_story'] },
   { label: 'Theme & view', names: ['set_timeline_view', 'set_timeline_theme', 'set_story_theme'] },
   { label: 'Brand', names: ['list_brands', 'set_story_brand', 'set_series_brand'] },
   { label: 'Sources', names: ['register_artifact', 'search_artifacts'] },
