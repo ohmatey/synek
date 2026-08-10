@@ -241,7 +241,7 @@ function laneDensityWarnings(nodes: NodeRow[], pxPerDay: number): string[] {
         ? `set_timeline_view with pxPerDay ≈ ${suggested}`
         : 'splitting it into narrower lanes or trimming nodes'
     warnings.push(
-      `lane "${lane}": ${arr.length} nodes average ~${Math.round(avgGapPx)}px apart at the current default scale ` +
+      `lane "${lane}": ${arr.length} nodes average ~${Math.round(avgGapPx)}px apart at the current scale ` +
         `(cards are ~${APPROX_CARD_PX}px) — they will stack ~${rows} rows deep; consider ${fix}`,
     )
   }
@@ -249,6 +249,18 @@ function laneDensityWarnings(nodes: NodeRow[], pxPerDay: number): string[] {
 }
 
 // --- axis outliers (whole graph) -------------------------------------------
+
+// Below this, an overshoot never counts as "outside the span" no matter how
+// tight the active span is. A purely relative test (overshoot > span/2)
+// degenerates on a short, tightly-clustered timeline: a news-tracking timeline
+// with three weeks of events has span/2 measured in DAYS, so a founding anchor
+// barely a year old already trips it — the tighter the focus, the more
+// aggressively legitimate anchors get flagged. Mirrors GAP_FLOOR_YEARS in
+// useTimelineScale.ts: the same floor the canvas itself uses to decide a gap is
+// too small to bother splitting into its own cluster, even on the sparsest
+// timelines — so "distracting axis gap" means the same thing in both places.
+export const OUTLIER_FLOOR_YEARS = 4
+const OUTLIER_FLOOR_MS = OUTLIER_FLOOR_YEARS * DAYS_PER_YEAR * MS_PER_DAY
 
 // Events + periods define the timeline's "active span". A node whose whole time
 // interval sits far outside it (a defunct org, a person who died a century
@@ -264,6 +276,12 @@ function laneDensityWarnings(nodes: NodeRow[], pxPerDay: number): string[] {
 // the warnings that matter. The underlying facts stay visible either way:
 // get_layout_report reports `axis.deadZones` and `axis.view.collapseGaps` as
 // structured fields.
+// Deliberately NOT `activeSpan()` from graph-shape.ts: that helper falls back
+// to ALL node instants (including entities) when there are fewer than 2
+// event/period anchors, which is right for connectedDistanceWarnings (an edge
+// needs *some* span to judge distance against) but wrong here — it would make
+// this warning fire on timelines with no events at all, judging entities
+// against other entities instead of against a real cluster of activity.
 function outlierWarnings(nodes: NodeRow[], collapseGaps: boolean): string[] {
   if (collapseGaps) return []
 
@@ -290,7 +308,7 @@ function outlierWarnings(nodes: NodeRow[], collapseGaps: boolean): string[] {
     // the span counts.
     const nodeEnd = n.endInstant ?? n.startInstant
     const overshoot = Math.max(0, lo - nodeEnd, n.startInstant - hi)
-    if (overshoot <= span / 2) continue
+    if (overshoot <= Math.max(span / 2, OUTLIER_FLOOR_MS)) continue
     const years = Math.round(overshoot / MS_PER_DAY / DAYS_PER_YEAR)
     // Show the whole interval, so the distance quoted below is measured from a
     // date the reader can see (for a span it comes from the near edge, not the
@@ -310,10 +328,14 @@ function outlierWarnings(nodes: NodeRow[], collapseGaps: boolean): string[] {
           "history is not part of this timeline's story, drop the anchor instead"
         : 'turn collapseGaps back on with set_timeline_view so the stretch compresses, or anchor the node nearer ' +
           'its relevance'
+    // A sub-year active span reads as "(2026–2026)" at year precision — both
+    // ends round to the same year even though the span is real. Widen to month
+    // precision so a tightly-clustered timeline's span stays legible.
+    const spanPrecision = span < DAYS_PER_YEAR * MS_PER_DAY ? 'month' : 'year'
     warnings.push(
       `"${n.title}" (${when}) sits ~${years}y outside the events' span ` +
-        `(${formatInstant(lo, 'year')}–${formatInstant(hi, 'year')}) and stretches the axis with dead space ` +
-        `because collapseGaps is off for this timeline — ${fix}`,
+        `(${formatInstant(lo, spanPrecision)}–${formatInstant(hi, spanPrecision)}) and stretches the axis with ` +
+        `dead space because collapseGaps is off for this timeline — ${fix}`,
     )
   }
   return warnings
