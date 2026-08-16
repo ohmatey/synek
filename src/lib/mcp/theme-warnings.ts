@@ -45,17 +45,24 @@ export function themeContrastWarnings(theme: TimelineTheme | null): string[] {
   if (!theme?.colors) return []
   const warnings: string[] = []
   for (const scheme of ['dark', 'light'] as const) {
-    const slots: ThemeColorSlots | undefined = theme.colors[scheme]
+    const other: 'dark' | 'light' = scheme === 'dark' ? 'light' : 'dark'
+    // Accents cross-fall-back to the other scheme when a theme defines only one
+    // (resolveThemeVars), so a dark-only theme's accents still render in light
+    // mode — against the LIGHT canvas background, which never cross-falls-back.
+    // Resolve the same way here so this checks what actually renders, not just
+    // the colors the author typed in.
+    const slots: ThemeColorSlots | undefined = theme.colors[scheme] ?? theme.colors[other]
     if (!slots) continue
-    const bg = slots.canvasBg ?? DEFAULT_CANVAS_BG[scheme]
+    const bg = theme.colors[scheme]?.canvasBg ?? DEFAULT_CANVAS_BG[scheme]
     for (const slot of ACCENT_SLOTS) {
       const hex = slots[slot]
       if (!hex) continue
       const ratio = contrastRatio(hex, bg)
       if (ratio < MIN_ACCENT_CONTRAST) {
+        const via = theme.colors[scheme] ? '' : ` (carried over from the ${other} scheme)`
         warnings.push(
-          `${scheme} ${slot} ${hex} has ${ratio.toFixed(1)}:1 contrast against the ${scheme} canvas background ` +
-            `${bg} (minimum ${MIN_ACCENT_CONTRAST}:1 for non-text UI) — it will be hard to see; pick a ` +
+          `${scheme} ${slot} ${hex}${via} has ${ratio.toFixed(1)}:1 contrast against the ${scheme} canvas ` +
+            `background ${bg} (minimum ${MIN_ACCENT_CONTRAST}:1 for non-text UI) — it will be hard to see; pick a ` +
             `${scheme === 'dark' ? 'lighter' : 'darker'} shade`,
         )
       }
@@ -65,8 +72,9 @@ export function themeContrastWarnings(theme: TimelineTheme | null): string[] {
   if (defined.length === 1) {
     const missing = defined[0] === 'dark' ? 'light' : 'dark'
     warnings.push(
-      `theme defines colors only for ${defined[0]} — ${missing}-mode viewers see the default accents; ` +
-        `add a ${missing} scheme if you want the theme everywhere`,
+      `theme defines colors only for ${defined[0]} — ${missing}-mode viewers get the ${defined[0]} accents ` +
+        `carried over against the default ${missing} canvas background (contrast against it is checked above); ` +
+        `add a ${missing} canvasBg if it needs its own wash`,
     )
   }
   return warnings

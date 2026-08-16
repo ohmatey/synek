@@ -513,9 +513,10 @@ export const toolRegistry: ToolDef[] = [
       'time span and lane spread, plus the longest edges), era coverage (nodes + stories per period), ' +
       'story coverage, globe coordinates (located / placeless / unset counts + undecided-node sample), the ' +
       'deduplicated source registry, the same advisories apply_patch computes, and a one-line-per-node index. ' +
-      'Call it after a multi-patch build or reshape, then ACT on what it shows: merge drifted lanes, re-anchor ' +
-      'outliers, clump scattered narrative threads into shared lanes, fill story-poor eras, balance thin sourcing, ' +
-      'resolve undecided coordinates (pin or mark placeless).',
+      'Call it after a multi-patch build or reshape, then ACT on what it shows: merge drifted lanes, resolve axis ' +
+      'outliers (turn collapseGaps on, or drop a stale anchor — never re-date a real entity\'s founding date to ' +
+      'flatter the layout), clump scattered narrative threads into shared lanes, fill story-poor eras, balance ' +
+      'thin sourcing, resolve undecided coordinates (pin or mark placeless).',
     inputSchema: { timelineId: z.string() },
     handler: async ({ timelineId }, { requireOwned }) => {
       requireOwned(timelineId)
@@ -535,7 +536,7 @@ export const toolRegistry: ToolDef[] = [
     title: 'Apply a batch of edits',
     description:
       'Apply a batch of graph edits as ONE atomic, undoable Patch. ops is an ordered list of add_node/update_node/delete_node/add_edge/update_edge/delete_edge. Use `ref` on add_node to reference the new node from a later add_edge in the same batch. ' +
-      'The result includes `warnings` — broken image URLs, lanes too dense for the current scale, dates that stretch the axis, and connected nodes placed far apart on the axis (possible date error or missing lane grouping). The patch is COMMITTED regardless; act on warnings with a follow-up apply_patch or set_timeline_view.',
+      'The result includes `warnings` — broken image URLs, lanes too dense for the current scale, axis outliers stretching dead space when collapseGaps is off, and connected nodes placed far apart on the axis (possible date error or missing lane grouping). The patch is COMMITTED regardless; act on warnings with a follow-up apply_patch or set_timeline_view.',
     inputSchema: { timelineId: z.string(), summary: z.string(), ops: z.array(opSchema) },
     handler: async ({ timelineId, summary, ops }, { ownerId }) => {
       // Create-if-missing owned by this user; if it exists, it must be theirs.
