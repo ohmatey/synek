@@ -73,7 +73,7 @@
     "@radix-ui/react-tooltip": "^1.2.9",
     "@synek/ui": "workspace:*",
     "@tanstack/react-query": "^5.100.14",
-    "@tanstack/react-router": "^1.170.8",
+    "@tanstack/react-router": "1.170.8",
     "@tanstack/react-start": "1.168.11",
     "@xyflow/react": "^12.10.2",
     "better-auth": "^1.6.11",
@@ -116,5 +116,8 @@
     "typescript": "^6.0.3",
     "vite": "^7.3.3",
     "vite-tsconfig-paths": "^6.1.1"
+  },
+  "overrides": {
+    "@tanstack/router-core": "1.171.6"
   }
 }
