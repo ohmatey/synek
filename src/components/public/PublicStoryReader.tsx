@@ -14,6 +14,8 @@ import {
 import { cn } from '~/lib/utils'
 import type { GraphNode, PublicStoryDTO, StoryBeat } from '~/lib/domain/types'
 import { POV_LABEL } from '~/lib/domain/story-labels'
+import { CitationList } from '~/components/citations/CitationCard'
+import { Markdown } from '~/components/markdown/Markdown'
 import { formatInstant } from '~/lib/domain/dates'
 import { timeAgo } from '~/lib/time-ago'
 import { getPublicStory } from '~/lib/server/stories'
@@ -532,7 +534,7 @@ function BeatPanel({
           </figure>
         )}
         {beat.settingNote && <p className="psr-setting">{beat.settingNote}</p>}
-        <p className="psr-text">{beat.bodyText}</p>
+        <Markdown source={beat.bodyText} className="psr-text" />
         {beat.relatedNodeIds.length > 0 && (
           <div className="psr-mentions">
             {beat.relatedNodeIds.map((id) => {
@@ -546,20 +548,11 @@ function BeatPanel({
             })}
           </div>
         )}
+        {/* Same CitationList the in-app reader uses. The public page previously
+            rendered strictly LESS than the in-app one from the identical payload:
+            it dropped sourceType, reliability, and the whole artifact card. */}
         {beat.citations.length > 0 && (
-          <div className="psr-cites">
-            {beat.citations.map((c, i) => (
-              <div className="psr-cite" key={i}>
-                <span className="psr-cite-title">{c.title || 'Source'}</span>
-                {c.quote?.trim() && <span className="psr-cite-quote">“{c.quote}”</span>}
-                {c.url?.trim() && (
-                  <a className="psr-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
-                    Open source ↗
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
+          <CitationList citations={beat.citations} dense className="psr-cites" />
         )}
       </article>
     </div>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useReactFlow } from '@xyflow/react'
-import { Crosshair, ExternalLink, Loader2, Maximize2, Pencil, Play, Plus, Trash2, Upload, X } from 'lucide-react'
+import { ChevronRight, Crosshair, ExternalLink, Loader2, Maximize2, Pencil, Play, Plus, Trash2, Upload, X } from 'lucide-react'
 import { centerOnNodes } from './cameraFocus'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -14,6 +14,8 @@ import { capture } from '~/lib/posthog/client'
 import { fileToDataUrl } from '~/lib/files'
 import { NewStoryDialog } from './NewStoryDialog'
 import { NodeVerbBar } from './NodeVerbBar'
+import { CitationList } from '~/components/citations/CitationCard'
+import { SOURCE_TYPE_LABEL } from '~/lib/domain/citations'
 import { ResizeHandle } from './ResizeHandle'
 import { GEO_SCOPE_LABELS, IMAGE_ASPECTS, NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
 import type { GraphNode, GraphEdge, CanvasCitation, ImageAspect, NodeImage, NodeSize, NodeSubtype, Precision, EdgeKind, PovType, StoryListItem } from '~/lib/domain/types'
@@ -28,6 +30,22 @@ const REL_COLOR: Record<EdgeKind, string> = {
   acquired: 'var(--color-danger)',
   competed_with: 'var(--color-success)',
 }
+
+// How each edge kind reads FROM this node. `out` is used when this node is the
+// edge's source, `in` when it is the target — so the row is a sentence with this
+// node as the implicit subject and needs no arrow to be unambiguous.
+const REL_PHRASE: Record<EdgeKind, { out: string; in: string }> = {
+  caused: { out: 'caused', in: 'caused by' },
+  succeeded: { out: 'succeeded', in: 'succeeded by' },
+  influenced: { out: 'influenced', in: 'influenced by' },
+  acquired: { out: 'acquired', in: 'acquired by' },
+  competed_with: { out: 'competed with', in: 'competed with' },
+}
+
+// Kinds where the relationship is mutual, so there is no direction to show.
+const SYMMETRIC_KINDS = new Set<EdgeKind>(['competed_with'])
+
+const CITES_COLLAPSED_KEY = 'synek:citations-collapsed'
 
 // Swatches offered in the node Color property. Kept as raw hex on purpose:
 // node accents are user-chosen domain identity — they must read the same in
@@ -49,19 +67,6 @@ function toInputDate(instant: number, precision: Precision): string {
 }
 
 const EMPTY_CITATION: CanvasCitation = { title: '' }
-
-// Shorten a citation URL for display: "https://en.wikipedia.org/wiki/Stoicism"
-// → "en.wikipedia.org/wiki/Stoicism" (drop scheme + trailing slash). The full
-// URL still rides along as the link href + title. Falls back to the raw string
-// for anything that doesn't parse as a URL.
-function displayUrl(url: string): string {
-  try {
-    const u = new URL(url)
-    return `${u.host}${u.pathname}${u.search}`.replace(/\/$/, '')
-  } catch {
-    return url.replace(/^https?:\/\//, '').replace(/\/$/, '')
-  }
-}
 
 // Human labels for the story POV. Only surfaced when it's NOT the S1 default
 // ('omniscient') — showing "Omniscient" on every story is noise, but the moment a
@@ -121,8 +126,9 @@ export function NodeDetailPanel({
   // Owner-only nudge shown on a node that has a `location` string but no map
   // coordinates: opens the globe backfill prompt so the connected Claude can add them.
   onAddToGlobe?: () => void
-  // Resizable width (px), owned by the canvas so the story reader can dock to
-  // its left edge. Omit to leave the CSS default and hide the drag handle.
+  // Resizable width (px), owned by the canvas. The panel docks INSIDE the story
+  // reader (the reader keeps the flush-right slot), so the canvas clamps this
+  // against the reader's width. Omit to leave the CSS default and hide the handle.
   width?: number
   onResize?: (next: number) => void
   onCommitResize?: () => void
@@ -142,16 +148,52 @@ export function NodeDetailPanel({
   // Today just "Talk to {name}" (NEXT.5 verb #1 — S3.4); local-66 grows this into
   // a state-gated NodeVerbBar with the full Tier-1 verb set.
   const [promptSpec, setPromptSpec] = useState<PromptSpec | null>(null)
+  // Citations collapse. A UI preference, never graph state, so it lives in
+  // localStorage beside the other per-device canvas prefs.
+  const [citesOpen, setCitesOpen] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return window.localStorage.getItem(CITES_COLLAPSED_KEY) !== '1'
+  })
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CITES_COLLAPSED_KEY, citesOpen ? '0' : '1')
+    } catch {
+      // ignore quota / disabled storage
+    }
+  }, [citesOpen])
 
-  // Edges touching this node, resolved to the other endpoint's title.
+  // Edges touching this node, resolved to the other endpoint's title and to a
+  // DIRECTIONAL PHRASE. Sorted outgoing-first, then by kind, then by title, so the
+  // list has a stable reading order instead of graph load order.
   const nodeById = new Map(nodes.map((n) => [n.id, n]))
   const relations = edges
     .filter((e) => e.sourceId === node.id || e.targetId === node.id)
     .map((e) => {
       const outgoing = e.sourceId === node.id
       const otherId = outgoing ? e.targetId : e.sourceId
-      return { id: e.id, outgoing, kind: e.kind, label: e.label, otherId, otherTitle: nodeById.get(otherId)?.title ?? otherId }
+      return {
+        id: e.id,
+        outgoing,
+        kind: e.kind,
+        // The phrase reads with THIS node as the implicit subject: "caused X" vs
+        // "caused by X". That is the whole fix — the old UI showed a bare ← / →
+        // glyph beside the raw kind, which cannot say which way causation runs.
+        phrase: REL_PHRASE[e.kind][outgoing ? 'out' : 'in'],
+        symmetric: SYMMETRIC_KINDS.has(e.kind),
+        // A custom edge label is extra colour, not the relationship itself. It used
+        // to REPLACE the kind, which is how "RC 21 May → final 28 Jul" ended up
+        // standing in for "succeeded by" next to a contradicting arrow.
+        label: e.label,
+        otherId,
+        otherTitle: nodeById.get(otherId)?.title ?? otherId,
+      }
     })
+    .sort(
+      (a, b) =>
+        Number(b.outgoing) - Number(a.outgoing) ||
+        a.kind.localeCompare(b.kind) ||
+        a.otherTitle.localeCompare(b.otherTitle),
+    )
 
   const [title, setTitle] = useState(node.title)
   const [summary, setSummary] = useState(node.summary ?? '')
@@ -265,7 +307,8 @@ export function NodeDetailPanel({
     }
   }
 
-  function updateCitation(i: number, field: keyof CanvasCitation, value: string) {
+  // `undefined` clears a field (used by the sourceType toggle, which deselects).
+  function updateCitation<K extends keyof CanvasCitation>(i: number, field: K, value: CanvasCitation[K]) {
     setCitations((cs) => cs.map((c, j) => (j === i ? { ...c, [field]: value } : c)))
   }
 
@@ -557,7 +600,16 @@ export function NodeDetailPanel({
           ctx={{ timelineId, surface: 'node_panel' }}
           onRun={setPromptSpec}
           exclude={['write-story']}
-        />
+        >
+          {/* "New story" lives HERE, beside "Expand around this", so every action
+              on a node is in one row. It used to sit alone in the Story section
+              further down AND only when the moment had no stories yet — which
+              also meant there was no way to add a second story from the panel. */}
+          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setNewStoryOpen(true)}>
+            <Plus className="size-4" />
+            New story
+          </Button>
+        </NodeVerbBar>
       )}
 
       {/* Description — body field, clamped to a few lines with Show more.
@@ -750,14 +802,17 @@ export function NodeDetailPanel({
                 <button
                   type="button"
                   className="detail-relation"
+                  data-dir={r.symmetric ? 'both' : r.outgoing ? 'out' : 'in'}
                   onClick={() => onSelectNode(r.otherId)}
-                  title={`Go to ${r.otherTitle}`}
+                  // Reads as the full sentence for a screen reader, which the old
+                  // "Go to X" title never conveyed.
+                  aria-label={`${node.title} ${r.phrase} ${r.otherTitle}. Open ${r.otherTitle}.`}
                 >
-                  <span className="detail-rel-dir">{r.outgoing ? '→' : '←'}</span>
-                  <span className="detail-rel-kind" style={{ color: REL_COLOR[r.kind] }}>
-                    {r.label ?? r.kind}
+                  <span className="detail-rel-phrase" style={{ color: REL_COLOR[r.kind] }}>
+                    {r.phrase}
                   </span>
                   <span className="detail-rel-node">{r.otherTitle}</span>
+                  {r.label && <span className="detail-rel-label">{r.label}</span>}
                 </button>
               </li>
             ))}
@@ -814,10 +869,6 @@ export function NodeDetailPanel({
       {!storyMode && stories && stories.length === 0 && canEdit && (
         <div className="detail-field detail-section detail-story-ask">
           <span className="detail-label">Story</span>
-          <Button className="detail-story-play" onClick={() => setNewStoryOpen(true)}>
-            <Plus className="size-4" />
-            New story
-          </Button>
           <p className="detail-hint">
             Opens the New Story dialog — pick the cast and copy a prompt for your connected Claude, which writes a
             grounded story onto this moment. It appears here as a tap-through story you can play.
@@ -889,6 +940,21 @@ export function NodeDetailPanel({
                 value={c.quote ?? ''}
                 onChange={(e) => updateCitation(i, 'quote', e.target.value)}
               />
+              {/* Source genre. Previously absent from this form AND stripped by the
+                  server's Zod, so an MCP-set value was destroyed on the first save. */}
+              <div className="detail-cite-types" role="group" aria-label="Source type">
+                {(Object.keys(SOURCE_TYPE_LABEL) as (keyof typeof SOURCE_TYPE_LABEL)[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className="detail-cite-type"
+                    aria-pressed={c.sourceType === t}
+                    onClick={() => updateCitation(i, 'sourceType', c.sourceType === t ? undefined : t)}
+                  >
+                    {SOURCE_TYPE_LABEL[t]}
+                  </button>
+                ))}
+              </div>
               {c.url?.trim() && (
                 <a className="detail-cite-link inline-flex items-center gap-1" href={c.url} target="_blank" rel="noreferrer noopener">
                   Open source <ExternalLink className="size-3" />
@@ -902,35 +968,22 @@ export function NodeDetailPanel({
           </Button>
         </div>
       ) : !storyMode && citations.length > 0 ? (
+        // Collapsible: on a well-sourced node the citation stack is the longest
+        // thing in the panel and pushes relations and stories off the scroll.
+        // Open by default (sourcing is the product's point), remembered per device.
         <div className="detail-field detail-section">
-          <span className="detail-label">Citations</span>
-          {citations.map((c, i) => {
-            const url = c.url?.trim()
-            return (
-              <div className="detail-citation" key={i}>
-                {url ? (
-                  <a
-                    className="detail-cite-title detail-cite-title-link"
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    title={url}
-                  >
-                    {c.title || 'Untitled source'}
-                    <ExternalLink className="detail-cite-title-icon size-3" />
-                  </a>
-                ) : (
-                  <div className="detail-cite-title">{c.title || 'Untitled source'}</div>
-                )}
-                {url && (
-                  <a className="detail-cite-url" href={url} target="_blank" rel="noreferrer noopener" title={url}>
-                    {displayUrl(url)}
-                  </a>
-                )}
-                {c.quote?.trim() && <p className="detail-cite-quote">“{c.quote}”</p>}
-              </div>
-            )
-          })}
+          <button
+            type="button"
+            className="detail-section-toggle"
+            aria-expanded={citesOpen}
+            aria-controls="detail-citations"
+            onClick={() => setCitesOpen((v) => !v)}
+          >
+            <ChevronRight className="detail-section-chevron" aria-hidden="true" />
+            <span className="detail-label">Citations</span>
+            <span className="detail-section-count">{citations.length}</span>
+          </button>
+          {citesOpen && <CitationList citations={citations} id="detail-citations" className="detail-cites" />}
         </div>
       ) : null}
 

@@ -17,6 +17,12 @@ import type {
   TimelineTheme,
   TimelineViewSettings,
 } from '~/lib/domain/types'
+import {
+  isEmptyMemory,
+  mergeTimelineMemory,
+  type TimelineMemory,
+  type TimelineMemoryUpdate,
+} from '~/lib/domain/memory'
 
 export type Graph = { nodes: NodeRow[]; edges: EdgeRow[] }
 
@@ -122,6 +128,53 @@ export function setTimelineTheme(id: string, ownerId: string, theme: TimelineThe
     .set({ theme, updatedAt: new Date() })
     .where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId)))
     .run()
+}
+
+// --- timeline memory (per-timeline context store) -------------------------
+// Deliberately NOT on TimelineMeta. Memory is owner-private and a public
+// timeline's graph is readable by anyone (see canView), so the owner check lives
+// in the QUERY rather than in every caller's discipline: a non-owner gets null by
+// construction, not by remembering to strip a field.
+
+// Owner-scoped read. Returns null for a missing timeline AND for a non-owner.
+export function getTimelineMemory(id: string, ownerId: string): TimelineMemory | null {
+  const row = db
+    .select({ memory: timelines.memory })
+    .from(timelines)
+    .where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId)))
+    .get()
+  return row?.memory ?? null
+}
+
+// Owner-scoped FIELD-SCOPED update: read, merge only the keys the patch names,
+// write back. Wrapped in a transaction so a scheduled keeper appending a run and
+// the owner saving notes in the browser cannot lose one of the two writes.
+// Returns the merged record, or null if the timeline doesn't exist or isn't owned.
+export function updateTimelineMemory(
+  id: string,
+  ownerId: string,
+  patch: TimelineMemoryUpdate,
+): TimelineMemory | null {
+  return db.transaction((tx) => {
+    const row = tx
+      .select({ memory: timelines.memory })
+      .from(timelines)
+      .where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId)))
+      .get()
+    if (!row) return null
+
+    const merged = mergeTimelineMemory(row.memory ?? null, patch)
+    // Keep the column null when nothing is stored so `memory IS NULL` stays a
+    // meaningful "never touched" rather than an empty object.
+    const next = isEmptyMemory(merged) ? null : merged
+
+    tx.update(timelines)
+      .set({ memory: next, updatedAt: new Date() })
+      .where(and(eq(timelines.id, id), eq(timelines.ownerId, ownerId)))
+      .run()
+
+    return merged
+  })
 }
 
 // Ownership/visibility metadata for one timeline, or null if it doesn't exist.

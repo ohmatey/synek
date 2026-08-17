@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Deterministic quality grader for a Synek timeline graph. Encodes the
 // `building-timelines` skill rubric so a built timeline can be scored without a
-// human — and so the swimlane guidance can be regression-tested.
+// human, and so the swimlane guidance can be regression-tested.
 //
 // Input: a timeline graph JSON, either the MCP `get_timeline` shape
 //   { title, nodes:[{..,metadata:{lane,subtype,citations}}], edges:[..] }
 // or the flattened DTO shape ({ nodes:[{lane,subtype,citations,..}] }).
-// Both are accepted — fields are read from the top level OR `metadata`.
+// Both are accepted: fields are read from the top level OR `metadata`.
 //
 // Usage:
 //   node grade-timeline.mjs <graph.json> [--multi-track] [--min-lanes N] [--json]
@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs'
 
 // A node ~130px wide at the base axis density (0.5 px/day) ≈ 260 days. Two nodes
 // in the same layout group whose dates fall within this window collide and get
-// pushed onto a new row — the mechanic behind the "stacked spaghetti" failure.
+// pushed onto a new row, the mechanic behind the "stacked spaghetti" failure.
 const NOMINAL_DAYS = 260
 const MS_PER_DAY = 86_400_000
 
@@ -201,7 +201,7 @@ function main() {
   } else {
     const mark = (ok) => (ok ? '✓' : '✗')
     console.log(`\n  ${result.title}`)
-    console.log(`  score ${result.score}/100 — ${result.pass ? 'PASS' : 'FAIL'}\n`)
+    console.log(`  score ${result.score}/100 ${result.pass ? 'PASS' : 'FAIL'}\n`)
     for (const c of result.checks) {
       console.log(`  ${mark(c.ok)} ${c.label}${c.detail ? `  (${c.detail})` : ''}`)
     }

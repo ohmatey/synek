@@ -26,6 +26,58 @@ async function openDarwinPanel(page: Page) {
   return panel
 }
 
+test('relations state direction as a phrase, not a bare arrow', async ({ page }) => {
+  await loginAsDemo(page)
+  await page.goto('/timelines/figures')
+  const panel = await openDarwinPanel(page)
+
+  // The seeded edge is `Isaac Newton --influenced--> Charles Darwin`, so from
+  // Darwin's panel this is an INCOMING influence and must read "influenced by".
+  // The old UI rendered a bare ← next to the raw kind, which could equally have
+  // meant Darwin influenced Newton. Asserting the phrase is asserting the fix.
+  const relation = panel.getByRole('button', { name: /Charles Darwin influenced by Isaac Newton/i })
+  await expect(relation).toBeVisible()
+  await expect(relation).toContainText('influenced by')
+
+  // And it still navigates to the other endpoint.
+  await relation.click()
+  await expect(panel.getByRole('heading', { name: 'Isaac Newton' })).toBeVisible()
+
+  // From Newton's side the SAME edge is outgoing, so it reads the other way.
+  await expect(panel.getByRole('button', { name: /Isaac Newton influenced Charles Darwin/i })).toBeVisible()
+})
+
+test('citations render as uniform cards with one link, and can be collapsed', async ({ page }) => {
+  await loginAsDemo(page)
+  await page.goto('/timelines/stoicism')
+
+  // Disambiguate from the EVENT "Chrysippus systematizes the Stoa" — match the
+  // person node by its summary, which only the entity carries.
+  const node = page.locator('.react-flow__node', { hasText: 'Third head of the Stoa' })
+  await expect(node).toBeAttached()
+  await node.dispatchEvent('click')
+  const panel = page.getByRole('dialog', { name: 'Node details' })
+  await expect(panel).toBeVisible()
+
+  const toggle = panel.getByRole('button', { name: /Citations/ })
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+  // ONE anchor per card. The old panel emitted two links to the same href (the
+  // title, then the shortened URL again underneath).
+  const card = panel.locator('.cite-card').first()
+  await expect(card).toBeVisible()
+  await expect(card.locator('a')).toHaveCount(1)
+  const link = card.locator('a')
+  await expect(link).toHaveAttribute('target', '_blank')
+  await expect(link).toHaveAttribute('rel', 'noreferrer noopener')
+
+  // Collapsing hides the stack, which on a well-sourced node is the longest
+  // thing in the panel.
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(panel.locator('.cite-card')).toHaveCount(0)
+})
+
 test('clicking a node opens its detail panel', async ({ page }) => {
   await loginAsDemo(page)
   await page.goto('/timelines/figures')

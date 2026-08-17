@@ -5,6 +5,7 @@ import { requireUser } from '~/lib/auth/session'
 import { PatchBuilder, commitPatch, type NodePatch } from '~/lib/db/patches'
 import { commitEntityPatch, type EntityContentPatch } from '~/lib/db/entity-patches'
 import { parseDate } from '~/lib/domain/dates'
+import { CITATION_SOURCE_TYPES } from '~/lib/domain/types'
 import type { NodeMetadata } from '~/lib/db/schema'
 
 // Manual node edits go through the SAME Patch path as the AI: build one
@@ -19,10 +20,15 @@ async function assertOwnsTimeline(timelineId: string): Promise<void> {
   if (!meta || meta.ownerId !== user.id) throw new Error('forbidden: not your timeline')
 }
 
+// `sourceType` MUST stay in this schema. Zod strips unknown keys, and the handler
+// writes the parsed array straight back over metadata.citations — so omitting it
+// here silently wiped the genre off every citation an MCP client had set, the
+// moment a user opened the node in the panel and pressed Save.
 const citation = z.object({
   title: z.string(),
   url: z.string().optional(),
   quote: z.string().optional(),
+  sourceType: z.enum(CITATION_SOURCE_TYPES).optional(),
 })
 
 const image = z.object({

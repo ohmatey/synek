@@ -571,17 +571,19 @@ body {
   }
 }
 
+/* Minimal card: a flat surface and a hairline, no drop shadow. A canvas is dozens
+   of these at once, and a shadow per card turned the axis into a texture. Depth is
+   carried by the selected/focused states instead, where it means something. */
 .sf-event {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 6px 10px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-subtle);
-  border-radius: 9px;
+  border-radius: 8px;
   color: var(--color-fg-primary);
   white-space: nowrap;
-  box-shadow: var(--shadow-card);
   transition: background 140ms ease, border-color 140ms ease;
 }
 
@@ -606,9 +608,15 @@ body {
 .sf-event-vertical {
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 3px;
   white-space: normal;
   width: 170px;
+}
+/* A spanned event overrides that fixed width with its span (inline style from
+   EventNode), so the date line sits under the title and the bar reads as duration. */
+.sf-event-vertical.sf-event-spanned {
+  width: auto;
+  justify-content: flex-start;
 }
 
 .sf-event-vertical .sf-event-head {
@@ -1019,15 +1027,20 @@ body {
   list-style: none;
   padding: 0;
 }
+/* Minimal story rows: title line + one meta line, nothing else. The cover thumb,
+   the two-line hook, the POV chip and the "Read" pill were four competing elements
+   per row, which turned a ten-story timeline into a wall of cards. Everything they
+   showed is one click away in the reader. */
 .story-list-card {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 3px;
   width: 100%;
-  padding: 12px;
+  padding: 8px 10px;
   text-align: left;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklab, var(--color-bg-surface) 60%, transparent);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
   cursor: pointer;
   transition:
     border-color 120ms,
@@ -1035,101 +1048,98 @@ body {
 }
 .story-list-card:hover,
 .story-list-card:focus-visible {
-  border-color: color-mix(in oklab, var(--color-fg-primary) 20%, transparent);
+  border-color: var(--color-border-default);
   background: color-mix(in oklab, var(--color-bg-surface) 92%, transparent);
   outline: none;
 }
 .story-list-card[data-open] {
-  border-color: color-mix(in oklab, var(--color-fg-primary) 32%, transparent);
-  background: color-mix(in oklab, var(--color-bg-surface) 96%, transparent);
+  border-color: color-mix(in oklab, var(--color-accent-story) 55%, transparent);
+  background: color-mix(in oklab, var(--color-accent-story) 8%, transparent);
 }
 .story-list-card.is-skeleton {
-  height: 88px;
+  height: 46px;
   cursor: default;
   background: color-mix(in oklab, var(--color-fg-primary) 5%, transparent);
   border-color: transparent;
   animation: sf-pending-pulse 1.4s ease-in-out infinite;
 }
-.story-card-thumb {
-  flex-shrink: 0;
-  width: 48px;
-  height: 64px;
-  overflow: hidden;
-  border-radius: 6px;
-  background: color-mix(in oklab, var(--color-fg-primary) 8%, transparent);
-}
-.story-card-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.story-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-  flex: 1;
-}
 .story-card-titlerow {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
 }
 .story-card-title {
   flex: 1;
-  font-size: 14px;
+  min-width: 0;
+  font-size: 13.5px;
   font-weight: 600;
   line-height: 1.3;
   color: var(--color-fg-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.story-card-tier {
+/* Chapter number only — "Ch." is redundant once it is a consistent leading badge. */
+.story-card-ch {
   flex-shrink: 0;
-  padding: 1px 7px;
-  border-radius: 999px;
+  min-width: 17px;
+  text-align: center;
+  padding: 0 4px;
+  border-radius: 4px;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
   background: var(--color-story-soft);
   color: var(--color-accent-story);
-}
-.story-card-hook {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 12.5px;
-  font-style: italic;
-  line-height: 1.45;
-  color: var(--color-fg-muted);
 }
 .story-card-meta {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 11.5px;
-  color: var(--color-fg-muted);
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-fg-subtle);
+  min-width: 0;
 }
 .story-card-moment {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 220px;
 }
-.story-card-chip::before {
-  content: '·';
-  margin-right: 8px;
-  color: color-mix(in oklab, var(--color-fg-muted) 60%, transparent);
+.story-card-deep {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-accent-story);
 }
-.story-card-play {
+
+/* Sort control in the panel header. */
+.stories-sort {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   margin-left: auto;
-  font-weight: 600;
-  color: var(--color-accent-story);
+  margin-right: 8px;
+  color: var(--color-fg-subtle);
 }
+.stories-sort select {
+  font: inherit;
+  font-size: 11px;
+  color: var(--color-fg-muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.stories-sort select:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .stories-empty {
   position: absolute;
   inset: 0;
@@ -1728,17 +1738,24 @@ body {
 .detail-panel {
   position: absolute;
   top: var(--dock-top);
-  /* Docks as a column at the right edge of the canvas. */
+  /* Inner slot of the right-edge dock column. The STORY READER owns the outer
+     (flush-right) slot so a playing story is never displaced; the detail panel
+     opens to its left and changes as the story advances. With no story open it
+     takes the flush-right slot itself (the [data-story-open] rule below is what
+     pushes it in, keyed on a mounted reader rather than on --story-reader-w,
+     which is published unconditionally and so cannot signal "a story is open"). */
   right: 16px;
   bottom: var(--dock-bottom);
   z-index: 7; /* above the timeline scrubber bar (RF panel z5) and globe scrubber (z3) */
   width: var(--detail-panel-w, 340px);
   max-width: calc(100vw - 32px);
+  --detail-pad: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  padding: var(--detail-pad);
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: color-mix(in oklab, var(--color-bg-surface) 96%, transparent);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
@@ -1746,6 +1763,18 @@ body {
   backdrop-filter: blur(8px);
   animation: dock-slide-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
   transition: right 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* A story is playing: slide the detail panel to the reader's left (reader width
+   + its 16px right gutter + a 16px gap) so both read as one dock column. */
+.canvas-root[data-story-open] .detail-panel {
+  right: calc(var(--story-reader-w, 380px) + 32px);
+  /* No entrance animation while a story drives the panel. It is re-keyed on the
+     node id, so it REMOUNTS every time a beat names a different entity, and
+     dock-slide-in would replay its 24px translateX each time — which reads as a
+     flinch and visibly overlaps the reader mid-slide. The panel is a companion
+     here, not a thing being opened. */
+  animation: none;
 }
 
 /* Drag strip on a docked panel's LEFT edge — resizes it (it's anchored right).
@@ -1801,10 +1830,35 @@ body {
   }
 }
 
+/* The action header STICKS. The whole panel is the scroll container
+   (.detail-panel has overflow-y:auto), so Close / Edit / Focus used to scroll away
+   with the content — on a well-sourced node you had to scroll back up to shut the
+   panel. It bleeds to the panel edges via negative margins and re-adds the padding
+   itself, so the sticky box is flush rather than floating inside a 16px gutter. */
 .detail-head {
+  position: sticky;
+  top: calc(var(--detail-pad) * -1);
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 6px;
+  min-height: 32px;
+  margin: calc(var(--detail-pad) * -1) calc(var(--detail-pad) * -1) 0;
+  padding: 10px var(--detail-pad);
+  /* Opaque enough that content scrolling underneath does not read through the
+     panel's own translucent surface. */
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-faint);
+}
+/* The full-screen entity page is not a dock and has no scroll container of its
+   own, so the sticky treatment would pin the header to the viewport. */
+.detail-panel.node-page .detail-head {
+  position: static;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border-bottom: 0;
 }
 
 /* Read-first doc layout: title, description, property rows */
@@ -1986,7 +2040,8 @@ body {
 /* Major sections get a light divider for consistent rhythm. */
 .detail-section {
   border-top: 1px solid var(--color-border-faint);
-  padding-top: 12px;
+  padding-top: 14px;
+  margin-top: 2px;
 }
 
 .detail-props {
@@ -2421,55 +2476,153 @@ body {
   color: var(--color-fg-subtle);
 }
 
+/* Relations — full-width ROWS, not a wrapping pill cloud.
+   The relationship is stated as a PHRASE that reads with this node as the
+   implicit subject ("caused X" / "caused by X"). The old design showed a bare
+   ← / → glyph next to the raw edge kind, which cannot express which way
+   causation runs, and a custom edge label REPLACED the kind entirely — so a
+   label containing its own arrow sat beside a contradicting direction glyph.
+   Now the phrase always carries direction and the label is demoted to context. */
 .detail-relations {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .detail-relation {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
+  display: grid;
+  grid-template-columns: 3px 1fr;
+  align-items: baseline;
+  column-gap: 9px;
+  row-gap: 1px;
+  width: 100%;
   text-align: left;
   background: var(--color-bg-base);
   border: 1px solid var(--color-border-subtle);
-  border-radius: 999px;
-  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  padding: 7px 10px 7px 0;
   font: inherit;
-  font-size: 12px;
   color: var(--color-fg-primary);
   cursor: pointer;
+  overflow: hidden;
 }
 
-.detail-rel-node {
-  max-width: 150px;
+/* Direction rail: a 3px spine down the left edge, tinted by the relation colour.
+   Outgoing is solid, incoming is hollow, mutual is dashed — a redundant cue on
+   top of the phrase, never the only one carrying the meaning. */
+.detail-relation::before {
+  content: '';
+  grid-row: 1 / -1;
+  align-self: stretch;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.55;
+}
+.detail-relation[data-dir='in']::before {
+  opacity: 0.22;
+}
+.detail-relation[data-dir='both']::before {
+  background: repeating-linear-gradient(currentColor 0 3px, transparent 3px 6px);
+  opacity: 0.4;
 }
 
 .detail-relation:hover {
   border-color: var(--color-accent-primary);
+  background: var(--color-bg-surface);
+}
+.detail-relation:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 1px;
 }
 
-.detail-rel-dir {
-  color: var(--color-fg-subtle);
-  flex: 0 0 auto;
-}
-
-.detail-rel-kind {
+.detail-rel-phrase {
+  grid-column: 2;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 650;
+  letter-spacing: 0.01em;
   white-space: nowrap;
-  flex: 0 0 auto;
 }
 
 .detail-rel-node {
+  grid-column: 2;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--color-fg-primary);
+  /* Wrap to a second line rather than clipping at a fixed 150px, which used to
+     truncate most real node titles. */
+  overflow-wrap: anywhere;
+}
+
+.detail-rel-label {
+  grid-column: 2;
+  font-size: 11px;
+  color: var(--color-fg-subtle);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Collapsible section header (Citations). A button, so it is keyboard-reachable
+   and announces its expanded state. */
+.detail-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+}
+.detail-section-toggle:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.detail-section-chevron {
+  width: 13px;
+  height: 13px;
+  color: var(--color-fg-subtle);
+  transition: transform 140ms ease;
+}
+.detail-section-toggle[aria-expanded='true'] .detail-section-chevron {
+  transform: rotate(90deg);
+}
+.detail-section-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Source-genre toggles in the citation editor. */
+.detail-cite-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.detail-cite-type {
+  padding: 2px 8px;
+  font-size: 11px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  background: var(--color-bg-base);
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+.detail-cite-type[aria-pressed='true'] {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+  background: color-mix(in oklab, var(--color-accent-primary) 12%, transparent);
+}
+.detail-cite-type:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 1px;
 }
 
 /* Story playback (N.5.2): read-only, beat-by-beat reader in the node panel. */
@@ -2658,18 +2811,20 @@ body {
 
 /* =========================================================================
    Story reader — Reels/Stories tap-through (StoryReader.tsx)
-   DOCKED beside the entity dialog (not full-screen): shares the .detail-panel
-   chrome and sits immediately to its left. The .sv-* internals below are
-   position:absolute within this container; the few that assumed a full viewport
-   are overridden here to be container-relative.
+   DOCKED at the right edge of the canvas (not full-screen): shares the
+   .detail-panel chrome and ALWAYS holds the flush-right slot, so a story in
+   progress never moves. The entity panel opens to its LEFT and re-points as the
+   story advances. The .sv-* internals below are position:absolute within this
+   container; the few that assumed a full viewport are overridden here to be
+   container-relative.
    ========================================================================= */
 
 .story-reader {
   position: absolute;
   top: var(--dock-top);
   bottom: var(--dock-bottom);
-  /* Left of the .detail-panel (its width + right:16 + a 16px gap). */
-  right: calc(var(--detail-panel-w, 340px) + 32px);
+  /* Outer slot: pinned to the right edge whether or not a detail panel is open. */
+  right: 16px;
   width: var(--story-reader-w, 380px);
   max-width: calc(100vw - 32px);
   z-index: 7; /* above the timeline scrubber bar (RF panel z5) and globe scrubber (z3) */
@@ -2681,17 +2836,12 @@ body {
   box-shadow: var(--shadow-overlay);
   backdrop-filter: blur(8px);
   animation: dock-slide-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
-  /* Slides left to make room when the user opens an entity panel mid-story, and
-     back to the right edge (data-solo) when they close it. */
+  /* Kept so the reader animates if its slot ever shifts; under the current dock
+     order it holds right:16px for the whole of playback. */
   transition: right 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .story-reader:focus {
   outline: none;
-}
-/* Decoupled stories run with no entity panel by default — the reader docks flush
-   at the right edge. With a panel open it returns to its left-of-panel slot above. */
-.story-reader[data-solo] {
-  right: 16px;
 }
 
 /* Minimized: collapse the reader to a compact "now playing" bar in place (it keeps
@@ -2747,15 +2897,37 @@ body {
   line-height: 1.6;
 }
 
-/* Below the side-by-side breakpoint the reader spans the dock and overlays the
-   entity panel (the beat text still names the focus entity, and the canvas still
-   pans + rings it behind). */
+/* Below the side-by-side breakpoint two docks cannot sit shoulder to shoulder, so
+   the reader spans the full dock width. When it is playing ALONE that is the whole
+   band, as before. When an entity panel is open beside it the two STACK instead of
+   overlapping: the panel is now the story's companion (it re-points per beat), so
+   burying it under the reader would hide the thing the beat is talking about. */
 @media (max-width: 860px) {
   .story-reader {
     left: 16px;
     right: 16px;
     width: auto;
     z-index: 7;
+  }
+
+  .canvas-root[data-story-open][data-detail-open] .story-reader {
+    bottom: 52%;
+  }
+
+  /* Full width, and below the reader. The side offset from --story-reader-w is a
+     side-by-side notion that does not apply here, so it is reset. */
+  .canvas-root[data-story-open][data-detail-open] .detail-panel {
+    left: 16px;
+    right: 16px;
+    top: 50%;
+    width: auto;
+  }
+
+  /* A minimized reader is already only 64px tall, so hand the panel back the rest
+     of the band rather than leaving half of it empty. */
+  .canvas-root[data-story-open][data-detail-open] .story-reader[data-minimized] ~ .detail-panel,
+  .canvas-root[data-story-open][data-detail-open] .detail-panel:has(~ .story-reader[data-minimized]) {
+    top: calc(var(--dock-top) + 76px);
   }
 }
 
@@ -3116,7 +3288,6 @@ body {
   font-size: clamp(17px, 2.6vw, 22px);
   line-height: 1.55;
   color: var(--color-fg-primary);
-  white-space: pre-wrap;
 }
 .sv-beat-dialogue .sv-text {
   font-style: italic;
@@ -3265,82 +3436,7 @@ body {
   gap: 6px;
   margin-top: 4px;
 }
-.sv-cite {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--color-fg-muted);
-}
-.sv-cite-title {
-  font-weight: 600;
-  color: var(--color-fg-secondary);
-}
-.sv-cite-quote {
-  font-style: italic;
-}
-.sv-cite-link {
-  color: var(--color-accent-primary);
-}
 /* Artifact-backed citation: a tappable source card (S2.4). */
-.sv-cite.is-artifact {
-  width: 100%;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: var(--color-bg-subtle, color-mix(in oklab, var(--color-fg-muted) 8%, transparent));
-}
-.sv-cite-rel {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px solid currentColor;
-  opacity: 0.85;
-}
-.sv-cite-rel.is-primary {
-  color: var(--color-accent-era, #2dd4bf);
-}
-.sv-cite-rel.is-secondary {
-  color: var(--color-fg-secondary);
-}
-.sv-cite-rel.is-tertiary {
-  color: var(--color-fg-muted);
-}
-.sv-cite-card {
-  width: 100%;
-}
-.sv-cite-card > summary {
-  cursor: pointer;
-  color: var(--color-accent-primary);
-  font-weight: 600;
-  list-style: none;
-}
-.sv-cite-card > summary::-webkit-details-marker {
-  display: none;
-}
-.sv-cite-card[open] > summary {
-  margin-bottom: 6px;
-}
-.sv-cite-img {
-  display: block;
-  max-width: 100%;
-  max-height: 220px;
-  border-radius: 6px;
-  margin-bottom: 6px;
-}
-.sv-cite-transcript {
-  font-style: italic;
-  color: var(--color-fg-secondary);
-  white-space: pre-wrap;
-}
-.sv-cite-translation {
-  color: var(--color-fg-muted);
-  white-space: pre-wrap;
-  margin-top: 4px;
-}
 
 /* Bottom nav row: prev / counter / next (chevrons live here now, not on the edges). */
 .sv-foot {
@@ -3628,44 +3724,8 @@ body {
 }
 
 /* Read-only citation display (non-owner viewing a public timeline) */
-.detail-cite-title {
-  font-weight: 600;
-  color: var(--color-fg-secondary);
-  font-size: 13px;
-}
 /* When the source has a URL the title itself is the link, with an external-link
    glyph; the bare URL sits beneath it so the provenance is legible at a glance. */
-.detail-cite-title-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--color-accent-dialogue);
-  text-decoration: none;
-}
-.detail-cite-title-link:hover {
-  text-decoration: underline;
-}
-.detail-cite-title-icon {
-  flex-shrink: 0;
-  opacity: 0.7;
-}
-.detail-cite-url {
-  display: block;
-  font-size: 11px;
-  color: var(--color-fg-muted);
-  text-decoration: none;
-  word-break: break-all;
-}
-.detail-cite-url:hover {
-  color: var(--color-accent-dialogue);
-  text-decoration: underline;
-}
-.detail-cite-quote {
-  margin: 4px 0;
-  color: var(--color-fg-muted);
-  font-size: 13px;
-  font-style: italic;
-}
 
 .sr-only {
   position: absolute;
@@ -4731,10 +4791,6 @@ body {
   border-top: 1px solid var(--color-border-default);
   padding-top: 12px;
 }
-.psr-cite { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
-.psr-cite-title { font-weight: 600; }
-.psr-cite-quote { color: color-mix(in oklab, var(--color-fg-primary) 66%, transparent); font-style: italic; }
-.psr-cite-link { color: var(--color-accent-primary); width: fit-content; }
 
 /* Footer nav */
 .psr-foot {
@@ -6872,4 +6928,318 @@ body {
   color: var(--color-fg-primary);
   border-color: var(--color-accent-primary);
   background: color-mix(in oklab, var(--color-accent-primary) 8%, transparent);
+}
+
+/* =========================================================================
+   Citation cards (components/citations/CitationCard.tsx)
+   ONE card for all four surfaces: the node panel, the in-app story reader, and
+   the public story reader. These replace three drifted families (detail-cite-*,
+   sv-cite-*, psr-cite-*) that drew the same data three different ways — and in
+   the public reader's case dropped sourceType, reliability and the artifact card
+   from an identical payload.
+   `.is-dense` is the story-reader fit: same card, tighter, so citations sit
+   under a beat without outweighing the prose.
+   ========================================================================= */
+
+.cite-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cite-list.is-dense {
+  gap: 4px;
+}
+
+.cite-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-base);
+}
+.cite-card.is-dense {
+  padding: 6px 8px;
+  gap: 2px;
+  background: color-mix(in oklab, var(--color-bg-surface) 60%, transparent);
+}
+
+.cite-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* The sourceType badge. This field has been written by every MCP path since S2
+   and rendered nowhere until now — the type comment said it existed so a reader
+   could "distinguish Tacitus from a 2014 trade book at a glance". */
+.cite-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: var(--color-fg-muted);
+  background: color-mix(in oklab, var(--color-fg-muted) 12%, transparent);
+}
+.cite-badge.is-primary {
+  color: var(--color-success);
+  background: color-mix(in oklab, var(--color-success) 14%, transparent);
+}
+.cite-badge.is-scholarship {
+  color: var(--color-accent-influence);
+  background: color-mix(in oklab, var(--color-accent-influence) 14%, transparent);
+}
+.cite-badge.is-data {
+  color: var(--color-accent-dialogue);
+  background: color-mix(in oklab, var(--color-accent-dialogue) 14%, transparent);
+}
+.cite-badge.is-press {
+  color: var(--color-accent-story);
+  background: color-mix(in oklab, var(--color-accent-story) 14%, transparent);
+}
+.cite-badge.is-reliability {
+  background: none;
+  border-color: var(--color-border-subtle);
+  color: var(--color-fg-subtle);
+}
+
+/* The ONE link. The panel used to emit two anchors to the same href (title, then
+   the shortened URL again underneath); the host line below is now plain text. */
+.cite-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-fg-primary);
+  overflow-wrap: anywhere;
+}
+.cite-card.is-dense .cite-title {
+  font-size: 11.5px;
+}
+a.cite-title.is-link {
+  text-decoration: none;
+  color: var(--color-accent-primary);
+}
+a.cite-title.is-link:hover .cite-title-text {
+  text-decoration: underline;
+}
+a.cite-title.is-link:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.cite-title-icon {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+
+.cite-host {
+  font-size: 10.5px;
+  color: var(--color-fg-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cite-quote {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--color-fg-muted);
+  font-style: italic;
+  border-left: 2px solid var(--color-border-subtle);
+  padding-left: 7px;
+}
+.cite-quote::before {
+  content: '\201C';
+}
+.cite-quote::after {
+  content: '\201D';
+}
+
+.cite-artifact {
+  margin-top: 2px;
+  font-size: 11px;
+}
+.cite-artifact > summary {
+  cursor: pointer;
+  color: var(--color-accent-primary);
+  list-style: none;
+}
+.cite-artifact > summary::-webkit-details-marker {
+  display: none;
+}
+.cite-artifact > summary::before {
+  content: '▸ ';
+}
+.cite-artifact[open] > summary::before {
+  content: '▾ ';
+}
+.cite-artifact-img {
+  display: block;
+  max-width: 100%;
+  margin: 6px 0;
+  border-radius: var(--radius-sm);
+}
+.cite-artifact-text {
+  margin: 4px 0 0;
+  color: var(--color-fg-muted);
+  line-height: 1.5;
+}
+.cite-artifact-text.is-translation {
+  font-style: italic;
+  color: var(--color-fg-subtle);
+}
+
+/* =========================================================================
+   Story-beat markdown (components/markdown/Markdown.tsx)
+   Beats were a single plain-text <p>, so a beat could carry no heading, list or
+   emphasis — and the two readers disagreed about newlines (only the in-app one
+   had white-space: pre-wrap, so identical text rendered as paragraphs in-app and
+   as one run-on block publicly). These styles are shared by both readers.
+   ========================================================================= */
+
+.md > * + * {
+  margin-top: 0.65em;
+}
+.md p {
+  margin: 0;
+}
+
+/* Headings inherit the beat's font size so a beat with sections still reads as
+   one voice rather than sprouting a document hierarchy. */
+.md-h2,
+.md-h3 {
+  margin: 0;
+  font-weight: 650;
+  line-height: 1.25;
+  color: var(--color-fg-primary);
+}
+.md-h2 {
+  font-size: 0.95em;
+}
+.md-h3 {
+  font-size: 0.85em;
+  color: var(--color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.md > .md-h2 + *,
+.md > .md-h3 + * {
+  margin-top: 0.3em;
+}
+
+.md-list {
+  margin: 0;
+  padding-left: 1.15em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+.md-list li {
+  list-style: disc;
+}
+
+.md-quote {
+  margin: 0;
+  padding-left: 0.7em;
+  border-left: 2px solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+.md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  padding: 0.1em 0.32em;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--color-fg-primary) 10%, transparent);
+}
+
+.md a {
+  color: var(--color-accent-primary);
+  text-underline-offset: 2px;
+}
+.md a:hover {
+  text-decoration: underline;
+}
+.md a:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* A spanned event is drawn across its duration like a period, so its label must
+   stop being `nowrap` (it would overflow a short span) and its meta must sit at
+   the far end of the bar rather than immediately after the title. */
+.sf-event-spanned {
+  justify-content: space-between;
+}
+.sf-event-spanned .sf-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.sf-event-spanned .sf-event-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.sf-event-spanned .sf-event-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* =========================================================================
+   Swimlane bands (components/canvas/LaneBands.tsx)
+   `lane` is the timeline's main grouping primitive and was drawn NOWHERE: the
+   packer returned only a y per node, so a well-laned timeline read as anonymous
+   rows of cards. These bands sit in flow coordinates behind the nodes.
+   ========================================================================= */
+
+.lane-bands {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Behind React Flow's node layer, above the Background pattern. */
+  z-index: 0;
+}
+
+.lane-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--radius-lg);
+  /* A wash faint enough to group without competing with the cards, plus a hairline
+     at the top so adjacent lanes stay distinguishable when their washes abut. */
+  background: color-mix(in oklab, var(--color-fg-primary) 3.5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-fg-primary) 7%, transparent);
+}
+
+.lane-band-label {
+  position: absolute;
+  left: 10px;
+  top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: color-mix(in oklab, var(--color-fg-muted) 78%, transparent);
 }

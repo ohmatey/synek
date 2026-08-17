@@ -8,10 +8,13 @@ import {
   setTimelinePublic as dbSetTimelinePublic,
   setTimelineView as dbSetTimelineView,
   setTimelineTheme as dbSetTimelineTheme,
+  getTimelineMemory as dbGetTimelineMemory,
+  updateTimelineMemory as dbUpdateTimelineMemory,
 } from '~/lib/db/graph'
 import { makeRequireOwnedProject } from '~/lib/db/projects'
 import { requireUser } from '~/lib/auth/session'
 import { timelineThemeSchema } from '~/lib/domain/theme'
+import { timelineMemoryUpdateSchema, type TimelineMemory, type TimelineMemoryUpdate } from '~/lib/domain/memory'
 import type { TimelineRow } from '~/lib/db/schema'
 import type { TimelineSummary, TimelineTheme, TimelineViewSettings } from '~/lib/domain/types'
 
@@ -109,4 +112,27 @@ export const setTimelineTheme = createServerFn({ method: 'POST' })
     const user = await requireUser()
     dbSetTimelineTheme(data.id, user.id, data.theme)
     return { ok: true as const }
+  })
+
+// --- timeline memory ------------------------------------------------------
+// Owner-private context store. Both RPCs are owner-scoped in the DB query, so a
+// non-owner reading a PUBLIC timeline still gets null rather than the notes.
+
+export const getTimelineMemory = createServerFn({ method: 'GET' })
+  .inputValidator((d: { id: string }) => z.object({ id: z.string() }).parse(d))
+  .handler(async ({ data }): Promise<TimelineMemory | null> => {
+    const user = await requireUser()
+    return dbGetTimelineMemory(data.id, user.id)
+  })
+
+// FIELD-SCOPED update: only the keys present are written, so the in-app editor
+// saving `notes` cannot wipe the `runs` a scheduled keeper appended, and vice
+// versa. Returns the merged record so the caller can render without a refetch.
+export const updateTimelineMemory = createServerFn({ method: 'POST' })
+  .inputValidator((d: { id: string; patch: TimelineMemoryUpdate }) =>
+    z.object({ id: z.string(), patch: timelineMemoryUpdateSchema }).parse(d),
+  )
+  .handler(async ({ data }): Promise<TimelineMemory | null> => {
+    const user = await requireUser()
+    return dbUpdateTimelineMemory(data.id, user.id, data.patch)
   })

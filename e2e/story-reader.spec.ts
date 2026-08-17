@@ -3,8 +3,8 @@ import { test, expect, type Page } from '@playwright/test'
 // The seeded `figures` timeline is public, and Charles Darwin carries a 4-beat
 // story (see scripts/seed.ts). Viewing a story needs no login (public read), so
 // these run anonymously. Reduced-motion is forced so the docked Reels/Stories
-// reader does NOT auto-advance on a timer — the tap-through stays deterministic and
-// the assertions exercise the manual controls (chevrons + tap zones).
+// reader does NOT auto-advance on a timer, keeping the stepping deterministic; the
+// assertions exercise the manual controls (chevrons and the keyboard).
 test.use({ reducedMotion: 'reduce' })
 
 // Open Charles Darwin's detail panel on the figures canvas. The timeline spans
@@ -18,6 +18,13 @@ async function openDarwinPanel(page: Page) {
   const panel = page.getByRole('dialog', { name: 'Node details' })
   await expect(panel).toBeVisible()
   return panel
+}
+
+// Play the Darwin story from the Stories popover, WITHOUT selecting a node first —
+// the state in which the companion panel follows the beats instead of being pinned.
+async function openDarwinStory(page: Page) {
+  await page.getByRole('button', { name: /^Stories/ }).click()
+  await page.getByRole('button', { name: /The long wait before Origin/ }).click()
 }
 
 test('a moment with a story shows a teaser and a Play action', async ({ page }) => {
@@ -65,12 +72,24 @@ test('Play opens the docked reader beside the panel and tapping through advances
   await expect(reader.getByText('2 / 4')).toBeVisible()
   await expect(reader.getByText(/single principle behind its endless forms/)).toBeVisible()
 
-  // Tapping the right zone advances like Instagram Stories → beat 3.
+  // Tapping the card no longer advances: the beat is something to read and to
+  // follow links out of, so a stray click must not skip it. Press-and-hold still
+  // pauses. Stepping is the chevrons, the arrow keys, or the timer.
   await reader.locator('.sv-zone-next').click()
+  await expect(reader.getByText('2 / 4')).toBeVisible()
+
+  // Step on with the real control instead.
+  await reader.getByRole('button', { name: 'Next beat' }).click()
   await expect(reader.getByText('3 / 4')).toBeVisible()
   await expect(reader.getByText(/dreading the reaction/)).toBeVisible()
-  // A grounded beat surfaces its source.
-  await expect(reader.getByRole('link', { name: 'Open source ↗' })).toBeVisible()
+  // A grounded beat surfaces its source as a citation card. The link is NAMED BY
+  // THE SOURCE rather than a repeated "Open source ↗", so a screen-reader link
+  // list distinguishes the citations instead of listing N identical entries.
+  const cite = reader.locator('.cite-card').first()
+  await expect(cite).toBeVisible()
+  const citeLink = cite.getByRole('link')
+  await expect(citeLink).toHaveAttribute('target', '_blank')
+  await expect(citeLink).toHaveAccessibleName(/opens in a new tab/)
 
   // Go back with the Previous control → beat 2 again.
   await reader.getByRole('button', { name: 'Previous beat' }).click()
@@ -105,7 +124,7 @@ test('selecting a moment does not start the story; Play opens the docked reader,
   await expect(page.getByRole('dialog', { name: 'Node details' })).toBeVisible()
 })
 
-test('immersive: the story switches globe↔timeline per beat; the panel does NOT auto-follow (decoupled)', async ({
+test('immersive: the story switches globe↔timeline per beat; an explicit selection PINS the panel', async ({
   page,
 }) => {
   const panel = await openDarwinPanel(page)
@@ -114,19 +133,69 @@ test('immersive: the story switches globe↔timeline per beat; the panel does NO
   await expect(reader).toBeVisible()
 
   const detail = page.getByRole('dialog', { name: 'Node details' })
-  // The panel shows the entity the user opened (Darwin) and STAYS there.
+  // Darwin was opened explicitly BEFORE playback, so he is pinned.
   await expect(detail.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
 
   // Beat 1 is a LOCATED beat (lens: globe) → the immersive reader opens on the globe.
   await expect(page.getByTestId('globe-lens')).toBeVisible()
 
   // Beat 2 is an idea beat (lens: timeline) → the canvas drops to the timeline and
-  // rings Newton, but the panel does NOT switch (decoupled; opening an entity is explicit).
+  // rings Newton. The panel FOLLOWS beats by default, but an explicit click pins, and
+  // a pin outranks the beat — so Darwin holds. This is the guard on "a click is never
+  // stomped by the next beat".
   await reader.getByRole('button', { name: 'Next beat' }).click()
   await expect(reader.getByText('2 / 4')).toBeVisible()
   await expect(page.locator('.react-flow__node.rf-focused', { hasText: 'Isaac Newton' })).toBeVisible()
   await expect(detail.getByRole('heading', { name: 'Charles Darwin' })).toBeVisible()
   await expect(detail.getByRole('heading', { name: 'Isaac Newton' })).toHaveCount(0)
+})
+
+test('with nothing pinned, the companion panel follows the beat and holds on a beat that names no one', async ({
+  page,
+}) => {
+  await page.goto('/timelines/figures')
+  await openDarwinStory(page)
+  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+  await expect(reader).toBeVisible()
+  const detail = page.getByRole('dialog', { name: 'Node details' })
+
+  // Beat 1's focus IS the story's own moment (Darwin), which is filtered out as a
+  // follow target — the story is already about him — so no companion opens yet.
+  await expect(reader.getByText('1 / 4')).toBeVisible()
+  await expect(detail).toHaveCount(0)
+
+  // Beat 2 names Newton → the companion opens on him with no click at all.
+  await reader.getByRole('button', { name: 'Next beat' }).click()
+  await expect(reader.getByText('2 / 4')).toBeVisible()
+  await expect(detail.getByRole('heading', { name: 'Isaac Newton' })).toBeVisible()
+
+  // Beat 3's focus is the moment again (no new entity). The panel must HOLD Newton
+  // rather than blink shut — the sticky-follow guard.
+  await reader.getByRole('button', { name: 'Next beat' }).click()
+  await expect(reader.getByText('3 / 4')).toBeVisible()
+  await expect(detail.getByRole('heading', { name: 'Isaac Newton' })).toBeVisible()
+})
+
+test('the reader holds the flush-right dock slot and the companion panel sits to its LEFT', async ({ page }) => {
+  await page.goto('/timelines/figures')
+  await openDarwinStory(page)
+  const reader = page.getByRole('dialog', { name: 'Story: The long wait before Origin' })
+  await expect(reader).toBeVisible()
+
+  // Step to a beat that opens the companion, so both docks are mounted.
+  await reader.getByRole('button', { name: 'Next beat' }).click()
+  const detail = page.getByRole('dialog', { name: 'Node details' })
+  await expect(detail.getByRole('heading', { name: 'Isaac Newton' })).toBeVisible()
+
+  // Geometry is the contract here: a story in progress must never be displaced by an
+  // entity opening beside it, so the reader stays rightmost and the panel goes left.
+  const readerBox = (await reader.boundingBox())!
+  const detailBox = (await detail.boundingBox())!
+  expect(detailBox.x + detailBox.width).toBeLessThanOrEqual(readerBox.x + 1)
+
+  const viewport = page.viewportSize()!
+  // The reader is flush against the right gutter (16px), not floating mid-canvas.
+  expect(viewport.width - (readerBox.x + readerBox.width)).toBeLessThanOrEqual(24)
 })
 
 test('tapping a beat’s related link opens that entity beside the reader without ending the story', async ({ page }) => {
@@ -137,7 +206,9 @@ test('tapping a beat’s related link opens that entity beside the reader withou
 
   // Beat 2 references Isaac Newton — stepping to it surfaces the link.
   await reader.getByRole('button', { name: 'Next beat' }).click()
-  const link = reader.getByRole('button', { name: '→ Isaac Newton' })
+  // The beat's related links are named by the entity alone now (the decorative
+  // '→' prefix is gone), and focusNodeId is included alongside relatedNodeIds.
+  const link = reader.getByRole('button', { name: 'Isaac Newton', exact: true })
   await expect(link).toBeVisible()
 
   // Tapping it opens Newton's panel BESIDE the reader — the story keeps playing

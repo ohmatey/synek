@@ -741,7 +741,12 @@ export function referencedNodeIds(story: StoryDTO): string[] {
 }
 
 // Attach per-story beat counts to a set of story rows in one grouped query.
-function withBeatCounts<T extends { storyId: string }>(rows: T[]): (T & { beatCount: number })[] {
+// Adds the beat count AND normalises `createdAt` from the Date drizzle returns for
+// a timestamp_ms column into the epoch ms the client DTO carries (server fns must
+// hand back plain JSON).
+function withBeatCounts<T extends { storyId: string; createdAt: Date }>(
+  rows: T[],
+): (Omit<T, 'createdAt'> & { beatCount: number; createdAt: number })[] {
   if (rows.length === 0) return []
   const counts = new Map<string, number>()
   for (const r of db
@@ -751,7 +756,7 @@ function withBeatCounts<T extends { storyId: string }>(rows: T[]): (T & { beatCo
     .groupBy(storySegments.storyId)
     .all())
     counts.set(r.storyId, Number(r.n))
-  return rows.map((r) => ({ ...r, beatCount: counts.get(r.storyId) ?? 0 }))
+  return rows.map((r) => ({ ...r, createdAt: r.createdAt.getTime(), beatCount: counts.get(r.storyId) ?? 0 }))
 }
 
 const STORY_LIST_COLUMNS = {
@@ -774,6 +779,7 @@ const STORY_LIST_COLUMNS = {
   isPublic: stories.isPublic,
   // Chapter number when the story belongs to a series (ADR 0006), else null.
   chapterNumber: stories.chapterNumber,
+  createdAt: stories.createdAt,
 } as const
 
 // All stories on a timeline, in chronological moment order — backs the AppBar's

@@ -10,21 +10,24 @@ import { capture } from '~/lib/posthog/client'
 import { useSpeechSupported, useStoryNarration, warmUpSpeech } from './useStoryNarration'
 import { ResizeHandle } from './ResizeHandle'
 import { ShareStoryButton } from '~/components/public/ShareStoryButton'
+import { CitationList } from '~/components/citations/CitationCard'
+import { Markdown } from '~/components/markdown/Markdown'
 
-// Reels/Stories-style playback, DOCKED beside the entity dialog (not full-screen).
+// Reels/Stories-style playback, DOCKED at the canvas's right edge (not full-screen).
 // One beat fills the panel at a time; segmented progress bars across the top
 // auto-advance (the CSS fill animation IS the timer — onAnimationEnd steps). As the
 // reader steps, it reports the active beat index up (onBeatChange); the canvas maps
-// that to a camera pan + which entity the detail panel beside it shows (per-beat
-// focusNodeId). Rendered as a plain <aside role="dialog"> — NOT a native <dialog> —
-// so it sits in the canvas dock next to the panel instead of taking over the screen
+// that to a camera pan + which entity the companion detail panel to its LEFT shows
+// (per-beat focusNodeId, unless the user pinned one by clicking). Rendered as a plain
+// <aside role="dialog"> — NOT a native <dialog> — so it sits in the canvas dock next
+// to the panel instead of taking over the screen
 // (this also sidesteps the StrictMode showModal() self-close gotcha entirely).
 //
 // Interaction model (matches Instagram/Snapchat Stories):
-//   • Tap the right two-thirds → next beat (past the last → close). Tap the left
-//     third → previous beat.
-//   • Press-and-hold anywhere → pause; release → resume (distinguished from a tap
-//     by a short hold threshold).
+//   • Press-and-hold anywhere → pause; release → resume. A quick TAP does nothing:
+//     the beat is something to read and to follow links out of, so a stray click
+//     must not skip it. Stepping is the footer chevrons, the arrow keys, or the
+//     timer.
 //   • Keyboard: →/Space next, ← previous, Esc close. Explicit Prev/Next/Pause/Close
 //     buttons back the pointer affordances for keyboard + SR users.
 //   • prefers-reduced-motion → no auto-advance and no animated fill; the reader
@@ -34,8 +37,8 @@ import { ShareStoryButton } from '~/components/public/ShareStoryButton'
 const WORDS_PER_MINUTE = 200
 const MIN_BEAT_MS = 3500
 const MAX_BEAT_MS = 12_000
-// Below this a pointer press counts as a tap (navigate); at or above it, a
-// deliberate hold (pause, no navigation).
+// At or above this a pointer press counts as a deliberate hold (pause). Below it,
+// nothing happens — a tap is not a navigation gesture any more.
 const HOLD_THRESHOLD_MS = 220
 
 function beatDurationMs(text: string): number {
@@ -61,7 +64,6 @@ export function StoryReader({
   onSelectNode,
   onBeatChange,
   canShare,
-  solo,
   width,
   onResize,
   onCommitResize,
@@ -103,11 +105,10 @@ export function StoryReader({
   // Owner-only: show the Share control (publishes the timeline + copies the public
   // /s/$slug link). Hidden for non-owner viewers — they share via the public page.
   canShare?: boolean
-  // No entity panel is open beside the reader → dock flush at the right edge
-  // (data-solo); with one open the reader slides to its left.
-  solo?: boolean
-  // Resizable width (px), owned by the canvas. Omit to use the CSS default and
-  // hide the drag handle.
+  // Resizable width (px), owned by the canvas. The reader holds the flush-right
+  // dock slot for the whole of playback; the entity panel opens to its LEFT and
+  // offsets itself, so the reader no longer moves when one opens. Omit to use the
+  // CSS default and hide the drag handle.
   width?: number
   onResize?: (next: number) => void
   onCommitResize?: () => void
@@ -145,6 +146,13 @@ export function StoryReader({
   const beat = beats[safeIndex]
   // The stepped player is live only between the cover and the end panel.
   const playing = started && !ended
+
+  // Every node this beat points at, focus first, deduped. `focusNodeId` was stored
+  // and used for the camera but never offered to the reader as a link, so the beat's
+  // own subject was the one thing you could not click through to.
+  const beatLinkIds = beat
+    ? [...new Set([beat.focusNodeId, ...beat.relatedNodeIds].filter((x): x is string => !!x))]
+    : []
 
   // Engagement KPIs: a reader pressed Play (story_started), and reached the end
   // panel past the last beat (story_completed). Effects fire once per transition.
@@ -213,25 +221,22 @@ export function StoryReader({
     onBeatChange(playing ? safeIndex : -1)
   }, [playing, safeIndex, onBeatChange])
 
-  // Press-and-hold detection: a quick press is a tap (navigate by zone); a long
-  // press pauses without navigating. Shared by both tap zones.
+  // Press-and-hold to PAUSE. A quick tap deliberately does NOTHING: the beat card
+  // is a thing to read and to follow links out of, not a "next" button. Stepping is
+  // the footer chevrons, the arrow keys, or auto-advance. (Hold is still the only
+  // way to pause in-app, so it stays.)
   const holdRef = useRef<{ held: boolean; timer: ReturnType<typeof setTimeout> } | null>(null)
   const startHold = useCallback(() => {
     onPausedChange(true)
     const state = { held: false, timer: setTimeout(() => (state.held = true), HOLD_THRESHOLD_MS) }
     holdRef.current = state
   }, [onPausedChange])
-  const endHold = useCallback(
-    (dir: 'next' | 'prev') => {
-      const state = holdRef.current
-      holdRef.current = null
-      onPausedChange(false)
-      if (!state) return
-      clearTimeout(state.timer)
-      if (!state.held) (dir === 'next' ? goNext : goPrev)()
-    },
-    [goNext, goPrev, onPausedChange],
-  )
+  const endHold = useCallback(() => {
+    const state = holdRef.current
+    holdRef.current = null
+    onPausedChange(false)
+    if (state) clearTimeout(state.timer)
+  }, [onPausedChange])
   const cancelHold = useCallback(() => {
     const state = holdRef.current
     holdRef.current = null
@@ -312,8 +317,7 @@ export function StoryReader({
     <aside
       ref={asideRef}
       className="story-reader"
-      data-solo={solo || undefined}
-      data-minimized={minimized || undefined}
+          data-minimized={minimized || undefined}
       role="dialog"
       aria-label={`Story: ${story.title}`}
       tabIndex={-1}
@@ -433,7 +437,7 @@ export function StoryReader({
             className="sv-zone sv-zone-prev"
             aria-hidden="true"
             onPointerDown={startHold}
-            onPointerUp={() => endHold('prev')}
+            onPointerUp={endHold}
             onPointerLeave={cancelHold}
             onPointerCancel={cancelHold}
           />
@@ -441,7 +445,7 @@ export function StoryReader({
             className="sv-zone sv-zone-next"
             aria-hidden="true"
             onPointerDown={startHold}
-            onPointerUp={() => endHold('next')}
+            onPointerUp={endHold}
             onPointerLeave={cancelHold}
             onPointerCancel={cancelHold}
           />
@@ -490,55 +494,25 @@ export function StoryReader({
                   </figure>
                 )}
                 {beat.settingNote && <p className="sv-setting">{beat.settingNote}</p>}
-                <p className="sv-text">{beat.bodyText}</p>
-                {beat.relatedNodeIds.length > 0 && (
+                <Markdown source={beat.bodyText} className="sv-text" />
+                {/* Everything this beat points at, as links. focusNodeId is included
+                    (it was never surfaced anywhere) and deduped against the related
+                    ids, so the beat's own subject is reachable too. */}
+                {beatLinkIds.length > 0 && (
                   <div className="sv-links">
-                    {beat.relatedNodeIds.map((id) => {
+                    {beatLinkIds.map((id) => {
                       const other = nodeById.get(id)
                       if (!other) return null
                       return (
                         <button key={id} type="button" className="sv-link" onClick={() => navigateTo(id)}>
-                          → {other.title}
+                          {other.title}
                         </button>
                       )
                     })}
                   </div>
                 )}
                 {beat.citations.length > 0 && (
-                  <div className="sv-cites">
-                    {beat.citations.map((c, i) => {
-                      const body = c.transcript?.trim() || c.translation?.trim()
-                      return (
-                        <div className={cn('sv-cite', c.artifactId && 'is-artifact')} key={i}>
-                          <span className="sv-cite-title">{c.title || 'Untitled source'}</span>
-                          {c.reliability && (
-                            <span className={cn('sv-cite-rel', `is-${c.reliability}`)}>{c.reliability}</span>
-                          )}
-                          {c.quote?.trim() && <span className="sv-cite-quote">“{c.quote}”</span>}
-                          {/* Artifact-backed citation → tap to reveal the source card
-                              (transcript / translation / image). Inline one-offs have
-                              no artifactId and render exactly as before. */}
-                          {c.artifactId && (body || c.imageUrl?.trim()) && (
-                            <details className="sv-cite-card">
-                              <summary>View artifact</summary>
-                              {c.imageUrl?.trim() && (
-                                <img className="sv-cite-img" src={c.imageUrl} alt={c.title} loading="lazy" />
-                              )}
-                              {c.transcript?.trim() && <p className="sv-cite-transcript">{c.transcript}</p>}
-                              {c.translation?.trim() && (
-                                <p className="sv-cite-translation">{c.translation}</p>
-                              )}
-                            </details>
-                          )}
-                          {c.url?.trim() && (
-                            <a className="sv-cite-link" href={c.url} target="_blank" rel="noreferrer noopener">
-                              Open source ↗
-                            </a>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
+                  <CitationList citations={beat.citations} dense className="sv-cites" />
                 )}
               </article>
             )}

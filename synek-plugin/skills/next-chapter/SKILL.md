@@ -1,15 +1,15 @@
 ---
 name: next-chapter
-description: "Write the next chapter of a Synek series — the morning-chapter loop. Use when the user runs /synek:next-chapter, asks to write/continue/advance the next chapter of a story or series, to grow a serialized story a chapter at a time, or to start a new serialized series. Reads the series in order, optionally grows the timeline with new researched+cited nodes, then writes the next chapter as one beat-rich story — never repeating what earlier chapters already covered."
-argument-hint: <series>  (title or id — e.g. "The Rise of Caesar". Omit to pick from a list, or describe a new series to start.)
-allowed-tools: ["mcp__plugin_synek_synek__list_projects", "mcp__plugin_synek_synek__list_timelines", "mcp__plugin_synek_synek__create_series", "mcp__plugin_synek_synek__get_series", "mcp__plugin_synek_synek__get_layout_report", "mcp__plugin_synek_synek__query_timeline", "mcp__plugin_synek_synek__get_node", "mcp__plugin_synek_synek__apply_patch", "mcp__plugin_synek_synek__write_story", "mcp__plugin_synek_synek__patch_story", "mcp__plugin_synek_synek__set_series_public", "mcp__plugin_synek_synek__set_series_review_mode", "mcp__plugin_synek_synek__register_artifact", "mcp__plugin_synek_synek__search_artifacts", "WebSearch", "WebFetch"]
+description: "Write the next chapter of a Synek series: the morning-chapter loop. Use when the user runs /synek:next-chapter, asks to write/continue/advance the next chapter of a story or series, to grow a serialized story a chapter at a time, or to start a new serialized series. Reads the series in order, optionally grows the timeline with new researched+cited nodes, then writes the next chapter as one beat-rich story, never repeating what earlier chapters already covered."
+argument-hint: <series>  (title or id, e.g. "The Rise of Caesar". Omit to pick from a list, or describe a new series to start.)
+allowed-tools: ["mcp__plugin_synek_synek__list_projects", "mcp__plugin_synek_synek__list_timelines", "mcp__plugin_synek_synek__create_series", "mcp__plugin_synek_synek__get_series", "mcp__plugin_synek_synek__get_layout_report", "mcp__plugin_synek_synek__query_timeline", "mcp__plugin_synek_synek__get_node", "mcp__plugin_synek_synek__apply_patch", "mcp__plugin_synek_synek__update_timeline_memory", "mcp__plugin_synek_synek__write_story", "mcp__plugin_synek_synek__patch_story", "mcp__plugin_synek_synek__set_series_public", "mcp__plugin_synek_synek__set_series_review_mode", "mcp__plugin_synek_synek__register_artifact", "mcp__plugin_synek_synek__search_artifacts", "WebSearch", "WebFetch"]
 ---
 
-# /synek:next-chapter — write the next chapter of **$ARGUMENTS**
+# /synek:next-chapter: write the next chapter of **$ARGUMENTS**
 
-A **series** is a serialized story told one **chapter** at a time. Each chapter is a Synek story (a moment + ordered beats) linked into the series in order. This skill is the **morning-chapter loop**: you read where the series is, decide what happens next, *optionally grow the world to support it*, and write the next chapter — then hand back the season link.
+A **series** is a serialized story told one **chapter** at a time. Each chapter is a Synek story (a moment + ordered beats) linked into the series in order. This skill is the **morning-chapter loop**: you read where the series is, decide what happens next, *optionally grow the world to support it*, and write the next chapter. Then hand back the season link.
 
-There is no agent inside Synek. **You** are the writer — the app is the canvas + reader, your MCP client is the brain. The cadence is yours (run it when you like; to set up a *recurring* keeper-chapter loop end-to-end — scope brief, private series, schedule — use `/synek:follow`). The app holds only the durable parts: the series order and a coverage watermark. Everything else — the research, the prose, the choice of what happens next — is this run.
+There is no agent inside Synek. **You** are the writer. The app is the canvas + reader; your MCP client is the brain. The cadence is yours (run it when you like; use `/synek:follow` to set up a *recurring* keeper-chapter loop end-to-end: scope brief, private series, schedule). The app holds only the durable parts: the series order and a coverage watermark. Everything else belongs to this run: the research, the prose, the choice of what happens next.
 
 Read the `building-timelines` skill first for the `apply_patch` op shapes (used only when you grow the timeline) and the `write_story` beat/cast/widget shapes. This skill focuses on the part unique to serialization: **advancing the story without repeating earlier chapters.**
 
@@ -17,69 +17,69 @@ Read the `building-timelines` skill first for the `apply_patch` op shapes (used 
 
 ## 0. New series, or continue one?
 
-- **Continue a series:** `$ARGUMENTS` names one → `get_series` to load it (try it as an id; if that's not it, the user gave a title — find the project's series via `get_series` on the ids from the relevant project, or ask). If empty/ambiguous, list the user's series and ask which.
+- **Continue a series:** `$ARGUMENTS` names one → `get_series` to load it (try it as an id; if that's not it, the user gave a title, so find the project's series via `get_series` on the ids from the relevant project, or ask). If empty/ambiguous, list the user's series and ask which.
 - **Start a new series:** the user describes one with no existing series → pick the project (`list_projects`; create one only if asked), then `create_series` (title + a one-line `hook`, optional `coverImage`/`theme`). Then write **Chapter I** with the loop below (the frontier is just empty).
 
-If `get_series`/`list_projects` error, stop and run `/synek:setup` — don't write against a dead server.
+If `get_series`/`list_projects` error, stop and run `/synek:setup`. Don't write against a dead server.
 
-## 1. Read the frontier (the dedup baseline — do not skip)
+## 1. Read the frontier (the dedup baseline; do not skip)
 
-Call **`get_series`** for the series id. It returns the chapters **in order** (title, hook, status, the node ids each already references) and a **derived `frontier`**: the highest `chapterNumber` and the **latest instant** any covered node sits at. This is your watermark — the next chapter advances *past* it.
+Call **`get_series`** for the series id. It returns the chapters **in order** (title, hook, status, the node ids each already references) and a **derived `frontier`**: the highest `chapterNumber` and the **latest instant** any covered node sits at. That is your watermark, and the next chapter advances *past* it.
 
 Then call **`get_layout_report`** for the series' timeline (the graph-side watermark): the compact node index, lane health, era/story coverage, and the source registry. Between the two you know **what's already been narrated** (series) and **what the world already contains** (graph). The next chapter must add to one or both, not repeat them.
 
-If the timeline carries a **keeper log** node (`lane: "Keeper log"` — a scheduled follow lives here), read it too and let it inform the chapter: it names when the loop last ran and what's on the **WATCHING** list, which is often exactly the thread the next chapter should pick up. And **exclude that lane** when you read the graph's latest date — it's bookkeeping, not a beat (see `building-timelines`).
+The same `get_layout_report` returns the timeline's **`memory`**, its standing owner-private record, so the context arrives with the graph's shape and costs no extra call. Read it and let it steer the chapter: `brief` says what this timeline covers and deliberately excludes, `notes` carries the user's standing editorial instructions (treat them as instructions for this run), `references` lists the standing sources to check when you research, and `watching` names threads the loop already weighed and set aside, which is often exactly what the next chapter should pick up. `coveredThrough` says how far the loop has actually looked. Memory lives on the timeline rather than in the graph, so the graph's latest date needs no lane exclusions. If this timeline still carries an old node in a `Keeper log` lane, migrate its runs and watching into memory with `update_timeline_memory`, then delete the node (see `building-timelines`).
 
 ## 2. Decide what the next chapter is
 
 A good next chapter does one clear thing the series hasn't: the next era, the next campaign, the consequence of the last chapter, a parallel thread that's now due. Anchor it on a **moment** (a node):
 - usually a node that exists on the timeline and hasn't anchored a chapter yet, or
-- a node you're about to create (if you're growing the world — step 3).
+- a node you're about to create (if you're growing the world, see step 3).
 
 State the chapter's spine in one sentence before writing it (the through-line, the moment it anchors on, where it leaves off). Keep it *after* the frontier instant unless the user explicitly wants a flashback chapter.
 
-## 3. Grow the world — ONLY if asked (opt-in, not default)
+## 3. Grow the world: ONLY if asked (opt-in, not default)
 
 **Default: narrate over the existing graph.** The chapter tells a new story about nodes that already exist. No `apply_patch`.
 
 **Opt-in: grow the timeline.** If the user wants the world to expand (or the next chapter genuinely needs events/entities that aren't on the canvas yet), then *first*:
-1. `WebSearch`/`WebFetch` for the real, citable developments the chapter needs — scoped to the gap after the frontier, primary/authoritative sources.
-2. Diff against the `get_layout_report` node index — add **only** what's genuinely missing (match the real event, not the wording).
-3. `apply_patch` **one** batch of the new nodes + edges, each **cited**, dated `summary` (e.g. `"Chapter VII setup — +4 events"`). `register_artifact` for substantive sources (`search_artifacts` first to avoid dupes).
+1. `WebSearch`/`WebFetch` for the real, citable developments the chapter needs, scoped to the gap after the frontier, from primary/authoritative sources.
+2. Diff against the `get_layout_report` node index, then add **only** what's genuinely missing (match the real event, not the wording).
+3. `apply_patch` **one** batch of the new nodes + edges, each **cited**, dated `summary` (e.g. `"Chapter VII setup: +4 events"`). `register_artifact` for substantive sources (`search_artifacts` first to avoid dupes).
 
 This step rides the normal Patch invariant: one batch = one undoable Patch. If the user wants the chapter to fit strictly within the current timeline, **skip this entire step.**
 
-If a keeper log exists **and** you grew the world, put its `update_node` in this same batch — one run line, plus any WATCHING item you promoted or aged out. If you *didn't* grow the world, **don't open a patch just to log a hand-run chapter**; the chapter itself is the trace. The log exists for scheduled runs that might otherwise leave none.
+Memory is **not** part of the undo/redo Patch stack, so it is logged separately: send **one** `update_timeline_memory { timelineId, patch: { … } }` at the **end of the run** (after step 4), carrying `appendRun { date, summary, patchId }` with the `patchId` this `apply_patch` returned so an undone run reads as undone, an advanced `coveredThrough` (how far you looked, not the latest node date), and any `watching` item you promoted or aged out. Use `appendRun` rather than rewriting a runs array; the store prepends and trims. Writes are field-scoped, so logging a run cannot clobber the user's `brief` or `notes`. Dates are ISO calendar dates (`"2026-08-17"`); the schema rejects anything else. For a hand-run chapter, **don't open a patch just to log it**; the chapter itself is the trace. But when this series has a `cadence` recorded in memory, still append the run entry, including on a run that added nothing, since a scheduled run leaves no other trace.
 
 ## 4. Write the chapter
 
-`write_story` with **`appendToSeries: <seriesId>`** — that links it as the next chapter and auto-assigns the chapter number (no need to track order). Pass `momentId` (the anchor from step 2). Make it a real chapter, not a stub:
-- **Beats** that move: ground every factual beat in a `citation` (an `artifactId` from step 3, or an inline `{ title, url, quote }`). Stories without sources are just plausible fiction.
+`write_story` with **`appendToSeries: <seriesId>`** links it as the next chapter and auto-assigns the chapter number (no need to track order). Pass `momentId` (the anchor from step 2). Make it a real chapter, not a stub:
+- **Beats** that move: ground every factual beat in a `citation` (an `artifactId` from step 3, or an inline `{ title, url, quote }`).
 - **Cast**: list the chapter's key figures (node-backed `{ nodeId }` where they exist; name-only entries come back as warnings so you can materialize them).
 - **Camera**: set per-beat `focusNodeId` to tour entities, and `lens` (`globe`/`timeline`) to choreograph place vs. time beats.
 - **Art/widgets** where they earn their place: a `coverImage`, a per-beat `image`, or a live `widget` (mini timeline/globe/entity).
-- Carry the **series voice** — match the tone and depth of the earlier chapters you read in step 1.
+- Carry the **series voice**: match the tone and depth of the earlier chapters you read in step 1.
 
-To **fix** a chapter you just wrote (a typo, a missing beat, a reorder) without rewriting the whole thing, use **`patch_story`** with surgical ops — not another `write_story`.
+To **fix** a chapter you just wrote (a typo, a missing beat, a reorder) without rewriting the whole thing, use **`patch_story`** with surgical ops, not another `write_story`.
 
 ## 5. Publish (optional)
 
-If the user wants the season shareable, `set_series_public` → the page is live at `/sr/<slug>`, chapters playing in order — but **only chapters with status `published` show**. Two things to know:
+If the user wants the season shareable, `set_series_public` → the page is live at `/sr/<slug>`, chapters playing in order. But **only chapters with status `published` show**. Two things to know:
 
-- **Review mode.** If the series has `reviewMode` on (`create_series` / `set_series_review_mode`), every chapter you write is **born a `draft`** — owner-only, off the public season — until it's approved with `patch_story` `update_meta { status: "published" }`. When the user asks you (interactively) to publish the chapter you just wrote, that patch is the approval. A *scheduled* writer never publishes — it leaves drafts for the owner (see `/synek:follow`).
+- **Review mode.** If the series has `reviewMode` on (`create_series` / `set_series_review_mode`), every chapter you write is **born a `draft`** (owner-only, off the public season) until it's approved with `patch_story` `update_meta { status: "published" }`. When the user asks you (interactively) to publish the chapter you just wrote, that patch is the approval. A *scheduled* writer never publishes; it leaves drafts for the owner (see `/synek:follow`).
 - A chapter's own `isPublic` (the standalone `/s/<slug>` page) is a **separate axis** from the season page.
 
 ## 6. Report honestly
 
 Tightly:
-- **Chapter N — "<title>":** the spine in one line, the moment it anchors on, beat count.
-- **Grew the world:** the nodes/edges added (with dates), or *"narrated over the existing timeline — no new nodes"* if you didn't.
-- **Keeper log:** the run line you wrote and the watching count — **only** when this series has one.
-- **Unverified:** anything you couldn't confirm a date/source for — report it as *unverified*, **never invent** a date or citation. A fabricated chapter is worse than a thinner one.
-- The season link: `<origin>/sr/<slug>` (origin is `http://localhost:3001` locally, or the hosted base URL — `SYNEK_MCP_URL` minus `/api/mcp` — when the plugin points at a deployed Synek).
+- **Chapter N ("<title>"):** the spine in one line, the moment it anchors on, beat count.
+- **Grew the world:** the nodes/edges added (with dates), or *"narrated over the existing timeline, no new nodes"* if you didn't.
+- **Memory:** the run entry you appended, the `coveredThrough` you set, and the watching count (**only** when this run wrote one).
+- **Unverified:** anything you couldn't confirm a date/source for. Report it as *unverified* and **never invent** a date or citation. A fabricated chapter is worse than a thinner one.
+- The season link: `<origin>/sr/<slug>` (origin is `http://localhost:3001` locally, or the hosted base URL [`SYNEK_MCP_URL` minus `/api/mcp`] when the plugin points at a deployed Synek).
 
 ---
 
 ## Quality bar
 
-A next-chapter run is good when: it **advanced** the series (a clearly new chapter past the frontier, never a repeat of an earlier one), every factual beat is **cited**, the chapter **anchors on a real moment** and carries the **series voice**, — if the world grew — the new nodes are **dated, cited, deduped, and in the right lanes** as one Patch, and — if a keeper log is present — it left the log **consistent with what actually happened**. Writing a chapter that retells what Chapter N-1 already covered, or inventing events to pad it, is a failure even if every tool call succeeded. If there's genuinely nothing new to tell yet, **say so** rather than manufacture a chapter.
+A next-chapter run is good when: it **advanced** the series (a clearly new chapter past the frontier, never a repeat of an earlier one), every factual beat is **cited**, the chapter **anchors on a real moment** and carries the **series voice**, the new nodes are **dated, cited, deduped, and in the right lanes** as one Patch if the world grew, and the timeline **memory**, whenever the run logs one, is left **consistent with what actually happened**. A chapter that retells what Chapter N-1 already covered, or that invents events to pad itself, fails the run however cleanly the tools returned. If there's genuinely nothing new to tell yet, **say so** rather than manufacture a chapter.

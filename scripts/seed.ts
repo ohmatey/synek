@@ -123,6 +123,11 @@ function builder(tl: string, ownerId: string, projectId: string) {
     return id
   }
 
+  // NOTE on direction, which the seed had inverted for every `succeeded` edge
+  // until the panel started rendering relations as a phrase instead of a bare
+  // arrow: `A succeeded B` means A came AFTER and replaced B (src/lib/mcp/ops.ts).
+  // So the LATER node is the source. `A caused B` and `A influenced B` flow the
+  // other way (source is the earlier cause).
   function edge(sourceId: string, targetId: string, kind: EdgeKind, label?: string) {
     db.insert(edges).values({ id: randomUUID(), timelineId: tl, sourceId, targetId, kind, label: label ?? null }).run()
   }
@@ -372,8 +377,8 @@ const SEEDS: Seeder[] = [
       edge(crates, zeno, 'influenced', 'Cynic teacher')
       edge(zeno, founding, 'caused')
       edge(founding, earlyStoa, 'caused')
-      edge(zeno, cleanthes, 'succeeded', '2nd head')
-      edge(cleanthes, chrysippus, 'succeeded', '3rd head')
+      edge(cleanthes, zeno, 'succeeded', '2nd head')
+      edge(chrysippus, cleanthes, 'succeeded', '3rd head')
       edge(chrysippus, systematized, 'caused')
       edge(chrysippus, panaetius, 'influenced')
       edge(panaetius, toRome, 'caused')
@@ -879,7 +884,7 @@ const SEEDS: Seeder[] = [
       })
 
       edge(cold, sputnik, 'caused')
-      edge(sputnik, gagarin, 'succeeded', 'escalation')
+      edge(gagarin, sputnik, 'succeeded', 'escalation')
       edge(gagarin, apollo, 'influenced')
       edge(apollo, moon, 'caused')
       edge(nasa, moon, 'caused')
@@ -1009,9 +1014,9 @@ const SEEDS: Seeder[] = [
 
       edge(republic, rubicon, 'caused')
       edge(caesar, alesia, 'caused', 'conquers Gaul')
-      edge(alesia, rubicon, 'succeeded')
+      edge(rubicon, alesia, 'succeeded')
       edge(rubicon, pharsalus, 'caused')
-      edge(pharsalus, alexandria, 'succeeded')
+      edge(alexandria, pharsalus, 'succeeded')
       edge(rubicon, ides, 'caused')
       edge(ides, empire, 'caused')
       edge(caesar, rubicon, 'caused')
@@ -1202,7 +1207,7 @@ const SEEDS: Seeder[] = [
 
       edge(newton, darwin, 'influenced')
       edge(newton, einstein, 'influenced')
-      edge(lovelace, curie, 'succeeded')
+      edge(curie, lovelace, 'succeeded')
 
       // A multi-beat story on Darwin so the canvas ships with a real tap-through
       // story to play (and the e2e story-viewer spec has something to read).
@@ -1333,7 +1338,7 @@ const E2E_FIXTURES: Seeder[] = [
       const a = node({ type: 'event', title: 'First event', start: Y(2000) })
       const b = node({ type: 'event', title: 'Second event', start: Y(2010) })
       const era = node({ type: 'period', title: 'An era', start: Y(2000), end: Y(2020) })
-      edge(a, b, 'succeeded')
+      edge(b, a, 'succeeded')
       edge(era, a, 'caused')
     },
   },

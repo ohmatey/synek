@@ -2,7 +2,7 @@
 // Dump one timeline's graph from the local SQLite DB as the `get_timeline` JSON
 // shape, so it can be piped into grade-timeline.mjs without a running server.
 // Reads are safe alongside the app (WAL). Run under `node` (better-sqlite3 is a
-// Node-ABI binding — Bun can't load it).
+// Node-ABI binding, so Bun can't load it).
 //
 // Usage:
 //   node dump-timeline.mjs <timelineId> [--db path/to.db] > graph.json

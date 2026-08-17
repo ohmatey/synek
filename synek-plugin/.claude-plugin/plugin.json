@@ -1,7 +1,7 @@
 {
   "name": "synek",
-  "version": "0.4.0",
-  "description": "Drive your Synek timeline canvas from Claude Code. Talk about a topic and watch the timeline build itself — bundles the MCP connection plus the know-how to build good timelines and tell immersive, cited stories on them.",
+  "version": "0.5.0",
+  "description": "Drive your Synek timeline canvas from Claude Code. Talk about a topic and watch the timeline build itself. Bundles the MCP connection plus the know-how to build good timelines and tell immersive, cited stories on them.",
   "author": {
     "name": "Aaron McPherson",
     "email": "contactaaronmcpherson@gmail.com"

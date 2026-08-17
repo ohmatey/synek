@@ -5,13 +5,22 @@ import { StoryBadge } from './StoryBadge'
 // The head/meta wrappers are `display: contents` in the default horizontal pill,
 // so the flat nowrap row is unchanged; in the vertical variant they become the
 // two stacked lines (title above date+badges). See `.sf-event-vertical`.
+//
+// An event with an `end` is drawn at its SPAN width, like every other spanned
+// node. This used to be the one type that ignored `d.width` entirely, while the
+// lane packer already reserved span width for it (TimelineCanvas `widthOf`) — so
+// a spanned event reserved a wide slot and then drew a narrow content-width pill
+// inside it, leaving a gap the packer refused to fill. Spanless events keep their
+// text-driven width (`d.width` is undefined for them).
 export function EventNode({ data }: NodeProps) {
   const d = data as CanvasNodeData
   const vertical = d.orientation === 'vertical'
+  const spanned = d.endDate != null && d.width != null
   return (
     <div className={`sf-node sf-size-${d.size ?? 'medium'}`}>
       <div
-        className={`sf-event${d.hasSummary ? ' sf-event-rich' : ''}${vertical ? ' sf-event-vertical' : ''}`}
+        className={`sf-event${d.hasSummary ? ' sf-event-rich' : ''}${vertical ? ' sf-event-vertical' : ''}${spanned ? ' sf-event-spanned' : ''}`}
+        style={spanned ? { width: d.width } : undefined}
         title={d.hasSummary ? 'Has a description — click to read' : undefined}
       >
         <Handle type="target" position={Position.Left} className="sf-handle" />

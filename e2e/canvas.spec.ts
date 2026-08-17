@@ -137,15 +137,29 @@ test('timeline view shows the bottom scroller and left zoom controls', async ({ 
   await expect(zoom.getByRole('button', { name: 'Zoom out' })).toBeVisible()
   await expect(zoom.getByRole('button', { name: 'Fit timeline' })).toBeVisible()
 
-  // Zooming in narrows the view-window (less of the timeline is on screen) — the
+  // Zooming in narrows the view-window (less of the timeline is on screen): the
   // scroller and the camera zoom are wired to the same viewport. The window is
-  // clamped at 100% while the WHOLE world is visible (the post-fitView state), so
-  // zoom in enough steps (1.2x each) to get decisively past that clamp — two
-  // clicks lands right at the boundary on a gap-compressed axis.
+  // clamped at 100% while the WHOLE world is visible (the post-fitView state), and
+  // how many 1.2x steps it takes to escape that clamp depends on the world's width,
+  // which changes with node sizing. So click until it actually moves rather than
+  // guessing a step count (a fixed count has broken twice).
+  // Zooming in narrows the view-window (less of the timeline is on screen): the
+  // scroller and the camera zoom are wired to the same viewport.
+  //
+  // This assertion needs a world that is WIDER than the viewport can show, or the
+  // window sits clamped at 100% and zooming changes nothing. `roman-republic` is a
+  // short span and no longer qualifies (stacked cards are taller, so fitView zooms
+  // out further and the whole world fits). Use `stoicism`, which spans ~500 years,
+  // so the clamp is escaped regardless of card sizing. Poll, because the transform
+  // settles asynchronously and reading straight after a click races under load.
+  await page.goto('/timelines/stoicism')
+  await expect(page.locator('.tl-scrubber')).toBeVisible()
+  await page.waitForTimeout(700) // fitView settles
+  const zoomIn = page.locator('.tl-zoom').getByRole('button', { name: 'Zoom in' })
   const before = (await page.locator('.tl-window').boundingBox())!.width
-  for (let i = 0; i < 4; i++) await zoom.getByRole('button', { name: 'Zoom in' }).click()
+  for (let i = 0; i < 6; i++) await zoomIn.click()
   await expect
-    .poll(async () => (await page.locator('.tl-window').boundingBox())!.width, { timeout: 5_000 })
+    .poll(async () => (await page.locator('.tl-window').boundingBox())!.width, { timeout: 8_000 })
     .toBeLessThan(before)
 })
 

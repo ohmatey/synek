@@ -1,4 +1,4 @@
-import { MoreHorizontal, Share2, SlidersHorizontal } from 'lucide-react'
+import { MoreHorizontal, NotebookPen, Share2, SlidersHorizontal } from 'lucide-react'
 import { Button } from '~/components/ui/button'
 import {
   DropdownMenu,
@@ -17,15 +17,19 @@ import { floatChip } from './chrome'
 export function MoreMenu({
   canSettings,
   canShare,
+  canMemory,
   onOpenSettings,
   onOpenShare,
+  onOpenMemory,
 }: {
   canSettings: boolean
   canShare: boolean
+  canMemory: boolean
   onOpenSettings: () => void
   onOpenShare: () => void
+  onOpenMemory: () => void
 }) {
-  if (!canSettings && !canShare) return null
+  if (!canSettings && !canShare && !canMemory) return null
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -44,6 +48,12 @@ export function MoreMenu({
           <DropdownMenuItem onSelect={onOpenSettings}>
             <SlidersHorizontal />
             Display settings
+          </DropdownMenuItem>
+        )}
+        {canMemory && (
+          <DropdownMenuItem onSelect={onOpenMemory}>
+            <NotebookPen />
+            Timeline memory
           </DropdownMenuItem>
         )}
         {canShare && (

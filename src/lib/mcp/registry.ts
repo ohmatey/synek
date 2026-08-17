@@ -8,6 +8,8 @@ import {
   resolveTimelineTheme,
   setTimelineView,
   setTimelineTheme,
+  getTimelineMemory,
+  updateTimelineMemory,
 } from '~/lib/db/graph'
 import {
   createProject,
@@ -72,6 +74,7 @@ import {
 import { parseDate, formatInstant } from '~/lib/domain/dates'
 import { BASE_URL } from '~/lib/auth'
 import { timelineThemeSchema } from '~/lib/domain/theme'
+import { timelineMemoryUpdateSchema } from '~/lib/domain/memory'
 import { opSchema, applyOps } from './ops'
 import { collectPatchWarnings, imageUrlWarnings } from './warnings'
 import { themeContrastWarnings } from './theme-warnings'
@@ -518,16 +521,20 @@ export const toolRegistry: ToolDef[] = [
       'flatter the layout), clump scattered narrative threads into shared lanes, fill story-poor eras, balance ' +
       'thin sourcing, resolve undecided coordinates (pin or mark placeless).',
     inputSchema: { timelineId: z.string() },
-    handler: async ({ timelineId }, { requireOwned }) => {
+    handler: async ({ timelineId }, { ownerId, requireOwned }) => {
       requireOwned(timelineId)
       const meta = getTimelineMeta(timelineId)
-      return await buildLayoutReport(
+      const report = await buildLayoutReport(
         timelineId,
         loadGraph(timelineId),
         meta?.viewSettings ?? null,
         // The report's theme view reflects inheritance (D5) — what the canvas renders.
         meta ? resolveTimelineTheme(meta) : null,
       )
+      // Memory rides along because this is the read a keeper already makes FIRST
+      // (watch/follow step 1). Returning it here means a routine gets its own
+      // state and the user's standing notes without a second call.
+      return { ...report, memory: getTimelineMemory(timelineId, ownerId) }
     },
   },
 
@@ -623,6 +630,39 @@ export const toolRegistry: ToolDef[] = [
       // Reuse kind 'view': live viewers refetch the graph (which carries theme).
       emitTimelineEvent({ timelineId, kind: 'view', seq: maxAppliedSeq(timelineId) })
       return { ok: true, theme: theme ?? null, warnings }
+    },
+  },
+
+  {
+    name: 'update_timeline_memory',
+    title: 'Update timeline memory',
+    description:
+      "The timeline's own MEMORY: a small owner-private context store that grounds every future run. Read it " +
+      'back from get_layout_report (`memory`), which you already call first. It replaces the old "Keeper log" ' +
+      'bookkeeping NODE: do not create one, and if a timeline still has a node in a "Keeper log" lane, migrate ' +
+      'its contents here and delete the node. Two regions with different owners. THE USER OWNS `brief` (what ' +
+      'this timeline covers and deliberately excludes), `notes` (their standing editorial instructions, ' +
+      'markdown) and `references` (the standing sources this timeline is grounded in, i.e. where to look each ' +
+      'run) — READ these every run and treat them as instructions; only write them when the user explicitly ' +
+      'asks. YOU OWN `cadence`, `coveredThrough` (how far you have LOOKED, which advances even when you found ' +
+      'nothing, unlike the latest node date), `watching` (real but under the scope bar: each with the trigger ' +
+      'that would promote it) and the run log via `appendRun`. Writes are FIELD-SCOPED: only the keys you pass ' +
+      'change, so logging a run never touches the notes beside it. Use `appendRun` rather than rewriting a run ' +
+      'array; the store prepends and trims. Send one call at the END of every run INCLUDING a run that found ' +
+      'nothing, since that is the run with no other trace. Pass the `patchId` apply_patch returned so an undone ' +
+      'run can be recognised as undone. Not part of the undo/redo Patch stack.',
+    inputSchema: {
+      timelineId: z.string(),
+      patch: timelineMemoryUpdateSchema.describe(
+        'Only the fields you pass are written. Pass "" or [] to clear a field.',
+      ),
+    },
+    handler: async ({ timelineId, patch }, { ownerId, requireOwned }) => {
+      requireOwned(timelineId)
+      const memory = updateTimelineMemory(timelineId, ownerId, patch)
+      // Reuse kind 'view': the canvas refetches and the memory editor re-renders.
+      emitTimelineEvent({ timelineId, kind: 'view', seq: maxAppliedSeq(timelineId) })
+      return { ok: true, memory }
     },
   },
 

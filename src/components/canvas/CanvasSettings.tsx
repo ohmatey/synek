@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useReactFlow, useStore, useViewport } from '@xyflow/react'
 import { Check, Loader2, Minus, Palette, Plus, SlidersHorizontal, Sparkles, Volume2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -175,6 +175,20 @@ export function CanvasSettings({
   const [tab, setTab] = useState<TLTab>('display')
   const [themeEditorOpen, setThemeEditorOpen] = useState(false)
   const [themePromptOpen, setThemePromptOpen] = useState(false)
+  // Swapping this dialog for another one must be SEQUENCED, not simultaneous.
+  // Two overlapping modal dialogs make Radix mark the closing one inert mid-exit,
+  // so its animationend never fires, it never unmounts, and its dismissable layer
+  // stays registered — swallowing Escape on the dialog that opened on top of it.
+  // CommandPalette.runAction learned this already; this is the same 260ms hop past
+  // the close animation. (Symptom before the fix: "Ask your agent" opened the
+  // prompt under a stuck settings overlay and Escape would not close it.)
+  const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (swapTimer.current) clearTimeout(swapTimer.current) }, [])
+  const swapToDialog = (openNext: (v: boolean) => void) => {
+    setOpen(false)
+    if (swapTimer.current) clearTimeout(swapTimer.current)
+    swapTimer.current = setTimeout(() => openNext(true), 260)
+  }
   const speechSupported = useSpeechSupported()
   const [narration, setNarration] = useNarrationPrefs()
   const voices = useNarrationVoices()
@@ -635,10 +649,7 @@ export function CanvasSettings({
                       size="sm"
                       className="h-8 flex-1 text-xs"
                       data-testid="theme-edit"
-                      onClick={() => {
-                        setOpen(false)
-                        setThemeEditorOpen(true)
-                      }}
+                      onClick={() => swapToDialog(setThemeEditorOpen)}
                     >
                       <Palette />
                       Edit theme
@@ -649,10 +660,7 @@ export function CanvasSettings({
                       className="h-8 flex-1 text-xs"
                       data-testid="theme-prompt"
                       title="Copy a prompt that has your connected Claude design the theme"
-                      onClick={() => {
-                        setOpen(false)
-                        setThemePromptOpen(true)
-                      }}
+                      onClick={() => swapToDialog(setThemePromptOpen)}
                     >
                       <Sparkles />
                       Ask your agent

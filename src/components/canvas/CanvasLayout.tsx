@@ -37,6 +37,8 @@ export function CanvasLayout({
   center,
   controls,
   texture,
+  storyOpen,
+  detailOpen,
   style,
   children,
 }: {
@@ -51,11 +53,23 @@ export function CanvasLayout({
   controls?: ReactNode
   // Forwarded to `.canvas-root` for the per-timeline theme/texture treatment.
   texture?: string
+  // Which docks are mounted. CSS needs this as a FLAG, not as a width: the
+  // --story-reader-w / --detail-panel-w custom properties are published
+  // unconditionally, so their values can never say whether a panel actually
+  // exists. The dock-order rules key off these attributes.
+  storyOpen?: boolean
+  detailOpen?: boolean
   style?: CSSProperties
   children?: ReactNode
 }) {
   return (
-    <div className="canvas-root" data-canvas-texture={texture} style={style}>
+    <div
+      className="canvas-root"
+      data-canvas-texture={texture}
+      data-story-open={storyOpen || undefined}
+      data-detail-open={detailOpen || undefined}
+      style={style}
+    >
       <div className="top-bar">
         {brand ?? <BrandChip />}
         {center}

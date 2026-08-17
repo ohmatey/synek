@@ -1,7 +1,7 @@
 # building-timelines evals
 
 A deterministic harness for checking that the `building-timelines` skill produces
-timelines a person wants to look at — and specifically that it **swimlanes
+timelines a person wants to look at, and specifically that it **swimlanes
 parallel tracks** instead of dumping everything into one collision-stacked lane.
 
 These files are dev tooling for the plugin, not part of the shipped skill.
@@ -43,19 +43,19 @@ Grade a fixture:
 node synek-plugin/evals/grade-timeline.mjs synek-plugin/evals/fixtures/clean-swimlanes.json --multi-track --min-lanes 5
 ```
 
-Grade a live timeline (reads `local.db` read-only — safe alongside the app):
+Grade a live timeline (reads `local.db` read-only, so it is safe alongside the app):
 
 ```
 node synek-plugin/evals/dump-timeline.mjs <timelineId> | node synek-plugin/evals/grade-timeline.mjs - --multi-track --min-lanes 5
 ```
 
 `--json` emits machine-readable output. Exit code is 0 on pass, 1 on fail, 2 on
-bad input — so it drops straight into CI or a loop.
+bad input, so it drops straight into CI or a loop.
 
 ## Regression fixtures
 
-- `fixtures/clean-swimlanes.json` — the AI-race timeline after swimlane cleanup. **Must PASS.**
-- `fixtures/messy-no-lanes.json` — the same topic as the anti-pattern (no lanes, `succeeded` chains, `competed_with`). **Must FAIL** (tallest group needs 6 rows).
+- `fixtures/clean-swimlanes.json`: the AI-race timeline after swimlane cleanup. **Must PASS.**
+- `fixtures/messy-no-lanes.json`: the same topic as the anti-pattern (no lanes, `succeeded` chains, `competed_with`). **Must FAIL** (tallest group needs 6 rows).
 
 If a change to `grade-timeline.mjs` lets the messy fixture pass or the clean one
 fail, the grader has regressed.
@@ -74,4 +74,4 @@ good graphs. To run a case end-to-end:
 
 Run the whole suite by looping `cases.json`. Because each case is independent,
 this fans out cleanly across subagents (one per case) when an orchestrated run is
-wanted — build in parallel, grade each as it lands.
+wanted: build in parallel, grade each as it lands.

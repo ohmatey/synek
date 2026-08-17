@@ -34,7 +34,7 @@
       "prompt": "Map the founding and early scholarchs of the Stoic school in Athens.",
       "multiTrack": false,
       "minLanes": 1,
-      "notes": "A single tradition handed down — NOT multi-track. The skill should lean on the type lanes (people/events/periods) and succession edges, and should NOT invent company-style swimlanes. Run the grader WITHOUT --multi-track."
+      "notes": "A single tradition handed down, NOT multi-track. The skill should lean on the type lanes (people/events/periods) and succession edges, and should NOT invent company-style swimlanes. Run the grader WITHOUT --multi-track."
     },
     {
       "id": "apollo-program",

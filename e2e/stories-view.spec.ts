@@ -77,7 +77,7 @@ test('a story runs by itself; tapping a related entity opens it beside without e
   // reader; the story keeps playing (decoupled).
   await reader.getByRole('button', { name: 'Next beat' }).click()
   await expect(reader.getByText('2 / 4')).toBeVisible()
-  await reader.getByRole('button', { name: '→ Isaac Newton' }).click()
+  await reader.getByRole('button', { name: 'Isaac Newton', exact: true }).click()
   await expect(reader).toBeVisible()
   await expect(
     page.getByRole('dialog', { name: 'Node details' }).getByRole('heading', { name: 'Isaac Newton' }),

@@ -69,9 +69,11 @@ import { useTimelineStream } from './useTimelineStream'
 import { AppBar } from './AppBar'
 import { CanvasLayout } from './CanvasLayout'
 import { ShareDialog } from './ShareDialog'
+import { MemoryDialog } from './MemoryDialog'
+import { LaneBands } from './LaneBands'
 import { HistoryShortcuts } from './HistoryShortcuts'
 import { NodeDetailPanel } from './NodeDetailPanel'
-import { centerOnNodes } from './cameraFocus'
+import { centerOnNodes, leftmostDock } from './cameraFocus'
 import { CommandPalette } from './CommandPalette'
 import { StoryReader } from './StoryReader'
 import { TimelineScrubber, TimelineZoomControls } from './TimelineScroller'
@@ -82,8 +84,10 @@ import { useBuildStream } from './build-stream'
 import {
   loadPanelWidths,
   savePanelWidths,
-  clampDetail,
-  clampStory,
+  clampAgainstPeer,
+  DOCK_CHROME,
+  DETAIL_WIDTH,
+  STORY_WIDTH,
   type PanelWidths,
 } from './usePanelSize'
 import type { CanvasNodeData, NodeDraft } from './types'
@@ -134,7 +138,8 @@ function ViewportInit({ timelineId, nodeCount }: { timelineId: string; nodeCount
 
 // Frames the story camera target(s) as the reader steps — the current beat's focus
 // node (GAP 1·B), "walking you around the map". Crucially it frames the node in the
-// VISIBLE canvas to the LEFT of the docked reader + panel (measured at runtime), not
+// VISIBLE canvas to the LEFT of the whole dock column (measured at runtime via
+// leftmostDock, which is order-independent), not
 // centered under them, so the focused entity sits nicely beside the story. maxZoom
 // caps the zoom so a single small node isn't blown up; reader-driven, never
 // data-driven, so it doesn't fight ViewportInit's saved-camera restore.
@@ -180,10 +185,11 @@ function FlyToCamera({ targetId, onArrive }: { targetId: string | null; onArrive
     const tick = () => {
       frames += 1
       const measured = !!rf.getNode(targetId)?.measured?.width
-      // The leftmost occluder, same query centerOnNodes uses; its left edge
-      // glides while dock-slide-in runs, so stability across two frames ⇒ at rest.
-      const dock = (document.querySelector('.story-reader') ??
-        document.querySelector('.detail-panel')) as HTMLElement | null
+      // The leftmost occluder, via the SAME helper centerOnNodes uses (this was a
+      // duplicated query; fixing one and not the other framed correctly on beat
+      // steps and wrongly on ⌘K fly-to). Its left edge glides while dock-slide-in
+      // runs, so stability across two frames ⇒ at rest.
+      const dock = leftmostDock()
       const left = dock ? dock.getBoundingClientRect().left : Number.NaN
       const dockSettled = !dock || left === prevLeft
       prevLeft = left
@@ -296,13 +302,33 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   const [addMode, setAddMode] = useState<AddMode>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [memoryOpen, setMemoryOpen] = useState(false)
+  // Does the companion detail panel track the story's beats? True for every story;
+  // set false only when the user dismisses the followed panel, so they can get the
+  // canvas back without stopping playback. Reset on open/close of the reader.
+  const [followBeat, setFollowBeat] = useState(true)
+  // Last entity a beat named, kept so a beat that names none holds the panel steady
+  // instead of closing it. Carries its story id so it cannot leak across stories.
+  const [stickyBeat, setStickyBeat] = useState<{ storyId: string; nodeId: string } | null>(null)
   // User-resizable widths for the right-docked panels (detail + story reader).
   // Applied as CSS vars on .canvas-root; persisted to localStorage on release.
   const [panelW, setPanelW] = useState<PanelWidths>(() => loadPanelWidths())
   const panelWRef = useRef(panelW)
   panelWRef.current = panelW
-  const resizeDetail = useCallback((next: number) => setPanelW((w) => ({ ...w, detail: clampDetail(next) })), [])
-  const resizeStory = useCallback((next: number) => setPanelW((w) => ({ ...w, story: clampStory(next) })), [])
+  // Each drag is clamped against the OTHER dock's current width, not just its own
+  // bounds: with the panel now the story's companion, both open is the default
+  // state and two independent maxima (560 + 640 + 48 of chrome) left no canvas.
+  const canvasWidth = () => document.querySelector('.react-flow')?.getBoundingClientRect().width
+  const resizeDetail = useCallback(
+    (next: number) =>
+      setPanelW((w) => ({ ...w, detail: clampAgainstPeer(next, w.story, canvasWidth(), DETAIL_WIDTH) })),
+    [],
+  )
+  const resizeStory = useCallback(
+    (next: number) =>
+      setPanelW((w) => ({ ...w, story: clampAgainstPeer(next, w.detail, canvasWidth(), STORY_WIDTH) })),
+    [],
+  )
   const commitPanelW = useCallback(() => savePanelWidths(panelWRef.current), [])
   // The view to restore when the reader closes — captured when a story opens, so
   // closing a story opened from the Stories list returns to the list, while one
@@ -321,12 +347,15 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       setActiveBeat(-1)
       setStoryPaused(false)
       setReading(true)
+      // Every story starts with the companion panel following its beats.
+      setFollowBeat(true)
     },
     [search.view, setSelectedStoryId],
   )
   // Close the reader and restore the view the story was opened from.
   const closeReader = useCallback(() => {
     setReading(false)
+    setFollowBeat(true)
     setSelectedStoryId(null)
     setActiveBeat(-1)
     setStoryPaused(false)
@@ -622,9 +651,31 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     : null
   const beatFocusId =
     rawBeatFocus && rawBeatFocus !== storyMomentId && nodeById.has(rawBeatFocus) ? rawBeatFocus : null
-  // The detail panel shows ONLY the entity the user explicitly opened (a cast chip /
-  // related-node tap or a canvas click) — it never auto-follows the beat.
-  const displayNode = selectedNode
+  // The detail panel is the story's COMPANION: while a story plays it follows the
+  // beat, so the reader (docked flush right) keeps telling the story while the panel
+  // beside it re-points to whatever the current beat is about.
+  //
+  // Precedence is "beat wins, click pins": with nothing selected the panel tracks
+  // beatFocusId; an explicit selection (cast chip, related-node tap, canvas click)
+  // takes over and HOLDS, so a click is never stomped by the next beat. Closing a
+  // pinned panel returns to the followed node; closing THAT dismisses the panel for
+  // the rest of the story (followBeat=false), which is the only way to get the
+  // canvas back without ending playback.
+  // Beats do not all name an entity. Letting the panel empty out on those would
+  // make it flicker open and shut between beats and re-frame the camera each time,
+  // so the last entity the story named STICKS until it names another. Scoped to the
+  // story id so switching stories never inherits the previous one's subject.
+  const stickyBeatId = stickyBeat && readingStory && stickyBeat.storyId === readingStory.id ? stickyBeat.nodeId : null
+  const followId = beatFocusId ?? stickyBeatId
+  const beatNode = followId ? (nodeById.get(followId) ?? null) : null
+  const followedNode = reading && followBeat ? beatNode : null
+  const displayNode = selectedNode ?? followedNode
+  // Pinned = an explicit selection is overriding an available follow target.
+  const panelPinned = !!selectedNode && !!followedNode && selectedNode.id !== followedNode.id
+  // Remember each entity a beat names, for the sticky fallback above.
+  useEffect(() => {
+    if (readingStory && beatFocusId) setStickyBeat({ storyId: readingStory.id, nodeId: beatFocusId })
+  }, [readingStory, beatFocusId])
   // Camera only moves while reading; frame the beat's focus, else the moment.
   const cameraIds = reading && storyMomentId ? [beatFocusId ?? storyMomentId] : null
   // GS1 (globe story mode): the same node the timeline camera frames — the beat's
@@ -754,7 +805,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
   // node/edge arrays — is O(n log n) and rebuilt only when its inputs change.
   // Memoizing matters because the detail panel emits a fresh draft on every
   // keystroke; without this each keystroke re-packs lanes and re-diffs the graph.
-  const { rfNodes, rfEdges, scale } = useMemo(() => {
+  const { rfNodes, rfEdges, scale, laneBands } = useMemo(() => {
     const focusSet = effectiveFocusIds.length ? new Set(effectiveFocusIds) : null
 
     // Overlay the panel's in-progress draft on the selected node — a live preview
@@ -822,7 +873,8 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     // (real + pending laid out together so they don't collide mid-stream).
     // Measured DOM sizes (second pass) beat the estimates once available.
     const m = measuredRef.current
-    const laneYById = layoutLaneY([
+    const { yById: laneYById, bands: laneBands } = layoutLaneY(
+      [
       ...realPositioned.map((r) => {
         const shown = r.n.images.filter((i) => i.show)
         // Person/work cards frame only the first shown image; other nodes tile a
@@ -873,7 +925,9 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
           m.get(pp.id)?.h ??
           estimateNodeHeight(pp.p.type, 'medium', false, null, false, false, nodeOrientation, pp.p.title),
       })),
-    ])
+      ],
+      true,
+    )
 
     const rfNodes: Node[] = []
     for (const { n, x, width } of realPositioned) {
@@ -1129,7 +1183,7 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
       }
     })
 
-    return { rfNodes, rfEdges, scale }
+    return { rfNodes, rfEdges, scale, laneBands }
     // measuredVersion stands in for measuredRef.current's contents (a ref, so
     // not a valid dep itself) — it bumps exactly when a node's DOM size changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1210,6 +1264,11 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
     <ReactFlowProvider>
       <CanvasLayout
         texture={texture}
+        // Mounted-dock flags. CSS cannot infer these from --story-reader-w /
+        // --detail-panel-w (published unconditionally), and the dock-order rules
+        // need to know which panels actually exist.
+        storyOpen={!!(reading && readingStory)}
+        detailOpen={!!displayNode}
         style={
           {
             '--detail-panel-w': `${panelW.detail}px`,
@@ -1315,9 +1374,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             <MoreMenu
               canSettings={gnodes.length > 0 || pending.length > 0}
               canShare={isOwner || gnodes.length > 0}
+              canMemory={isOwner}
               onOpenSettings={() => setSettingsOpen(true)}
               onOpenShare={() => setShareOpen(true)}
+              onOpenMemory={() => setMemoryOpen(true)}
             />
+            {isOwner && (
+              <MemoryDialog timelineId={timelineId} open={memoryOpen} onOpenChange={setMemoryOpen} />
+            )}
             <ShareDialog
               timelineId={timelineId}
               graph={{ title, nodes: gnodes, edges: gedges }}
@@ -1390,6 +1454,10 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
               variant={texture === 'grid' ? BackgroundVariant.Lines : BackgroundVariant.Dots}
             />
           )}
+          {/* Swimlane bands, behind the nodes. Off in the globe lens (no plane to
+              band) and suppressed while a story plays, so the reader's stage stays
+              clean. */}
+          {!reading && <LaneBands bands={laneBands} />}
           <TimelineZoomControls />
           <ViewportInit timelineId={timelineId} nodeCount={gnodes.length} />
           {cameraIds && (
@@ -1441,7 +1509,14 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
               selectedId={selectedId}
               // Clear BOTH right docks: the detail portrait and, in story mode, the
               // story reader (mirrors the canvas StoryCamera's dockW).
-              rightInset={(displayNode ? panelW.detail : 0) + (reading ? panelW.story : 0)}
+              // Includes the 16px gutters + inter-dock gap, which the raw width sum
+              // omits. A 48px under-count was tolerable when both docks open was
+              // rare; it is the steady state now that the panel follows the story.
+              rightInset={
+                (displayNode ? panelW.detail : 0) +
+                (reading ? panelW.story : 0) +
+                (displayNode || reading ? (displayNode && reading ? DOCK_CHROME : 32) : 0)
+              }
               timelineId={timelineId}
               storyMode={reading}
               storyFocus={storyFocus}
@@ -1467,12 +1542,18 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             edges={gedges}
             nodes={gnodes}
             timelineId={timelineId}
-            // The panel is the entity the user explicitly opened — full detail, even
-            // mid-story (a deliberate side-trip, not the beat's auto-portrait).
             readOnly={!isOwner}
             stories={stories}
-            // Closing the entity keeps any open story playing (decoupled).
-            onClose={() => setSelectedId(null)}
+            // Closing never stops playback. Two steps while a story runs: unpin an
+            // explicit selection first (back to the beat's node), then dismiss the
+            // follow. Outside a story it is a plain close.
+            onClose={() => {
+              if (panelPinned) setSelectedId(null)
+              else {
+                setSelectedId(null)
+                if (reading) setFollowBeat(false)
+              }
+            }}
             onSelectNode={selectNode}
             onDraft={handleDraft}
             onPlayStory={openStory}
@@ -1497,8 +1578,6 @@ export function TimelineCanvas({ timelineId }: { timelineId: string }) {
             momentId={readingStory.momentId}
             timelineId={timelineId}
             nodeById={nodeById}
-            // No entity panel open → dock flush at the right edge (data-solo).
-            solo={!displayNode}
             paused={storyPaused}
             onPausedChange={setStoryPaused}
             speak={speakStories}

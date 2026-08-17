@@ -37,8 +37,7 @@ export function centerOnNodes(
   const pane = document.querySelector('.react-flow') as HTMLElement | null
   if (!pane) return fallback()
   const pr = pane.getBoundingClientRect()
-  // The docked reader is the leftmost occluder; fall back to the detail panel.
-  const dock = (document.querySelector('.story-reader') ?? document.querySelector('.detail-panel')) as HTMLElement | null
+  const dock = leftmostDock()
   // When the dock sits beside the canvas (not a narrow full-width overlay), the
   // usable width is everything left of it; otherwise use the whole pane.
   let visibleW = pr.width
@@ -54,4 +53,24 @@ export function centerOnNodes(
   const x = visibleW / 2 - cx * zoom
   const y = pr.height / 2 - cy * zoom
   rf.setViewport({ x, y, zoom }, { duration })
+}
+
+// The leftmost mounted dock, whichever panel that happens to be — the edge every
+// camera has to frame against.
+//
+// Deliberately order-INDEPENDENT rather than a `.story-reader ?? .detail-panel`
+// chain. The dock order has already changed once (the reader now owns the
+// flush-right slot and the entity panel opens to its left), and a hard-coded
+// chain mis-frames silently the next time it changes. Measuring both and taking
+// the smaller `left` is also correct when only one is mounted, which the chain
+// got wrong in the story-only case.
+//
+// `.node-page` is excluded: that variant is the full-screen entity route, where
+// the dock positioning is neutralized and there is no canvas to frame.
+export function leftmostDock(): HTMLElement | null {
+  const docks = Array.from(
+    document.querySelectorAll('.story-reader, .detail-panel:not(.node-page)'),
+  ) as HTMLElement[]
+  if (docks.length === 0) return null
+  return docks.reduce((a, b) => (a.getBoundingClientRect().left <= b.getBoundingClientRect().left ? a : b))
 }

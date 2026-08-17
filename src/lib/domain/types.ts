@@ -156,7 +156,11 @@ export type TimelineViewSettings = {
 // long title costs height instead of axis width. Span/card nodes (period,
 // entity, person, work) already stack and ignore this.
 export type NodeOrientation = 'horizontal' | 'vertical'
-export const DEFAULT_NODE_ORIENTATION: NodeOrientation = 'horizontal'
+// Stacked ("vertical") is the default: a horizontal pill's width is dictated by its
+// TITLE, which both crowds the axis and makes width meaningless as a signal. Stacking
+// the title over the date frees width to mean what it should on a timeline, namely the
+// node's start..end span. Timelines with a saved viewSettings.nodeOrientation keep it.
+export const DEFAULT_NODE_ORIENTATION: NodeOrientation = 'vertical'
 
 // Bounds + default for the horizontal time density (px of base layout per day).
 // Domain-level so both the canvas controls and the MCP set_timeline_view tool
@@ -564,4 +568,7 @@ export type StoryListItem = {
   // Serialized stories (ADR 0006): the chapter number when this story belongs to a
   // series, else null — lets the Stories popover badge "Ch. N".
   chapterNumber: number | null
+  // Epoch ms. The DB returns rows in timeline (moment-date) order; the Stories
+  // panel defaults to newest-written, which is a different axis entirely.
+  createdAt: number
 }

@@ -576,8 +576,22 @@ function packLane(arr: LayoutItem[], base: number, out: Map<string, number>): nu
 //      (period → entity → concept → event), stacked below any swimlanes.
 // Returns the top-left y per id. With no laned nodes this is exactly the old
 // type-lane layout, so existing timelines are unaffected.
-export function layoutLaneY(items: LayoutItem[]): Map<string, number> {
+export type LaneBand = {
+  lane: string
+  /** Top-left y of the band, and the y just past its last packed row. */
+  y: number
+  height: number
+  /** Horizontal extent of the lane's own nodes, in flow coordinates. */
+  x: number
+  width: number
+  count: number
+}
+
+export function layoutLaneY(items: LayoutItem[]): Map<string, number>
+export function layoutLaneY(items: LayoutItem[], withBands: true): { yById: Map<string, number>; bands: LaneBand[] }
+export function layoutLaneY(items: LayoutItem[], withBands?: true) {
   const yById = new Map<string, number>()
+  const bands: LaneBand[] = []
   const hasLane = (it: LayoutItem) => it.lane != null && it.lane !== ''
 
   let base = LANE_TOP
@@ -593,7 +607,15 @@ export function layoutLaneY(items: LayoutItem[]): Map<string, number> {
   const ordered = [...byName.entries()]
     .map(([lane, arr]) => ({ lane, arr, minX: Math.min(...arr.map((i) => i.x)) }))
     .sort((a, b) => a.minX - b.minX || a.lane.localeCompare(b.lane))
-  for (const { arr } of ordered) base = packLane(arr, base, yById)
+  for (const { lane, arr, minX } of ordered) {
+    const top = base
+    base = packLane(arr, base, yById)
+    // The band's horizontal extent is its own nodes' extent, not the whole axis:
+    // a lane that only runs 2015-2018 should not draw a rail across a 2000-year
+    // timeline. Width uses each item's own width where the packer knew one.
+    const maxRight = Math.max(...arr.map((i) => i.x + (i.width ?? 0)))
+    bands.push({ lane, y: top, height: base - top, x: minX, width: Math.max(1, maxRight - minX), count: arr.length })
+  }
 
   // 2. Unlaned nodes → per-type lanes, below the swimlanes.
   const byType = new Map<NodeType, LayoutItem[]>()
@@ -608,5 +630,5 @@ export function layoutLaneY(items: LayoutItem[]): Map<string, number> {
     if (arr && arr.length) base = packLane(arr, base, yById)
   }
 
-  return yById
+  return withBands ? { yById, bands } : yById
 }

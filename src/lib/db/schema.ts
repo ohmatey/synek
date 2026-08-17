@@ -43,6 +43,7 @@ import {
 
 import { PROJECT_KINDS } from '~/lib/domain/types'
 import type { BrandKit } from '~/lib/domain/brand'
+import type { TimelineMemory } from '~/lib/domain/memory'
 
 export type Citation = { title: string; url?: string; quote?: string; sourceType?: CitationSourceType }
 export type NodeMetadata = {
@@ -187,6 +188,19 @@ export const timelines = sqliteTable(
     // AI imageStyle/mood). Separate from viewSettings: both setters are whole-
     // object replace-writes, so sharing a column would have each clobber the other.
     theme: text('theme', { mode: 'json' }).$type<TimelineTheme>(),
+    // OWNER-PRIVATE per-timeline context store (domain/memory.ts). Two regions in
+    // one object: user-owned grounding (brief, notes, references) and routine-owned
+    // bookkeeping (cadence, coveredThrough, runs, watching). Replaces the "Keeper
+    // log" node the plugin used to keep on the graph, which needed four documented
+    // exemptions precisely because it was not a claim about the world.
+    //
+    // Unlike viewSettings/theme this setter is FIELD-SCOPED (mergeTimelineMemory),
+    // which is what lets a scheduled keeper append a run without clobbering the
+    // notes the user wrote beside it.
+    //
+    // NEVER ship this to a non-owner: a public timeline's graph is loadable by
+    // anyone (db/graph.ts canView), so every read path must gate it on isOwner.
+    memory: text('memory', { mode: 'json' }).$type<TimelineMemory>(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
   },

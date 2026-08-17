@@ -232,6 +232,13 @@
       "when": 1784466152179,
       "tag": "0032_unknown_payback",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1786892734937,
+      "tag": "0033_serious_ultron",
+      "breakpoints": true
     }
   ]
 }
