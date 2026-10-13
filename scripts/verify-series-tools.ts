@@ -2,7 +2,8 @@ import { eq } from 'drizzle-orm'
 import { db } from '../src/lib/db'
 import { user } from '../src/lib/db/schema'
 import { auth } from '../src/lib/auth'
-import { toolRegistry, makeRequireOwned, type ToolCtx, type ToolDef } from '../src/lib/mcp/registry'
+import { makeRequireOwned, type ToolCtx } from '../src/lib/mcp/registry'
+import { tool, ToolInputError } from './lib/tool-call'
 import { makeRequireOwnedProject } from '../src/lib/db/projects'
 
 // Live MCP-tool round-trip for the series layer (ADR 0006): drives the ACTUAL
@@ -20,7 +21,8 @@ function assert(cond: boolean, msg: string) {
 async function denied(label: string, fn: () => Promise<unknown>) {
   try {
     await fn()
-  } catch {
+  } catch (e) {
+    if (e instanceof ToolInputError) throw e
     console.log(`  ✓ denied: ${label}`)
     return
   }
@@ -33,11 +35,6 @@ async function ensureUser(email: string): Promise<string> {
   const row = db.select({ id: user.id }).from(user).where(eq(user.email, email)).get()
   if (!row) throw new Error(`no user ${email}`)
   return row.id
-}
-const tool = (name: string): ToolDef => {
-  const t = toolRegistry.find((x) => x.name === name)
-  if (!t) throw new Error(`tool ${name} not found`)
-  return t
 }
 
 async function main() {
