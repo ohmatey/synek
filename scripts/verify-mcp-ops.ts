@@ -4,7 +4,9 @@ import { user } from '../src/lib/db/schema'
 import { auth } from '../src/lib/auth'
 import { ensureTimeline, loadGraph } from '../src/lib/db/graph'
 import { PatchBuilder, commitPatch, undo, redo, historyState } from '../src/lib/db/patches'
-import { applyOps } from '../src/lib/mcp/ops'
+import { z } from 'zod'
+import { applyOps, opSchema } from '../src/lib/mcp/ops'
+import { toolRegistry } from '../src/lib/mcp/registry'
 
 // Proves the MCP write path end-to-end WITHOUT the SDK or a model: a batch of ops
 // (two add_node via `ref` + one add_edge referencing them) → one Patch → assert
@@ -102,6 +104,28 @@ async function main() {
   ).images!
   assert(replaced.length === 1 && replaced[0].url === 'https://example.org/new.jpg', 'update_node images replace prior set')
   assert(replaced[0].show === true, 'replacement image defaults show:true')
+
+  // The image-URL allowlist lives at the Zod boundary, which applyOps (called directly
+  // above) never sees. Parse through the SAME schemas the real transports do.
+  // Assert the rejection lands ON the image path, so a payload that fails for some
+  // unrelated reason (a missing field) cannot make a negative check pass vacuously.
+  const nodeImageIssue = (url: string): boolean | 'valid' => {
+    const r = opSchema.safeParse({ op: 'add_node', type: 'event', title: 'x', start: '2000', images: [{ url }] })
+    if (r.success) return 'valid'
+    return r.error.issues.some((i) => i.path[0] === 'images')
+  }
+  assert(nodeImageIssue('https://example.org/a.jpg') === 'valid', 'add_node accepts an https image')
+  assert(nodeImageIssue('data:image/png;base64,iVBORw0KGgo=') === 'valid', 'add_node accepts a data:image upload')
+  assert(nodeImageIssue('javascript:alert(1)') === true, 'add_node rejects a javascript: image')
+  assert(nodeImageIssue('data:text/html,<script>1</script>') === true, 'add_node rejects a non-image data: URI')
+  const writeStory = toolRegistry.find((t) => t.name === 'write_story')!
+  const storyShape = z.object(writeStory.inputSchema)
+  const coverIssue = (url: string) =>
+    storyShape
+      .safeParse({ momentId: 'm', title: 't', segments: [], coverImage: { url } })
+      .error?.issues.some((i) => i.path[0] === 'coverImage') ?? false
+  assert(!coverIssue('https://example.org/cover.jpg'), 'write_story accepts an https coverImage')
+  assert(coverIssue('javascript:alert(1)'), 'write_story rejects a javascript: coverImage')
 
   // Clean up so the script is idempotent (undo: replace, add-images, original batch).
   undo(TL)

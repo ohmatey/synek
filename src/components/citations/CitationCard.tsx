@@ -7,6 +7,7 @@ import {
   citationHref,
   displayUrl,
 } from '~/lib/domain/citations'
+import { safeImageUrl } from '~/lib/domain/images'
 import type { StoryBeatCitation } from '~/lib/domain/types'
 
 // ONE citation card, used by the node panel, the in-app story reader, and the
@@ -36,6 +37,7 @@ export function CitationCard({
 }) {
   const href = citationHref(citation.url)
   const host = displayUrl(citation.url)
+  const artifactImage = safeImageUrl(citation.imageUrl)
   const title = citation.title?.trim() || UNTITLED_SOURCE
   const hasArtifact = !!(citation.transcript || citation.translation || citation.imageUrl)
 
@@ -80,7 +82,7 @@ export function CitationCard({
       {hasArtifact && (
         <details className="cite-artifact">
           <summary>View artifact</summary>
-          {citation.imageUrl && <img className="cite-artifact-img" src={citation.imageUrl} alt="" loading="lazy" />}
+          {artifactImage && <img className="cite-artifact-img" src={artifactImage} alt="" loading="lazy" />}
           {citation.transcript && <p className="cite-artifact-text">{citation.transcript}</p>}
           {citation.translation && <p className="cite-artifact-text is-translation">{citation.translation}</p>}
         </details>

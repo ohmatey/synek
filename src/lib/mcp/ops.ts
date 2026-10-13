@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { db } from '~/lib/db'
 import { parseDate } from '~/lib/domain/dates'
+import { imageUrlSchema } from '~/lib/domain/images'
 import type { PatchBuilder, NodePatch, EdgePatch } from '~/lib/db/patches'
 import { commitEntityPatch, type EntityContentPatch } from '~/lib/db/entity-patches'
 import { entities, type NodeMetadata } from '~/lib/db/schema'
@@ -65,9 +66,7 @@ const geoScopeHint =
   'the node as resolved instead of still-missing. Never guess coordinates as a substitute — placeless is an ' +
   'answer, not a gap. Mutually exclusive with lat/lng (setting it clears any coordinates).'
 const imageInput = z.object({
-  url: z
-    .string()
-    .describe(
+  url: imageUrlSchema.describe(
       'Public image URL you sourced — a real, web-accessible image (Wikimedia portrait, official logo, ' +
         'public-domain artwork). Synek stores the URL and renders it on the node; it does NOT generate images.',
     ),

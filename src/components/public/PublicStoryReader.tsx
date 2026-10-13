@@ -17,6 +17,7 @@ import { POV_LABEL } from '~/lib/domain/story-labels'
 import { CitationList } from '~/components/citations/CitationCard'
 import { Markdown } from '~/components/markdown/Markdown'
 import { formatInstant } from '~/lib/domain/dates'
+import { safeImage } from '~/lib/domain/images'
 import { timeAgo } from '~/lib/time-ago'
 import { getPublicStory } from '~/lib/server/stories'
 import { capture } from '~/lib/posthog/client'
@@ -80,6 +81,7 @@ export function PublicStoryReader({
 }) {
   const inSeries = !!chapterMeta
   const { story, timelineTitle, updatedAt } = data
+  const coverImage = safeImage(story.coverImage)
   const beats = story.beats
   const count = beats.length
   const nodeById = useMemo(() => new Map(data.nodes.map((n) => [n.id, n])), [data.nodes])
@@ -433,9 +435,9 @@ export function PublicStoryReader({
           </div>
         ) : (
           <div className="psr-cover" data-in-series={inSeries || undefined}>
-            {story.coverImage && (
-              <figure className={cn('psr-cover-art', story.coverImage.aspect === 'portrait' && 'is-portrait')}>
-                <img src={story.coverImage.url} alt={story.coverImage.alt ?? ''} />
+            {coverImage && (
+              <figure className={cn('psr-cover-art', coverImage.aspect === 'portrait' && 'is-portrait')}>
+                <img src={coverImage.url} alt={coverImage.alt ?? ''} />
               </figure>
             )}
             <div className="psr-cover-body">
@@ -507,30 +509,31 @@ function BeatPanel({
   count: number
 }) {
   if (!beat) return null
-  const bleed = beat.image?.layout === 'bleed'
+  const image = safeImage(beat.image)
+  const bleed = image?.layout === 'bleed'
   return (
     <div className="psr-stage" role="group" aria-roledescription="story beat" aria-label={`Beat ${index + 1} of ${count}`}>
-      {bleed && beat.image && (
+      {bleed && image && (
         <div className="psr-bleed" aria-hidden="true" key={`bleed-${beat.id}`}>
-          <img src={beat.image.url} alt="" />
+          <img src={image.url} alt="" />
         </div>
       )}
       <article className={cn('psr-beat', `psr-beat-${beat.kind}`)} key={beat.id}>
         {beat.widget && <BeatWidget widget={beat.widget} nodeById={nodeById} />}
-        {beat.image?.url && !bleed && (
-          <figure className={cn('psr-img', `psr-img-${beat.image.layout ?? 'full'}`, beat.image.aspect === 'portrait' && 'is-portrait')}>
+        {image && !bleed && (
+          <figure className={cn('psr-img', `psr-img-${image.layout ?? 'full'}`, image.aspect === 'portrait' && 'is-portrait')}>
             {/* A broken/blocked image URL would otherwise leave an empty captioned frame;
                 hide the whole figure when the image fails to load. */}
             <img
-              src={beat.image.url}
-              alt={beat.image.alt ?? ''}
+              src={image.url}
+              alt={image.alt ?? ''}
               loading="lazy"
               onError={(e) => {
                 const fig = e.currentTarget.closest('figure')
                 if (fig) (fig as HTMLElement).style.display = 'none'
               }}
             />
-            {beat.image.alt?.trim() && <figcaption>{beat.image.alt}</figcaption>}
+            {image.alt?.trim() && <figcaption>{image.alt}</figcaption>}
           </figure>
         )}
         {beat.settingNote && <p className="psr-setting">{beat.settingNote}</p>}
