@@ -1,7 +1,12 @@
 import { useEffect } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useSession } from '~/lib/auth/client'
-import { capture, identifyUser, initPostHog, resetUser } from '~/lib/posthog/client'
+import { capture, identifyUser, initPostHog, optedOut, resetUser } from '~/lib/posthog/client'
+import { setAnalyticsOptOut } from '~/lib/server/user-settings'
+
+// Users whose browser opt-out predates the server flag: push it up once per page load
+// so the MCP layer's events stop for them without a visit to /account.
+const syncedOptOut = new Set<string>()
 
 // Read the current path safely (this only runs in a client-only effect anyway).
 const currentPath = () => (typeof window === 'undefined' ? '/' : window.location.pathname)
@@ -34,8 +39,13 @@ export function Analytics() {
 
   useEffect(() => {
     const user = session?.user
-    if (user?.id) identifyUser(user.id, user.email)
-    else resetUser()
+    if (user?.id) {
+      identifyUser(user.id, user.email)
+      if (optedOut() && !syncedOptOut.has(user.id)) {
+        syncedOptOut.add(user.id)
+        void setAnalyticsOptOut({ data: { optOut: true } }).catch(() => syncedOptOut.delete(user.id))
+      }
+    } else resetUser()
   }, [session?.user?.id, session?.user?.email])
 
   return null

@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
 import { Switch } from '~/components/ui/switch'
 import { authClient, signOut, useSession } from '~/lib/auth/client'
 import { optedOut, setOptOut } from '~/lib/posthog/client'
+import { getAnalyticsOptOut, setAnalyticsOptOut } from '~/lib/server/user-settings'
+import { toast } from 'sonner'
 
 // Account settings: avatar + identity, an editable display name, and sign-out.
 // Email is read-only (it's the login identifier for the single local user).
@@ -21,9 +23,41 @@ export function AccountPanel() {
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   // Analytics opt-out (default ON). Read from localStorage after mount to avoid an
-  // SSR/client hydration mismatch.
+  // SSR/client hydration mismatch, then reconciled with the server copy: the server
+  // is what stops the MCP layer's events, so the two must agree. Server off wins on
+  // this device; a browser-only opt-out from before the server flag existed is pushed up.
   const [analyticsOn, setAnalyticsOn] = useState(true)
-  useEffect(() => setAnalyticsOn(!optedOut()), [])
+  useEffect(() => {
+    let alive = true
+    setAnalyticsOn(!optedOut())
+    getAnalyticsOptOut()
+      .then(({ optOut }) => {
+        if (!alive) return
+        if (optOut) {
+          setOptOut(true)
+          setAnalyticsOn(false)
+        } else if (optedOut()) {
+          void setAnalyticsOptOut({ data: { optOut: true } }).catch(() => {})
+        }
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  async function toggleAnalytics(on: boolean) {
+    setAnalyticsOn(on)
+    setOptOut(!on)
+    try {
+      await setAnalyticsOptOut({ data: { optOut: !on } })
+    } catch {
+      // Don't leave the UI claiming "off" while the server keeps sending.
+      setAnalyticsOn(!on)
+      setOptOut(on)
+      toast.error('Couldn’t save your analytics preference. Try again.')
+    }
+  }
 
   // Keep the field in sync when the session resolves/refreshes.
   useEffect(() => setName(user?.name ?? ''), [user?.name])
@@ -135,10 +169,7 @@ export function AccountPanel() {
             <Switch
               id="analytics-opt-in"
               checked={analyticsOn}
-              onCheckedChange={(on) => {
-                setAnalyticsOn(on)
-                setOptOut(!on)
-              }}
+              onCheckedChange={(on) => void toggleAnalytics(on)}
             />
           </label>
         </CardContent>

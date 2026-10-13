@@ -6,6 +6,8 @@ import {
   setUserOpenRouterKey,
   clearUserOpenRouterKey,
   setUserAgentModel,
+  isAnalyticsOptedOut,
+  setUserAnalyticsOptOut,
 } from '~/lib/db/user-settings'
 import { encryptSecret, secretsConfigured } from '~/lib/crypto/secrets'
 
@@ -58,4 +60,21 @@ export const setAgentModel = createServerFn({ method: 'POST' })
     const user = await requireUser()
     setUserAgentModel(user.id, data.model.trim() || null)
     return { ok: true }
+  })
+
+// Server-side analytics opt-out (the MCP layer's PostHog events). The /account switch
+// used to flip only the browser's localStorage; this persists the same choice so
+// `mcp_tool_called` and friends stop too. See posthog/server.ts `captureServer`.
+export const getAnalyticsOptOut = createServerFn({ method: 'GET' }).handler(async (): Promise<{ optOut: boolean }> => {
+  const user = await requireUser()
+  return { optOut: isAnalyticsOptedOut(user.id) }
+})
+
+const optOutInput = z.object({ optOut: z.boolean() })
+export const setAnalyticsOptOut = createServerFn({ method: 'POST' })
+  .inputValidator((d: z.infer<typeof optOutInput>) => optOutInput.parse(d))
+  .handler(async ({ data }): Promise<{ optOut: boolean }> => {
+    const user = await requireUser()
+    setUserAnalyticsOptOut(user.id, data.optOut)
+    return { optOut: data.optOut }
   })
