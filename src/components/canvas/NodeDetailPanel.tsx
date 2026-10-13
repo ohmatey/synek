@@ -15,7 +15,7 @@ import { fileToDataUrl } from '~/lib/files'
 import { NewStoryDialog } from './NewStoryDialog'
 import { NodeVerbBar } from './NodeVerbBar'
 import { CitationList } from '~/components/citations/CitationCard'
-import { SOURCE_TYPE_LABEL } from '~/lib/domain/citations'
+import { SOURCE_TYPE_LABEL, citationHref } from '~/lib/domain/citations'
 import { ResizeHandle } from './ResizeHandle'
 import { GEO_SCOPE_LABELS, IMAGE_ASPECTS, NODE_SIZES, NODE_SUBTYPES } from '~/lib/domain/types'
 import type { GraphNode, GraphEdge, CanvasCitation, ImageAspect, NodeImage, NodeSize, NodeSubtype, Precision, EdgeKind, PovType, StoryListItem } from '~/lib/domain/types'
@@ -67,6 +67,19 @@ function toInputDate(instant: number, precision: Precision): string {
 }
 
 const EMPTY_CITATION: CanvasCitation = { title: '' }
+
+// The edit-mode "Open source" link. The URL field is free text (and an MCP client can
+// set anything), so route it through citationHref like every read-mode surface: a
+// javascript:/data: value renders no link instead of a clickable one.
+function OpenSourceLink({ url }: { url: string | undefined }) {
+  const href = citationHref(url)
+  if (!href) return null
+  return (
+    <a className="detail-cite-link inline-flex items-center gap-1" href={href} target="_blank" rel="noreferrer noopener">
+      Open source <ExternalLink className="size-3" />
+    </a>
+  )
+}
 
 // Human labels for the story POV. Only surfaced when it's NOT the S1 default
 // ('omniscient') — showing "Omniscient" on every story is noise, but the moment a
@@ -955,11 +968,7 @@ export function NodeDetailPanel({
                   </button>
                 ))}
               </div>
-              {c.url?.trim() && (
-                <a className="detail-cite-link inline-flex items-center gap-1" href={c.url} target="_blank" rel="noreferrer noopener">
-                  Open source <ExternalLink className="size-3" />
-                </a>
-              )}
+              <OpenSourceLink url={c.url} />
             </div>
           ))}
           <Button variant="outline" size="sm" className="h-7 self-start px-2.5 text-xs" data-testid="add-citation" onClick={addCitation}>
