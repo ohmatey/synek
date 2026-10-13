@@ -6,7 +6,7 @@
 
 **Core UX first. Most lovable product before billing.** **Posture (2026-06-17, founder — pure-app cull):** Synek is a **local-first pure app** anyone can download and run locally with their own MCP client / local model; **cloud is a deploy mode**, not a separate product. There is no landing page and no public discovery surface. An **optional, key-gated in-app agent stays IN scope** (the OpenRouter "Run" path, Phase 1; `src/lib/agent/`). The following remain **deliberately out of scope** until earned (they live in `docs/product/roadmap.md` → Deferred / Hosting horizon; the gate is in `docs/product/product-strategy.md`):
 
-- ~~Multi-tenant hosting~~ **Phase 2 BUILT (2026-06-14, uncommitted):** per-user isolation (every artifact/timeline/story/history read owner-scoped — see `verify:isolation`), open signup + email verification & password reset via Resend (`src/lib/auth/email.ts`), per-user **BYO OpenRouter key** encrypted at rest (`src/lib/crypto/secrets.ts` + `user_settings`), and a single-instance cloud deploy. **Deploy target = the sector137 Kubernetes cluster** (GitOps via loha/ArgoCD; manifests in the `sector137-infra` repo at `kubernetes/overlays/synek/` + `argocd/applications/apps/synek.yaml`; runbook `docs/engineering/deploy-sector137.md`). The public origin is `https://synek.sector137.io`. **Fly.io was retired 2026-06-19 (founder decision)** — `fly.toml` + `deploy-fly.md` removed. Still optional: pointing the plugin at a hosted URL by default
+- ~~Multi-tenant hosting~~ **Phase 2 BUILT and merged (2026-06-14):** per-user isolation (every artifact/timeline/story/history read owner-scoped — see `verify:isolation`), open signup + email verification & password reset via Resend (`src/lib/auth/email.ts`), per-user **BYO OpenRouter key** encrypted at rest (`src/lib/crypto/secrets.ts` + `user_settings`), and a single-instance cloud deploy. **Deploy target = the sector137 Kubernetes cluster** (GitOps via ArgoCD; manifests in the `sector137-infra` repo at `kubernetes/overlays/synek/` + `argocd/applications/apps/synek.yaml`; runbook `docs/engineering/deploy-sector137.md`). The public origin is `https://synek.sector137.io`. **There is no build/deploy pipeline** (Loha and Tekton were decommissioned 2026-09-23/24): a release is a manual `docker buildx build --platform linux/amd64`, push, then bump `newTag` in the overlay; nothing deploys from CI. As of 2026-10-13 production is pinned to `3bc19cae`, the instance is down (homelab Cloudflare tunnel, error 1033), and `main` is ahead of it (e.g. migration 0033 is undeployed). **Fly.io was retired 2026-06-19 (founder decision)** — `fly.toml` + `deploy-fly.md` removed. Still optional: pointing the plugin at a hosted URL by default
 - Billing / metering of agent + image usage (**Phase 3**, still deferred)
 - Workspaces, teams, roles (still deferred — Phase 2 is per-user isolation only)
 - The proactive industry-mapping agent / scheduled jobs / signal ingestion as an **in-app** service (the *client-side* keeper is the `/synek:watch` plugin skill)
@@ -15,6 +15,8 @@
 **Sharable stories are now IN scope (2026-06-13, founder)** — the public, mobile, widget-rich story page at `/s/$slug` (`src/components/public/`, `getPublicStory`), to validate the *sharing-drives-acquisition* bet (ads + email). It reuses the existing `timeline.isPublic` primitive (sharing a story publishes its timeline). **Still deferred:** the weekly email digest, server-side image generation, and realtime SSE on public pages. See `docs/product/prd/sharable-stories.md`.
 
 **Public discovery was CULLED (2026-06-17, founder)** — this reverses the 2026-06-16 "public discovery in scope" decision. The cross-user **Explore feed is removed**: `src/components/explore/`, `src/lib/server/explore.ts`, the `listPublic*` reads in `src/lib/db/{stories,graph}.ts`, and the dead marketing cluster (`Landing`/`HeroPreview`/`SiteFooter`) were all **deleted**. The root `/` is now the signed-in **workspace** (`ProjectsWorkspace`), auth-gated. **Per-story sharing stays IN scope** (unchanged) — the public, no-auth `/s/$slug` page (`getPublicStory`, `src/components/public/`) and the in-reader Share button are untouched; sharing narrows from "browse a feed" to "share a link." Decision: [ADR 0005](docs/engineering/adr/0005-cull-public-discovery.md).
+
+**Finish-off mode (owner decision, 2026-10-13):** "finish off" mode: fix remaining bugs, security and debt, add a minimal CI gate, and **defer features**. Treat a new feature request as out of scope until the owner lifts this; the deferred backlog stays recorded (not deleted) in `.sector137/state.json`.
 
 If a change starts to look like one of these, stop and confirm. The in-app agent stays **optional** — with no key configured, the BYO-client local-first default must remain fully intact.
 
@@ -117,7 +119,7 @@ bun run setup        # one-step on-ramp: writes .env (generates a secret), migra
 bun run dev          # dev server on http://localhost:3001 ($PORT overrides; generates src/routeTree.gen.ts)
 bun run dev:test     # seeded test instance: PORT=3001 + DATABASE_URL=e2e.db
 bun run build        # production build
-bun run typecheck    # tsc --noEmit
+bun run typecheck    # tsc --noEmit. Needs src/routeTree.gen.ts, which is gitignored and generated by `bun run build` (or `dev`): on a fresh checkout build first, or every route's typed path errors
 bun run test         # bun test over src/**/*.test.ts (pure-function units, e.g. the time scale)
 bun run db:generate  # generate a migration from schema.ts
 bun run db:migrate   # apply migrations (also applied on server start, idempotent)
@@ -130,6 +132,8 @@ bun run mcp:stdio    # run the standalone stdio MCP server (for Claude Desktop, 
 bun run verify:mcp   # data-layer check of the apply_patch → Patch → undo/redo path
 ```
 
+CI is `.github/workflows/ci.yml` (GitHub Actions): `npm ci`, `build`, `typecheck`, `npm test` on pushes and PRs to `main`. There is no deploy job.
+
 ## Env (`.env.example`)
 
 - `DATABASE_URL` — SQLite file (default `local.db`)
@@ -139,7 +143,7 @@ bun run verify:mcp   # data-layer check of the apply_patch → Patch → undo/re
 - `SYNEK_LOCAL_MODE` — set to `1` to skip the login wall: the app auto-signs-in the deterministic local user (`SYNEK_USER_EMAIL`) on the SSR document so a local download is straight in. **OFF by default; NEVER set on a multi-tenant/cloud deploy** (it would sign every visitor in as the one shared local user). Server-only gate (`src/lib/auth/local-mode.ts`); the session is minted in `src/lib/server/local-session.ts` and wired into `__root` `beforeLoad`. `SYNEK_USER_EMAIL`/`SYNEK_USER_PASSWORD` set the local identity (shared with `bun run issue:key`).
 - `SYNEK_API_KEY` — the bearer token your MCP client sends; mint with `bun run issue:key`. Used by the stdio server.
 - `VITE_POSTHOG_KEY` / `VITE_POSTHOG_HOST` — **optional** PostHog browser analytics (canvas/home engagement). Blank = disabled. Host defaults to US cloud. Capture is gated on the key being present **and** the per-user opt-out in `/account` (opt-out, default ON). Helper: `src/lib/posthog/client.ts`; bootstrap: `src/components/Analytics.tsx`.
-- `POSTHOG_API_KEY` / `POSTHOG_HOST` — **optional** PostHog server analytics for the MCP layer (one `mcp_tool_called` event per tool call, enriched for `apply_patch`/`write_story`). Blank = disabled (operator-gated by key presence). Helper: `src/lib/posthog/server.ts`; wired via a `register` wrapper in `src/lib/mcp/server.ts`, flushed in `mcp/http.ts` (per request) and `mcp/stdio.ts` (on shutdown).
+- `POSTHOG_API_KEY` / `POSTHOG_HOST` — **optional** PostHog server analytics for the MCP layer (one `mcp_tool_called` event per tool call, enriched for `apply_patch`/`write_story`). Blank = disabled (operator-gated by key presence). Also gated per user: `captureServer` skips users who switched analytics off in `/account` (`user_settings.analytics_opt_out`, migration 0034); a failed lookup sends nothing. Helper: `src/lib/posthog/server.ts`; wired via a `register` wrapper in `src/lib/mcp/server.ts`, flushed in `mcp/http.ts` (per request) and `mcp/stdio.ts` (on shutdown).
 
 ## Current status
 
