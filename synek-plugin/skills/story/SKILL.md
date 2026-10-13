@@ -30,7 +30,7 @@ Read the `building-timelines` skill first. It has the `apply_patch` op shapes (f
 
 4. **Dress it (optional, high-impact).** `set_story_theme` gives *this* story its own look in the reader (falls back to the timeline's theme when unset); `set_timeline_theme` dresses the whole canvas. Both return WCAG-contrast warnings. Adjust until clean, and surface any you can't clear.
 
-5. **Fix surgically.** A typo, a missing beat, a reorder → `patch_story` with targeted ops, not a full `write_story` rewrite. Its `update_segment`/`delete_segment`/`reorder_segments` ops key off **beat ids**: read them first with **`get_story`** (`storyId` → the meta + every beat with its `id`, in order). That's the only read that returns them — `get_node` gives you the story id and a beat *count*, not the ids.
+5. **Fix surgically.** A typo, a missing beat, a reorder → `patch_story` with targeted ops, not a full `write_story` rewrite. Its `update_segment`/`delete_segment`/`reorder_segments` ops key off **beat ids**: read them first with **`get_story`** (`storyId` → the meta + every beat with its `id`, in order). That's the only read that returns them: `get_node` gives you the story id and a beat *count*, not the ids.
 
 6. **Hand it back, then offer the share.** Give the canvas link (the timeline `url`; the story plays from the moment's badge). If the user wants to share it publicly, **confirm first** (public means anyone with the link), then `patch_story` `update_meta { isPublic: true }` and hand back `<origin>/s/<slug>` (the slug is on the story in `get_node`'s `stories`). Never publish unasked.
 
