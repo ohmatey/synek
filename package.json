@@ -49,6 +49,7 @@
     "verify:ssrf": "tsx scripts/verify-ssrf.ts",
     "verify:isolation": "SYNEK_SECRETS_KEY=verify-isolation-master-key DATABASE_URL=verify-isolation.db tsx scripts/verify-isolation.ts",
     "verify:projects": "SYNEK_SECRETS_KEY=verify-projects-master-key DATABASE_URL=verify-projects.db tsx scripts/verify-projects.ts",
+    "verify:default-project": "DATABASE_URL=verify-default-project.db tsx scripts/verify-default-project-race.ts",
     "verify:projects-tools": "SYNEK_SECRETS_KEY=verify-projects-master-key DATABASE_URL=verify-projects-tools.db tsx scripts/verify-projects-tools.ts",
     "verify:projects-backfill": "tsx scripts/verify-projects-backfill.ts",
     "verify:brands": "SYNEK_SECRETS_KEY=verify-brands-master-key DATABASE_URL=verify-brands.db tsx scripts/verify-brands.ts",
