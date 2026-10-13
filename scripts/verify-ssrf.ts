@@ -4,8 +4,15 @@ import {
   isBlockedIp,
   redirectSafeHeaders,
   capResponseBody,
+  makeGuardedLookup,
+  assertRoutableAddresses,
+  ssrfDispatcher,
+  safeFetch,
   SsrfError,
 } from '../src/lib/net/ssrf'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { fetch as undiciFetch } from 'undici'
 
 // Data-layer proof of the server-side egress guard (ADR 0002) WITHOUT touching
 // the network: asserts the IP-range classifier, the synchronous URL guard
@@ -90,6 +97,72 @@ async function main() {
   console.log('assertFetchableUrl — DNS resolution guard:')
   await rejects('blocked', () => assertFetchableUrl('http://localhost:5432/', { allowHttp: true }), 'localhost resolves to loopback → blocked')
   await allows(() => assertFetchableUrl('https://example.com/'), 'public hostname resolves to a routable address')
+
+  console.log('assertRoutableAddresses — shared by the pre-flight and the connect-time lookup:')
+  await rejects('unresolved', () => assertRoutableAddresses('x.test', []), 'empty answer → unresolved')
+  await rejects('blocked', () => assertRoutableAddresses('x.test', [{ address: '93.184.216.34' }, { address: '10.0.0.1' }]), 'ONE internal address among public ones → blocked')
+  await allows(() => assertRoutableAddresses('x.test', [{ address: '93.184.216.34' }, { address: '2606:4700:4700::1111' }]), 'all-public answer passes')
+
+  console.log('makeGuardedLookup — connect-time pinning (fake resolver, no network):')
+  type LookupResult = { err: unknown; address: unknown; family: unknown }
+  const runLookup = (resolver: Parameters<typeof makeGuardedLookup>[0], all: boolean) =>
+    new Promise<LookupResult>((resolve) => {
+      makeGuardedLookup(resolver)('rebind.test', { all, family: 0 }, (err, address, family) => resolve({ err, address, family }))
+    })
+  {
+    const pub = [{ address: '93.184.216.34', family: 4 }]
+    const r1 = await runLookup(async () => pub, false)
+    assert(r1.err === null && r1.address === '93.184.216.34' && r1.family === 4, 'public answer → the validated address is what the socket gets (single shape)')
+    const r2 = await runLookup(async () => pub, true)
+    assert(r2.err === null && Array.isArray(r2.address) && (r2.address as { address: string }[])[0]!.address === '93.184.216.34', 'public answer honours the all:true shape (happy-eyeballs)')
+    const r3 = await runLookup(async () => [{ address: '169.254.169.254', family: 4 }], true)
+    assert(r3.err instanceof SsrfError && (r3.err as SsrfError).reason === 'blocked', 'metadata address → SsrfError(blocked), not handed to the socket')
+    const r4 = await runLookup(async () => [{ address: '127.0.0.1', family: 4 }], false)
+    assert(r4.err instanceof SsrfError && (r4.err as SsrfError).reason === 'blocked', 'loopback answer (single shape) → blocked')
+    const r5 = await runLookup(async () => { throw new Error('ENOTFOUND') }, false)
+    assert(r5.err instanceof SsrfError && (r5.err as SsrfError).reason === 'unresolved', 'resolver failure → unresolved')
+    // The rebinding shape itself: a pre-flight that saw "public" cannot vouch for the
+    // connect, because the connect asks again and gets the attacker's second answer.
+    const answers = [pub, [{ address: '10.0.0.7', family: 4 }]]
+    const rebinding = async () => answers.shift()!
+    const preflight = await runLookup(rebinding, false)
+    const atConnect = await runLookup(rebinding, false)
+    assert(preflight.err === null, 'rebinding: first resolution (pre-flight) sees a public address')
+    assert(atConnect.err instanceof SsrfError && (atConnect.err as SsrfError).reason === 'blocked', 'rebinding: the SECOND resolution (the connect) is blocked')
+  }
+
+  console.log('ssrfDispatcher — the real connect path refuses an internal target even if the pre-flight were skipped:')
+  {
+    let hits = 0
+    const server = createServer((_req, res) => {
+      hits++
+      res.end('internal-secret')
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const port = (server.address() as AddressInfo).port
+    try {
+      let caught: unknown
+      try {
+        await undiciFetch(`http://localhost:${port}/`, { dispatcher: ssrfDispatcher() })
+      } catch (e) {
+        caught = e
+      }
+      const cause = (caught as { cause?: unknown } | undefined)?.cause
+      assert(cause instanceof SsrfError && cause.reason === 'blocked', 'localhost → connect refused by the lookup guard (SsrfError(blocked) as the cause)')
+      assert(hits === 0, 'the loopback server received ZERO requests')
+      await rejects('blocked', () => safeFetch(`http://localhost:${port}/`, {}, { allowHttp: true }), 'safeFetch surfaces it as a plain SsrfError(blocked)')
+      assert(hits === 0, 'still zero requests after safeFetch')
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+
+  console.log('safeFetch — a public target still works through the pinned dispatcher (needs network):')
+  {
+    const res = await safeFetch('https://example.com/', { method: 'HEAD' })
+    assert(res.status >= 200 && res.status < 400, `HEAD https://example.com/ → ${res.status}`)
+    assert((res.headers.get('content-type') ?? '').length > 0 || res.status >= 300, 'response headers are readable')
+  }
 
   console.log(`\nverify:ssrf — ${passed} assertions passed ✓`)
 }

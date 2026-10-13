@@ -26,16 +26,21 @@
 //      (Authorization/Cookie/Proxy-Authorization) stripped on any cross-origin
 //      hop so a redirect can't exfiltrate a bearer token to a third-party host,
 //   7. a total-operation timeout and a response-body size cap (so a compromised
-//      or hostile endpoint can't hang the request or exhaust memory).
+//      or hostile endpoint can't hang the request or exhaust memory),
+//   8. the connection itself is pinned: fetches go through an undici dispatcher
+//      whose connect-time `lookup` re-validates every address it resolves, and
+//      the socket dials the address that lookup returned. That closes the DNS
+//      rebinding TOCTOU (a name that answers public to step 5 and internal to
+//      the connect) because there is no second, unchecked resolution.
 //
-// Known residual (documented, not yet closed — see ADR 0002 "Open / deferred"):
-// a TOCTOU DNS-rebinding window remains because step 5 resolves the name and
-// step 6's `fetch` resolves it again; fully closing it needs a custom undici
-// dispatcher that pins the validated IP while preserving SNI. Out of scope for
-// the present hardening; the common vectors above are closed.
+// Residual: this is an app-side control. The egress NetworkPolicy that stops the
+// pod reaching cluster/metadata ranges at all lives in the sector137-infra repo
+// and is the defence in depth behind this module.
 
-import { BlockList, isIP } from 'node:net'
+import { BlockList, isIP, type LookupFunction } from 'node:net'
 import { lookup } from 'node:dns/promises'
+import { lookup as lookupCb, type LookupAddress } from 'node:dns'
+import { Agent, fetch as undiciFetch, type RequestInit as UndiciRequestInit } from 'undici'
 
 export type SsrfReason = 'invalid' | 'protocol' | 'credentials' | 'blocked' | 'unresolved' | 'redirects' | 'too_large'
 
@@ -157,9 +162,28 @@ export function assertSafeUrl(rawUrl: string, opts: UrlGuardOptions = {}): URL {
 }
 
 /**
+ * Every address a name resolved to must be publicly routable. Throws
+ * SsrfError('unresolved') for an empty answer and SsrfError('blocked') if any
+ * address is internal. Pure — shared by the pre-flight check below and the
+ * connect-time lookup, so the two can never disagree about what "routable" means.
+ */
+export function assertRoutableAddresses(host: string, addrs: readonly { address: string }[]): void {
+  if (addrs.length === 0) throw new SsrfError('unresolved', `${host} did not resolve to any address`)
+  for (const a of addrs) {
+    if (isBlockedIp(a.address)) {
+      throw new SsrfError('blocked', `${host} resolves to a non-routable/internal address (${a.address})`)
+    }
+  }
+}
+
+/**
  * assertSafeUrl + DNS check: every address the hostname resolves to must be
  * publicly routable. Async. Throws SsrfError ('unresolved' if the name has no
  * routable address, 'blocked' if it points at an internal one).
+ *
+ * This is the early, typed-error pre-flight. It is NOT what closes DNS
+ * rebinding: the connection re-resolves, so the real enforcement is the
+ * connect-time lookup (makeGuardedLookup) on the dispatcher safeFetch uses.
  */
 export async function assertFetchableUrl(rawUrl: string, opts: UrlGuardOptions = {}): Promise<URL> {
   const url = assertSafeUrl(rawUrl, opts)
@@ -171,14 +195,71 @@ export async function assertFetchableUrl(rawUrl: string, opts: UrlGuardOptions =
     } catch (e) {
       throw new SsrfError('unresolved', `could not resolve ${host} (${e instanceof Error ? e.message : 'DNS error'})`)
     }
-    if (addrs.length === 0) throw new SsrfError('unresolved', `${host} did not resolve to any address`)
-    for (const a of addrs) {
-      if (isBlockedIp(a.address)) {
-        throw new SsrfError('blocked', `${host} resolves to a non-routable/internal address (${a.address})`)
-      }
-    }
+    assertRoutableAddresses(host, addrs)
   }
   return url
+}
+
+type Resolver = (host: string, family?: number) => Promise<LookupAddress[]>
+const systemResolver: Resolver = (host, family) => lookup(host, { all: true, family })
+
+/**
+ * A `net` lookup function that validates what it resolves. Hand it to an
+ * undici Agent's `connect.lookup` and the socket dials the address THIS call
+ * returned, so there is no second resolution an attacker's DNS can answer
+ * differently. Called with `all: true` under happy-eyeballs (Node's default),
+ * so it honours both callback shapes. `resolve` is injectable for tests.
+ */
+export function makeGuardedLookup(resolve: Resolver = systemResolver): LookupFunction {
+  return (hostname, options, callback) => {
+    resolve(hostname, options.family === 4 || options.family === 6 ? options.family : undefined).then(
+      (addrs) => {
+        try {
+          assertRoutableAddresses(hostname, addrs)
+        } catch (e) {
+          callback(e as NodeJS.ErrnoException, '', 0)
+          return
+        }
+        if (options.all) callback(null, addrs as LookupAddress[])
+        else callback(null, addrs[0]!.address, addrs[0]!.family)
+      },
+      (e: unknown) => {
+        callback(
+          new SsrfError('unresolved', `could not resolve ${hostname} (${e instanceof Error ? e.message : 'DNS error'})`) as NodeJS.ErrnoException,
+          '',
+          0,
+        )
+      },
+    )
+  }
+}
+
+// One shared Agent: connections are pooled per origin, and every NEW connection
+// (including each redirect hop's) goes through the guarded lookup.
+let pinnedAgent: Agent | undefined
+export function ssrfDispatcher(): Agent {
+  return (pinnedAgent ??= new Agent({ connect: { lookup: makeGuardedLookup() } }))
+}
+
+// undici wraps a lookup failure as `TypeError: fetch failed` with the real error
+// on `.cause`; callers map SsrfError.reason, so surface it instead.
+function ssrfCause(e: unknown): SsrfError | null {
+  for (let c: unknown = e, depth = 0; c && depth < 5; depth++) {
+    if (c instanceof SsrfError) return c
+    c = (c as { cause?: unknown }).cause
+  }
+  return null
+}
+
+async function pinnedFetch(url: URL, init: RequestInit): Promise<Response> {
+  try {
+    // undici's own fetch, not the global: a v7 Agent handed to Node 22's built-in
+    // (v6) fetch is a version-skew bug waiting to happen.
+    const res = await undiciFetch(url, { ...init, dispatcher: ssrfDispatcher() } as UndiciRequestInit)
+    return res as unknown as Response
+  } catch (e) {
+    throw ssrfCause(e) ?? e
+  }
 }
 
 export type SafeFetchOptions = UrlGuardOptions & {
@@ -256,7 +337,7 @@ export async function safeFetch(rawUrl: string, init: RequestInit = {}, opts: Sa
   let headers = new Headers(init.headers)
   let url = await assertFetchableUrl(rawUrl, opts)
   for (let hop = 0; ; hop++) {
-    const res = await fetch(url, { ...init, headers, redirect: 'manual', signal })
+    const res = await pinnedFetch(url, { ...init, headers, redirect: 'manual', signal })
     const isRedirect = res.status >= 300 && res.status < 400 && res.headers.has('location')
     if (!isRedirect) return capResponseBody(res, maxBytes)
     if (hop >= maxRedirects) {

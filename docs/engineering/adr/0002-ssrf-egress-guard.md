@@ -73,8 +73,15 @@ Re-audited the guard ahead of building the P2c Realscript brand adapter — the 
 
 **Still binding for P2c:** construct the brand client with `assertSafeUrl(REALSCRIPT_BASE_URL, { allowHosts: [<operator-set>] })`, and fetch **every** asset through `safeFetch` at fetch time — the sync `assertSafeUrl` is a persist-time advisory only (it does no DNS, so alternate IP encodings like `http://2130706433/` pass it; only the `safeFetch`/`assertFetchableUrl` DNS step catches them). Never let a stored "already validated" URL bypass the fetch-time guard.
 
+## Update — connect-time IP pinning (2026-10-13)
+`safeFetch` now sends every request through a shared undici `Agent` whose `connect.lookup` (`makeGuardedLookup`) resolves the name, runs the **same** `assertRoutableAddresses` check as the pre-flight, and hands the socket the address it just validated. There is no second resolution left to race, and every redirect hop opens a new connection through the same lookup. SNI and the `Host` header are untouched because the URL still carries the hostname. The pre-flight `assertFetchableUrl` stays for early, typed errors; the connect-time lookup is what enforces. A lookup failure surfaces from undici as `TypeError: fetch failed` with the `SsrfError` on `.cause`, and `safeFetch` unwraps it so callers still switch on `SsrfError.reason`.
+
+**This is the exception to the no-new-dep posture above.** Node's built-in `fetch` has no connect hook; the only supported seam is a `dispatcher`, and an `Agent` comes from the `undici` package. It is added as a direct, exact-pinned dependency (it was already present transitively through `cheerio`, but that is a dev-only path the production image prunes). The package's own `fetch` is used with it, not the global one, because Node 22 embeds undici 6 and handing it a v7 `Agent` is a version-skew trap.
+
+Verified by `bun run verify:ssrf`: fake-resolver tests of the lookup (both the `all: true` and single-address callback shapes, and a first-public-then-internal rebinding sequence), plus a real loopback HTTP server that receives zero requests when reached through the dispatcher directly, i.e. with the pre-flight bypassed.
+
 ## Open / deferred
 
-- **DNS-rebinding TOCTOU (residual).** Step 5 resolves the name and step 6's `fetch` resolves it again, so a sub-TTL rebind racing the timeout could in principle slip an internal IP past validation. Closing it fully needs a custom undici dispatcher that pins the validated IP while preserving TLS SNI. The common vectors (direct internal literal, DNS-to-internal, redirect-to-internal, credential-leaking redirect) are closed; rebinding requires attacker-controlled authoritative DNS flipping inside the timeout window, and after the 2026-07-11 pass the payoff is bounded (the API base is pinned by `allowHosts`; asset fetches carry no secret). Tracked as a follow-up; revisit if the threat model warrants pinning.
-- **Platform-layer egress controls** (cluster NetworkPolicy / egress firewall) as defense in depth — Rook.
+- ~~**DNS-rebinding TOCTOU (residual).**~~ Closed 2026-10-13, see the update below.
+- **Platform-layer egress controls** (cluster NetworkPolicy / egress firewall) as defense in depth — Rook. Lives in the `sector137-infra` repo, not here; still the backstop behind this module.
 - **Operator opt-out for self-host LAN references**, only if a real user needs it.
