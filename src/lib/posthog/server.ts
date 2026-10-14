@@ -1,4 +1,5 @@
 import { PostHog } from 'posthog-node'
+import { isAnalyticsOptedOut } from '~/lib/db/user-settings'
 
 // Server-side product analytics for the MCP layer — the highest-value KPIs, since
 // the app holds no in-app AI and everything the model builds flows through MCP
@@ -17,10 +18,27 @@ function get(): PostHog | null {
   return client
 }
 
-/** Enqueue an event. Wrapped so analytics can NEVER break a tool call. */
+/**
+ * Whether `distinctId` (a Better Auth user id) has left server analytics on. The
+ * /account switch persists to user_settings, so this is the same choice the browser
+ * honours. Fails CLOSED: if the lookup throws we send nothing rather than guess.
+ */
+export function serverAnalyticsAllowed(distinctId: string): boolean {
+  try {
+    return !isAnalyticsOptedOut(distinctId)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Enqueue an event. Wrapped so analytics can NEVER break a tool call. Every server
+ * emit funnels through here, so the per-user opt-out is enforced in this one place.
+ */
 export function captureServer(distinctId: string, event: string, properties: Record<string, unknown>): void {
   const c = get()
   if (!c) return
+  if (!serverAnalyticsAllowed(distinctId)) return
   try {
     c.capture({ distinctId, event, properties })
   } catch {

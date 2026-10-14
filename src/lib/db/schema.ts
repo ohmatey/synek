@@ -248,6 +248,11 @@ export const userSettings = sqliteTable('user_settings', {
   openRouterKeyPrefix: text('openrouter_key_prefix'),
   // The user's chosen OpenRouter model slug; null → fall back to the env default.
   agentModel: text('agent_model'),
+  // Server-side product-analytics opt-out. The /account toggle used to flip only the
+  // browser's localStorage, so the MCP layer's `mcp_tool_called` (PostHog, server) kept
+  // firing for a user who had switched analytics off. Default false = opted in, the
+  // same opt-OUT posture as the browser; key-gated on POSTHOG_API_KEY either way.
+  analyticsOptOut: integer('analytics_opt_out', { mode: 'boolean' }).notNull().default(false),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(now).notNull(),
 })
 

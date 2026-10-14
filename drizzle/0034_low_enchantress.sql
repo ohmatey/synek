@@ -1,0 +1,1 @@
+ALTER TABLE `user_settings` ADD `analytics_opt_out` integer DEFAULT false NOT NULL;

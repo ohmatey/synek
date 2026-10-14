@@ -62,23 +62,33 @@ export function listProjects(ownerId: string): ProjectRow[] {
 // Create a project owned by `ownerId`. Slug is slugified-from-title + deduped.
 // Slice 1 only ever writes kind='nonfiction' (the column default); the param is
 // here so P4 (fiction) is additive.
+//
+// uniqueSlug is a probe-then-insert, so two processes sharing the DB file could pick
+// the same slug and the loser would die on the unique index. BEGIN IMMEDIATE holds
+// the write lock across probe + insert (and nests as a savepoint inside
+// ensureDefaultProject's own transaction). better-sqlite3 has one connection, so the
+// db.* calls inside run inside the transaction.
 export function createProject(
   title: string,
   ownerId: string,
   opts: { kind?: ProjectKind; description?: string | null; theme?: TimelineTheme | null } = {},
 ): ProjectRow {
-  return db
-    .insert(projects)
-    .values({
-      title,
-      ownerId,
-      slug: uniqueSlug(title),
-      kind: opts.kind ?? 'nonfiction',
-      description: opts.description ?? null,
-      theme: opts.theme ?? null,
-    })
-    .returning()
-    .get()
+  return db.transaction(
+    () =>
+      db
+        .insert(projects)
+        .values({
+          title,
+          ownerId,
+          slug: uniqueSlug(title),
+          kind: opts.kind ?? 'nonfiction',
+          description: opts.description ?? null,
+          theme: opts.theme ?? null,
+        })
+        .returning()
+        .get(),
+    { behavior: 'immediate' },
+  )
 }
 
 // One project row by id, or null. NOT owner-scoped — callers own-check via the
@@ -162,18 +172,26 @@ export function deleteProject(id: string, ownerId: string): void {
 // owner's newest existing project, else creates "My first project" (matching the
 // migration's default title) and returns its id.
 //
-// NOTE: idempotent in steady state (returns the existing one), but if called
-// concurrently for an owner with NO project it could create two — acceptable for
-// slice 1 (one primary writer at a time; the backfill already seeds upgraders).
+// Atomic across processes: the app and the stdio MCP server can both open the same
+// SQLite file, and "read: none yet" then "insert" is a check-then-act, so two first
+// calls for one owner could each create a project. BEGIN IMMEDIATE takes the write
+// lock before the read, so the second writer waits (busy_timeout) for the first to
+// commit and then SEES its row. (A unique index can't express this: an owner may
+// legitimately hold many projects, so "exactly one default" has no column to key on.)
 export function ensureDefaultProject(ownerId: string): string {
-  const existing = db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.ownerId, ownerId))
-    .orderBy(desc(projects.createdAt))
-    .get()
-  if (existing) return existing.id
-  return createProject('My first project', ownerId).id
+  return db.transaction(
+    () => {
+      const existing = db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(eq(projects.ownerId, ownerId))
+        .orderBy(desc(projects.createdAt))
+        .get()
+      if (existing) return existing.id
+      return createProject('My first project', ownerId).id
+    },
+    { behavior: 'immediate' },
+  )
 }
 
 // The shared owner guard for projects — a project id must exist and belong to

@@ -10,7 +10,9 @@ export function getUserSettingsRow(userId: string): UserSettingsRow | null {
   return db.select().from(userSettings).where(eq(userSettings.userId, userId)).get() ?? null
 }
 
-type SettingsPatch = Partial<Pick<UserSettingsRow, 'openRouterKeyEnc' | 'openRouterKeyPrefix' | 'agentModel'>>
+type SettingsPatch = Partial<
+  Pick<UserSettingsRow, 'openRouterKeyEnc' | 'openRouterKeyPrefix' | 'agentModel' | 'analyticsOptOut'>
+>
 
 // Upsert the given columns for a user (insert the row on first write, else update).
 function upsert(userId: string, patch: SettingsPatch): void {
@@ -31,4 +33,20 @@ export function clearUserOpenRouterKey(userId: string): void {
 
 export function setUserAgentModel(userId: string, model: string | null): void {
   upsert(userId, { agentModel: model })
+}
+
+// Server-side analytics opt-out. No row (or a row from before the column) reads as
+// opted IN, the product's default; the browser mirrors this in localStorage.
+export function isAnalyticsOptedOut(userId: string): boolean {
+  return (
+    db
+      .select({ off: userSettings.analyticsOptOut })
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId))
+      .get()?.off ?? false
+  )
+}
+
+export function setUserAnalyticsOptOut(userId: string, optOut: boolean): void {
+  upsert(userId, { analyticsOptOut: optOut })
 }
