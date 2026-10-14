@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm'
-import { z } from 'zod'
 import { db } from '../src/lib/db'
 import { user } from '../src/lib/db/schema'
 import { auth } from '../src/lib/auth'
-import { toolRegistry, makeRequireOwned, type ToolCtx, type ToolDef } from '../src/lib/mcp/registry'
+import { makeRequireOwned, type ToolCtx } from '../src/lib/mcp/registry'
+import { tool, ToolInputError } from './lib/tool-call'
 import { makeRequireOwnedProject } from '../src/lib/db/projects'
 
 // The read-then-patch loop an EXTERNAL MCP client has to be able to run: find a
@@ -23,7 +23,9 @@ function assert(cond: boolean, msg: string) {
 async function denied(label: string, fn: () => Promise<unknown>) {
   try {
     await fn()
-  } catch {
+  } catch (e) {
+    // A payload the schema rejects is a broken check, not a denial.
+    if (e instanceof ToolInputError) throw e
     console.log(`  ✓ denied: ${label}`)
     return
   }
@@ -37,20 +39,10 @@ async function ensureUser(email: string): Promise<string> {
   if (!row) throw new Error(`no user ${email}`)
   return row.id
 }
-const tool = (name: string): ToolDef => {
-  const t = toolRegistry.find((x) => x.name === name)
-  if (!t) throw new Error(`tool ${name} not found`)
-  return t
-}
-// Call a tool THE WAY A CLIENT DOES: validate the args against the tool's own
-// inputSchema first, then run the handler on the PARSED args — the MCP SDK
-// (registerTool) and the agent runner (runner.ts) both do exactly this. Calling the
-// handler directly would skip the Zod boundary, which is where a field the schema
-// forgot gets silently stripped — the bug this script exists to catch.
-const call = async (name: string, args: unknown, ctx: ToolCtx): Promise<any> => {
-  const t = tool(name)
-  return t.handler(z.object(t.inputSchema).parse(args), ctx)
-}
+// Call a tool THE WAY A CLIENT DOES: the shared wrapper parses the args through the
+// tool's own inputSchema (as the MCP SDK and the agent runner do) and also fails on
+// any key the parse would silently drop, which is the bug this script exists to catch.
+const call = async (name: string, args: unknown, ctx: ToolCtx): Promise<any> => tool(name).handler(args, ctx)
 
 type Citation = { artifactId?: string; excerptUsed?: string; title?: string; quote?: string }
 type Beat = { id: string; sequence: number; bodyText: string; citations?: Citation[] }
