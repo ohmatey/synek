@@ -1,18 +1,20 @@
 ---
 project: "Synek"
 doc: deploy
-target: sector137 cluster (loha / GitOps)
-status: runbook (Phase 2 — hosted, single-instance SQLite, GitOps via ArgoCD)
-updated: 2026-06-19
+target: sector137 cluster (GitOps; manual image build)
+status: runbook (Phase 2 — hosted, single-instance SQLite, GitOps via ArgoCD). No CI deploy path as of 2026-10-13, see Status
+updated: 2026-10-13
 owner: Rook (platform) · Kael (eng)
 supersedes: deploy-fly.md (Fly.io — retired 2026-06-19, founder decision)
 ---
 
 # Deploying hosted Synek on the sector137 cluster
 
+> **Status (2026-10-13).** There is **no build/deploy pipeline**: Loha and Tekton were decommissioned on 2026-09-23/24, so nothing builds or rolls out an image automatically. A release is a manual image build and push followed by a `newTag` bump in `sector137-infra` (step 3). Production is pinned to `3bc19cae`; `main` is ahead of it (migration 0033 and later are undeployed). The instance at `synek.sector137.io` is currently **down** (homelab Cloudflare tunnel, error 1033), so a deploy needs the tunnel restored first. This runbook's cluster-side steps (1, 2, 4 to 6) are unchanged; step 3 was rewritten.
+
 ## TLDR
 
-Hosted Synek runs on **the sector137 Kubernetes cluster** (the platform Aaron owns), delivered by **GitOps**: the deployment manifests live in the platform repo (`sector137-infra`), ArgoCD reconciles the cluster to them, and a sealed-secret carries the secrets. The app itself is unchanged — it is the existing single-user SQLite-on-a-volume [Dockerfile](../../Dockerfile) (migrate-on-boot, Node ABI for better-sqlite3), now built by **loha** into the cluster's Forgejo registry and rolled out by **ArgoCD Image Updater**.
+Hosted Synek runs on **the sector137 Kubernetes cluster** (the platform Aaron owns), delivered by **GitOps**: the deployment manifests live in the platform repo (`sector137-infra`), ArgoCD reconciles the cluster to them, and a sealed-secret carries the secrets. The app itself is unchanged — it is the existing single-user SQLite-on-a-volume [Dockerfile](../../Dockerfile) (migrate-on-boot, Node ABI for better-sqlite3), built by hand into the cluster's Forgejo registry and rolled out by bumping the image tag in the overlay (ArgoCD then syncs it).
 
 The public origin is **`https://synek.sector137.io`**. Auth is per-user (open signup + email verification via Resend). The in-app agent is **per-user BYO OpenRouter key** by default — the operator does NOT set `OPENROUTER_API_KEY` unless they choose to fund a built-in agent.
 
@@ -30,7 +32,7 @@ The public origin is **`https://synek.sector137.io`**. Auth is per-user (open si
 | Thing | Location |
 |---|---|
 | App source + Dockerfile | this repo (`strata` / Synek) |
-| loha CI pipeline (`.loha.yml`) | this repo — builds `git.sector137.io/sector137/synek-app` |
+| CI gate (`.github/workflows/ci.yml`) | this repo — build, typecheck, unit tests only; **builds no image** |
 | GitOps manifests (overlay) | `sector137-infra` → `kubernetes/overlays/synek/` |
 | ArgoCD Application | `sector137-infra` → `argocd/applications/apps/synek.yaml` |
 | Sealed-secrets cert (to seal against) | `sector137-infra` → `scripts/sealed-secrets-cert.pem` |
@@ -141,9 +143,24 @@ grep -L encryptedData kubernetes/overlays/synek/secrets/*.yaml
 
 (That should print nothing — every file under `secrets/` must contain `encryptedData`.)
 
-### 3. Register the loha build pipeline
+### 3. Build and push the image, then bump the tag (manual)
 
-This repo (Synek) carries `.loha.yml` at its root — it builds `git.sector137.io/sector137/synek-app` on every push to `main`. In the loha UI (`loha.sector137.io`), connect the Synek source repo so the pipeline is registered. The first `main` build pushes the image; ArgoCD Image Updater then writes the resolved tag back into `kubernetes/overlays/synek/kustomization.yaml`.
+There is no pipeline; this is done by hand. The image name below is the one the retired `.loha.yml` pushed. Confirm it against `kubernetes/overlays/synek/kustomization.yaml` and that `git.sector137.io` is still the registry in use (unverified as of 2026-10-13).
+
+The cluster is amd64, so build for that platform explicitly (an Apple-silicon default build will not run there). Log in once, then build and push in one step, replacing TAG with the short commit sha:
+
+```
+docker login git.sector137.io
+```
+```
+docker buildx build --platform linux/amd64 --tag git.sector137.io/sector137/synek-app:TAG --push .
+```
+
+Then, in `sector137-infra`, set `newTag` for the `synek-app` image in `kubernetes/overlays/synek/kustomization.yaml` to the same TAG, commit and push. ArgoCD syncs the overlay and the `Recreate` rollout replaces the pod. Migrations run on boot and fail loud, so watch the first boot log.
+
+Unverified: whether ArgoCD Image Updater (which used to write this tag back after each Loha build) is still running for the `synek` app. If it is, it may overwrite a hand-set tag; check its annotations on `argocd/applications/apps/synek.yaml`.
+
+Known gap: the Dockerfile copies only `package.json` and runs `npm install`, so the committed `package-lock.json` is not used by the image build. A floating dependency has crash-looped production before. Switching it to `COPY package.json package-lock.json` plus `npm ci` makes the image match what CI tests.
 
 ### 4. Commit + push the overlay + Application
 

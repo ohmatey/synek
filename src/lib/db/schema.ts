@@ -622,7 +622,7 @@ export const storySegments = sqliteTable('story_segments', {
   lens: text('lens', { enum: STORY_LENSES }),
   // S2 slice 1 — per-beat source grounding. Same shape as a node's
   // `metadata.citations` (Citation), stored inline as JSON (no join table yet —
-  // see .can/prd/s2-artifact-grounding.md for the deferred normalized model).
+  // see docs/product/prd/s2-artifact-grounding.md for the deferred normalized model).
   citations: text('citations', { mode: 'json' }).$type<Citation[]>(),
   // Optional art for this beat; `layout` picks the reader treatment
   // (full / inset-left / inset-right / bleed). Sourced like node images: a
