@@ -676,6 +676,21 @@ export function getStoryById(storyId: string): StoryDTO | null {
   return story ? hydrateStory(story) : null
 }
 
+// The chapter-level fields StoryDTO deliberately omits (the reader never needs
+// them; an MCP client reading a chapter back does): publish state and where the
+// story sits in its series. Returns null when the story doesn't exist.
+export function getStoryChapterMeta(
+  storyId: string,
+): { status: StoryStatus; seriesId: string | null; chapterNumber: number | null } | null {
+  return (
+    db
+      .select({ status: stories.status, seriesId: stories.seriesId, chapterNumber: stories.chapterNumber })
+      .from(stories)
+      .where(eq(stories.id, storyId))
+      .get() ?? null
+  )
+}
+
 // Raw fields needed to resolve a story's effective brand (the cascade walks
 // story.brandId ?? series.brandId ?? project.brandId). Returns null when missing.
 export function getStoryBrandContext(

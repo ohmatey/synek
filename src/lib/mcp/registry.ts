@@ -36,6 +36,8 @@ import {
   storyHistoryState,
   getMomentTimelineId,
   getStoriesForMoment,
+  getStoryById,
+  getStoryChapterMeta,
   storyDepthByMoment,
   setStoryTheme,
   setStoryBrand,
@@ -225,6 +227,38 @@ const storyBeatInput = z.object({
     .optional()
     .describe('Optional LIVE widget for this beat (a mini timeline / globe / entity card from node ids).'),
 })
+
+// A story's cast — the shared shape write_story and patch_story's update_meta both
+// accept. Extracted so the two never drift (they did: update_meta advertised `cast`
+// but had no field for it, so a client's cast silently vanished at the Zod boundary).
+const storyCastInput = z.array(
+  z.object({
+    nodeId: z.string().optional().describe('The cast member\'s node on this timeline (preferred).'),
+    name: z.string().optional().describe('Name only — flags a character who has no node yet.'),
+    role: z.string().optional().describe('Their role in this story ("the prefect", "the witness").'),
+  }),
+)
+
+// The warnings a cast earns, shared by both writers: a node-backed member must
+// actually be a node on this timeline; a name-only member has no node yet.
+function castWarnings(cast: { nodeId?: string; name?: string }[] | null | undefined, nodeIds: Set<string>): string[] {
+  const out: string[] = []
+  const nodeless: string[] = []
+  for (const member of cast ?? []) {
+    if (member.nodeId && !nodeIds.has(member.nodeId)) {
+      out.push(`cast member "${member.name ?? member.nodeId}": nodeId is not a node on this timeline`)
+    } else if (!member.nodeId && member.name) {
+      nodeless.push(member.name)
+    }
+  }
+  if (nodeless.length) {
+    out.push(
+      `cast members without nodes: ${nodeless.join(', ')} — add them as entity nodes via apply_patch so ` +
+        'readers can click and tour them, then attach their nodeIds (patch_story update_meta cast, or write_story with the same storyId)',
+    )
+  }
+  return out
+}
 
 // The viewer/home URL for a project — slug-addressable (D6).
 const projectUrl = (p: { slug: string }) => `${BASE_URL}/p/${p.slug}`
@@ -459,7 +493,8 @@ export const toolRegistry: ToolDef[] = [
     title: 'Get one node in full',
     description:
       'Everything about ONE node: all fields (summary, citations, images, lane, location), its edges with the ' +
-      'other endpoint\'s title, and the stories attached to it. The context-cheap companion to query_timeline — ' +
+      'other endpoint\'s title, and the stories attached to it (meta + beat COUNT — read a story\'s beats, with ' +
+      'the ids patch_story edits by, via get_story). The context-cheap companion to query_timeline — ' +
       'query for ids, then drill in here.',
     inputSchema: { nodeId: z.string() },
     handler: async ({ nodeId }, { ownerId }) => {
@@ -696,6 +731,76 @@ export const toolRegistry: ToolDef[] = [
   },
 
   {
+    name: 'get_story',
+    title: 'Read one story back',
+    description:
+      'Read ONE story (chapter) in full: its meta (title, hook, status, isPublic, series placement, cast, cover, theme) ' +
+      'and its beats IN ORDER, each with its `id`. Those beat ids are the `segmentId` patch_story needs — this is the ' +
+      'ONLY read that returns them, so call it before editing a beat (fix a typo, re-image a beat, reorder, delete). ' +
+      'Find story ids with get_node (a moment\'s `stories`) or get_series (a season\'s chapters). Beats come back in ' +
+      'the shape patch_story accepts, so you can re-send one verbatim; `url` is the public /s/ link, null while the ' +
+      'story is private. Bounded by one story — cheap next to get_timeline.',
+    inputSchema: { storyId: z.string() },
+    handler: async ({ storyId }, { ownerId }) => {
+      // Same owner check the other story tools run: resolve the story's timeline
+      // and compare owners, reporting a missing story rather than leaking the timeline.
+      const timelineId = getStoryTimelineId(storyId)
+      const meta = timelineId ? getTimelineMeta(timelineId) : null
+      if (!timelineId || !meta || meta.ownerId !== ownerId) throw new Error(`story "${storyId}" not found`)
+      const story = getStoryById(storyId)!
+      const chapter = getStoryChapterMeta(storyId)!
+      return {
+        storyId: story.id,
+        slug: story.slug,
+        timelineId,
+        momentId: story.momentId,
+        title: story.title,
+        hook: story.hook,
+        povType: story.povType,
+        depthTier: story.depthTier,
+        estimatedMinutes: story.estimatedMinutes,
+        status: chapter.status,
+        isPublic: story.isPublic,
+        seriesId: chapter.seriesId,
+        chapterNumber: chapter.chapterNumber,
+        coverImage: story.coverImage,
+        cast: story.cast,
+        theme: story.theme,
+        // The standalone share page is gated on the story's OWN isPublic, so while
+        // it's private that link 404s — report null rather than hand a client a dead
+        // URL to pass on. Publish it (patch_story update_meta isPublic) to get one.
+        url: story.isPublic ? `${BASE_URL}/s/${story.slug}` : null,
+        beatCount: story.beats.length,
+        // Ordered by sequence, ids first: an agent reads `id` → patch_story segmentId.
+        // Empty/unset beat fields are omitted to keep a long chapter context-cheap.
+        beats: story.beats.map((b) => ({
+          id: b.id,
+          sequence: b.sequence,
+          kind: b.kind,
+          bodyText: b.bodyText,
+          ...(b.settingNote ? { settingNote: b.settingNote } : {}),
+          ...(b.focusNodeId ? { focusNodeId: b.focusNodeId } : {}),
+          ...(b.lens ? { lens: b.lens } : {}),
+          ...(b.relatedNodeIds.length ? { relatedNodeIds: b.relatedNodeIds } : {}),
+          // Emit citations in the shape patch_story ACCEPTS, so re-sending a beat's
+          // citations (they replace, not merge) round-trips losslessly. The reader's
+          // DTO projects an artifact-backed citation's excerpt into `quote`, which
+          // patch_story's artifact branch would drop — carry `excerptUsed` too.
+          ...(b.citations.length
+            ? {
+                citations: b.citations.map((c) =>
+                  c.artifactId ? { artifactId: c.artifactId, excerptUsed: c.quote ?? undefined, title: c.title } : c,
+                ),
+              }
+            : {}),
+          ...(b.image ? { image: b.image } : {}),
+          ...(b.widget ? { widget: b.widget } : {}),
+        })),
+      }
+    },
+  },
+
+  {
     name: 'write_story',
     title: 'Write a story onto a moment',
     description:
@@ -713,14 +818,7 @@ export const toolRegistry: ToolDef[] = [
       coverImage: storyImageInput
         .optional()
         .describe('Cover art shown on the reader\'s opening panel (layout ignored).'),
-      cast: z
-        .array(
-          z.object({
-            nodeId: z.string().optional().describe('The cast member\'s node on this timeline (preferred).'),
-            name: z.string().optional().describe('Name only — flags a character who has no node yet.'),
-            role: z.string().optional().describe('Their role in this story ("the prefect", "the witness").'),
-          }),
-        )
+      cast: storyCastInput
         .optional()
         .describe(
           'The story\'s characters. Node-backed members are clickable and tourable; name-only members produce a ' +
@@ -789,20 +887,7 @@ export const toolRegistry: ToolDef[] = [
           }
         }
       })
-      const nodeless: string[] = []
-      for (const member of cast ?? []) {
-        if (member.nodeId && !nodeIds.has(member.nodeId)) {
-          warnings.push(`cast member "${member.name ?? member.nodeId}": nodeId is not a node on this timeline`)
-        } else if (!member.nodeId && member.name) {
-          nodeless.push(member.name)
-        }
-      }
-      if (nodeless.length) {
-        warnings.push(
-          `cast members without nodes: ${nodeless.join(', ')} — add them as entity nodes via apply_patch so ` +
-            'readers can click and tour them, then update this story (same storyId) with their nodeIds',
-        )
-      }
+      warnings.push(...castWarnings(cast, nodeIds))
       const imageUrls = [
         ...(coverImage ? [coverImage.url] : []),
         ...segments.flatMap((s: any) => (s.image ? [s.image.url] : [])),
@@ -884,7 +969,7 @@ export const toolRegistry: ToolDef[] = [
     name: 'patch_story',
     title: 'Edit a story surgically',
     description:
-      'Apply a BATCH of edits to ONE existing story (chapter) without rewriting it — the surgical companion to write_story (which REPLACES a whole story). One call = one atomic transaction of `ops`: `add_segment` (insert a beat, optionally `at` an index — default append), `update_segment` (patch named fields of a beat by `segmentId` — only the fields you pass change), `delete_segment` (remove a beat by `segmentId`), `reorder_segments` (set the full beat order by id), and `update_meta` (change title/hook/cast/coverImage/theme/status/isPublic). Beat ids come from get_timeline / the story DTO. Use this to fix a typo, add a beat, or reorder — instead of resending every beat. Returns `warnings` (dangling node ids, broken image URLs, bad theme contrast) + the new `segmentCount`; the edit is SAVED regardless. NOT on the undo/redo stack.',
+      'Apply a BATCH of edits to ONE existing story (chapter) without rewriting it — the surgical companion to write_story (which REPLACES a whole story). One call = one atomic transaction of `ops`: `add_segment` (insert a beat, optionally `at` an index — default append), `update_segment` (patch named fields of a beat by `segmentId` — only the fields you pass change), `delete_segment` (remove a beat by `segmentId`), `reorder_segments` (set the full beat order by id), and `update_meta` (change title/hook/cast/coverImage/theme/status/isPublic). The `segmentId` ops need beat ids — get them from **get_story** (the only read that returns them: call it on the story first, then patch by id). Use this to fix a typo, add a beat, or reorder — instead of resending every beat. Returns `warnings` (dangling node ids, broken image URLs, bad theme contrast) + the new `segmentCount`; the edit is SAVED regardless. NOT on the undo/redo stack.',
     inputSchema: {
       storyId: z.string(),
       ops: z
@@ -911,6 +996,9 @@ export const toolRegistry: ToolDef[] = [
                 .object({
                   title: z.string().optional(),
                   hook: z.string().nullable().optional(),
+                  // Replaces the whole cast (null clears it) — the surgical way to
+                  // attach the nodeIds write_story warned were missing.
+                  cast: storyCastInput.nullable().optional(),
                   coverImage: storyImageInput.nullable().optional(),
                   theme: timelineThemeSchema.nullable().optional(),
                   isPublic: z.boolean().optional(),
@@ -945,6 +1033,7 @@ export const toolRegistry: ToolDef[] = [
         if (o.op === 'update_meta') {
           if (o.meta.coverImage?.url) imageUrls.push(o.meta.coverImage.url)
           if (o.meta.theme) warnings.push(...themeContrastWarnings(o.meta.theme))
+          if (o.meta.cast) warnings.push(...castWarnings(o.meta.cast, nodeIds))
           return { op: 'update_meta', meta: o.meta }
         }
         if (o.op === 'delete_segment') return { op: 'delete_segment', segmentId: o.segmentId }
@@ -1078,7 +1167,7 @@ export const toolRegistry: ToolDef[] = [
     name: 'get_series',
     title: 'Get a series + its coverage',
     description:
-      'Read a series in order — the anti-duplication watermark for writing the next chapter (ADR 0006). Returns the series meta, its chapters ordered by chapterNumber (id, title, hook, status, isPublic, momentId, and the node ids each chapter already references), and a DERIVED `frontier` (the highest chapterNumber and the latest instant any covered node sits at). Read this BEFORE writing the next chapter so you enrich/advance instead of repeating. Pair it with get_layout_report (the graph-side watermark).',
+      'Read a series in order — the anti-duplication watermark for writing the next chapter (ADR 0006). Returns the series meta, its chapters ordered by chapterNumber (id, title, hook, status, isPublic, momentId, and the node ids each chapter already references — read one chapter\'s beats with get_story), and a DERIVED `frontier` (the highest chapterNumber and the latest instant any covered node sits at). Read this BEFORE writing the next chapter so you enrich/advance instead of repeating. Pair it with get_layout_report (the graph-side watermark).',
     inputSchema: { seriesId: z.string() },
     handler: async ({ seriesId }, { ownerId }) => {
       makeRequireOwnedSeries(ownerId)(seriesId)

@@ -2,7 +2,7 @@
 name: story
 description: "Tell an immersive Synek story on a timeline moment: cast, cited beats, camera choreography across the globe and timeline, and an optional share link. Use when the user runs /synek:story, asks to tell / narrate / write a story about a topic or a moment on a timeline, to turn a timeline into a story, or to make a shareable story. Standalone stories only. For serialized chapters use /synek:next-chapter; for brand voice use /synek:brand-story."
 argument-hint: <topic or moment>  (e.g. "the fall of Constantinople" or "the ChatGPT launch on my AI timeline")
-allowed-tools: ["mcp__plugin_synek_synek__list_timelines", "mcp__plugin_synek_synek__create_timeline", "mcp__plugin_synek_synek__query_timeline", "mcp__plugin_synek_synek__get_node", "mcp__plugin_synek_synek__apply_patch", "mcp__plugin_synek_synek__write_story", "mcp__plugin_synek_synek__patch_story", "mcp__plugin_synek_synek__set_story_theme", "mcp__plugin_synek_synek__set_timeline_theme", "mcp__plugin_synek_synek__register_artifact", "mcp__plugin_synek_synek__search_artifacts", "WebSearch", "WebFetch"]
+allowed-tools: ["mcp__plugin_synek_synek__list_timelines", "mcp__plugin_synek_synek__create_timeline", "mcp__plugin_synek_synek__query_timeline", "mcp__plugin_synek_synek__get_node", "mcp__plugin_synek_synek__apply_patch", "mcp__plugin_synek_synek__get_story", "mcp__plugin_synek_synek__write_story", "mcp__plugin_synek_synek__patch_story", "mcp__plugin_synek_synek__set_story_theme", "mcp__plugin_synek_synek__set_timeline_theme", "mcp__plugin_synek_synek__register_artifact", "mcp__plugin_synek_synek__search_artifacts", "WebSearch", "WebFetch"]
 ---
 
 # /synek:story: tell the story of $ARGUMENTS
@@ -30,7 +30,7 @@ Read the `building-timelines` skill first. It has the `apply_patch` op shapes (f
 
 4. **Dress it (optional, high-impact).** `set_story_theme` gives *this* story its own look in the reader (falls back to the timeline's theme when unset); `set_timeline_theme` dresses the whole canvas. Both return WCAG-contrast warnings. Adjust until clean, and surface any you can't clear.
 
-5. **Fix surgically.** A typo, a missing beat, a reorder → `patch_story` with targeted ops, not a full `write_story` rewrite.
+5. **Fix surgically.** A typo, a missing beat, a reorder → `patch_story` with targeted ops, not a full `write_story` rewrite. Its `update_segment`/`delete_segment`/`reorder_segments` ops key off **beat ids**: read them first with **`get_story`** (`storyId` → the meta + every beat with its `id`, in order). That's the only read that returns them: `get_node` gives you the story id and a beat *count*, not the ids.
 
 6. **Hand it back, then offer the share.** Give the canvas link (the timeline `url`; the story plays from the moment's badge). If the user wants to share it publicly, **confirm first** (public means anyone with the link), then `patch_story` `update_meta { isPublic: true }` and hand back `<origin>/s/<slug>` (the slug is on the story in `get_node`'s `stories`). Never publish unasked.
 
