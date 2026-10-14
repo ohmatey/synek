@@ -2,6 +2,7 @@ import { BookOpen, Box, Building2, Layers, Lightbulb, MapPin, User, Zap } from '
 import { cn } from '~/lib/utils'
 import type { GraphNode } from '~/lib/domain/types'
 import { formatInstantRange } from '~/lib/domain/dates'
+import { safeImage } from '~/lib/domain/images'
 
 // A read-only entity card — the `entity` beat widget. Standalone (no React Flow):
 // a framed image (portrait/landscape) or a typed placeholder, the title, a
@@ -32,7 +33,7 @@ function typeLabel(n: GraphNode): string {
 
 export function EntityCardWidget({ node }: { node: GraphNode }) {
   const Icon = typeIcon(node)
-  const img = node.images?.[0]
+  const img = safeImage(node.images?.[0])
   const portrait = img?.aspect === 'portrait'
   const dateline = formatInstantRange(node.startInstant, node.endInstant, node.precision, node.endInstant != null)
 

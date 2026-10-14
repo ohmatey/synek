@@ -10,6 +10,7 @@ import { SeriesSpine, type SpineChapter } from '~/components/public/SeriesSpine'
 import { FollowSeriesButton } from '~/components/public/FollowSeriesButton'
 import { resolveThemeVars } from '~/lib/theme/resolveTimelineTheme'
 import type { PublicStoryDTO } from '~/lib/domain/types'
+import { safeImageUrl } from '~/lib/domain/images'
 
 // The PUBLIC, no-auth shareable SERIES page (/sr/$slug) — the "Netflix season"
 // (ADR 0006 D10). SSR-loaded so the OpenGraph tags carry the season into link
@@ -39,7 +40,7 @@ export const Route = createFileRoute('/sr/$slug')({
     }
     const { series, chapters } = loaderData
     const desc = series.hook ?? `A serialized story in ${chapters.length} ${chapters.length === 1 ? 'chapter' : 'chapters'} on Synek.`
-    const img = series.coverImage?.url
+    const img = safeImageUrl(series.coverImage?.url) ?? undefined
     return {
       meta: [
         { title: `${series.title} · Synek` },

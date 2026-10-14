@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BookOpen } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { StoryImage } from '~/lib/domain/types'
+import { safeImage } from '~/lib/domain/images'
 import { timeAgo } from '~/lib/time-ago'
 
 // The book jacket — the series' front face, shared by the public season page and the
@@ -38,14 +39,16 @@ export function SeriesJacket({
     setRel(timeAgo(updatedAt))
   }, [updatedAt])
 
+  const cover = safeImage(coverImage)
+
   const meta =
     `Season · ${chapterCount} ${chapterCount === 1 ? 'chapter' : 'chapters'}` + (rel ? ` · updated ${rel}` : '')
 
   return (
-    <section className="sj-jacket" data-has-cover={coverImage ? '' : undefined} aria-label={`${title} — season cover`}>
-      {coverImage ? (
+    <section className="sj-jacket" data-has-cover={cover ? '' : undefined} aria-label={`${title} — season cover`}>
+      {cover ? (
         <div className="sj-cover" aria-hidden="true">
-          <img src={coverImage.url} alt={coverImage.alt ?? ''} />
+          <img src={cover.url} alt={cover.alt ?? ''} />
         </div>
       ) : (
         <div className="sj-cover sj-cover-fallback" aria-hidden="true">

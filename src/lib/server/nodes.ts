@@ -5,6 +5,7 @@ import { requireUser } from '~/lib/auth/session'
 import { PatchBuilder, commitPatch, type NodePatch } from '~/lib/db/patches'
 import { commitEntityPatch, type EntityContentPatch } from '~/lib/db/entity-patches'
 import { parseDate } from '~/lib/domain/dates'
+import { imageUrlSchema } from '~/lib/domain/images'
 import { CITATION_SOURCE_TYPES } from '~/lib/domain/types'
 import type { NodeMetadata } from '~/lib/db/schema'
 
@@ -32,7 +33,7 @@ const citation = z.object({
 })
 
 const image = z.object({
-  url: z.string(),
+  url: imageUrlSchema,
   alt: z.string().optional(),
   show: z.boolean().optional(),
   aspect: z.enum(['landscape', 'portrait']).optional(),

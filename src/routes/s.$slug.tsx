@@ -5,6 +5,7 @@ import { useTheme } from '@synek/ui'
 import { getPublicStory } from '~/lib/server/stories'
 import { PublicStoryReader } from '~/components/public/PublicStoryReader'
 import { resolveThemeVars } from '~/lib/theme/resolveTimelineTheme'
+import { safeImageUrl } from '~/lib/domain/images'
 
 // The PUBLIC, no-auth shareable story page (/s/$slug). SSR-loaded so the OpenGraph
 // tags below carry the story into link unfurls (ads, email, social) and crawlers,
@@ -20,7 +21,7 @@ export const Route = createFileRoute('/s/$slug')({
     }
     const { story, timelineTitle } = loaderData
     const desc = story.hook ?? `A live, sourced story on ${timelineTitle}.`
-    const img = story.coverImage?.url
+    const img = safeImageUrl(story.coverImage?.url) ?? undefined
     return {
       meta: [
         { title: `${story.title} · Synek` },

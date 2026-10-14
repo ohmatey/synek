@@ -74,6 +74,7 @@ import {
   CITATION_SOURCE_TYPES,
 } from '~/lib/domain/types'
 import { parseDate, formatInstant } from '~/lib/domain/dates'
+import { imageUrlSchema } from '~/lib/domain/images'
 import { BASE_URL } from '~/lib/auth'
 import { timelineThemeSchema } from '~/lib/domain/theme'
 import { timelineMemoryUpdateSchema } from '~/lib/domain/memory'
@@ -150,9 +151,7 @@ const viewerUrl = (id: string) => `${BASE_URL}/timelines/${id}`
 
 // An image on a story (cover) or a beat. `layout` only applies to beats.
 const storyImageInput = z.object({
-  url: z
-    .string()
-    .describe('Public image URL you sourced (Wikimedia art, archival photo) — real URLs only, never invented.'),
+  url: imageUrlSchema.describe('Public image URL you sourced (Wikimedia art, archival photo) — real URLs only, never invented.'),
   alt: z.string().optional().describe('Short caption / alt text.'),
   aspect: z.enum(IMAGE_ASPECTS).optional().describe('"portrait" for tall subjects, "landscape" for wide scenes.'),
   layout: z
@@ -1246,7 +1245,7 @@ export const toolRegistry: ToolDef[] = [
         .enum(CITATION_SOURCE_TYPES)
         .optional()
         .describe('Genre: primary | scholarship | data | press (orthogonal to reliability).'),
-      imageUrl: z.string().optional().describe('A real, web-accessible image of the artifact — never invented.'),
+      imageUrl: imageUrlSchema.optional().describe('A real, web-accessible image of the artifact — never invented.'),
       momentId: z.string().optional().describe('Link the artifact to this moment (node) so it can sit on the canvas.'),
       momentNote: z.string().optional().describe('Why this artifact belongs at this moment.'),
       source: z
