@@ -198,6 +198,10 @@ const citationInput = z.union([
   z.object({
     artifactId: z.string().describe('Id of a registered artifact (from register_artifact / search_artifacts).'),
     excerptUsed: z.string().optional().describe('The passage of the artifact this beat draws on.'),
+    // get_story echoes the artifact's title here so its output is readable. Accepted so
+    // re-sending that output round-trips without a field being stripped; IGNORED on
+    // write (the title lives on the artifact, single-home).
+    title: z.string().optional().describe('Echo of the artifact title from get_story. Ignored on write.'),
   }),
   z.object({
     title: z.string(),
